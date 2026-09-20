@@ -1,0 +1,1 @@
+# archived/MANIFEST.txt — frozen content hashes: "<sha256>  <zone/kind/id.md>". Written at archive time, reviewed like any change.

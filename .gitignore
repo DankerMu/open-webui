@@ -311,3 +311,14 @@ cypress/videos
 cypress/screenshots
 .vscode/settings.json
 .cptr
+
+# AI agent 本地工具（my-agents 安装产物）
+.omp/
+.claude/
+
+# eng-init runtime harness: pidfiles, dev logs, harness DB, UI evidence
+.run/
+
+# Playwright output (eng-init)
+test-results/
+playwright-report/

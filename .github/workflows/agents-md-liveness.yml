@@ -1,0 +1,37 @@
+# Weekly proof that AGENTS.md still matches the Makefile and that every guard
+# still rejects its violation. Inert until the fork has its own remote.
+name: AGENTS.md liveness
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  pull_request:
+    paths: [AGENTS.md, Makefile, constraints.yaml, scripts/**, .git-hooks/**]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  liveness:
+    name: AGENTS.md command table vs Makefile
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/doc-gate.sh
+      - name: Dry-run documented make targets
+        run: |
+          for t in $(grep -oE '`make [A-Za-z0-9_.-]+' AGENTS.md | sed 's/`make //' | sort -u); do
+            make -n "$t" >/dev/null || { echo "::error::make -n $t failed"; exit 1; }
+          done
+
+  guardrail-self-test:
+    name: Guardrail self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash scripts/test-guardrails.sh

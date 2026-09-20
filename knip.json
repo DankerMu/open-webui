@@ -1,0 +1,25 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": [
+		"src/routes/**/+*.{ts,js,svelte}",
+		"src/app.html",
+		"src/lib/workers/**/*.ts",
+		"src/**/*.test.ts",
+		"e2e/**/*.spec.ts",
+		"playwright.config.ts",
+		"vite.config.ts",
+		"svelte.config.js",
+		"scripts/prepare-pyodide.js",
+		"i18next-parser.config.ts"
+	],
+	"project": ["src/**/*.{ts,js,svelte}"],
+	"ignore": ["src/lib/pyodide/**", "src/lib/i18n/**", "static/**", ".svelte-kit/**", "build/**"],
+	"ignoreDependencies": [
+		"@types/*",
+		"eslint-*",
+		"prettier-*",
+		"tailwindcss",
+		"postcss",
+		"autoprefixer"
+	]
+}

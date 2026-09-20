@@ -312,3 +312,7 @@ cypress/screenshots
 
 
 /static/*
+# Playwright output (eng-init)
+test-results/
+playwright-report/
+.run/

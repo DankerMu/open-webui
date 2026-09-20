@@ -1,0 +1,4 @@
+# .tool-versions — single toolchain pin for humans, agents, and CI (mise/asdf/nvm).
+# package.json engines: node >=18.13 <=22 (lockfile needs >=22.12); pyproject requires-python >=3.11,<3.13.
+nodejs 22.23.2
+python 3.12.12

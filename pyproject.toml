@@ -217,6 +217,10 @@ ignore-words-list = 'ans'
 dev = [
     "pytest-asyncio>=1.0.0",
     "ruff>=0.15.5",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "vulture>=2.14",
+    "pre-commit>=4.0",
 ]
 
 [tool.black]
@@ -240,11 +244,12 @@ select = [
   "C90",  # mccabe
   "Q",    # flake8-quotes
   "ICN",  # flake8-import-conventions
+  "T20",  # flake8-print: no print() in server code (use logger)
 ]
 
 # Plugin configs:
 flake8-import-conventions.banned-from = [ "ast", "datetime" ]
 flake8-import-conventions.aliases = { datetime = "dt" }
 flake8-quotes.inline-quotes = "single"
-mccabe.max-complexity = 10
+mccabe.max-complexity = 10  # stricter than constraints.yaml L3 minimum (15); gated on the change scope via scripts/lint-scoped.sh
 pydocstyle.convention = "google"
