@@ -12,19 +12,19 @@ strictness_profile:
     - control: sast
       profile_default: "required (CI block)"
       chosen: "review-only"
-      reason: "no semgrep locally; CodeQL is GitHub-hosted and this fork has no own remote (origin = upstream open-webui/open-webui)"
+      reason: "no semgrep locally; CodeQL not enabled on the fork (DankerMu/open-webui) — re-evaluate when a SAST job is added to ci.yml"
     - control: backend_typecheck
       profile_default: "mypy --strict"
       chosen: "not installed"
       reason: "upstream backend is untyped; even scoped runs drown in import-chain errors. Frontend types covered by svelte-check"
     - control: branch_protection
       profile_default: "gate (required status checks)"
-      chosen: "none"
-      reason: "no fork remote yet — gate impossible; re-evaluate when the fork gets its own GitHub remote"
+      chosen: "gate (classic protection on DankerMu/open-webui main: required check 'All checks passed', strict, enforce_admins, no force-push, no deletion, 0 approvals per governance)"
+      reason: "downgrade closed 2026-09-20 when the fork got its own remote; kept in the ledger for history"
     - control: pr_diff_limit
       profile_default: "block (CI diff-size guard)"
       chosen: "review-only"
-      reason: "CI does not run for this fork (no remote); guard is rendered in ci.yml but inert until then"
+      reason: "ci.yml layer6-diff-size-guard runs on pull_request and is part of the required check; label diff-limit-exempt bypasses it (review-only by label, not by absence)"
     - control: coverage_gate_scope
       profile_default: "80% per-file, block, every file"
       chosen: "80% per-file block on fork-ADDED files; fork-MODIFIED upstream files advisory"
@@ -114,7 +114,7 @@ size_limits:
     value: 400
     description: "PRs exceeding this require justification or splitting"
     severity: "review-only"
-    enforced_by: ".github/PULL_REQUEST_TEMPLATE.md checklist; ci.yml layer6-diff-size-guard inert until the fork has a remote"
+    enforced_by: "ci.yml layer6-diff-size-guard on pull_request (label diff-limit-exempt bypasses); .github/PULL_REQUEST_TEMPLATE.md checklist"
 
 # ── Test Discipline ────────────────────────────────────────────
 testing:
@@ -176,7 +176,7 @@ ci:
   risk_layers: 5
   fast_checks_timeout_minutes: 10
   matrix: "ubuntu-latest, python 3.12, node 20"
-  status: "rendered but inert — fork has no own remote; local enforcement = pre-commit + make check"
+  status: "live on DankerMu/open-webui since 2026-09-20; required check = 'All checks passed'; local enforcement = pre-commit + make check"
 
 # ── Runtime Verification ───────────────────────────────────────
 # Machine-readable mirror of the AGENTS.md Verification Matrix.

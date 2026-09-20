@@ -56,7 +56,7 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 ### Dependency policy
 
 - **Lockfile**: `uv.lock` and `package-lock.json` committed. Agents run `make setup` after pulling and never bypass it; `uv sync --frozen`, `npm ci`.
-- **Updates**: no Renovate/Dependabot (fork has no own remote). Upgrades require explicit confirmation (`## Agent Operating Rules`); a lockfile change must accompany its manifest change.
+- **Updates**: no Renovate/Dependabot configured on the fork. Upgrades require explicit confirmation (`## Agent Operating Rules`); a lockfile change must accompany its manifest change.
 - **Pinning**: exact versions as upstream pins them; new dev tools pinned to a caret range in `package.json` / lower bound in `pyproject.toml`.
 - **Forbidden**: `npm install <pkg>@latest`, `uv add` without confirmation, editing lockfiles by hand.
 - **Misconfiguration fails loud**: an env toggle with an unexpected value throws instead of no-op; a missing file/key is an error, never a silent skip.
@@ -179,7 +179,7 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 - Use `.github/PULL_REQUEST_TEMPLATE.md`: Summary, Test plan, Runtime evidence, Risk, Canonicality check.
 - Diff ≤ 400 lines excluding lockfiles/snapshots/i18n, or justified — review-only until the fork has CI.
 - Docs change with code in the same PR: AGENTS.md, `docs/plans/`, decision record (`docs/decisions/`, note-required rule). Prose quality: `.omp/skills/prose-contract/SKILL.md`.
-- Branch model: trunk-based on `main`; feature branches `<tool>/<short-slug>`; one task = one branch. No branch protection yet (no fork remote — a readiness gap). Rewrite pushed history only with `--force-with-lease`; no stacked-PR chains with manual retargeting.
+- Branch model: trunk-based on `main`; feature branches `<tool>/<short-slug>`; one task = one branch. `main` on the fork (`DankerMu/open-webui`) is protected: PR required, required check `All checks passed`, no force-push, no deletion, enforced for admins. Rewrite pushed feature-branch history only with `--force-with-lease`; no stacked-PR chains with manual retargeting.
 
 ### Coverage threshold
 
@@ -229,7 +229,7 @@ Governance decision (verbatim): 「人工不审代码，只审最终功能呈现
 
 ### Debugging CI failures (protocol)
 
-CI (`.github/workflows/ci.yml`) is **inert until the fork has its own remote** — `origin` is upstream. Today the enforcement that actually runs is pre-commit hooks + `make check`. When CI does run: classify the layer (`layer1-fast-checks`, `layer2-unit-tests`, `layer3-integration-tests`, `layer4-anti-drift`, `layer5-secret-scan`), read the first actionable error, reproduce locally with the same `make` target, fix the root cause, re-run that target, then `make check` before pushing. Environment-parity mismatches become a dated entry in `## Important Development Notes`.
+CI (`.github/workflows/ci.yml`) runs on the fork (`origin` = `DankerMu/open-webui`; `upstream` = `open-webui/open-webui`) and its `All checks passed` job is the required check on `main`. Classify the layer (`layer1-fast-checks`, `layer2-unit-tests`, `layer3-integration-tests`, `layer4-anti-drift`, `layer5-secret-scan`), read the first actionable error, reproduce locally with the same `make` target, fix the root cause, re-run that target, then `make check` before pushing. Environment-parity mismatches become a dated entry in `## Important Development Notes`.
 
 ### Evidence requirements
 
@@ -277,7 +277,7 @@ Strictness profile: **L3** (see `constraints.yaml`). Levels: `advice` < `review-
 | Test coverage gate (fork-added files, per-file 80%)                                                 | `constraints.yaml testing` → `scripts/coverage-gate.sh`                              | `make coverage-gate` + CI layer2                                                 | block       |
 | Duplicate code (scoped, 3%)                                                                         | `jscpd.json` → `scripts/anti-drift.sh`                                               | `make anti-drift` + CI layer4                                                    | block       |
 | Dead code (scoped)                                                                                  | `knip.json`, vulture → `scripts/anti-drift.sh`                                       | `make anti-drift` + CI layer4                                                    | block       |
-| PR diff size (400 lines)                                                                            | `constraints.yaml size_limits.max_pr_diff_lines`                                     | `.github/PULL_REQUEST_TEMPLATE.md` (CI layer6 inert: no remote)                  | review-only |
+| PR diff size (400 lines)                                                                            | `constraints.yaml size_limits.max_pr_diff_lines`                                     | CI layer6 on pull_request (label `diff-limit-exempt` bypasses) + PR template     | block       |
 | Forbidden naming / scratchpad dirs                                                                  | `constraints.yaml code_canonicality` → `.git-hooks/check-naming.sh`                  | pre-commit hook (also a Claude Code write-time hook, machine-local)              | block       |
 | Conventional commits                                                                                | `.git-hooks/commit-msg`                                                              | pre-commit `commit-msg` stage                                                    | block       |
 | Secrets in commits                                                                                  | gitleaks (`.pre-commit-config.yaml`)                                                 | pre-commit + CI layer5                                                           | block       |
@@ -285,7 +285,7 @@ Strictness profile: **L3** (see `constraints.yaml`). Levels: `advice` < `review-
 | Docs drift (AGENTS.md ↔ Makefile ↔ scripts ↔ links)                                                 | `scripts/doc-gate.sh`                                                                | `make doc-gate` + CI layer4 + weekly liveness                                    | block       |
 | Decision records (zones, kinds, frontmatter, archive freeze)                                        | `scripts/decisions-verify.py`, `docs/decisions/archived/MANIFEST.txt`                | `make decisions-verify` + CI layer4                                              | block       |
 | Guardrails prove they reject                                                                        | `scripts/test-guardrails.sh`                                                         | `make test-guardrails` + weekly liveness                                         | block       |
-| Backend mypy · SAST · branch protection · lockfile↔manifest CI job · module boundaries              | `constraints.yaml downgrades` / `module_boundaries`                                  | review (ledger downgrades: untyped upstream, no semgrep/CodeQL, no fork remote)  | review-only |
+| Backend mypy · SAST · module boundaries                                                             | `constraints.yaml downgrades` / `module_boundaries`                                  | review (ledger downgrades: untyped upstream, no semgrep/CodeQL)                  | review-only |
 | Forbidden operations (deploy, force-push, `--no-verify`, dependency upgrades, unplanned migrations) | `CONTEXT.md § Forbidden Logic`                                                       | review; Claude Code deny rules are machine-local, not a repo gate                | review-only |
 | DB reset confined to the harness DB                                                                 | `scripts/db-reset.sh`                                                                | `make db-reset` refuses any `DATA_DIR` outside the harness directory             | block       |
 
@@ -308,4 +308,4 @@ Remove this section — together with the `baseline` block in `constraints.yaml`
 
 - Coverage gate proves lines ran, not that assertions are meaningful; per-file ratchet on modified upstream files accepts pre-existing violations — "no worse" is not "clean".
 - Scoped jscpd compares fork-changed files with each other only; duplication between new code and untouched upstream code is invisible — reviewer greps before accepting a new helper.
-- doc-gate checks target and file existence, not that a documented command does what the prose says. CI workflows are unverified until the fork has a remote; a green local `make check` is the only machine verdict today.
+- doc-gate checks target and file existence, not that a documented command does what the prose says. CI and the local `make check` overlap but are not identical: only CI runs the runtime layer on a clean Ubuntu runner.

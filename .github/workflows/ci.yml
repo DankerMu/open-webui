@@ -198,15 +198,25 @@ jobs:
       - layer3-integration-tests
       - layer4-anti-drift
       - layer5-secret-scan
+      - lockfile-consistency
+      - layer6-diff-size-guard
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Fail on any failed, cancelled, or skipped required job
         env:
           NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
         run: |
           echo "$NEEDS"
-          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
-            echo "::error::A required job failed, was cancelled, or was skipped. Skipped counts as failure here because GitHub counts a skipped required check as passing."
+          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled)"'; then
+            echo "::error::A required job failed or was cancelled."
+            exit 1
+          fi
+          # Skipped counts as failure because GitHub counts a skipped required check as passing.
+          # The two PR-only jobs (lockfile-consistency, layer6-diff-size-guard) are skipped by
+          # design on push events, so skipped is only a failure on pull_request.
+          if [ "$EVENT" = "pull_request" ] && echo "$NEEDS" | grep -Eq '"result": "skipped"'; then
+            echo "::error::A required job was skipped on a pull request."
             exit 1
           fi
