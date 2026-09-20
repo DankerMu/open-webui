@@ -7,6 +7,9 @@ export default defineConfig({
 	// *.e2e.ts keeps Playwright specs out of Vitest's default **/*.spec.ts glob.
 	testMatch: '**/*.e2e.ts',
 	timeout: 30_000,
+	// First navigation compiles the route in Vite dev; on a cold CI runner that exceeds
+	// Playwright's 5s default expect timeout (observed: /auth locator not found at 5.9s).
+	expect: { timeout: 20_000 },
 	retries: 0,
 	reporter: [['list']],
 	use: {

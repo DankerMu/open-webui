@@ -39,9 +39,7 @@ test('route / renders the chat shell after login without console errors', async 
 	await page.locator('button[type="submit"]').first().click();
 	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
 	await page.waitForLoadState('load');
-	await expect(page.locator('#chat-container, #chat-input, textarea').first()).toBeVisible({
-		timeout: 20_000
-	});
+	await expect(page.locator('#chat-container, #chat-input, textarea').first()).toBeVisible();
 	await page.screenshot({ path: '.run/ui-evidence/home.png', fullPage: true });
 	expect(errors, 'console errors on /').toEqual([]);
 });
