@@ -16,6 +16,7 @@ export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
 export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
 export OPENAI_API_BASE_URLS="${OPENAI_API_BASE_URLS:-}"
 export ENABLE_OPENAI_API="${ENABLE_OPENAI_API:-false}"
+export ENABLE_OCU_WORKSPACE=true
 # No model downloads at startup: the default local sentence-transformers embedder
 # pulls ~90 MB from HuggingFace on first boot, which hangs offline (LAN) and
 # blows the readiness budget. Smoke tests do not need embeddings.
