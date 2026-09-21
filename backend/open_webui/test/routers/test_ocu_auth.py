@@ -23,21 +23,15 @@ os.environ.setdefault('OFFLINE_MODE', 'true')
 os.environ.setdefault('ENABLE_VERSION_UPDATE_CHECK', 'false')
 os.environ['ENABLE_OCU_WORKSPACE'] = 'true'
 
-from fastapi.testclient import TestClient  # noqa: E402
-from open_webui.main import app  # noqa: E402
-from open_webui.models.access_grants import AccessGrants  # noqa: E402
-from open_webui.models.chats import ChatForm, Chats  # noqa: E402
-from open_webui.models.folders import FolderForm, Folders  # noqa: E402
-from open_webui.models.users import Users  # noqa: E402
-from open_webui.utils.access_control.folders import has_folder_access  # noqa: E402
-from open_webui.utils.auth import create_token  # noqa: E402
-
 AUTH_PATH = '/api/v1/ocu/auth'
 INVALID_CHAT_IDS = ('temporary:abc', 'local:abc', 'channel:abc', '', 'default')
 
 
 @pytest.fixture(scope='session')
 def client():
+    from fastapi.testclient import TestClient
+    from open_webui.main import app
+
     test_client = TestClient(app)
     try:
         yield test_client
@@ -60,6 +54,8 @@ def _unique(prefix: str) -> str:
 
 
 async def _insert_user(*, role: str, prefix: str, email: str | None = None):
+    from open_webui.models.users import Users
+
     user_id = _unique(prefix)
     user = await Users.insert_new_user(
         id=user_id,
@@ -72,6 +68,8 @@ async def _insert_user(*, role: str, prefix: str, email: str | None = None):
 
 
 async def _insert_chat(owner_id: str, *, folder_id: str | None = None):
+    from open_webui.models.chats import ChatForm, Chats
+
     chat = await Chats.insert_new_chat(
         _unique('chat'),
         owner_id,
@@ -82,14 +80,20 @@ async def _insert_chat(owner_id: str, *, folder_id: str | None = None):
 
 
 async def _delete_user(user_id: str) -> None:
+    from open_webui.models.users import Users
+
     await Users.delete_user_by_id(user_id)
 
 
 async def _delete_chat(chat_id: str) -> None:
+    from open_webui.models.chats import Chats
+
     await Chats.delete_chat_by_id(chat_id)
 
 
 async def _revoke_grant(resource_type: str, resource_id: str, principal_id: str) -> None:
+    from open_webui.models.access_grants import AccessGrants
+
     await AccessGrants.revoke_access(
         resource_type,
         resource_id,
@@ -100,10 +104,14 @@ async def _revoke_grant(resource_type: str, resource_id: str, principal_id: str)
 
 
 def _session_headers(user_id: str) -> dict[str, str]:
+    from open_webui.utils.auth import create_token
+
     return {'Authorization': f'Bearer {create_token({"id": user_id})}'}
 
 
 def _cookie_headers(user_id: str) -> dict[str, str]:
+    from open_webui.utils.auth import create_token
+
     return {'Cookie': f'token={create_token({"id": user_id})}'}
 
 
@@ -173,6 +181,8 @@ def test_missing_chat_id_header_returns_403_empty_body():
 
 @pytest.mark.parametrize('chat_id', INVALID_CHAT_IDS)
 def test_invalid_chat_id_returns_403_without_ownership_lookup(chat_id, monkeypatch):
+    from open_webui.models.chats import Chats
+
     owner = asyncio.run(_insert_user(role='user', prefix='invalid-id'))
     spy = AsyncMock()
     monkeypatch.setattr(Chats, 'is_chat_owner', spy)
@@ -184,6 +194,8 @@ def test_invalid_chat_id_returns_403_without_ownership_lookup(chat_id, monkeypat
 
 
 def test_shared_chat_grantee_returns_403_empty_body():
+    from open_webui.models.access_grants import AccessGrants
+
     owner, grantee, chat = asyncio.run(_shared_chat_fixture())
     try:
         granted = asyncio.run(AccessGrants.has_access(grantee.id, 'shared_chat', chat.id, 'read'))
@@ -194,6 +206,9 @@ def test_shared_chat_grantee_returns_403_empty_body():
 
 
 def test_folder_grantee_returns_403_empty_body():
+    from open_webui.models.folders import Folders
+    from open_webui.utils.access_control.folders import has_folder_access
+
     owner, grantee, chat, folder_id = asyncio.run(_folder_grant_fixture())
     try:
         folder = asyncio.run(Folders.get_folder_by_id(folder_id))
@@ -257,6 +272,8 @@ async def _cleanup_owner(owner_id: str, chat_id: str) -> None:
 
 
 async def _shared_chat_fixture():
+    from open_webui.models.access_grants import AccessGrants
+
     owner = await _insert_user(role='user', prefix='share-owner')
     grantee = await _insert_user(role='user', prefix='share-grantee')
     chat = await _insert_chat(owner.id)
@@ -273,6 +290,9 @@ async def _cleanup_shared(owner_id: str, grantee_id: str, chat_id: str) -> None:
 
 
 async def _folder_grant_fixture():
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.folders import FolderForm, Folders
+
     owner = await _insert_user(role='user', prefix='folder-owner')
     grantee = await _insert_user(role='user', prefix='folder-grantee')
     folder = await Folders.insert_new_folder(owner.id, FolderForm(name=_unique('folder')))
@@ -284,6 +304,8 @@ async def _folder_grant_fixture():
 
 
 async def _cleanup_folder(owner_id: str, grantee_id: str, chat_id: str, folder_id: str) -> None:
+    from open_webui.models.folders import Folders
+
     await _revoke_grant('folder', folder_id, grantee_id)
     await _delete_chat(chat_id)
     await Folders.delete_folder_by_id_and_user_id(folder_id, owner_id)
