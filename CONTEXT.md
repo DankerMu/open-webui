@@ -33,16 +33,16 @@ Canonical terms and their prohibited aliases live in `openspec/glossary.md`. Rea
 - Sandbox network cannot reach the OCU/WebUI control plane at L3; the application-layer subnet check is defense in depth, never the only control.
 - `revision` is monotonic per content change and is the only version authority; mtime is display-only.
 - Every publish is an atomic replace inside a fence window under the per-chat lock; a conflicting concurrent write yields a visible conflict version, never a silent overwrite.
-- Model API keys, MCP keys and the internal proxy token never reach the browser or a sandbox.
+- Model API keys, MCP keys and the internal token reach only the owning chat's sandbox, never the browser and never a different chat's sandbox.
 
 ## Public Interfaces and Contracts
 
-| Interface                                          | Contract source                                     | Backward compatibility rule                                       | Test seam                                         |
-| -------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------- |
-| `GET/POST /api/v1/ocu/workspaces/{chat_id}[/launch | /refresh]`, `GET /api/v1/ocu/auth`                  | `docs/plans/2026-09-20-workspace-artifact-integration.md` §1      | additive fields only; 401/403/404 semantics fixed | `smoke/api.hurl` (pending rows) + backend `pytest` |
-| Reverse-proxy allowlist for `/ocu/*`               | plan §2 endpoint allowlist                          | default-deny; adding a path is a reviewed change                  | A-T08 authorization smoke                         |
-| Office broker `/office/*`                          | `docs/plans/2026-09-20-office-manual-editing.md` §2 | callback protocol fixed by ONLYOFFICE; `save_seq` never regresses | broker unit + fixture callbacks (B-T04, B-T08)    |
-| Upstream Open WebUI REST/socket API                | upstream code at tag v0.11.3                        | never changed by the fork                                         | `smoke/*.hurl`, `e2e/smoke.spec.ts`               |
+| Interface                                                                                                        | Contract source                                              | Backward compatibility rule                                       | Test seam                                          |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------- |
+| `GET /api/v1/ocu/workspaces/{chat_id}`, `POST …/launch`, `POST …/refresh`, `PUT …/prefs`, `GET /api/v1/ocu/auth` | `docs/plans/2026-09-20-workspace-artifact-integration.md` §1 | additive fields only; 401/403/404/409/422 semantics fixed         | `smoke/api.hurl` (pending rows) + backend `pytest` |
+| Reverse-proxy allowlist for `/ocu/*`                                                                             | plan §2 endpoint allowlist                                   | default-deny; adding a path is a reviewed change                  | A-T08 authorization smoke                          |
+| Office broker `/office/*`                                                                                        | `docs/plans/2026-09-20-office-manual-editing.md` §2          | callback protocol fixed by ONLYOFFICE; `save_seq` never regresses | broker unit + fixture callbacks (B-T04, B-T08)     |
+| Upstream Open WebUI REST/socket API                                                                              | upstream code at tag v0.11.3                                 | never changed by the fork                                         | `smoke/*.hurl`, `e2e/smoke.spec.ts`                |
 
 ## Forbidden Logic & Irreversible Operations
 

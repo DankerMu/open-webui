@@ -11,14 +11,11 @@ from pathlib import Path
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
+from open_webui.test.ocu_harness import configure_ocu_test_env
 from sqlalchemy import create_engine, inspect, text
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_DATA_DIR = _REPO_ROOT / '.run' / 'data'
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-os.environ['DATA_DIR'] = str(_DATA_DIR)
-os.environ['DATABASE_URL'] = f'sqlite:///{_DATA_DIR}/webui.db'
-os.environ.setdefault('WEBUI_SECRET_KEY', 'dev-harness-secret')
+configure_ocu_test_env()
+
 
 _MIGRATION_PATH = Path(__file__).resolve().parents[2] / 'migrations' / 'versions' / 'e6f7a8b9c0d1_add_ocu_chat_state.py'
 

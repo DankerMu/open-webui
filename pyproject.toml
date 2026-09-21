@@ -253,3 +253,8 @@ flake8-import-conventions.aliases = { datetime = "dt" }
 flake8-quotes.inline-quotes = "single"
 mccabe.max-complexity = 10  # stricter than constraints.yaml L3 minimum (15); gated on the change scope via scripts/lint-scoped.sh
 pydocstyle.convention = "google"
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+asyncio_mode = "auto"
+testpaths = ["backend/open_webui"]
