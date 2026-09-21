@@ -3,8 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { recogniseOcuLink } from './ocu-links';
 
 describe('recogniseOcuLink', () => {
-	it('rejects a foreign host against a path-only base', () => {
-		expect(recogniseOcuLink('https://evil.example/ocu/files/C/x.html', '/ocu', 'C')).toBeNull();
+	it('matches a browser-absolute href against a path-only base by pathname', () => {
+		expect(recogniseOcuLink('https://chat.example.com/ocu/files/C/report.html', '/ocu', 'C')).toBe(
+			'report.html'
+		);
+		expect(recogniseOcuLink('https://evil.example/ocu/files/C/x.html', '/ocu', 'C')).toBe('x.html');
+	});
+
+	it('rejects a pathname outside a path-only base', () => {
+		expect(recogniseOcuLink('https://evil.example/files/C/x.html', '/ocu', 'C')).toBeNull();
 	});
 
 	it('rejects a foreign host against an absolute base', () => {

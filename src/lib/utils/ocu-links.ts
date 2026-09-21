@@ -4,11 +4,13 @@ export const recogniseOcuLink = (href: string, base: string, chatId: string): st
 	if (!href || !base || !chatId) return null;
 
 	let baseUrl: URL;
+	let pathOnlyBase = false;
 	try {
 		baseUrl = new URL(base);
 	} catch {
 		try {
 			baseUrl = new URL(base, PATH_ONLY_ORIGIN);
+			pathOnlyBase = true;
 		} catch {
 			return null;
 		}
@@ -21,7 +23,7 @@ export const recogniseOcuLink = (href: string, base: string, chatId: string): st
 		return null;
 	}
 
-	if (hrefUrl.origin !== baseUrl.origin) return null;
+	if (!pathOnlyBase && hrefUrl.origin !== baseUrl.origin) return null;
 
 	const prefix =
 		baseUrl.pathname.length > 1 && baseUrl.pathname.endsWith('/')

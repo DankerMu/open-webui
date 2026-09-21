@@ -8,12 +8,17 @@ Pure recognition of filter-generated OCU preview links so the later Chat.svelte 
 
 ### Requirement: Recognise only current-chat preview links
 
-`recogniseOcuLink(href, base, chatId)` SHALL return the file path when `href` is under `base` and the path is `/files/{chatId}/…`. It SHALL return `null` for a foreign host or a different chat id.
+`recogniseOcuLink(href, base, chatId)` SHALL return the file path when `href` is under `base` and the path is `/files/{chatId}/…`. It SHALL return `null` for a different chat id. Foreign host is rejected when `base` is absolute. When `base` is path-only, recognition is pathname-only so a browser-resolved absolute href on the WebUI origin matches.
 
 #### Scenario: Foreign host
 
-- **WHEN** `href` is `https://evil.example/ocu/files/C/x.html` and `base` is the configured `/ocu` origin
+- **WHEN** `href` is `https://evil.example/ocu/files/C/x.html` and `base` is absolute
 - **THEN** the result is `null`
+
+#### Scenario: Path-only base with browser-absolute href
+
+- **WHEN** `href` is `https://chat.example.com/ocu/files/C/report.html` and `base` is path-only `/ocu`
+- **THEN** the result is `report.html`
 
 #### Scenario: Other chat id
 
