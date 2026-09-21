@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.routing import APIRoute
@@ -51,7 +52,7 @@ async def ocu_auth(
     return Response(
         status_code=status.HTTP_200_OK,
         content=b'',
-        headers={'X-User-Id': user.id, 'X-User-Email': user.email or ''},
+        headers={'X-User-Id': user.id, 'X-User-Email': quote(user.email or '', safe='@.')},
     )
 
 

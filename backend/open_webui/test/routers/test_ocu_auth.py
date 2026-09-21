@@ -7,6 +7,7 @@ import os
 import uuid
 from pathlib import Path
 from unittest.mock import AsyncMock
+from urllib.parse import quote
 
 import pytest
 
@@ -58,12 +59,12 @@ def _unique(prefix: str) -> str:
     return f'{prefix}-{uuid.uuid4()}'
 
 
-async def _insert_user(*, role: str, prefix: str):
+async def _insert_user(*, role: str, prefix: str, email: str | None = None):
     user_id = _unique(prefix)
     user = await Users.insert_new_user(
         id=user_id,
         name=prefix,
-        email=f'{user_id}@harness.local',
+        email=email or f'{user_id}@harness.local',
         role=role,
     )
     assert user is not None
@@ -135,6 +136,18 @@ def test_owner_cookie_session_returns_200_identity_headers_and_empty_body():
         assert response.headers.get('X-User-Id') == owner.id
         assert response.headers.get('X-User-Email') == owner.email
         assert response.content == b''
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+def test_owner_with_non_latin1_email_returns_200_percent_encoded_header():
+    owner, chat = asyncio.run(_owner_and_chat(email='用户@example.com'))
+    try:
+        response = _auth_get({**_session_headers(owner.id), 'X-Chat-Id': chat.id})
+        assert response.status_code == 200
+        assert response.content == b''
+        assert response.headers.get('X-User-Id') == owner.id
+        assert response.headers.get('X-User-Email') == quote(owner.email, safe='@.')
     finally:
         asyncio.run(_cleanup_owner(owner.id, chat.id))
 
@@ -232,8 +245,8 @@ def test_other_route_keeps_usual_error_body():
     assert body['detail']
 
 
-async def _owner_and_chat():
-    owner = await _insert_user(role='user', prefix='owner')
+async def _owner_and_chat(*, email: str | None = None):
+    owner = await _insert_user(role='user', prefix='owner', email=email)
     chat = await _insert_chat(owner.id)
     return owner, chat
 
