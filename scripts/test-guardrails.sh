@@ -77,6 +77,12 @@ git add scratch/note.txt
 expect_reject "scratchpad guard (scratch/)" "scratchpad directory" bash .git-hooks/check-naming.sh
 git reset --quiet -- scratch/note.txt; rm -rf scratch
 
+# 2b. Scratchpad guard — OpenSpec frozen archive is exempt (constraints.yaml exemptions).
+mkdir -p openspec/changes/archive/2026-01-01-sample; echo "guardrail self-test" > openspec/changes/archive/2026-01-01-sample/proposal.md
+git add openspec/changes/archive/2026-01-01-sample/proposal.md
+expect_accept "scratchpad guard (openspec archive exempt)" bash .git-hooks/check-naming.sh
+git reset --quiet -- openspec/changes/archive/2026-01-01-sample/proposal.md; rm -rf openspec/changes
+
 # 3. Write-time naming guard (path-argument mode, used by .claude hook).
 expect_reject "naming guard write-time (src/lib/foo_new.ts)" "naming violation (write-time)" \
   bash .git-hooks/check-naming.sh "src/lib/foo_new.ts"

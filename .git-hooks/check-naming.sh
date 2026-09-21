@@ -68,22 +68,38 @@ EOF2
   fi
 fi
 
+# Exemption prefixes whose rules include code_canonicality (constraints.yaml exemptions).
+NAMING_EXEMPT_RE=''
+if [ -f "$constraints_file" ]; then
+  NAMING_EXEMPT_RE="$(awk '
+    /^exemptions:/,/^baseline:/ {
+      if ($0 ~ /^[[:space:]]*- path:/) {
+        if (path != "" && has) print path
+        line=$0; sub(/^[[:space:]]*- path:[[:space:]]*"/, "", line); sub(/".*/, "", line); path=line; has=0
+      }
+      if ($0 ~ /^[[:space:]]*rules:/ && $0 ~ /code_canonicality/) has=1
+    }
+    END { if (path != "" && has) print path }
+  ' "$constraints_file" 2>/dev/null | sed 's/[.[\*^$]/\\&/g' | paste -sd'|' -)"
+fi
+is_exempt() { [ -n "$NAMING_EXEMPT_RE" ] && [[ "$1" =~ ^($NAMING_EXEMPT_RE) ]]; }
+
 echo "check-naming.sh: FORBIDDEN_SUFFIX_RE source: $forbidden_source" >&2
 echo "check-naming.sh: SCRATCH_DIR_RE source:    $scratch_source" >&2
 
-# Path-argument mode (agent write-time check).
 if [ "$#" -gt 0 ]; then
   f="$1"
+  is_exempt "$f" && exit 0
   if [[ "$f" =~ $FORBIDDEN_SUFFIX_RE ]] || [[ "$f" =~ $SCRATCH_DIR_RE ]]; then
     echo "naming violation (write-time): $f — see AGENTS.md § Code Canonicality" >&2
     exit 2
   fi
   exit 0
 fi
-
 violations=()
 while IFS= read -r f; do
   [[ -z "$f" ]] && continue
+  is_exempt "$f" && continue
   if [[ "$f" =~ $FORBIDDEN_SUFFIX_RE ]]; then violations+=("  forbidden naming suffix: $f"); fi
   if [[ "$f" =~ $SCRATCH_DIR_RE ]]; then violations+=("  scratchpad directory:    $f"); fi
 done < <(git diff --cached --name-only --diff-filter=AR 2>/dev/null || true)
