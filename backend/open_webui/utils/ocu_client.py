@@ -35,6 +35,7 @@ class OcuClient:
         self._base = url
         self._token = token
         self._session = session
+        self._owns_session = session is None
 
     def _url(self, path: str) -> str:
         return self._base.rstrip('/') + '/' + path.lstrip('/')
@@ -46,9 +47,21 @@ class OcuClient:
         if self._session is None:
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=30),
-                trust_env=True,
+                trust_env=False,
             )
+            self._owns_session = True
         return self._session
+
+    async def aclose(self):
+        if self._owns_session and self._session is not None:
+            await self._session.close()
+            self._session = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.aclose()
 
     async def describe(self, chat_id: str):
         return await self._request('GET', f'/internal/describe/{chat_id}')
@@ -69,7 +82,7 @@ class OcuClient:
             ) as response:
                 text = await response.text()
                 status = response.status
-        except (aiohttp.ClientConnectionError, TimeoutError) as exc:
+        except (aiohttp.ClientError, TimeoutError) as exc:
             raise OcuUnreachable('OCU unreachable') from exc
         if never_created and status == 409 and _NEVER_CREATED in text:
             return OcuNeverCreated()

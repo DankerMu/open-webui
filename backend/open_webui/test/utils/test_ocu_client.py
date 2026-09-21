@@ -46,6 +46,7 @@ class _StubSession:
         self.response = response or _StubResponse()
         self.error = error
         self.calls = []
+        self.closed = False
 
     def request(self, method, url, *, headers=None, **kwargs):
         parsed = urlparse(url)
@@ -60,6 +61,9 @@ class _StubSession:
         if self.error is not None:
             raise self.error
         return _StubCM(self.response)
+
+    async def close(self):
+        self.closed = True
 
 
 def _make_client(monkeypatch, session, url=BASE_URL, token=TOKEN):
@@ -152,6 +156,31 @@ async def test_timeout_raises_ocu_unreachable_not_never_created(monkeypatch):
         await client.launch(CHAT_ID)
 
     assert not isinstance(exc_info.value, OcuNeverCreated)
+
+
+@pytest.mark.asyncio
+async def test_payload_error_raises_ocu_unreachable_not_never_created(monkeypatch):
+    session = _StubSession(error=aiohttp.ClientPayloadError('Response payload is not completed'))
+    client = _make_client(monkeypatch, session)
+    from open_webui.utils.ocu_client import OcuNeverCreated, OcuUnreachable
+
+    with pytest.raises(OcuUnreachable) as describe_error:
+        await client.describe(CHAT_ID)
+    assert not isinstance(describe_error.value, OcuNeverCreated)
+
+    with pytest.raises(OcuUnreachable) as launch_error:
+        await client.launch(CHAT_ID)
+    assert not isinstance(launch_error.value, OcuNeverCreated)
+
+
+@pytest.mark.asyncio
+async def test_aclose_does_not_close_injected_session(monkeypatch):
+    session = _StubSession()
+    client = _make_client(monkeypatch, session)
+
+    await client.aclose()
+
+    assert session.closed is False
 
 
 @pytest.mark.asyncio
