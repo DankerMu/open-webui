@@ -1,6 +1,7 @@
 # ocu-chat-state Specification
 
 ## Purpose
+
 Persists per-chat OCU workspace state — a last-seen revision cursor and a preferences object — in a table with no foreign key to chat, so later describe/refresh/prefs routes have a server-side truth that does not race with upstream `chat.meta` rewrites.
 
 ## Requirements
