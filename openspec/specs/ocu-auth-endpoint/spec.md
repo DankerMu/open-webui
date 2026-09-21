@@ -1,6 +1,7 @@
 # ocu-auth-endpoint Specification
 
 ## Purpose
+
 Gives the reverse proxy a WebUI session-mode authorization subrequest that answers only 200, 401 or 403 with an empty body, so nginx `auth_request` never sees a 404 and never forwards a non-owner to OCU.
 
 ## Requirements
