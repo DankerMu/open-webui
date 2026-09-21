@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
-from open_webui.test.ocu_harness import configure_ocu_test_env
+from open_webui.test_ocu_harness import configure_ocu_test_env
 from sqlalchemy import create_engine, inspect, text
 
 configure_ocu_test_env()

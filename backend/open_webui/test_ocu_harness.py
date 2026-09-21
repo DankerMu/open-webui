@@ -11,7 +11,7 @@ _CLIENT = None
 
 
 def configure_ocu_test_env() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
+    repo_root = Path(__file__).resolve().parents[2]
     data_dir = repo_root / '.run' / 'data'
     data_dir.mkdir(parents=True, exist_ok=True)
     os.environ['DATA_DIR'] = str(data_dir)
