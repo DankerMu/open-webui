@@ -16,6 +16,16 @@ concurrency:
 permissions:
   contents: read
 
+# `uv sync` would build the editable open-webui wheel, and hatch_build.py runs
+# `npm install` + `npm run build` (the whole SvelteKit frontend, ~2 min) inside
+# that build. Nothing in CI imports the installed distribution: pytest, alembic
+# (`prepend_sys_path = ..`) and uvicorn (`--app-dir`) all import `open_webui`
+# from backend/ source, and env.py reads the version from package.json unless
+# FROM_INIT_PY is set. So every job syncs with --no-install-project, and
+# UV_NO_SYNC keeps later `uv run` calls from installing the project anyway.
+env:
+  UV_NO_SYNC: '1'
+
 jobs:
   layer1-fast-checks:
     name: Fast checks (fmt + lint + typecheck)
@@ -35,7 +45,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - run: make fmt-check
       - run: make lint
@@ -61,7 +71,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - run: make test
       - run: make coverage-gate
@@ -87,7 +97,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - name: Install hurl
         run: |
@@ -121,7 +131,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - name: Verify constraints.yaml is the naming-guard source
         run: grep -q 'constraints\.yaml' .git-hooks/check-naming.sh
