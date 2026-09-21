@@ -99,6 +99,7 @@ nvm use && make setup
 | Coverage gate (fork-added files ≥ 80%)                 | `make coverage-gate`                                    |
 | Duplicate / dead code (scoped)                         | `make anti-drift`                                       |
 | Docs drift gate / decision records check               | `make doc-gate`, `make decisions-verify`                |
+| OCU stub smoke (not `make smoke`)                      | `make smoke-stub`                                       |
 
 All commands route through `Makefile`. Do not invent ad-hoc commands; if a workflow is missing, add a Makefile target that calls a script in `scripts/`.
 

@@ -12,7 +12,7 @@ endif
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend \
 	coverage-gate anti-drift build clean \
-	smoke e2e verify-ui db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub e2e verify-ui db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -115,6 +115,9 @@ smoke:
 	bash scripts/seed.sh
 	hurl --test smoke/*.hurl --variable base_url=http://localhost:8080 \
 		--variable seed_email=$(SEED_EMAIL) --variable seed_password=$(SEED_PASSWORD)
+
+smoke-stub:
+	bash scripts/smoke-stub.sh
 
 e2e:
 	bash scripts/seed.sh
