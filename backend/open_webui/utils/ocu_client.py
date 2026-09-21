@@ -60,7 +60,7 @@ class OcuClient:
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, _exc_type, _exc, _tb):
         await self.aclose()
 
     async def describe(self, chat_id: str):
