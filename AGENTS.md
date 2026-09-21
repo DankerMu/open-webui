@@ -45,13 +45,13 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 
 ## Stack & Versions
 
-| Layer                        | Choice                                                                                                      | Version                                                                       | Why                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Language                     | Python / TypeScript                                                                                         | 3.12 (`.python-version`; pyproject `>=3.11,<3.13`) / TS 5.5                   | upstream pins; local default Python 3.13 is out of range |
+| Layer                        | Choice                                                                                                      | Version                                                                                  | Why                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Language                     | Python / TypeScript                                                                                         | 3.12 (`.python-version`; pyproject `>=3.11,<3.13`) / TS 5.5                              | upstream pins; local default Python 3.13 is out of range |
 | Runtime                      | Node                                                                                                        | 22 (`.nvmrc` / `.tool-versions`; engines `<=22`, `engine-strict`; lockfile needs ≥22.12) | local default Node 24 is rejected — `nvm use`            |
-| Framework                    | FastAPI + SvelteKit 2 / Svelte 5                                                                            | upstream v0.11.3                                                              |                                                          |
-| Persistence                  | SQLite (dev/harness) or PostgreSQL (deploy overlay)                                                         | SQLAlchemy + Alembic (58 migrations)                                          |                                                          |
-| Build / test / lint / format | Vite 5 · pytest+pytest-cov, Vitest 1.6, Playwright · ruff, ESLint 8, svelte-check · ruff format, Prettier 3 |                                                                               |                                                          |
+| Framework                    | FastAPI + SvelteKit 2 / Svelte 5                                                                            | upstream v0.11.3                                                                         |                                                          |
+| Persistence                  | SQLite (dev/harness) or PostgreSQL (deploy overlay)                                                         | SQLAlchemy + Alembic (58 migrations)                                                     |                                                          |
+| Build / test / lint / format | Vite 5 · pytest+pytest-cov, Vitest 1.6, Playwright · ruff, ESLint 8, svelte-check · ruff format, Prettier 3 |                                                                                          |                                                          |
 
 ### Dependency policy
 
