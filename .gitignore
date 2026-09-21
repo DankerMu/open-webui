@@ -14,7 +14,7 @@ vite.config.ts.timestamp-*
 __pycache__/
 *.py[cod]
 *$py.class
-.nvmrc
+# Fork tracks .nvmrc so nvm matches .tool-versions (Node 22.23.2).
 CLAUDE.md
 # C extensions
 *.so
