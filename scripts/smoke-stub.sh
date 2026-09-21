@@ -38,24 +38,41 @@ done
 json_field() {
   python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d[sys.argv[2]]==sys.argv[3], d' "$1" "$2" "$3"
 }
+json_views_files_only() {
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["views"]==["files"], d' "$1"
+}
+
+json_views_running() {
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); v=d["views"]; assert "browser" in v and "terminal" in v, d' "$1"
+}
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/internal/describe/running")"
 [ "$code" = "200" ] || fail "describe running HTTP $code"
 json_field "$body" state running
+json_views_running "$body"
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/internal/describe/stopped")"
 [ "$code" = "200" ] || fail "describe stopped HTTP $code"
 json_field "$body" state stopped
+json_views_files_only "$body"
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/internal/describe/unknown-id")"
 [ "$code" = "200" ] || fail "describe unknown HTTP $code"
 json_field "$body" state never_created
+json_views_files_only "$body"
+
+code="$(curl -sS -o "$body" -w '%{http_code}' "$base/internal/describe/never_created")"
+[ "$code" = "200" ] || fail "describe never_created HTTP $code"
+json_field "$body" state never_created
+json_views_files_only "$body"
 
 code="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$base/internal/launch/stopped")"
 [ "$code" = "200" ] || fail "launch stopped HTTP $code"
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/internal/describe/stopped")"
 [ "$code" = "200" ] || fail "describe after launch HTTP $code"
 json_field "$body" state running
+json_views_running "$body"
+
 
 code="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$base/internal/launch/never_created")"
 [ "$code" = "409" ] || fail "launch never_created HTTP $code"

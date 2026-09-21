@@ -130,10 +130,9 @@ class StubHandler(BaseHTTPRequestHandler):
         self._write(404, b'not found', 'text/plain; charset=utf-8')
 
     def _describe(self, match: re.Match[str], _query: dict) -> None:
-        self._json(
-            200,
-            {'state': _state_of(match.group(1)), 'revision': 1, 'views': ['files', 'browser', 'terminal']},
-        )
+        state = _state_of(match.group(1))
+        views = ['files', 'browser', 'terminal'] if state == 'running' else ['files']
+        self._json(200, {'state': state, 'revision': 1, 'views': views})
 
     def _launch_route(self, match: re.Match[str], _query: dict) -> None:
         self._json(*_launch(match.group(1)))
