@@ -7,7 +7,8 @@ from typing import Any
 
 from open_webui.internal.db import Base, get_async_db_context
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import JSON, BigInteger, Column, Integer, Text
+from sqlalchemy import JSON, BigInteger, Column, Integer, Text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -30,6 +31,17 @@ class OcuChatStateModel(BaseModel):
 
 
 class OcuChatStateTable:
+    async def _load(self, db: AsyncSession, chat_id: str) -> OcuChatState | None:
+        return await db.get(OcuChatState, chat_id, populate_existing=True)
+
+    async def _advance_row(self, db: AsyncSession, chat_id: str, revision: int, now: int) -> int:
+        result = await db.execute(
+            update(OcuChatState)
+            .where(OcuChatState.chat_id == chat_id, OcuChatState.last_seen_revision < revision)
+            .values(last_seen_revision=revision, updated_at=now)
+        )
+        return result.rowcount or 0
+
     async def get(self, chat_id: str, db: AsyncSession | None = None) -> OcuChatStateModel | None:
         async with get_async_db_context(db) as db:
             row = await db.get(OcuChatState, chat_id)
@@ -42,39 +54,59 @@ class OcuChatStateTable:
             now = int(time.time_ns())
             row = await db.get(OcuChatState, chat_id)
             if row is None:
-                row = OcuChatState(
-                    chat_id=chat_id,
-                    last_seen_revision=0,
-                    prefs=prefs,
-                    updated_at=now,
+                db.add(
+                    OcuChatState(
+                        chat_id=chat_id,
+                        last_seen_revision=0,
+                        prefs=prefs,
+                        updated_at=now,
+                    )
                 )
-                db.add(row)
+                try:
+                    await db.commit()
+                except IntegrityError:
+                    await db.rollback()
+                    if await self._load(db, chat_id) is None:
+                        raise
+                    await db.execute(
+                        update(OcuChatState).where(OcuChatState.chat_id == chat_id).values(prefs=prefs, updated_at=now)
+                    )
+                    await db.commit()
             else:
-                row.prefs = prefs
-                row.updated_at = now
-            await db.commit()
-            await db.refresh(row)
+                await db.execute(
+                    update(OcuChatState).where(OcuChatState.chat_id == chat_id).values(prefs=prefs, updated_at=now)
+                )
+                await db.commit()
+            row = await self._load(db, chat_id)
+            assert row is not None
             return OcuChatStateModel.model_validate(row)
 
     async def advance_cursor(self, chat_id: str, revision: int, db: AsyncSession | None = None) -> OcuChatStateModel:
         async with get_async_db_context(db) as db:
+            now = int(time.time_ns())
             row = await db.get(OcuChatState, chat_id)
             if row is None:
-                row = OcuChatState(
-                    chat_id=chat_id,
-                    last_seen_revision=revision,
-                    prefs={},
-                    updated_at=int(time.time_ns()),
+                db.add(
+                    OcuChatState(
+                        chat_id=chat_id,
+                        last_seen_revision=revision,
+                        prefs={},
+                        updated_at=now,
+                    )
                 )
-                db.add(row)
+                try:
+                    await db.commit()
+                except IntegrityError:
+                    await db.rollback()
+                    if await self._load(db, chat_id) is None:
+                        raise
+                    await self._advance_row(db, chat_id, revision, now)
+                    await db.commit()
+            else:
+                await self._advance_row(db, chat_id, revision, now)
                 await db.commit()
-                await db.refresh(row)
-                return OcuChatStateModel.model_validate(row)
-            if revision > row.last_seen_revision:
-                row.last_seen_revision = revision
-                row.updated_at = int(time.time_ns())
-                await db.commit()
-                await db.refresh(row)
+            row = await self._load(db, chat_id)
+            assert row is not None
             return OcuChatStateModel.model_validate(row)
 
 

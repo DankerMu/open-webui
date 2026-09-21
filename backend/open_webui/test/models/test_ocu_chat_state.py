@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import os
 import uuid
@@ -219,3 +220,155 @@ def test_add_ocu_chat_state_upgrade_is_idempotent_and_reversible(tmp_path):
             inspector.clear_cache()
             assert 'ocu_chat_state' in inspector.get_table_names()
             assert inspector.get_foreign_keys('ocu_chat_state') == []
+
+
+def _gate_first_target_reads(monkeypatch, chat_id, hold_session_id, released: asyncio.Event):
+    import open_webui.internal.db as db_mod
+    from open_webui.models.ocu_chat_state import OcuChatState
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    monkeypatch.setattr(db_mod, 'DATABASE_ENABLE_SESSION_SHARING', True)
+
+    both_read = asyncio.Event()
+    first_reads: set[int] = set()
+    original_get = AsyncSession.get
+
+    async def gated_get(self, *args, **kwargs):
+        row = await original_get(self, *args, **kwargs)
+        entity = args[0] if args else kwargs.get('entity')
+        ident = args[1] if len(args) > 1 else kwargs.get('ident')
+        if entity is not OcuChatState or ident != chat_id:
+            return row
+        sid = id(self)
+        if sid in first_reads:
+            return row
+        first_reads.add(sid)
+        if len(first_reads) >= 2:
+            both_read.set()
+        await asyncio.wait_for(both_read.wait(), timeout=5)
+        if sid == hold_session_id():
+            await asyncio.wait_for(released.wait(), timeout=5)
+        return row
+
+    monkeypatch.setattr(AsyncSession, 'get', gated_get)
+
+
+async def _assert_merged_missing_row(chat_id: str):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    fresh = await OcuChatStates.get(chat_id)
+    assert fresh is not None
+    assert fresh.last_seen_revision >= 7
+    assert fresh.prefs['view'] == 'terminal'
+
+
+@pytest.mark.asyncio
+async def test_concurrent_advance_does_not_decrease_cursor(monkeypatch):
+    from open_webui.internal.db import AsyncSessionLocal
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    chat_id = _chat_id('cursor-rmw')
+    await OcuChatStates.advance_cursor(chat_id, 5)
+
+    released = asyncio.Event()
+    seven_session_id = {'value': 0}
+    _gate_first_target_reads(monkeypatch, chat_id, lambda: seven_session_id['value'], released)
+
+    async with AsyncSessionLocal() as session_nine, AsyncSessionLocal() as session_seven:
+        seven_session_id['value'] = id(session_seven)
+
+        async def run_nine():
+            try:
+                return await OcuChatStates.advance_cursor(chat_id, 9, db=session_nine)
+            finally:
+                released.set()
+
+        nine_result, seven_result = await asyncio.gather(
+            run_nine(),
+            OcuChatStates.advance_cursor(chat_id, 7, db=session_seven),
+        )
+
+    fresh = await OcuChatStates.get(chat_id)
+    assert fresh is not None
+    assert fresh.last_seen_revision == 9
+    assert nine_result.last_seen_revision == 9
+    assert seven_result.last_seen_revision == 9
+    assert fresh.updated_at == nine_result.updated_at
+    assert seven_result.updated_at == nine_result.updated_at
+
+
+@pytest.mark.asyncio
+async def test_stale_advance_releases_writer_lock_on_shared_session(monkeypatch):
+    import open_webui.internal.db as db_mod
+    from open_webui.internal.db import AsyncSessionLocal
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    monkeypatch.setattr(db_mod, 'DATABASE_ENABLE_SESSION_SHARING', True)
+
+    chat_id = _chat_id('cursor-stale-lock')
+    await OcuChatStates.advance_cursor(chat_id, 7)
+    after_advance = await OcuChatStates.get(chat_id)
+    assert after_advance is not None
+    stored_at = after_advance.updated_at
+
+    async with AsyncSessionLocal() as held:
+        stale = await OcuChatStates.advance_cursor(chat_id, 5, db=held)
+        assert stale.last_seen_revision == 7
+        assert stale.updated_at == stored_at
+        later = await asyncio.wait_for(OcuChatStates.advance_cursor(chat_id, 9), timeout=5)
+        assert later.last_seen_revision == 9
+        assert later.updated_at != stored_at
+
+
+@pytest.mark.asyncio
+async def test_concurrent_missing_row_advance_then_prefs(monkeypatch):
+    from open_webui.internal.db import AsyncSessionLocal
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    chat_id = _chat_id('missing-adv-prefs')
+    released = asyncio.Event()
+    prefs_session_id = {'value': 0}
+    _gate_first_target_reads(monkeypatch, chat_id, lambda: prefs_session_id['value'], released)
+
+    async with AsyncSessionLocal() as session_advance, AsyncSessionLocal() as session_prefs:
+        prefs_session_id['value'] = id(session_prefs)
+
+        async def run_advance():
+            try:
+                return await OcuChatStates.advance_cursor(chat_id, 7, db=session_advance)
+            finally:
+                released.set()
+
+        await asyncio.gather(
+            run_advance(),
+            OcuChatStates.upsert_prefs(chat_id, {'view': 'terminal'}, db=session_prefs),
+        )
+
+    await _assert_merged_missing_row(chat_id)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_missing_row_prefs_then_advance(monkeypatch):
+    from open_webui.internal.db import AsyncSessionLocal
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    chat_id = _chat_id('missing-prefs-adv')
+    released = asyncio.Event()
+    advance_session_id = {'value': 0}
+    _gate_first_target_reads(monkeypatch, chat_id, lambda: advance_session_id['value'], released)
+
+    async with AsyncSessionLocal() as session_prefs, AsyncSessionLocal() as session_advance:
+        advance_session_id['value'] = id(session_advance)
+
+        async def run_prefs():
+            try:
+                return await OcuChatStates.upsert_prefs(chat_id, {'view': 'terminal'}, db=session_prefs)
+            finally:
+                released.set()
+
+        await asyncio.gather(
+            run_prefs(),
+            OcuChatStates.advance_cursor(chat_id, 7, db=session_advance),
+        )
+
+    await _assert_merged_missing_row(chat_id)
