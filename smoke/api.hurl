@@ -62,6 +62,14 @@ header "X-User-Id" exists
 header "X-User-Email" exists
 body == ""
 
-# Pending (Plan 1, docs/plans/2026-09-20-workspace-artifact-integration.md):
-# GET {{base_url}}/api/v1/ocu/workspaces/{chat_id} —
-# add assertions here in the PR that implements them; do not add before.
+GET {{base_url}}/api/v1/ocu/workspaces/{{chat_id}}
+Authorization: Bearer {{token}}
+
+HTTP 200
+[Asserts]
+jsonpath "$.status" exists
+
+GET {{base_url}}/api/v1/ocu/workspaces/not-a-real-chat-id
+Authorization: Bearer {{token}}
+
+HTTP 404
