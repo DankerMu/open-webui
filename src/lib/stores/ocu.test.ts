@@ -2,13 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { get } from 'svelte/store';
 
 import { artifactContents } from '$lib/stores';
-import {
-	applyDescribe,
-	applyRevision,
-	beginGeneration,
-	markDirty,
-	ocuWorkspaces
-} from './ocu';
+import { applyDescribe, applyRevision, beginGeneration, markDirty, ocuWorkspaces } from './ocu';
 
 describe('ocu workspace store', () => {
 	beforeEach(() => {

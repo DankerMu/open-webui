@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-	getWorkspace,
-	launchWorkspace,
-	putWorkspacePrefs,
-	refreshWorkspace
-} from './index';
+import { getWorkspace, launchWorkspace, putWorkspacePrefs, refreshWorkspace } from './index';
 
 describe('ocu workspace client', () => {
 	beforeEach(() => {

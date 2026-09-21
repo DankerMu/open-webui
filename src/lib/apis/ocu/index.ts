@@ -15,19 +15,16 @@ const requestWorkspace = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/ocu/workspaces/${chatId}${suffix}`,
-		{
-			method,
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-				authorization: `Bearer ${token}`,
-				'X-Requested-With': 'ocu-workspace'
-			},
-			...(body !== undefined ? { body: JSON.stringify(body) } : {})
-		}
-	)
+	const res = await fetch(`${WEBUI_API_BASE_URL}/ocu/workspaces/${chatId}${suffix}`, {
+		method,
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			authorization: `Bearer ${token}`,
+			'X-Requested-With': 'ocu-workspace'
+		},
+		...(body !== undefined ? { body: JSON.stringify(body) } : {})
+	})
 		.then(async (response) => {
 			if (!response.ok) throw await response.json();
 			return response.json();
