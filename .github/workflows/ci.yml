@@ -1,6 +1,7 @@
-# CI — risk-layered gates for the fork. NOTE: this workflow is inert until the
-# fork has its own GitHub remote (origin currently points at upstream). Local
-# enforcement today: pre-commit hooks + `make check` (AGENTS.md § Enforcement Index).
+# CI — risk-layered gates for the fork (origin = DankerMu/open-webui). Local
+# enforcement: pre-commit hooks + `make check` (AGENTS.md § Enforcement Index).
+# setup-uv is pinned to an exact tag: v8+ publishes no floating major tags, and
+# v4 talked to the retired cache backend (every job re-downloaded 293 packages).
 name: CI
 
 on:
@@ -14,6 +15,16 @@ concurrency:
 
 permissions:
   contents: read
+
+# `uv sync` would build the editable open-webui wheel, and hatch_build.py runs
+# `npm install` + `npm run build` (the whole SvelteKit frontend, ~2 min) inside
+# that build. Nothing in CI imports the installed distribution: pytest, alembic
+# (`prepend_sys_path = ..`) and uvicorn (`--app-dir`) all import `open_webui`
+# from backend/ source, and env.py reads the version from package.json unless
+# FROM_INIT_PY is set. So every job syncs with --no-install-project, and
+# UV_NO_SYNC keeps later `uv run` calls from installing the project anyway.
+env:
+  UV_NO_SYNC: '1'
 
 jobs:
   layer1-fast-checks:
@@ -31,10 +42,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - run: make fmt-check
       - run: make lint
@@ -57,17 +68,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - run: make test
       - run: make coverage-gate
 
   layer3-integration-tests:
     name: Runtime verification (smoke + migrations + UI)
-    needs: layer2-unit-tests
+    # Fans out from layer1 alongside layer2: the repo is public (runner minutes are
+    # free), so serialising smoke behind unit tests only lengthened the critical path.
+    needs: layer1-fast-checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -81,10 +94,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - name: Install hurl
         run: |
@@ -115,10 +128,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v4
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - name: Verify constraints.yaml is the naming-guard source
         run: grep -q 'constraints\.yaml' .git-hooks/check-naming.sh

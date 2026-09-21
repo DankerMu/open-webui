@@ -61,6 +61,14 @@ stop_one() { # stop_one NAME PIDFILE PORT
 
 case "${1:-}" in
   start)
+    # config.py wipes backend/open_webui/static/ at import and refills it from
+    # FRONTEND_BUILD_DIR/static; with no frontend build the avatar and favicon
+    # routes 500 (seen in CI once `uv sync` stopped building the wheel, whose
+    # hatch hook ran `npm run build` as a side effect). The harness never builds
+    # the SPA (vite serves it), so stage the source assets under .run/ instead.
+    export FRONTEND_BUILD_DIR="$repo_root/.run/frontend-build"
+    rm -rf "$FRONTEND_BUILD_DIR/static" && mkdir -p "$FRONTEND_BUILD_DIR" \
+      && cp -R "$repo_root/static/static" "$FRONTEND_BUILD_DIR/static" || exit 2
     start_one backend .run/backend.pid .run/backend.log \
       sh -c "cd backend && exec uv run --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port $BACKEND_PORT"
     for i in $(seq 1 180); do
