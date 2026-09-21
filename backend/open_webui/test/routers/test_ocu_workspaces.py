@@ -4,24 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import uuid
-from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_DATA_DIR = _REPO_ROOT / '.run' / 'data'
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-os.environ['DATA_DIR'] = str(_DATA_DIR)
-os.environ['DATABASE_URL'] = f'sqlite:///{_DATA_DIR}/webui.db'
-os.environ.setdefault('WEBUI_SECRET_KEY', 'dev-harness-secret')
-os.environ.setdefault('ENABLE_OLLAMA_API', 'false')
-os.environ.setdefault('ENABLE_OPENAI_API', 'false')
-os.environ.setdefault('OFFLINE_MODE', 'true')
-os.environ.setdefault('ENABLE_VERSION_UPDATE_CHECK', 'false')
-os.environ['ENABLE_OCU_WORKSPACE'] = 'true'
+from open_webui.test.ocu_harness import (
+    _cleanup_owner,
+    _delete_chat,
+    _delete_user,
+    _insert_chat,
+    _insert_user,
+    _owner_and_chat,
+    _session_headers,
+    _unique,
+    get_client,
+)
 
 WORKSPACE_PREFIX = '/api/v1/ocu/workspaces'
 INVALID_CHAT_IDS = ('temporary:abc', 'local:abc', 'channel:abc', 'default')
@@ -29,85 +25,8 @@ XR = {'X-Requested-With': 'ocu-workspace'}
 STOPPED_STATES = ('paused', 'exited', 'created', 'restarting', 'dead', 'stopped')
 
 
-@pytest.fixture(scope='session')
-def client():
-    from fastapi.testclient import TestClient
-    from open_webui.main import app
-
-    test_client = TestClient(app)
-    try:
-        yield test_client
-    finally:
-        test_client.close()
-
-
-_CLIENT = None
-
-
-@pytest.fixture(autouse=True)
-def _bind_client(client):
-    global _CLIENT
-    _CLIENT = client
-    yield
-
-
-def _unique(prefix: str) -> str:
-    return f'{prefix}-{uuid.uuid4()}'
-
-
-async def _insert_user(*, role: str, prefix: str, email: str | None = None):
-    from open_webui.models.users import Users
-
-    user_id = _unique(prefix)
-    user = await Users.insert_new_user(
-        id=user_id,
-        name=prefix,
-        email=email or f'{user_id}@harness.local',
-        role=role,
-    )
-    assert user is not None
-    return user
-
-
-async def _insert_chat(owner_id: str):
-    from open_webui.models.chats import ChatForm, Chats
-
-    chat = await Chats.insert_new_chat(
-        _unique('chat'),
-        owner_id,
-        ChatForm(chat={'title': 'OCU workspace fixture'}),
-    )
-    assert chat is not None
-    return chat
-
-
-async def _delete_user(user_id: str) -> None:
-    from open_webui.models.users import Users
-
-    await Users.delete_user_by_id(user_id)
-
-
-async def _delete_chat(chat_id: str) -> None:
-    from open_webui.models.chats import Chats
-
-    await Chats.delete_chat_by_id(chat_id)
-
-
-async def _owner_and_chat():
-    owner = await _insert_user(role='user', prefix='ws-owner')
-    chat = await _insert_chat(owner.id)
-    return owner, chat
-
-
-async def _cleanup_owner(owner_id: str, chat_id: str) -> None:
-    await _delete_chat(chat_id)
-    await _delete_user(owner_id)
-
-
-def _session_headers(user_id: str) -> dict[str, str]:
-    from open_webui.utils.auth import create_token
-
-    return {'Authorization': f'Bearer {create_token({"id": user_id})}'}
+async def _ws_owner_and_chat():
+    return await _owner_and_chat(prefix='ws-owner', title='OCU workspace fixture')
 
 
 class _StubClient:
@@ -142,27 +61,48 @@ def _install_client(monkeypatch, stub: _StubClient):
 
 
 def _describe(chat_id: str, headers: dict[str, str] | None = None):
-    return _CLIENT.get(f'{WORKSPACE_PREFIX}/{chat_id}', headers=headers)
+    return get_client().get(f'{WORKSPACE_PREFIX}/{chat_id}', headers=headers)
 
 
 def _launch(chat_id: str, headers: dict[str, str] | None = None):
-    return _CLIENT.post(f'{WORKSPACE_PREFIX}/{chat_id}/launch', headers=headers)
+    return get_client().post(f'{WORKSPACE_PREFIX}/{chat_id}/launch', headers=headers)
 
 
 def _refresh(chat_id: str, headers: dict[str, str] | None = None):
-    return _CLIENT.post(f'{WORKSPACE_PREFIX}/{chat_id}/refresh', headers=headers)
+    return get_client().post(f'{WORKSPACE_PREFIX}/{chat_id}/refresh', headers=headers)
 
 
 def _prefs(chat_id: str, body, headers: dict[str, str] | None = None, *, content: bytes | None = None):
     url = f'{WORKSPACE_PREFIX}/{chat_id}/prefs'
     if content is not None:
-        return _CLIENT.put(url, content=content, headers=headers)
-    return _CLIENT.put(url, json=body, headers=headers)
+        return get_client().put(url, content=content, headers=headers)
+    return get_client().put(url, json=body, headers=headers)
+
+
+def _assert_describe_cursor(monkeypatch, stub, *, stored_revision, status, revision, extra=None):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    _install_client(monkeypatch, stub)
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    try:
+        asyncio.run(OcuChatStates.advance_cursor(chat.id, stored_revision))
+        response = _describe(chat.id, _session_headers(owner.id))
+        assert response.status_code == 200
+        body = response.json()
+        assert body['status'] == status
+        assert body['revision'] == revision
+        if extra is not None:
+            extra(body)
+        stored = asyncio.run(OcuChatStates.get(chat.id))
+        assert stored is not None
+        assert stored.last_seen_revision == revision
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
 
 
 def test_describe_never_calls_launch(monkeypatch):
     stub = _install_client(monkeypatch, _StubClient(describe={'state': 'stopped', 'revision': 0, 'views': ['files']}))
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         response = _describe(chat.id, _session_headers(owner.id))
         assert response.status_code == 200
@@ -178,7 +118,7 @@ def test_stopped_and_paused_have_launch_capability(state, monkeypatch):
         monkeypatch,
         _StubClient(describe={'state': state, 'revision': 3, 'views': ['files']}),
     )
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         body = _describe(chat.id, _session_headers(owner.id)).json()
         assert body['status'] == 'stopped'
@@ -197,7 +137,7 @@ def test_running_has_no_launch_capability(monkeypatch):
             describe={'state': 'running', 'revision': 4, 'views': ['files', 'browser', 'terminal'], 'cli_badge': 'ok'}
         ),
     )
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         response = _describe(chat.id, _session_headers(owner.id))
         assert response.status_code == 200
@@ -218,7 +158,7 @@ def test_unreachable_capabilities_are_prefs_only(monkeypatch):
     from open_webui.utils.ocu_client import OcuUnreachable
 
     _install_client(monkeypatch, _StubClient(describe_error=OcuUnreachable('down')))
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         body = _describe(chat.id, _session_headers(owner.id)).json()
         assert body['status'] == 'unavailable'
@@ -230,25 +170,20 @@ def test_unreachable_capabilities_are_prefs_only(monkeypatch):
 
 
 def test_unreachable_returns_stored_cursor(monkeypatch):
-    from open_webui.models.ocu_chat_state import OcuChatStates
     from open_webui.utils.ocu_client import OcuUnreachable
 
-    _install_client(monkeypatch, _StubClient(describe_error=OcuUnreachable('down')))
-    owner, chat = asyncio.run(_owner_and_chat())
-    try:
-        asyncio.run(OcuChatStates.advance_cursor(chat.id, 5))
-        response = _describe(chat.id, _session_headers(owner.id))
-        assert response.status_code == 200
-        body = response.json()
-        assert body['status'] == 'unavailable'
+    def extra(body):
         assert body['reason'] == 'ocu_unreachable'
-        assert body['revision'] == 5
         assert body['views'] == []
-        stored = asyncio.run(OcuChatStates.get(chat.id))
-        assert stored is not None
-        assert stored.last_seen_revision == 5
-    finally:
-        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+    _assert_describe_cursor(
+        monkeypatch,
+        _StubClient(describe_error=OcuUnreachable('down')),
+        stored_revision=5,
+        status='unavailable',
+        revision=5,
+        extra=extra,
+    )
 
 
 @pytest.mark.parametrize('method,call', [('POST', _launch), ('POST', _refresh), ('PUT', _prefs)])
@@ -258,7 +193,7 @@ def test_mutating_without_header_is_403_and_skips_owner_and_client(method, call,
     stub = _install_client(monkeypatch, _StubClient())
     spy = AsyncMock()
     monkeypatch.setattr(Chats, 'is_chat_owner', spy)
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         headers = _session_headers(owner.id)
         if call is _prefs:
@@ -296,7 +231,7 @@ def test_flag_off_returns_404_for_all_four(monkeypatch):
     spy = AsyncMock()
     monkeypatch.setattr(Chats, 'is_chat_owner', spy)
     monkeypatch.setattr(ocu_workspaces, 'ENABLE_OCU_WORKSPACE', False)
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         headers = {**_session_headers(owner.id), **XR}
         assert _describe(chat.id, headers).status_code == 404
@@ -313,7 +248,7 @@ def test_launch_never_created_is_409(monkeypatch):
     from open_webui.utils.ocu_client import OcuNeverCreated
 
     stub = _install_client(monkeypatch, _StubClient(launch=OcuNeverCreated()))
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         response = _launch(chat.id, {**_session_headers(owner.id), **XR})
         assert response.status_code == 409
@@ -328,7 +263,7 @@ def test_refresh_burst_overflow_is_429(monkeypatch):
 
     _install_client(monkeypatch, _StubClient(refresh={'revision': 2}))
     monkeypatch.setattr(ocu_workspaces, '_now', lambda: 1_000.0)
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         headers = {**_session_headers(owner.id), **XR}
         codes = [_refresh(chat.id, headers).status_code for _ in range(5)]
@@ -343,32 +278,20 @@ def test_refresh_burst_overflow_is_429(monkeypatch):
 
 
 def test_describe_advances_cursor_to_broker_revision_when_stopped(monkeypatch):
-    from open_webui.models.ocu_chat_state import OcuChatStates
-
-    _install_client(
+    _assert_describe_cursor(
         monkeypatch,
         _StubClient(describe={'state': 'stopped', 'revision': 7, 'views': ['files']}),
+        stored_revision=5,
+        status='stopped',
+        revision=7,
     )
-    owner, chat = asyncio.run(_owner_and_chat())
-    try:
-        asyncio.run(OcuChatStates.advance_cursor(chat.id, 5))
-        response = _describe(chat.id, _session_headers(owner.id))
-        assert response.status_code == 200
-        body = response.json()
-        assert body['status'] == 'stopped'
-        assert body['revision'] == 7
-        stored = asyncio.run(OcuChatStates.get(chat.id))
-        assert stored is not None
-        assert stored.last_seen_revision == 7
-    finally:
-        asyncio.run(_cleanup_owner(owner.id, chat.id))
 
 
 def test_prefs_owner_200(monkeypatch):
     from open_webui.models.ocu_chat_state import OcuChatStates
 
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         payload = {'view': 'terminal', 'selected_file_id': 'f1', 'open': True}
         response = _prefs(chat.id, payload, {**_session_headers(owner.id), **XR})
@@ -384,7 +307,7 @@ def test_prefs_non_owner_404(monkeypatch):
     from open_webui.models.ocu_chat_state import OcuChatStates
 
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     other = asyncio.run(_insert_user(role='user', prefix='ws-other'))
     try:
         response = _prefs(chat.id, {'view': 'files'}, {**_session_headers(other.id), **XR})
@@ -404,7 +327,7 @@ def test_prefs_unknown_key_422(monkeypatch):
     from open_webui.models.ocu_chat_state import OcuChatStates
 
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         response = _prefs(chat.id, {'token': 'x'}, {**_session_headers(owner.id), **XR})
         assert response.status_code == 422
@@ -417,7 +340,7 @@ def test_prefs_oversize_422(monkeypatch):
     from open_webui.models.ocu_chat_state import OcuChatStates
 
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         body = json.dumps({'view': 'files', 'selected_file_id': 'a' * 3000}).encode()
         assert len(body) > 2048
@@ -432,7 +355,7 @@ def test_new_chat_has_no_state_until_write(monkeypatch):
     from open_webui.models.ocu_chat_state import OcuChatStates
 
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     clone = asyncio.run(_insert_chat(owner.id))
     try:
         assert asyncio.run(OcuChatStates.get(clone.id)) is None
@@ -445,7 +368,7 @@ def test_new_chat_has_no_state_until_write(monkeypatch):
 
 def test_deleted_chat_returns_404(monkeypatch):
     _install_client(monkeypatch, _StubClient())
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     chat_id = chat.id
     headers = {**_session_headers(owner.id), **XR}
     asyncio.run(_delete_chat(chat_id))
@@ -490,7 +413,7 @@ def test_nonexistent_chat_is_404(monkeypatch):
 
 def test_launch_success_is_200(monkeypatch):
     stub = _install_client(monkeypatch, _StubClient(launch={'state': 'running'}))
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         response = _launch(chat.id, {**_session_headers(owner.id), **XR})
         assert response.status_code == 200
@@ -504,7 +427,7 @@ def test_never_created_describe_is_unavailable(monkeypatch):
         monkeypatch,
         _StubClient(describe={'state': 'never_created', 'revision': 0, 'views': []}),
     )
-    owner, chat = asyncio.run(_owner_and_chat())
+    owner, chat = asyncio.run(_ws_owner_and_chat())
     try:
         body = _describe(chat.id, _session_headers(owner.id)).json()
         assert body['status'] == 'unavailable'

@@ -13,7 +13,7 @@ fail=0
 
 # Scope: application code only — backend/open_webui/** and src/** (harness scripts,
 # configs, e2e specs and tests are not coverage subjects).
-added_py="$(bash scripts/change-scope.sh --status --ext py | awk -F'\t' '$1=="A"{print $2}' | grep '^backend/open_webui/' | grep -v '/test_' | grep -v '/tests/' || true)"
+added_py="$(bash scripts/change-scope.sh --status --ext py | awk -F'\t' '$1=="A"{print $2}' | grep '^backend/open_webui/' | grep -v '/test_' | grep -v '/tests/' | grep -v '^backend/open_webui/test/' || true)"
 mod_py="$(bash scripts/change-scope.sh --status --ext py | awk -F'\t' '$1=="M"{print $2}' | grep '^backend/open_webui/' || true)"
 added_web="$(bash scripts/change-scope.sh --status --ext "ts js svelte" | awk -F'\t' '$1=="A"{print $2}' | grep '^src/' | grep -v '\.test\.' || true)"
 
