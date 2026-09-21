@@ -154,6 +154,7 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 3. 2026-09-20 — Never use mtime as file identity or version; use `revision` + content hash (`touch -r`, `cp -p` and tar restore all forge mtime).
 4. 2026-09-20 — Touch upstream files with the minimal diff and put new code in new modules; the fork must stay rebase-able onto upstream Open WebUI.
 5. 2026-09-20 — Model-generated HTML/SVG always runs in an opaque origin: sandboxed iframe without `allow-same-origin` when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level; never reuse `$settings.iframeSandbox*` (user-changeable) for the trusted OCU SPA or generated content.
+6. 2026-09-21 — The backend wipes `backend/open_webui/static/` at import and refills it from `FRONTEND_BUILD_DIR/static` (`config.py`); without a frontend build the avatar/favicon routes 500 and the tracked files stay deleted. `scripts/dev-bg.sh` stages `static/static` into `.run/frontend-build` for this reason — never rely on `build/` (or the hatch build hook) being present.
 
 ## Conventions
 
