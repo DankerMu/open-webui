@@ -17,6 +17,10 @@ export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
 export OPENAI_API_BASE_URLS="${OPENAI_API_BASE_URLS:-}"
 export ENABLE_OPENAI_API="${ENABLE_OPENAI_API:-false}"
 export ENABLE_OCU_WORKSPACE=true
+export OCU_INTERNAL_URL="${OCU_INTERNAL_URL:-http://127.0.0.1:9}"
+export OCU_INTERNAL_TOKEN="${OCU_INTERNAL_TOKEN:-harness-no-ocu}"
+# Dummy broker: empty URL/token makes OcuClient() raise ValueError and describe
+# 500s; 127.0.0.1:9 connection-refuses so describe maps to 200 unavailable.
 # No model downloads at startup: the default local sentence-transformers embedder
 # pulls ~90 MB from HuggingFace on first boot, which hangs offline (LAN) and
 # blows the readiness budget. Smoke tests do not need embeddings.
