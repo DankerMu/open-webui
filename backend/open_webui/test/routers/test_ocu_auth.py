@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from urllib.parse import quote
 
 import pytest
-from open_webui.test_ocu_harness import (
+from open_webui.test.ocu_harness import (
     _cleanup_owner,
     _delete_chat,
     _delete_user,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from open_webui.test_ocu_harness import bind_client, session_test_client
+from open_webui.test.ocu_harness import bind_client, session_test_client
 
 
 @pytest.fixture(scope='session')

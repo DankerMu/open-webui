@@ -1,4 +1,8 @@
-"""Shared OCU TestClient harness for auth, workspace, and chat-state tests."""
+"""Shared OCU TestClient harness for auth, workspace, and chat-state tests.
+
+Imported as a plain module via sys.path (not open_webui.*) so collection
+works when CI runs pytest without installing the project.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ _CLIENT = None
 
 
 def configure_ocu_test_env() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[3]
     data_dir = repo_root / '.run' / 'data'
     data_dir.mkdir(parents=True, exist_ok=True)
     os.environ['DATA_DIR'] = str(data_dir)
