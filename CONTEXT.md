@@ -37,12 +37,12 @@ Canonical terms and their prohibited aliases live in `openspec/glossary.md`. Rea
 
 ## Public Interfaces and Contracts
 
-| Interface                                                                                                        | Contract source                                              | Backward compatibility rule                                       | Test seam                                          |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------- |
-| `GET /api/v1/ocu/workspaces/{chat_id}`, `POST …/launch`, `POST …/refresh`, `PUT …/prefs`, `GET /api/v1/ocu/auth` | `docs/plans/2026-09-20-workspace-artifact-integration.md` §1 | additive fields only; 401/403/404/409/422 semantics fixed         | `smoke/api.hurl` + backend `pytest`                |
-| Reverse-proxy allowlist for `/ocu/*`                                                                             | plan §2 endpoint allowlist                                   | default-deny; adding a path is a reviewed change                  | A-T08 authorization smoke                          |
-| Office broker `/office/*`                                                                                        | `docs/plans/2026-09-20-office-manual-editing.md` §2          | callback protocol fixed by ONLYOFFICE; `save_seq` never regresses | broker unit + fixture callbacks (B-T04, B-T08)     |
-| Upstream Open WebUI REST/socket API                                                                              | upstream code at tag v0.11.3                                 | never changed by the fork                                         | `smoke/*.hurl`, `e2e/smoke.spec.ts`                |
+| Interface                                                                                                        | Contract source                                              | Backward compatibility rule                                       | Test seam                                      |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- | ---------------------------------------------- |
+| `GET /api/v1/ocu/workspaces/{chat_id}`, `POST …/launch`, `POST …/refresh`, `PUT …/prefs`, `GET /api/v1/ocu/auth` | `docs/plans/2026-09-20-workspace-artifact-integration.md` §1 | additive fields only; 401/403/404/409/422 semantics fixed         | `smoke/api.hurl` + backend `pytest`            |
+| Reverse-proxy allowlist for `/ocu/*`                                                                             | plan §2 endpoint allowlist                                   | default-deny; adding a path is a reviewed change                  | A-T08 authorization smoke                      |
+| Office broker `/office/*`                                                                                        | `docs/plans/2026-09-20-office-manual-editing.md` §2          | callback protocol fixed by ONLYOFFICE; `save_seq` never regresses | broker unit + fixture callbacks (B-T04, B-T08) |
+| Upstream Open WebUI REST/socket API                                                                              | upstream code at tag v0.11.3                                 | never changed by the fork                                         | `smoke/*.hurl`, `e2e/smoke.spec.ts`            |
 
 ## Forbidden Logic & Irreversible Operations
 
