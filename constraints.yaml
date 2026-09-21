@@ -234,6 +234,11 @@ exemptions:
       reason: "Upstream static assets served by FastAPI"
       expires: never
       exit_condition: "none"
+    - path: "openspec/changes/archive/"
+      rules: [code_canonicality]
+      reason: "OpenSpec frozen change history — `openspec archive` moves completed changes here; not a scratchpad"
+      expires: never
+      exit_condition: "none"
     - path: "backend/open_webui/migrations/versions/"
       rules: [size_limits, duplicate_code_detection]
       reason: "Alembic migrations — generated, immutable once shipped"
