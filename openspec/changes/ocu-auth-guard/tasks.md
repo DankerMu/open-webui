@@ -2,16 +2,16 @@
 
 ## 1. Boundary implementation
 
-- [ ] 1.1 Add behavior tests in OCU tests/test_auth_guard.py and capture semantic red against pre-change production source: HTTP, identity, WebSocket and mounted MCP denial before work, invalid IDs, peer denial, CORS and authorized positives.
-- [ ] 1.2 Implement central auth_guard and minimal app/MCP/security wiring; prove distinct MCP credentials cannot substitute, all identity aliases are guarded, valid IDs are not coerced to default, and context does not survive request completion/error.
-- [ ] 1.3 Wire production startup preflight and explicit Docker packaging; execute the actual multi-worker command without token and require parent exit non-zero, then configured health and MCP initialization success.
-- [ ] 1.4 Migrate affected existing test clients, CI collection/smoke, compose/Helm token configuration and public docs. Preserve unrelated behavior; leave production tool/filter callers to #10/#11 and untracked deploy/ and docs/decisions/ untouched.
+- [x] 1.1 Add behavior tests in OCU tests/test_auth_guard.py and qualify semantic red at real boundaries; record base-source assertion failures separately from missing-module setup failures and qualify new-only startup behavior with controlled mutants.
+- [x] 1.2 Implement central auth_guard and minimal app/MCP/security wiring; prove distinct MCP credentials cannot substitute, all identity aliases are guarded, valid IDs are not coerced to default, and context does not survive request completion/error.
+- [x] 1.3 Wire production startup preflight and explicit Docker packaging; execute the actual multi-worker command without token and require parent exit non-zero, then configured health and MCP initialization success.
+- [x] 1.4 Migrate affected existing test clients, CI collection/smoke, compose/Helm token configuration and public docs. Preserve unrelated behavior; leave production tool/filter callers to #10/#11 and untracked deploy/ and docs/decisions/ untouched.
 
 ## 2. Evidence and review
 
-- [ ] 2.1 Run `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/ -q --import-mode=importlib --ignore=tests/integration` with configured test token, plus `./tests/test-project-structure.sh`; retain output and exit codes. Run the auth module alone for red/green, never count import failure as red.
-- [ ] 2.2 Exercise image startup and authenticated MCP using Docker locally or observed CI; run existing Docker integration suite with updated distinct credentials. Record actual availability and results, not expected results.
-- [ ] 2.3 Validate this fixture strictly and obtain fixture approval before implementation; obtain correctness, test-evidence/spec-compliance and security review before merge. Verify WebUI client Bearer compatibility and no token disclosure in responses/logs.
+- [x] 2.1 Run `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/ -q --import-mode=importlib --ignore=tests/integration` with configured test token, plus `./tests/test-project-structure.sh`; retain output and exit codes. Result: 440 passed, 5 skipped; structure 24 passed. Import failures are not semantic red.
+- [ ] 2.2 Deferred to consolidated epic acceptance by user instruction on 2026-09-22: run the existing Docker integration suite with distinct credentials after all development. Image startup and mounted MCP smoke have passed; the full sandbox build was cancelled, and integration is not claimed complete.
+- [x] 2.3 Strict fixture validation and fixture review passed; three-seat cross-review plus one fix pass and fresh re-review closed all findings on OCU head `8be4d3c48213436a1933e04016e25d4166986370`. REST Bearer compatibility is preserved.
 
 ## Risk packs
 

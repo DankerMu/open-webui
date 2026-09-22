@@ -162,6 +162,8 @@ Minimal mergeable slice: 18.1 - green alone: the build pipeline is verifiable by
 
 ## 19. [webui] Acceptance matrix run and evidence (all specs)
 
+- [ ] 19.0 Consolidated Docker acceptance after all epic development (user instruction, 2026-09-22): run the real OCU integration suite with distinct internal/MCP credentials, packaged startup and MCP smoke, proxy/overlay/network checks, sandbox credential-containment inspection, and image/backup/restore checks required by their owning issues. Per-issue non-Docker verification and reviews continue; deferred Docker evidence is not a pass and must close before epic acceptance.
+
 - [ ] 19.1 Run A-T01–A-T15 with deterministic fixtures, then one real-model pass; collect screenshots from a normal user's browser under `.run/ui-evidence/`; A-T09 evidence includes a grep for the internal token over the chat transcript, the browser's `Referer` headers and the proxy/OCU default-level logs; record capacity observation for the LAN host.
 - [ ] 19.2 Final docs sync: AGENTS.md Verification Matrix Pending row replaced, `CONTEXT.md` open terminology row for launch/start/resurrect closed (launch is the single WebUI route; the proxied restart/resurrect rows are aliases of the same internal launch, not a retired path).
 
