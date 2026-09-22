@@ -15,16 +15,16 @@
 
 ## Risk packs
 
-| Pack | Selection and evidence |
-| --- | --- |
-| Public API / CLI / script entry | Selected: 1.1–1.3 HTTP, WS, mounted MCP and startup |
-| Config / project setup | Selected: 1.3–1.4 missing/malformed config and deployment wiring |
-| File IO / path safety / overwrite | Selected: 1.1–1.2 denied requests have no IO; existing traversal tests stay meaningful |
-| Schema / columns / units / field names | Not selected: no persisted schema changes |
-| Auth / permissions / secrets | Selected: 1.1–1.2 and 2.3 independent credential matrix, identity and containment |
-| Concurrency / shared state / ordering | Selected: 1.2 successive/concurrent request identity isolation and denial before side effects |
-| Resource limits / large input / discovery | Not selected: no new upload limits or resource discovery behavior |
-| Legacy compatibility / examples | Selected: 1.4 and 2.1 test/default behavior migration without unauthenticated fallback |
-| Error handling / rollback / partial outputs | Selected: 1.1–1.3 startup/denial and no partial protected effects |
-| Release / packaging / dependency compatibility | Selected: 1.3–1.4 and 2.2 actual packaged entrypoint; dependency upgrades excluded |
-| Documentation / migration notes | Selected: 1.4 paired caller/server configuration, credential carriers and fail-closed contract |
+| Pack                                           | Selection and evidence                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Public API / CLI / script entry                | Selected: 1.1–1.3 HTTP, WS, mounted MCP and startup                                            |
+| Config / project setup                         | Selected: 1.3–1.4 missing/malformed config and deployment wiring                               |
+| File IO / path safety / overwrite              | Selected: 1.1–1.2 denied requests have no IO; existing traversal tests stay meaningful         |
+| Schema / columns / units / field names         | Not selected: no persisted schema changes                                                      |
+| Auth / permissions / secrets                   | Selected: 1.1–1.2 and 2.3 independent credential matrix, identity and containment              |
+| Concurrency / shared state / ordering          | Selected: 1.2 successive/concurrent request identity isolation and denial before side effects  |
+| Resource limits / large input / discovery      | Not selected: no new upload limits or resource discovery behavior                              |
+| Legacy compatibility / examples                | Selected: 1.4 and 2.1 test/default behavior migration without unauthenticated fallback         |
+| Error handling / rollback / partial outputs    | Selected: 1.1–1.3 startup/denial and no partial protected effects                              |
+| Release / packaging / dependency compatibility | Selected: 1.3–1.4 and 2.2 actual packaged entrypoint; dependency upgrades excluded             |
+| Documentation / migration notes                | Selected: 1.4 paired caller/server configuration, credential carriers and fail-closed contract |
