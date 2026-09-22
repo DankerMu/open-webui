@@ -79,9 +79,13 @@ The proxy is the primary control and OCU `app.py` `/files/{chat_id}/{filename}` 
 
 ### D6. One `threading.Lock` per chat_id in the OCU process
 
+Implementation amendment: `ocu-lifecycle` and decision `2026-09-22-ocu-lifecycle-lock-and-launch-semantics` require the process-local lock plus shared-filesystem flock, preserving multiple workers. The process-local-only scope below is superseded.
+
 `_get_or_create_container` is synchronous and reached from `asyncio.to_thread` / MCP threads; Plan 2's broker fence is thread-side file I/O. A dict `chat_id → threading.Lock` behind one module-level guard lock, created on first use, never deleted while a container exists. Rejected: `asyncio.Lock` (would be mixed with thread code on the same resource) and a global lock (serialises unrelated chats).
 
 ### D7. Stop semantics and the launch state matrix
+
+Implementation amendment: `ocu-lifecycle` supersedes unconditional success in the table below. Dead, readiness timeout and engine refusal fail without deletion; only observed running returns200. Host-owned idle reclamation supersedes reset-before-pause, supports external pause/unpause while OCU is online, and suspends reclamation during OCU downtime.
 
 `_get_or_create_container` returns a running container, or creates one for a chat that never had one (no container and no `.meta.json`); for any existing container whose Docker state is not `running` (`exited`, `paused`, `created`, `restarting`, `dead`), and for a chat whose container is absent but whose `.meta.json` survives (removed by cron), it raises `SandboxStopped` — recreation from meta is launch's job, never the tool path's. The `else: container.start()` branch is deleted along with the `exited` branch. The only start path is OCU's internal `POST /internal/launch/{chat_id}` (called by WebUI `POST /launch`), under the per-chat lock. Status code: Plan 1 § 1 reserves 403 for "已授权但动作不允许"; this design deviates for the one owner action refused because of sandbox state (launch on a chat that never had a container) and answers 409 `never_created`, because the refusal is a state conflict the owner can resolve by sending a first message, not a permission; 403 stays on the auth endpoint. Matrix:
 
