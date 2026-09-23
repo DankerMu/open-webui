@@ -2,7 +2,7 @@
 id: 2026-09-23-ocu-broker-identity-observation
 title: Cache fingerprints before deletion and bound identity to observed changes
 kind: architecture
-status: proposed
+status: implemented
 date: 2026-09-23
 supersedes: none
 references: 'Plan 1 D8/D11; issue15 comment5790293452; 2026-09-22-ocu-lifecycle-lock-and-launch-semantics'
@@ -22,6 +22,8 @@ Observed deletion creates a tombstone; later path reuse always gets a new UUID. 
 
 The persisted broker index is authoritative under the existing per-chat RLock+flock. It is not a filesystem-write fence: sandbox writers remain external to the lock. Failed reads or precommit writes must not publish partial identity changes.
 
+A missing outputs root with active indexed entries fails retryably instead of mass-tombstoning. First-use or an already-empty index can still observe an empty root. Unsupported filesystem names fail explicitly before serialization, preserving the predecessor.
+
 ## Alternatives considered
 
 - **Lazy old hashing only during rename** — old bytes are unavailable; it cannot support the guaranteed first rename without prior evidence.
@@ -32,3 +34,5 @@ The persisted broker index is authoritative under the existing per-chat RLock+fl
 ## Consequences
 
 Initial/detected-change scans perform content I/O; unchanged5000-file scans do not. Content-equality rename matching is a deterministic heuristic, not an event log. Counter/tombstone persistence and bounded index errors must preserve history rather than silently reset it. Endpoint/describe wiring follows in issue16; this decision does not claim runtime integration or complete detection of every write.
+
+Implemented by OCU PR9, merged at `2726fd5`. Configured active-file limits do not bound empty directories or nonregular entries; scan-resource policy is tracked in WebUI issue68.
