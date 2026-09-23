@@ -1,6 +1,7 @@
 # ocu-outputs-broker Specification
 
 ## Purpose
+
 Give OCU outputs persistent file identities and monotonic per-chat revisions with bounded, safe reconciliation, independent of endpoint and UI wiring.
 
 ## Requirements
