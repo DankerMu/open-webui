@@ -8,7 +8,7 @@ How new and changed outputs (产物) reach the sidebar reliably: stable `file_id
 
 ### Requirement: File identity and revision
 
-OCU outputs metadata SHALL carry `file_id`, relative `path`, `name`, `mime`, `url` (prefixed per design D15), `size`, `type`, `mtime_ns`, `revision` and `hash` (hash present only when computed); the broker SHALL keep one monotonic per-chat counter persisted in its index, SHALL increase it by one on every detected content change, SHALL stamp each changed entry's `revision` with the counter value at that change (unchanged entries keep their value), and SHALL report the current counter as the listing's `revision`; `file_id` SHALL survive a rename (delete+create pair with equal size and equal SHA-256), a reused path SHALL NOT inherit a deleted file's id, and deletes SHALL leave tombstones. Detection SHALL be size- and path-based plus rename hashing only; an in-place edit with unchanged size and forged mtime is a documented blind spot (design D8).
+OCU outputs metadata SHALL carry `file_id`, relative `path`, `name`, `mime`, `url` (prefixed per design D15), `size`, `type`, `mtime_ns`, `revision` and `hash` (hash present only when computed); the broker SHALL keep one monotonic per-chat counter persisted in its index, SHALL increase it by one on every detected content/path event, SHALL stamp each changed entry's `revision` with the counter value at that event (unchanged entries keep their value), and SHALL report the current counter as the listing's `revision`. Per user decision in issue15 comment5790293452, the broker SHALL cache SHA-256 on first observation and detected size changes, then compare equal-size/equal-hash removed/new paths one-to-one as renames retaining `file_id`. Observed deletions SHALL leave tombstones; a path recreated after an observed deletion SHALL NOT inherit the deleted id. Historical tombstones SHALL NOT participate in rename matching. Unchanged reconciles SHALL hash nothing. Same-size in-place edits and delete/recreate wholly between observations remain documented blind spots; mtime is display only.
 
 #### Scenario: Rename keeps id (A-T10)
 
@@ -17,8 +17,8 @@ OCU outputs metadata SHALL carry `file_id`, relative `path`, `name`, `mime`, `ur
 
 #### Scenario: Path reuse gets a new id (A-T10)
 
-- **WHEN** `a.txt` is deleted and a new `a.txt` with different content is created
-- **THEN** the new entry has a new `file_id` and the old id is a tombstone
+- **WHEN** a.txt is deleted, reconciliation observes its absence, and a later reconciliation sees a newly created a.txt
+- **THEN** the new entry has a new `file_id` and the old id remains a tombstone
 
 #### Scenario: Size change with forged mtime
 

@@ -100,7 +100,7 @@ Implementation amendment: `ocu-lifecycle` supersedes unconditional success in th
 
 ### D8. Reconciliation identity, and what describe does not carry
 
-`file_id` is a UUID assigned by the OCU outputs broker; indexes `path → file_id` and `(size, sha256) → file_id`; on reconcile, path hit wins; a delete+create pair with equal size triggers hashing and rename continuity; otherwise a new id; deletes leave tombstones and a reused path never inherits the old id. `mtime_ns` is carried for display only. The describe route (D4) carries no file list; the sidebar restores binding/status/view from describe and then lists files from the proxied `/ocu/api/outputs/{chat_id}`. Hashing happens only on suspected renames (Plan 1 § 1): an in-place edit that keeps the same size and forges mtime is therefore invisible to reconcile — a recorded blind spot (Risks), not a promise.
+`file_id` is a UUID assigned by the OCU outputs broker; indexes `path → file_id` and `(size, sha256) → file_ids`; active path hit wins and equal-size/equal-hash removed/new paths match one-to-one as renames. User decision in issue15 comment5790293452 amends hashing: cache SHA-256 at first observation and detected size changes so vanished paths have prior evidence; unchanged scans hash nothing. Only observed deletions establish tombstones and the no-inherited-id path-reuse guarantee. Same-size in-place edits and delete/recreate entirely between observations remain explicit blind spots. `mtime_ns` is display only. Describe carries no file list; the sidebar restores binding/status/view from describe and lists files from proxied outputs. Decision record: `2026-09-23-ocu-broker-identity-observation`.
 
 ### D9. Feature flag
 
