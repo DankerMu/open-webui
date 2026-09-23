@@ -16,7 +16,7 @@ Issue14 implements task7.1. Root-absolute shell URLs collide with WebUI under th
 - Read `OCU_PUBLIC_PREFIX`, default empty; emit shell asset/API/files/heartbeat URLs under it exactly once.
 - Emit unprefixed WebUI `describeUrl` and mount static assets at `{prefix}/static` only.
 - Adapt browser-viewer HTTP discovery and WebSocket connect/reconnect addresses, preserving default URLs.
-- Reject noncanonical prefix configuration before serving.
+- Reject noncanonical prefix configuration and guarded-namespace collisions before serving; do not relax chat authorization.
 
 ## Capabilities
 

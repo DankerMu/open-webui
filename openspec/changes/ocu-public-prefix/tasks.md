@@ -2,7 +2,7 @@
 
 ## 1. Prefix contract
 
-- [ ] 1.1 Add tests/orchestrator/test_preview_prefix.py for actual shell responses/static mounts/auth and startup rejection; capture semantic RED for nonempty prefix before source change, then GREEN.
+- [ ] 1.1 Add tests/orchestrator/test_preview_prefix.py for actual shell responses/static mounts/auth and startup rejection, including user-selected guarded-namespace collision rejection and accepted near-misses; capture semantic RED for nonempty prefix before source change, then GREEN.
 - [ ] 1.2 Implement canonical OCU_PUBLIC_PREFIX, shell assets/apiUrl/filesBase/heartbeat, unprefixed describeUrl and relocated static mount in app.py; default baseline tests remain green.
 - [ ] 1.3 Adapt browser-viewer discovery/poll/connect/reconnect addresses using its module URL. Execute actual class in Node built-in VM from a pytest-discovered test (mock dependencies, not the class); prove prefix/protocol matrix RED then GREEN without new dependencies.
 - [ ] 1.4 Update existing server README/env example with prefix and the explicit #17 deployment prerequisite; record no full-SPA or real-Docker acceptance claim.

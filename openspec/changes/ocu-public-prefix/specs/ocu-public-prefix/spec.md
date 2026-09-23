@@ -6,12 +6,22 @@ Keep preview shell assets and browser viewer requests on the intended OCU public
 
 ### Requirement: Canonical public prefix configuration
 
-OCU SHALL read OCU_PUBLIC_PREFIX with default empty. A nonempty prefix SHALL consist of slash-led nonempty ASCII path segments containing letters, digits, underscore, hyphen, dot or tilde; segments `.` and `..` are forbidden. Trailing slash, whitespace, percent encoding, query, fragment, scheme and protocol-relative values SHALL fail startup rather than be normalized.
+OCU SHALL read OCU_PUBLIC_PREFIX with default empty. A nonempty prefix SHALL consist of slash-led nonempty ASCII path segments containing letters, digits, underscore, hyphen, dot or tilde; segments `.` and `..` are forbidden. Trailing slash, whitespace, percent encoding, query, fragment, scheme and protocol-relative values SHALL fail startup rather than be normalized. A prefix placing `{prefix}/static/` within an existing guarded chat namespace SHALL also fail startup; OCU SHALL NOT relax chat authorization to accept it.
 
 #### Scenario: Invalid configuration
 
 - **WHEN** OCU_PUBLIC_PREFIX is `ocu`, `/ocu/`, `//ocu`, `/../ocu` or `/ocu?x=1`
 - **THEN** startup fails explicitly naming OCU_PUBLIC_PREFIX
+
+#### Scenario: Guarded namespace collision
+
+- **WHEN** OCU_PUBLIC_PREFIX is `/files`, `/preview`, `/browser`, `/terminal`, `/internal`, `/api/outputs`, `/api/uploads` or a path nested beneath one of those guarded namespaces
+- **THEN** startup fails explicitly naming OCU_PUBLIC_PREFIX instead of serving a shell whose assets require chat authorization
+
+#### Scenario: Similar nonconflicting namespace
+
+- **WHEN** OCU_PUBLIC_PREFIX is `/files-ui`, `/api` or `/tools/ocu`
+- **THEN** startup accepts it and serves assets at the configured static mount without changing chat authorization
 
 ### Requirement: Shell addresses and static mount
 

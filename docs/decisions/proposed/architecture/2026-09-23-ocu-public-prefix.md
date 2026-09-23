@@ -16,7 +16,7 @@ Root-absolute OCU asset and browser addresses collide with WebUI paths under a s
 
 ## Decision
 
-OCU_PUBLIC_PREFIX is empty by default or a canonical slash-led path without a trailing slash. Invalid path syntax fails startup. Shell OCU URLs receive the prefix exactly once; describeUrl remains the WebUI route. Static assets mount only at the configured public path. The proxy strips the prefix for chat endpoints but preserves it for that static mount.
+OCU_PUBLIC_PREFIX is empty by default or a canonical slash-led path without a trailing slash. Invalid syntax and prefixes placing the static mount in an existing guarded chat namespace fail startup. The guard's existing path classification is the authority; no copied reserved-name list or authorization bypass. The user selected rejection over changing the auth boundary. Shell OCU URLs receive the prefix exactly once; describeUrl remains the WebUI route. Static assets mount only at the configured public path. The proxy strips the prefix for chat endpoints but preserves it for that static mount.
 
 Browser-viewer discovery and WebSockets derive their path from the module URL, keeping the same-origin protocol pairing. The shell and browser-address slice retains issue14's explicit boundary; issue17 owns remaining imports, worker/script URLs and fetch wrapper. Empty-prefix behavior remains unchanged.
 
