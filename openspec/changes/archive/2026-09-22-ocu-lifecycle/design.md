@@ -30,7 +30,7 @@ Rollback removes the new routes/aliases together with the lifecycle behavior; do
 - D6's process-local-only locking is superseded by thread lock plus cross-process flock; multiple workers remain supported.
 - D7's unconditional success for existing non-running containers is superseded by observed running or explicit failure without deletion.
 - The retention clause requiring a reset before pause is superseded by host-owned pause-aware idle accounting. OCU downtime suspends idle reclamation; uncertain tracking postpones expiry rather than guessing.
-- The pre-implementation record is `docs/decisions/proposed/architecture/2026-09-22-ocu-lifecycle-lock-and-launch-semantics.md`; promote it with the completed control-plane contract.
+- The pre-implementation record, promoted with the completed control-plane contract, is `docs/decisions/implemented/architecture/2026-09-22-ocu-lifecycle-lock-and-launch-semantics.md`.
 
 ## Host idle controller
 
