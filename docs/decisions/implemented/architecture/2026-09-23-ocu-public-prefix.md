@@ -2,10 +2,10 @@
 id: 2026-09-23-ocu-public-prefix
 title: Separate OCU public prefix from WebUI-owned addresses
 kind: architecture
-status: proposed
+status: implemented
 date: 2026-09-23
 supersedes: none
-references: "Plan 1 D15/D16; issues #14/#17/#22; 2026-09-22-filter-public-link-contract"
+references: 'Plan 1 D15/D16; issues #14/#17/#22; 2026-09-22-filter-public-link-contract'
 ---
 
 # Separate OCU public prefix from WebUI-owned addresses
