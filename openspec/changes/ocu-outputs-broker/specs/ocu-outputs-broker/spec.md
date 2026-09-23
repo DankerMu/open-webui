@@ -92,3 +92,9 @@ The broker SHALL enumerate only non-hidden regular files beneath the chat output
 
 - **WHEN** a new or size-changed file cannot be read as a stable observation
 - **THEN** reconciliation reports a retryable error and leaves the committed index unchanged
+
+#### Scenario: Outputs root disappears
+
+- **WHEN** the outputs root is missing while the committed index contains active entries
+- **THEN** reconciliation reports a retryable error and preserves the index rather than recording mass deletion
+- **AND** a missing root on first use or with no active entries remains an empty listing
