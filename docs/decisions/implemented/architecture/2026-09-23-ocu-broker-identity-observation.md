@@ -33,6 +33,6 @@ A missing outputs root with active indexed entries fails retryably instead of ma
 
 ## Consequences
 
-Initial/detected-change scans perform content I/O; unchanged5000-file scans do not. Content-equality rename matching is a deterministic heuristic, not an event log. Counter/tombstone persistence and bounded index errors must preserve history rather than silently reset it. Endpoint/describe wiring follows in issue16; this decision does not claim runtime integration or complete detection of every write.
+Initial/detected-change scans perform content I/O; unchanged5000-file scans do not. Content-equality rename matching is a deterministic heuristic, not an event log. Counter/tombstone persistence and bounded index errors must preserve history rather than silently reset it. Endpoint/describe wiring landed in issue16; HTTP validator rationale lives in `2026-09-23-ocu-outputs-http-validators`. This decision does not claim complete detection of every write.
 
 Implemented by OCU PR9, merged at `2726fd5`. Configured active-file limits do not bound empty directories or nonregular entries; scan-resource policy is tracked in WebUI issue68.
