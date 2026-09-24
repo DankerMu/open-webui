@@ -1,6 +1,7 @@
 # ocu-ws-recheck Specification
 
 ## Purpose
+
 Bound continued CDP and terminal access to the captured WebUI session and stop live relay traffic after its authorization is revoked.
 
 ## Requirements
