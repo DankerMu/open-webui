@@ -20,4 +20,4 @@ None.
 
 ## Impact
 
-Expanded rather than suggested compact because _run_tool is the shared entrypoint for all five public tools. Scope remains one hook, existing tests/test_tools.py and minimal existing docs/changelog; no dependency, deployment, WebUI handler or transport rewrite.
+Expanded rather than suggested compact because \_run_tool is the shared entrypoint for all five public tools. Scope remains one hook, existing tests/test_tools.py and minimal existing docs/changelog; no dependency, deployment, WebUI handler or transport rewrite.
