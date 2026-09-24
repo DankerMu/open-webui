@@ -27,7 +27,7 @@ The proxy SHALL forward only the path prefixes of the allowlist table (Plan 1 §
 
 ### Requirement: Public prefix URL generation
 
-OCU SHALL read `OCU_PUBLIC_PREFIX` and SHALL emit every URL in the preview HTML shell (`_generate_preview_html`: stylesheets, scripts, `apiUrl`, `filesBase`, inline heartbeat; it also emits `describeUrl` = WebUI's `/api/v1/ocu/workspaces/{chat_id}`, which is not prefixed because it is a WebUI route), in `preview.js` / `browser-viewer.js` (module specifiers, `loadScript` targets, worker and viewer URLs resolved relative to the script's own URL), and in the `url` field of every `/api/outputs/{chat_id}` entry under that prefix; static assets SHALL be mounted at `{prefix}/static/`; no URL SHALL be root-absolute without the prefix, and no `static/*.js` file SHALL contain a root-absolute `/static/` literal (design D15).
+OCU SHALL read `OCU_PUBLIC_PREFIX` and SHALL emit every OCU URL in the preview HTML shell (`_generate_preview_html`: stylesheets, scripts, `apiUrl`, `filesBase`; it also emits `describeUrl` = WebUI's `/api/v1/ocu/workspaces/{chat_id}`, which is not prefixed because it is a WebUI route), in `preview.js` / `browser-viewer.js` (including the managed heartbeat; module specifiers, `loadScript` targets, worker and viewer URLs resolved relative to the script's own URL), and in the `url` field of every `/api/outputs/{chat_id}` entry under that prefix; static assets SHALL be mounted at `{prefix}/static/`; no OCU URL SHALL be root-absolute without the prefix, and no `static/*.js` file SHALL contain a root-absolute `/static/` literal (design D15).
 
 #### Scenario: Sidebar loads the SPA under the prefix
 

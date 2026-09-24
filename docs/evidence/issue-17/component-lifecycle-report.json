@@ -1,45 +1,45 @@
 {
-  "beforePoll": {
-    "attaches": 1,
-    "disconnects": 0,
-    "owned": true
-  },
-  "afterPoll": {
-    "attaches": 1,
-    "disconnects": 0,
-    "owned": true
-  },
-  "unmount": {
-    "before": {
-      "attaches": 1,
-      "disconnects": 0,
-      "owned": true
-    },
-    "after": {
-      "attaches": 1,
-      "disconnects": 1,
-      "remainingStage": false,
-      "remainingObserver": false,
-      "filesView": false
-    }
-  },
-  "pendingUnmount": {
-    "before": {
-      "attaches": 0,
-      "disconnects": 0,
-      "stages": 1
-    },
-    "after": {
-      "attaches": 0,
-      "disconnects": 0,
-      "stages": 0,
-      "filesView": false
-    },
-    "gate": {
-      "entered": 1,
-      "obtained": 1,
-      "released": 1
-    },
-    "rendererSettled": 1
-  }
+	"beforePoll": {
+		"attaches": 1,
+		"disconnects": 0,
+		"owned": true
+	},
+	"afterPoll": {
+		"attaches": 1,
+		"disconnects": 0,
+		"owned": true
+	},
+	"unmount": {
+		"before": {
+			"attaches": 1,
+			"disconnects": 0,
+			"owned": true
+		},
+		"after": {
+			"attaches": 1,
+			"disconnects": 1,
+			"remainingStage": false,
+			"remainingObserver": false,
+			"filesView": false
+		}
+	},
+	"pendingUnmount": {
+		"before": {
+			"attaches": 0,
+			"disconnects": 0,
+			"stages": 1
+		},
+		"after": {
+			"attaches": 0,
+			"disconnects": 0,
+			"stages": 0,
+			"filesView": false
+		},
+		"gate": {
+			"entered": 1,
+			"obtained": 1,
+			"released": 1
+		},
+		"rendererSettled": 1
+	}
 }
