@@ -1,0 +1,307 @@
+{
+  "preview": "http://127.0.0.1:8091/ocu/preview/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "headerlessStatus": 403,
+  "s1": {
+    "autoSelected": "b.txt",
+    "officeStay": "brief.docx",
+    "renamedStay": "brief-renamed.docx"
+  },
+  "s2": {
+    "pptxBefore": [
+      {
+        "index": 0,
+        "width": 960,
+        "height": 540,
+        "cssWidth": 960,
+        "cssHeight": 540,
+        "displayedRatio": 0.5625,
+        "dataRatio": 0.5625,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 81,
+        "blue": 60,
+        "chart": 4,
+        "top": 102,
+        "bottom": 642
+      },
+      {
+        "index": 1,
+        "width": 960,
+        "height": 540,
+        "cssWidth": 960,
+        "cssHeight": 540,
+        "displayedRatio": 0.5625,
+        "dataRatio": 0.5625,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 0,
+        "chart": 2,
+        "top": 652,
+        "bottom": 1192
+      }
+    ],
+    "pptxAfter": [
+      {
+        "index": 0,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 960,
+        "cssHeight": 1707,
+        "displayedRatio": 1.778125,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 427,
+        "chart": 20,
+        "top": 102,
+        "bottom": 1809
+      },
+      {
+        "index": 1,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 960,
+        "cssHeight": 1707,
+        "displayedRatio": 1.778125,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 0,
+        "chart": 42,
+        "top": 1819,
+        "bottom": 3526
+      }
+    ],
+    "pptxNarrow": [
+      {
+        "index": 0,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 700,
+        "cssHeight": 1244,
+        "displayedRatio": 1.7771428571428571,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 427,
+        "chart": 20,
+        "top": -1608,
+        "bottom": -364
+      },
+      {
+        "index": 1,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 700,
+        "cssHeight": 1244,
+        "displayedRatio": 1.7771428571428571,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 0,
+        "chart": 42,
+        "top": -354,
+        "bottom": 890
+      }
+    ],
+    "pptxResized": [
+      {
+        "index": 0,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 960,
+        "cssHeight": 1707,
+        "displayedRatio": 1.778125,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 427,
+        "chart": 20,
+        "top": -1162,
+        "bottom": 545
+      },
+      {
+        "index": 1,
+        "width": 960,
+        "height": 1707,
+        "cssWidth": 960,
+        "cssHeight": 1707,
+        "displayedRatio": 1.778125,
+        "dataRatio": 1.7777777777777777,
+        "mid": "255,255,255,255",
+        "corner": "255,255,255,255",
+        "red": 0,
+        "blue": 0,
+        "chart": 42,
+        "top": 555,
+        "bottom": 2262
+      }
+    ],
+    "secondVisible": {
+      "top": 92,
+      "bottom": 1799,
+      "height": 1707,
+      "inView": true
+    },
+    "narrowSecond": {
+      "top": 92,
+      "bottom": 1336,
+      "height": 1244,
+      "inView": true
+    },
+    "observerBeforePoll": true,
+    "observerAfterPoll": true
+  },
+  "s3": {
+    "beforeMore": 100,
+    "laterStay": "item-105.txt",
+    "overlap": {
+      "entered": 2,
+      "resolved": 2,
+      "visibleBeforeRelease": "118",
+      "selectedBeforeRelease": "item-105.txt",
+      "selectedAfter": "item-105.txt",
+      "countAfter": "118"
+    }
+  },
+  "s4": {
+    "staleVisible": "bravo-new-root",
+    "released": {
+      "entered": 1,
+      "resolved": 1,
+      "released": 1
+    },
+    "emptyGate": {
+      "entered": 1,
+      "obtained": 1,
+      "status": 200,
+      "body": "alpha-root",
+      "released": 1,
+      "resolved": 1,
+      "rendered": 0,
+      "bodyDelivered": true,
+      "rendererSettled": 1,
+      "oldStageText": "alpha-root"
+    },
+    "emptyBefore": {
+      "title": "No files yet",
+      "preview": "No files yet\nThe AI agent has not created any files yet.\nAsk it to create a document, presentation, or spreadsheet — the result will appear here.\n\"Create a 5-slide presentation about our company\"",
+      "obtained": 1,
+      "status": 200,
+      "body": "alpha-root"
+    },
+    "emptyAfter": {
+      "title": "No files yet",
+      "preview": "No files yet\nThe AI agent has not created any files yet.\nAsk it to create a document, presentation, or spreadsheet — the result will appear here.\n\"Create a 5-slide presentation about our company\""
+    }
+  },
+  "s6": {
+    "srcdoc": {
+      "sandbox": "allow-scripts allow-forms",
+      "childAccess": "contentDocument-null",
+      "parentLeak": null,
+      "parentMarker": "File Preview",
+      "messages": [
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "72aay750irb",
+          "clicked": true
+        },
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "72aay750irb",
+          "submitted": true
+        },
+        {
+          "type": "iframe-link-click",
+          "href": "#probe",
+          "nonce": "link"
+        },
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "72aay750irb",
+          "ready": true
+        }
+      ],
+      "storage": null
+    },
+    "srcFallback": {
+      "sandbox": "allow-scripts allow-forms",
+      "childAccess": "contentDocument-null",
+      "src": "http://127.0.0.1:8091/ocu/files/a1b2c3d4-e5f6-7890-abcd-ef1234567890/page.html",
+      "srcKind": "http:",
+      "parentLeak": null,
+      "storage": null,
+      "messages": [
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "qcdtznvf7ya",
+          "clicked": true
+        },
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "qcdtznvf7ya",
+          "submitted": true
+        },
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "qcdtznvf7ya",
+          "linked": true
+        },
+        {
+          "type": "ocu-sandbox-complete",
+          "nonce": "qcdtznvf7ya",
+          "ready": true
+        }
+      ],
+      "nav": {
+        "url": "http://127.0.0.1:8091/ocu/files/a1b2c3d4-e5f6-7890-abcd-ef1234567890/page.html",
+        "status": 200,
+        "csp": "sandbox allow-scripts allow-forms",
+        "disposition": "inline; filename=\"page.html\""
+      }
+    }
+  },
+  "s7": {
+    "hits": 2,
+    "errorText": "Failed to refresh the file list",
+    "selected": "item-105.txt",
+    "browserCalls": 4
+  },
+  "s8": {
+    "cachedA2": "0",
+    "cachedA3": "FALSE",
+    "formulaA2": "uncomputed",
+    "backA2": "0",
+    "backA3": "FALSE"
+  },
+  "heartbeat": [
+    {
+      "url": "http://127.0.0.1:8091/ocu/terminal/a1b2c3d4-e5f6-7890-abcd-ef1234567890/heartbeat",
+      "header": "ocu-workspace"
+    }
+  ],
+  "consoleErrors": [],
+  "shots": {
+    "s1AutoShot": "/tmp/ocu-preview-evidence/ui/s1-auto-b.png",
+    "s1OfficeShot": "/tmp/ocu-preview-evidence/ui/s1-office-stay.png",
+    "s1RenameShot": "/tmp/ocu-preview-evidence/ui/s1-rename.png",
+    "landscapeShot": "/tmp/ocu-preview-evidence/ui/s2-landscape.png",
+    "portraitShot": "/tmp/ocu-preview-evidence/ui/s2-portrait.png",
+    "secondSlideShot": "/tmp/ocu-preview-evidence/ui/s2-portrait-slide-two.png",
+    "narrowShot": "/tmp/ocu-preview-evidence/ui/s2-portrait-narrow.png",
+    "htmlShot": "/tmp/ocu-preview-evidence/ui/s6-srcdoc.png",
+    "moreShot": "/tmp/ocu-preview-evidence/ui/s3-more-window.png",
+    "s7Shot": "/tmp/ocu-preview-evidence/ui/s7-listing-error.png",
+    "s4Shot": "/tmp/ocu-preview-evidence/ui/s4-stale-rejected.png",
+    "s4EmptyShot": "/tmp/ocu-preview-evidence/ui/s4-empty-after-release.png",
+    "s8FormulasShot": "/tmp/ocu-preview-evidence/ui/s8-formulas-tab.png",
+    "s8CachedShot": "/tmp/ocu-preview-evidence/ui/s8-cached-tab.png"
+  }
+}
