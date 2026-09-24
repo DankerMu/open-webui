@@ -89,7 +89,7 @@ Polling (3 s foreground, 15 s background, existing cadence) and page reconnect S
 
 ### Requirement: preview.js migration
 
-`preview.js` change detection SHALL key on `path + revision` (the entry's stamp) instead of `f.modified`; every request the SPA makes SHALL go through one fetch wrapper that adds `X-Requested-With: ocu-workspace` (design D16) and prepends the public prefix only to client-constructed root-absolute paths, leaving server-emitted URLs (`apiUrl`, `filesBase`, entry `url`) verbatim and being a no-op for any path that already starts with the prefix (design D15); the inline heartbeat in the HTML shell SHALL use the same prefix and header; no address SHALL be guessed client-side; the DOCX/XLSX/PPTX views SHALL carry a visible "内容预览" label.
+`preview.js` change detection SHALL key on `path + revision` (the entry's stamp) instead of `f.modified`; every request the SPA makes SHALL go through one fetch wrapper that adds `X-Requested-With: ocu-workspace` (design D16) and prepends the public prefix only to client-constructed root-absolute paths, leaving server-emitted URLs (`apiUrl`, `filesBase`, entry `url`) verbatim and being a no-op for any path that already starts with the prefix (design D15); the SPA-managed heartbeat SHALL use the same prefix and header and clean up its timer on unmount; no address SHALL be guessed client-side; the DOCX/XLSX/PPTX views SHALL carry a visible "内容预览" label.
 
 #### Scenario: Office preview is labelled as a content preview (A-T02)
 
