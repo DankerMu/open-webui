@@ -30,7 +30,7 @@ Canonical terms and their prohibited aliases live in `openspec/glossary.md`. Rea
 - `chat_id ∈ {"", "default"}` and `temporary:`/`local:`/`channel:` ids never reach OCU; the shared `default` container is never created or reused by the fork.
 - A stopped sandbox is restarted only by an explicit, authorized `launch`; no tool call (including read-only `view`) restarts it implicitly; retention stops at 168 h and never deletes data or volumes.
 - Model-generated HTML/SVG never executes on the WebUI origin: sandboxed iframe (opaque origin) when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level.
-- Sandbox network cannot reach the OCU/WebUI control plane at L3; the application-layer subnet check is defense in depth, never the only control.
+- Sandbox-originated IP traffic reaches only destinations listed in `OCU_SANDBOX_EGRESS_ALLOW`; the control-plane subnet and metadata address stay denied. The application-layer subnet check is defense in depth, never the only control. Inherited Docker host-namespace DNS remains open until issue 79.
 - `revision` is monotonic per content change and is the only version authority; mtime is display-only.
 - Every publish is an atomic replace inside a fence window under the per-chat lock; a conflicting concurrent write yields a visible conflict version, never a silent overwrite.
 - Model API keys, MCP keys and the internal token reach only the owning chat's sandbox, never the browser and never a different chat's sandbox.

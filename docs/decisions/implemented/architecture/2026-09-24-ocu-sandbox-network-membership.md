@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-24
 supersedes: none
-references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-25-ocu-proxy-only-compose-topology, issue-20
+references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-25-ocu-sandbox-egress-guard, issue-20
 ---
 
 # Dedicated sandbox membership with non-destructive migration
@@ -31,4 +31,4 @@ Service addressing reads published host address and assigned port without compos
 
 ## Consequences
 
-Deployment must provision the bridge and retire the old port-binding code patch. Legacy immutable bindings may require explicit operator migration. Same-gateway membership repair is supported when the engine can detach the old endpoint; missing stale network objects fail explicitly rather than claiming repair. Fake-engine tests separate authoritative membership from inspect snapshots; Docker reachability and firewall reply behavior remain part of consolidated acceptance. The lifecycle record's preservation contract remains in force.
+Deployment must provision the bridge and retire the old port-binding code patch. Legacy immutable bindings may require explicit operator migration. Same-gateway membership repair is supported when the engine can detach the old endpoint; missing stale network objects fail explicitly rather than claiming repair. Fake-engine tests separate authoritative membership from inspect snapshots. Destination allowlist enforcement is owned by `2026-09-25-ocu-sandbox-egress-guard`; Docker reachability, packet traversal and DNS remain part of consolidated acceptance. The lifecycle record's preservation contract remains in force.
