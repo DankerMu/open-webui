@@ -2,7 +2,7 @@
 
 ## Context
 
-Issue21 supplies tracked scripts/ocu-stub.py, smoke-stub.sh and proxy-dev.sh. Issue22 supplies reviewed OCU deploy/proxy at 8990f751d839cfb24733b13d32c145215601c4a6, held in PR15. The user authorized paired verification before either PR merges. The actual gateway contract lives in ocu-reverse-proxy; this change builds its permanent judge, not a second policy implementation.
+Issue21 supplies tracked scripts/ocu-stub.py, smoke-stub.sh and proxy-dev.sh. Issue22 supplies reviewed OCU deploy/proxy at 818e9ca3ae1880ae1e95b0ad7f84d61bbefb79e4, held in PR15. The user authorized paired verification before either PR merges. The actual gateway contract lives in ocu-reverse-proxy; this change builds its permanent judge, not a second policy implementation.
 
 ## Goals / Non-Goals
 
@@ -14,7 +14,9 @@ Run native nginx against real WebUI owner/session authentication and determinist
 
 Makefile stays thin: make smoke-proxy calls scripts with the repository's fail-loud conventions. Require a healthy harness via make dev-status and seed through the existing command; do not reset a database. OCU_CHECKOUT defaults to the sibling checkout and CI overrides it with .run/open-computer-use. Require the directory, renderer/table/launcher, native nginx auth_request capability, hurl and Python prerequisites; missing inputs fail nonzero naming the prerequisite, never skip.
 
-constraints.yaml owns ocu_checkout.sha as the full reviewed commit 8990f751d839cfb24733b13d32c145215601c4a6. Verify checkout HEAD and tracked source cleanliness before rendering; ignored runtime config is permitted, no fetch or checkout mutation in the smoke command. CI uses the pinned SHA, not a branch or latest tag. Preserve that tested source SHA after OCU merge.
+constraints.yaml owns ocu_checkout.sha as the full reviewed commit 818e9ca3ae1880ae1e95b0ad7f84d61bbefb79e4. Verify checkout HEAD and tracked source cleanliness before rendering; ignored runtime config is permitted, no fetch or checkout mutation in the smoke command. CI uses the pinned SHA, not a branch or latest tag. Preserve that tested source SHA after OCU merge.
+
+The permanent matrix includes ordinary Content-Length POST immediately followed by authenticated GET, including upload manifest/list collisions and repeated mutations. The earlier8990f75 candidate fails this sequence; the reviewed818e9ca candidate restores bodyless auth framing. Chunked-only traffic or moving uploads last is not acceptable qualification.
 
 Isolate the launcher layout as well as its processes: after checking the original checkout HEAD and tracked cleanliness, copy only reviewed tracked deploy/proxy sources byte-for-byte into the private per-run scratch layout. Do not copy, read, overwrite or remove the original ignored nginx.conf/runtime. Render in the owned copy and supply that copy as OCU_CHECKOUT only to the child launcher. Record source identities so this isolation does not substitute a different gateway. A pre-existing ignored config/runtime sentinel must survive success, failure and interruption unchanged.
 

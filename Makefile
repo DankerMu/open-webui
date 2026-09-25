@@ -12,7 +12,7 @@ endif
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend \
 	coverage-gate anti-drift build clean \
-	smoke smoke-stub e2e verify-ui db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e verify-ui db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -118,6 +118,9 @@ smoke:
 
 smoke-stub:
 	bash scripts/smoke-stub.sh
+
+smoke-proxy:
+	python3 scripts/smoke-proxy.py
 
 e2e:
 	bash scripts/seed.sh

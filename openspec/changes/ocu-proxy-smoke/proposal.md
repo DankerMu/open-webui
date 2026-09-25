@@ -8,7 +8,7 @@ The reviewed native gateway needs a durable real-WebUI regression gate before th
 
 - Add make smoke-proxy and smoke/proxy/\*.hurl outside the ordinary smoke glob, with finite owned-service lifecycle and private observations.
 - Extend the existing OCU stub for gateway fixtures and restrict credential echo to internal-only routes; preserve make smoke-stub.
-- Pin OCU source 8990f751d839cfb24733b13d32c145215601c4a6 in constraints.yaml; CI layer3 checks out the public repository under .run/open-computer-use and runs the same native command.
+- Pin OCU source 818e9ca3ae1880ae1e95b0ad7f84d61bbefb79e4 in constraints.yaml; CI layer3 checks out the public repository under .run/open-computer-use and runs the same native command.
 - Update AGENTS.md Verification Matrix and constraints verification surface; flag CI modification in the PR.
 
 ## Capabilities
