@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-24
 supersedes: none
-references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-20-lan-topology-external-reverse-proxy, issue-20
+references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-25-ocu-proxy-only-compose-topology, issue-20
 ---
 
 # Dedicated sandbox membership with non-destructive migration

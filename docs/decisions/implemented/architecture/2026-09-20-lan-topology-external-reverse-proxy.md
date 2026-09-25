@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-20
 supersedes: none
-references: docs/plans/2026-09-20-workspace-artifact-integration.md §1-2, 2026-09-25-ocu-cookie-gateway-and-paired-smoke
+references: docs/plans/2026-09-20-workspace-artifact-integration.md §1-2, 2026-09-25-ocu-cookie-gateway-and-paired-smoke, 2026-09-25-ocu-proxy-only-compose-topology
 ---
 
 # OCU workspace access goes through an external reverse proxy with auth_request
