@@ -29,6 +29,7 @@ FILES = {
     'report.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'),
     'data.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub</root>'),
     'report.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub-report</root>'),
+    'plain.xml': ('text/xml; charset=utf-8', b'<?xml version="1.0"?><root>plain-xml</root>'),
     'page.xhtml': (
         'application/xhtml+xml; charset=UTF-8',
         b'<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>x</body></html>',
@@ -75,9 +76,7 @@ TERM_STATUS_RE = re.compile(r'^/terminal/([^/]+)/status$')
 HEARTBEAT_RE = re.compile(r'^/terminal/([^/]+)/heartbeat$')
 TERM_SESSIONS_RE = re.compile(r'^/terminal/([^/]+)/sessions$')
 TERM_PROCESSES_RE = re.compile(r'^/terminal/([^/]+)/processes$')
-TERM_ACTION_RE = re.compile(
-    r'^/terminal/([^/]+)/(start-ttyd|stop-ttyd|restart-container|resurrect-container)$'
-)
+TERM_ACTION_RE = re.compile(r'^/terminal/([^/]+)/(start-ttyd|stop-ttyd|restart-container|resurrect-container)$')
 TERM_KILL_RE = re.compile(r'^/terminal/([^/]+)/processes/([0-9]+)/kill$')
 TERM_WS_RE = re.compile(r'^/terminal/([^/]+)/ws$')
 BROWSER_WS_RE = re.compile(r'^/browser/([^/]+)/devtools/page/([^/]+)$')
@@ -339,7 +338,6 @@ class StubHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-
     def do_GET(self) -> None:
         self._dispatch('GET')
 
@@ -373,6 +371,7 @@ _ROUTES = (
     ('GET', STATIC_RE, StubHandler._serve_static),
     ('HEAD', STATIC_RE, StubHandler._serve_static),
 )
+
 
 class StubServer(ThreadingHTTPServer):
     allow_reuse_address = True

@@ -59,6 +59,40 @@ HTTP 200
 [Asserts]
 header "Content-Disposition" contains "attachment"
 
+
+GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html?Download=1
+Cookie: {{owner_cookie}}
+
+HTTP 200
+[Asserts]
+header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
+header "X-Content-Type-Options" == "nosniff"
+
+GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html?download=1&download=1
+Cookie: {{owner_cookie}}
+
+HTTP 200
+[Asserts]
+header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
+
+GET {{proxy_url}}/ocu/files/{{chat_id}}/blob.bin?download=1
+Cookie: {{owner_cookie}}
+
+HTTP 200
+[Asserts]
+header "Content-Disposition" contains "attachment"
+header "Content-Security-Policy" == "default-src 'self'"
+header "X-Content-Type-Options" == "other"
+
+GET {{proxy_url}}/ocu/files/{{chat_id}}/plain.xml
+Cookie: {{owner_cookie}}
+
+HTTP 200
+[Asserts]
+header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
+header "X-Content-Type-Options" == "nosniff"
+body contains "plain-xml"
+
 GET {{proxy_url}}/ocu/files/{{chat_id}}/backend-html403.html
 Cookie: {{owner_cookie}}
 

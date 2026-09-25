@@ -4,14 +4,12 @@
 from __future__ import annotations
 
 import hashlib
-import http.client
 import json
 import logging
 import os
 import re
 import secrets
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -20,16 +18,23 @@ from pathlib import Path
 from urllib.parse import quote
 
 from smoke_proxy_support import (
-    Fail,
+    GIT_ENV,
+    assert_download_variants,
+    distinct_ports,
     fail,
-    free_port,
+    git_run,
     http_json,
     http_raw,
     kill_tree,
+    materialize_git_files,
     observations,
     redact,
     run,
+    run_owned_lifecycle,
+    scan_hurl_report,
     wait_http,
+    websocket_echo,
+    ws_unmask_or_server,
 )
 
 PINNED_FILES = (
@@ -85,7 +90,7 @@ def require_tools() -> str:
     nginx = shutil.which('nginx')
     if not nginx:
         fail('missing prerequisite: nginx')
-    version = run([nginx, '-V'], check=False)
+    version = run([nginx, '-V'], env=GIT_ENV, check=False)
     probe = (version.stderr or '') + (version.stdout or '')
     if NGINX_AUTH not in probe:
         fail('missing prerequisite: nginx auth_request module')
@@ -118,6 +123,8 @@ class Smoke:
         self.owner_email_raw = ''
         self.foreign_email_raw = ''
         self.sentinel_id = ''
+        self.deny_before = 0
+        self.pin_sha = ''
         self.foreign_chat = ''
         self.record = Path()
         self.hurl_vars = Path()
@@ -143,38 +150,26 @@ class Smoke:
         if not checkout.is_dir():
             fail(f'missing prerequisite: OCU checkout {checkout}')
         git_dir = checkout / '.git'
-        if git_dir.exists():
-            head = run(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).stdout.strip()
-            if head != sha:
-                fail(f'OCU checkout HEAD {head} does not match pinned {sha}')
-            dirty = run(['git', '-C', str(checkout), 'status', '--porcelain', '--untracked-files=no']).stdout
-            tracked_dirty = [line for line in dirty.splitlines() if line and line[:2] not in {'??'}]
-            if tracked_dirty:
-                fail('OCU tracked source is modified; refusing to mutate checkout')
-        else:
-            recorded = checkout / 'OCU_SHA'
-            if not recorded.is_file() or recorded.read_text().strip() != sha:
-                fail('OCU checkout has no git HEAD and no matching OCU_SHA pin record')
+        if not git_dir.exists():
+            fail(f'OCU checkout {checkout} is not a git repository')
+        head = git_run(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).stdout.strip()
+        if head != sha:
+            fail(f'OCU checkout HEAD {head} does not match pinned {sha}')
+        dirty = git_run(
+            ['git', '-C', str(checkout), 'status', '--porcelain', '--untracked-files=no'],
+        ).stdout
+        tracked_dirty = [line for line in dirty.splitlines() if line and line[:2] not in {'??'}]
+        if tracked_dirty:
+            fail('OCU tracked source is modified; refusing to mutate checkout')
         for rel in PINNED_FILES:
-            if not (checkout / rel).is_file():
+            listed = git_run(['git', '-C', str(checkout), 'ls-tree', '-r', sha, '--', rel]).stdout
+            if not listed.strip():
                 fail(f'missing prerequisite: {rel}')
-        renderer = checkout / 'deploy/proxy/render.py'
-        table = checkout / 'deploy/proxy/routes.json'
-        if not renderer.is_file() or not table.is_file():
-            fail('missing prerequisite: renderer/table')
 
     def stage_copy(self, checkout: Path) -> Path:
         assert self.scratch is not None
         dest = self.scratch / 'ocu'
-        dest.mkdir(mode=0o700)
-        (dest / 'deploy/proxy/tests').mkdir(parents=True, mode=0o700)
-        for rel in PINNED_FILES:
-            src = checkout / rel
-            target = dest / rel
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, target)
-            if src.read_bytes() != target.read_bytes():
-                fail(f'staged {rel} is not byte-identical')
+        materialize_git_files(checkout, self.pin_sha, dest, PINNED_FILES)
         os.chmod(dest / 'deploy/proxy', 0o700)
         return dest
 
@@ -193,8 +188,7 @@ class Smoke:
         if not conf.is_file():
             fail('renderer did not produce nginx.conf')
 
-    def start_owned(self, argv: list[str], env: dict[str, str], ready: str | None,
-                    log_path: Path | None = None) -> int:
+    def start_owned(self, argv: list[str], env: dict[str, str], ready: str | None, log_path: Path | None = None) -> int:
         sink = open(log_path, 'w', encoding='utf-8') if log_path else subprocess.DEVNULL
         proc = subprocess.Popen(
             argv,
@@ -233,12 +227,14 @@ class Smoke:
             'POST',
             f'{self.webui}/api/v1/auths/add',
             headers=admin_auth,
-            body=json.dumps({
-                'name': 'Proxy Owner',
-                'email': owner_email,
-                'password': password,
-                'role': 'user',
-            }).encode(),
+            body=json.dumps(
+                {
+                    'name': 'Proxy Owner',
+                    'email': owner_email,
+                    'password': password,
+                    'role': 'user',
+                }
+            ).encode(),
         )
         if status != 200 or 'id' not in owner:
             fail('owner provision failed')
@@ -247,12 +243,14 @@ class Smoke:
             'POST',
             f'{self.webui}/api/v1/auths/add',
             headers=admin_auth,
-            body=json.dumps({
-                'name': 'Proxy Foreign',
-                'email': foreign_email,
-                'password': password,
-                'role': 'user',
-            }).encode(),
+            body=json.dumps(
+                {
+                    'name': 'Proxy Foreign',
+                    'email': foreign_email,
+                    'password': password,
+                    'role': 'user',
+                }
+            ).encode(),
         )
         if status != 200 or 'id' not in foreign:
             fail('non-owner provision failed')
@@ -298,8 +296,14 @@ class Smoke:
             fail('foreign chat create failed')
         self.foreign_chat = other['id']
         self.created['foreign_chat'] = other['id']
-        self.secrets = [self.token, self.owner_jwt, owner_session.get('token', ''),
-                        foreign_session.get('token', ''), admin.get('token', ''), password]
+        self.secrets = [
+            self.token,
+            self.owner_jwt,
+            owner_session.get('token', ''),
+            foreign_session.get('token', ''),
+            admin.get('token', ''),
+            password,
+        ]
 
     def write_hurl_vars(self) -> None:
         assert self.scratch is not None
@@ -342,9 +346,36 @@ class Smoke:
         report = self.scratch / 'hurl-report'
         report.mkdir(mode=0o700)
         files = [str(self.root / rel) for rel in HURL_GLOBS]
+        deny_index = files.index(str(self.root / 'smoke/proxy/deny.hurl'))
+        allowed = files[:deny_index]
+        denied = [files[deny_index]]
+        rest = files[deny_index + 1 :]
+        self._run_hurl(allowed, report / 'allowed')
+        self.deny_before = len(observations(self.record))
+        self._run_hurl(denied, report / 'deny')
+        if observations(self.record)[self.deny_before :]:
+            fail('denied/unlisted request contacted OCU')
+        self._run_hurl(rest, report / 'rest')
+        scan_hurl_report(report, self.token)
+
+    def _run_hurl(self, files: list[str], report: Path) -> None:
+        if not files:
+            return
+        report.mkdir(mode=0o700, exist_ok=True)
         result = subprocess.run(
-            ['hurl', '--test', '--variables-file', str(self.hurl_vars),
-             '--report-json', str(report), *files],
+            [
+                'hurl',
+                '--test',
+                '--max-time',
+                '30',
+                '--connect-timeout',
+                '5',
+                '--variables-file',
+                str(self.hurl_vars),
+                '--report-json',
+                str(report),
+                *files,
+            ],
             cwd=self.root,
             text=True,
             capture_output=True,
@@ -352,64 +383,64 @@ class Smoke:
         )
         if result.returncode:
             log.error('%s', redact(result.stdout + result.stderr, self.secrets))
-            stub_log = self.scratch / 'stub.log'
-            if stub_log.is_file():
+            stub_log = self.scratch / 'stub.log' if self.scratch else None
+            if stub_log and stub_log.is_file():
                 log.error('%s', redact(stub_log.read_text(encoding='utf-8')[-4000:], self.secrets))
             fail('hurl matrix failed')
-        self.scan_report(report)
-
-
-    def scan_report(self, report: Path) -> None:
-        for path in report.rglob('*'):
-            if path.is_file() and self.token.encode() in path.read_bytes():
-                fail('synthetic internal token appeared in an exercised response')
-
 
     def assert_private(self) -> None:
         rows = observations(self.record)
         if not rows:
             fail('stub recorded no arrivals')
-        token_hits = [row for row in rows if row.get('token_ok')]
-        if not token_hits:
-            fail('no allowed request received the internal token')
-        self._assert_arrivals(rows, token_hits)
+        self._assert_arrivals(rows)
         self.containment_probe()
 
-    def _assert_arrivals(self, rows: list[dict], token_hits: list[dict]) -> None:
-        uploads = [row for row in rows if row.get('method') == 'POST' and '/api/uploads/' in row.get('target', '')]
+    def _owned_arrival(self, row: dict) -> bool:
+        target = row.get('target', '')
+        if target.startswith('/internal/describe/running') and row.get('method') == 'GET':
+            return False
+        return True
+
+    def _assert_arrivals(self, rows: list[dict]) -> None:
+        owned = [row for row in rows if self._owned_arrival(row)]
+        if not owned:
+            fail('stub recorded no attributed arrivals')
+        missing_token = [row for row in owned if not row.get('token_ok')]
+        if missing_token:
+            fail('allowed request missing internal token receipt')
+        uploads = [row for row in owned if row.get('method') == 'POST' and '/api/uploads/' in row.get('target', '')]
         if not uploads:
             fail('no upload arrival recorded')
-        if not any('space%20hash%23plus%2Bpercent%25.html' in row.get('target', '') for row in rows):
+        if not any('space%20hash%23plus%2Bpercent%25.html' in row.get('target', '') for row in owned):
             fail('encoded nested file was not observed upstream')
-        if not any(row.get('target', '').startswith('/ocu/static/deep/preview.js') for row in rows):
+        if not any(row.get('target', '').startswith('/ocu/static/deep/preview.js') for row in owned):
             fail('nested static prefix was not preserved upstream')
-        forbidden = (
-            '/ocu/health', '/ocu/docs', '/ocu/mcp', '/internal/launch/',
-            '/ocu/api/runtime/cli', '/_ocu_chat_auth',
-        )
-        joined = '\n'.join(row.get('target', '') for row in rows)
-        for needle in forbidden:
-            if needle in joined:
-                fail('unlisted path contacted OCU')
-        self._assert_identities(token_hits)
+        self._assert_identities(owned)
 
-    def _assert_identities(self, token_hits: list[dict]) -> None:
-        for row in token_hits:
+    def _is_static(self, target: str) -> bool:
+        return '/static/' in target
+
+    def _assert_identities(self, rows: list[dict]) -> None:
+        for row in rows:
             ident = row.get('identity') or {}
             target = row.get('target', '')
-            if target.startswith('/ocu/static/') or target.startswith('/static/'):
-                if ident.get('x-user-id') or ident.get('x-chat-id'):
+            user_id = ident.get('x-user-id') or ''
+            user_email = ident.get('x-user-email') or ''
+            chat_id = ident.get('x-chat-id') or ''
+            if self._is_static(target):
+                if user_id or user_email or chat_id:
                     fail('static arrival carried chat identity')
                 continue
-            if ident.get('x-user-id') and ident.get('x-user-id') != self.owner_id:
-                fail('owner request forwarded forged identity')
-            if ident.get('x-chat-id') and ident.get('x-chat-id') != self.chat_id:
-                fail('arrival used unexpected chat identity')
-
-
+            if user_id != self.owner_id:
+                fail('owner request missing or forged X-User-Id')
+            if chat_id != self.chat_id:
+                fail('owner request missing or forged X-Chat-Id')
+            if user_email != self.owner_email:
+                fail('owner request missing or forged X-User-Email')
 
     def extra_matrix(self) -> None:
         self._encoded_file()
+        assert_download_variants(self.proxy_port, self.chat_id, self.owner_cookie)
         mutation = {
             'Cookie': self.owner_cookie,
             'Origin': self.origin,
@@ -424,17 +455,41 @@ class Smoke:
         }
         payload = b'proxy-upload-bytes'
         chains = (
-            (f'/ocu/api/uploads/{self.chat_id}/manifest', mutation, payload,
-             f'/ocu/api/uploads/{self.chat_id}/manifest', {'Cookie': self.owner_cookie}),
-            (f'/ocu/api/uploads/{self.chat_id}/list', mutation, payload,
-             f'/ocu/api/uploads/{self.chat_id}/list', {'Cookie': self.owner_cookie}),
-            (f'/ocu/api/uploads/{self.chat_id}/owner.bin', mutation, payload,
-             f'/ocu/preview/{self.chat_id}', {'Cookie': self.owner_cookie}),
-            (f'/ocu/terminal/{self.chat_id}/start-ttyd', json_headers, b'{"ok":true}',
-             f'/ocu/terminal/{self.chat_id}/status', {'Cookie': self.owner_cookie}),
-            (f'/ocu/terminal/{self.chat_id}/stop-ttyd', json_headers, b'{}',
-             f'/ocu/terminal/{self.chat_id}/heartbeat',
-             {'Cookie': self.owner_cookie, 'Origin': self.origin, 'X-Requested-With': 'ocu-workspace'}),
+            (
+                f'/ocu/api/uploads/{self.chat_id}/manifest',
+                mutation,
+                payload,
+                f'/ocu/api/uploads/{self.chat_id}/manifest',
+                {'Cookie': self.owner_cookie},
+            ),
+            (
+                f'/ocu/api/uploads/{self.chat_id}/list',
+                mutation,
+                payload,
+                f'/ocu/api/uploads/{self.chat_id}/list',
+                {'Cookie': self.owner_cookie},
+            ),
+            (
+                f'/ocu/api/uploads/{self.chat_id}/owner.bin',
+                mutation,
+                payload,
+                f'/ocu/preview/{self.chat_id}',
+                {'Cookie': self.owner_cookie},
+            ),
+            (
+                f'/ocu/terminal/{self.chat_id}/start-ttyd',
+                json_headers,
+                b'{"ok":true}',
+                f'/ocu/terminal/{self.chat_id}/status',
+                {'Cookie': self.owner_cookie},
+            ),
+            (
+                f'/ocu/terminal/{self.chat_id}/stop-ttyd',
+                json_headers,
+                b'{}',
+                f'/ocu/terminal/{self.chat_id}/heartbeat',
+                {'Cookie': self.owner_cookie, 'Origin': self.origin, 'X-Requested-With': 'ocu-workspace'},
+            ),
         )
         for path, headers, body, follow, follow_headers in chains:
             self._post_then_get(path, headers, body, follow, follow_headers)
@@ -444,7 +499,10 @@ class Smoke:
         encoded = f'/ocu/files/{self.chat_id}/sub/space%20hash%23plus%2Bpercent%25.html?revision=7'
         before = len(observations(self.record))
         status, headers, raw = http_raw(
-            '127.0.0.1', self.proxy_port, 'GET', encoded,
+            '127.0.0.1',
+            self.proxy_port,
+            'GET',
+            encoded,
             headers={'Cookie': self.owner_cookie},
         )
         if status != 200:
@@ -453,26 +511,38 @@ class Smoke:
             fail('encoded nested file missing forced CSP')
         if b'encoded' not in raw:
             fail('encoded nested file body mismatch')
-        if not any('space%20hash%23plus%2Bpercent%25.html' in row.get('target', '')
-                   for row in observations(self.record)[before:]):
+        if not any(
+            'space%20hash%23plus%2Bpercent%25.html' in row.get('target', '')
+            for row in observations(self.record)[before:]
+        ):
             fail('encoded nested file was not observed upstream')
 
-    def _post_then_get(self, path: str, headers: dict[str, str], body: bytes,
-                       follow: str, follow_headers: dict[str, str]) -> None:
+    def _post_then_get(
+        self, path: str, headers: dict[str, str], body: bytes, follow: str, follow_headers: dict[str, str]
+    ) -> None:
         before = len(observations(self.record))
         status, resp_headers, raw = http_raw(
-            '127.0.0.1', self.proxy_port, 'POST', path, headers=headers, body=body,
+            '127.0.0.1',
+            self.proxy_port,
+            'POST',
+            path,
+            headers=headers,
+            body=body,
         )
         if status != 200:
             fail(f'POST {path} expected 200, got {status}')
         if self.token.encode() in raw or any(self.token in f'{n}:{v}' for n, v in resp_headers):
             fail(f'{path} leaked internal token')
-        if '/uploads/' in path:
-            seen = observations(self.record)[before:]
-            if not any(row.get('body_sha256') == hashlib.sha256(body).hexdigest() for row in seen):
-                fail(f'{path} upload digest mismatch')
+        digest = hashlib.sha256(body).hexdigest()
+        seen = observations(self.record)[before:]
+        if not any(row.get('body_sha256') == digest for row in seen):
+            fail(f'{path} POST body digest mismatch')
         status, follow_headers_out, follow_raw = http_raw(
-            '127.0.0.1', self.proxy_port, 'GET', follow, headers=follow_headers,
+            '127.0.0.1',
+            self.proxy_port,
+            'GET',
+            follow,
+            headers=follow_headers,
         )
         if status != 200:
             fail(f'POST {path} then GET {follow} expected 200, got {status}')
@@ -482,9 +552,12 @@ class Smoke:
     def _denied_uploads(self, mutation: dict[str, str], payload: bytes) -> None:
         before = len(observations(self.record))
         status, _, _ = http_raw(
-            '127.0.0.1', self.proxy_port, 'POST',
+            '127.0.0.1',
+            self.proxy_port,
+            'POST',
             f'/ocu/api/uploads/{self.chat_id}/manifest',
-            headers={**mutation, 'Origin': 'null'}, body=payload,
+            headers={**mutation, 'Origin': 'null'},
+            body=payload,
         )
         if status != 403:
             fail(f'opaque-origin upload expected 403, got {status}')
@@ -492,25 +565,22 @@ class Smoke:
             fail('opaque-origin upload contacted OCU')
         before = len(observations(self.record))
         status, _, _ = http_raw(
-            '127.0.0.1', self.proxy_port, 'POST',
+            '127.0.0.1',
+            self.proxy_port,
+            'POST',
             f'/ocu/api/uploads/{self.chat_id}/owner.bin',
-            headers={'Cookie': self.foreign_cookie, 'Origin': self.origin,
-                     'X-Requested-With': 'ocu-workspace',
-                     'Content-Type': 'application/octet-stream'},
+            headers={
+                'Cookie': self.foreign_cookie,
+                'Origin': self.origin,
+                'X-Requested-With': 'ocu-workspace',
+                'Content-Type': 'application/octet-stream',
+            },
             body=payload,
         )
         if status != 404:
             fail(f'foreign upload expected 404, got {status}')
         if observations(self.record)[before:]:
             fail('foreign upload contacted OCU')
-
-
-
-
-
-
-
-
 
     def containment_probe(self) -> None:
         proxy = f'http://127.0.0.1:{self.proxy_port}'
@@ -524,6 +594,7 @@ class Smoke:
             f'/ocu/preview/{self.chat_id}',
             '/ocu/static/preview.js',
             '/ocu/health',
+            f'/ocu/files/{self.chat_id}/plain.xml',
         )
         for path in paths:
             status, _payload, headers, raw = http_json('GET', proxy + path, cookie=cookie)
@@ -533,50 +604,42 @@ class Smoke:
             if b'x-echo-authorization' in blob.lower():
                 fail(f'public echo header reached browser on {path}')
 
-
-
     def websocket(self) -> None:
-        import base64
-
-        def handshake(cookie: str, path: str) -> tuple[int, bytes, list[tuple[str, str]]]:
-            key = base64.b64encode(b'websocket-test-key').decode()
-            conn = http.client.HTTPConnection('127.0.0.1', self.proxy_port, timeout=8)
-            conn.request('GET', path, headers={
-                'Cookie': cookie,
-                'Connection': 'Upgrade',
-                'Upgrade': 'websocket',
-                'Origin': self.origin,
-                'Sec-WebSocket-Key': key,
-                'Sec-WebSocket-Version': '13',
-            })
-            response = conn.getresponse()
-            body = response.read(16)
-            headers = response.getheaders()
-            conn.close()
-            return response.status, body, headers
-
+        payload = b'proxy-ws-echo'
         for path, upstream in (
             (f'/ocu/terminal/{self.chat_id}/ws', f'/terminal/{self.chat_id}/ws'),
-            (f'/ocu/browser/{self.chat_id}/devtools/page/PAGE-1',
-             f'/browser/{self.chat_id}/devtools/page/PAGE-1'),
+            (f'/ocu/browser/{self.chat_id}/devtools/page/PAGE-1', f'/browser/{self.chat_id}/devtools/page/PAGE-1'),
         ):
             before = len(observations(self.record))
-            status, body, headers = handshake(self.owner_cookie, path)
+            status, headers, frame = websocket_echo(
+                '127.0.0.1',
+                self.proxy_port,
+                path,
+                {'Cookie': self.owner_cookie, 'Origin': self.origin},
+                payload,
+            )
             if status != 101:
                 fail(f'owner WS {path} expected 101, got {status}')
-            if self.token.encode() in body or any(self.token in f'{n}:{v}' for n, v in headers):
+            if self.token.encode() in frame or any(self.token in f'{n}:{v}' for n, v in headers):
                 fail(f'WS {path} leaked internal token')
+            opcode, echoed = ws_unmask_or_server(frame)
+            if opcode != 0x1 or echoed != payload:
+                fail(f'WS {path} frame echo mismatch')
             seen = [row for row in observations(self.record)[before:] if row.get('target') == upstream]
             if len(seen) != 1 or not seen[0].get('token_ok'):
                 fail(f'WS {path} missing attributed token receipt')
             before = len(observations(self.record))
-            status, _, _ = handshake(self.foreign_cookie, path)
+            status, _, _ = websocket_echo(
+                '127.0.0.1',
+                self.proxy_port,
+                path,
+                {'Cookie': self.foreign_cookie, 'Origin': self.origin},
+                payload,
+            )
             if status != 404:
                 fail(f'foreign WS {path} expected 404, got {status}')
             if observations(self.record)[before:]:
                 fail(f'foreign WS {path} contacted OCU')
-
-
 
     def ensure_sentinel(self, admin_auth: dict[str, str]) -> None:
         status, payload, _, _ = http_json(
@@ -593,12 +656,14 @@ class Smoke:
             'POST',
             f'{self.webui}/api/v1/auths/add',
             headers=admin_auth,
-            body=json.dumps({
-                'name': 'Proxy Owner Sentinel',
-                'email': SENTINEL_EMAIL,
-                'password': f'Proxy-sentinel-{secrets.token_hex(8)}!',
-                'role': 'user',
-            }).encode(),
+            body=json.dumps(
+                {
+                    'name': 'Proxy Owner Sentinel',
+                    'email': SENTINEL_EMAIL,
+                    'password': f'Proxy-sentinel-{secrets.token_hex(8)}!',
+                    'role': 'user',
+                }
+            ).encode(),
         )
         if status != 200 or 'id' not in created:
             fail('preexisting sentinel provision failed')
@@ -610,17 +675,24 @@ class Smoke:
     def _owned_user_emails(self) -> set[str]:
         return {email for email in (self.owner_email_raw, self.foreign_email_raw) if email}
 
-    def _delete_exact_email(self, email: str, auth: dict[str, str], skip: set[str]) -> None:
+    def _require_gone(self, method: str, url: str, auth: dict[str, str], label: str) -> None:
+        status, _, _, _ = http_json(method, url, headers=auth)
+        if status not in {200, 204, 404}:
+            fail(f'{label} cleanup HTTP {status}')
+
+    def _delete_exact_email(self, email: str, auth: dict[str, str]) -> None:
         status, payload, _, _ = http_json(
             'GET',
             f'{self.webui}/api/v1/users/?query={quote(email)}',
             headers=auth,
         )
+        if status not in {200, 404}:
+            fail(f'cleanup email lookup HTTP {status}')
         users = payload.get('users', []) if isinstance(payload, dict) else []
         for user in users:
             uid = user.get('id')
-            if uid and uid not in skip and user.get('email') == email:
-                http_json('DELETE', f'{self.webui}/api/v1/users/{uid}', headers=auth)
+            if uid and user.get('email') == email:
+                self._require_gone('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, f'user {email}')
 
     def cleanup_data(self) -> None:
         if not self.admin_cookie:
@@ -629,12 +701,17 @@ class Smoke:
         auth = {'Authorization': f'Bearer {admin_token}'}
         for key in ('chat', 'foreign_chat'):
             if key in self.created:
-                http_json('DELETE', f'{self.webui}/api/v1/chats/{self.created[key]}', headers=auth)
+                self._require_gone(
+                    'DELETE',
+                    f'{self.webui}/api/v1/chats/{self.created[key]}',
+                    auth,
+                    f'chat {key}',
+                )
         owned_ids = self._owned_user_ids()
         for uid in owned_ids:
-            http_json('DELETE', f'{self.webui}/api/v1/users/{uid}', headers=auth)
+            self._require_gone('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, f'user {uid}')
         for email in self._owned_user_emails():
-            self._delete_exact_email(email, auth, owned_ids)
+            self._delete_exact_email(email, auth)
 
     def assert_sentinel(self) -> None:
         if not self.admin_cookie or not self.sentinel_id:
@@ -642,12 +719,12 @@ class Smoke:
         admin_token = self.admin_cookie.split('=', 1)[-1]
         auth = {'Authorization': f'Bearer {admin_token}'}
         status, payload, _, _ = http_json(
-            'GET', f'{self.webui}/api/v1/users/{self.sentinel_id}', headers=auth,
+            'GET',
+            f'{self.webui}/api/v1/users/{self.sentinel_id}',
+            headers=auth,
         )
         if status != 200 or payload.get('email') != SENTINEL_EMAIL:
             fail('preexisting similarly prefixed sentinel user was deleted')
-
-
 
     def cleanup_procs(self) -> None:
         for pid in reversed(self.owned):
@@ -658,6 +735,7 @@ class Smoke:
         nginx = require_tools()
         self.status()
         sha = self.pin()
+        self.pin_sha = sha
         checkout = Path(os.environ.get('OCU_CHECKOUT', str(self.root.parent / 'open-computer-use'))).resolve()
         self.checkout = checkout
         self.verify_checkout(checkout, sha)
@@ -670,8 +748,7 @@ class Smoke:
         self.token = 'Tok!' + secrets.token_hex(12) + '#$%'
         if not TOKEN_RE.fullmatch(self.token):
             fail('generated token outside visible ASCII')
-        self.stub_port = free_port()
-        self.proxy_port = free_port()
+        self.stub_port, self.proxy_port = distinct_ports()
         self.origin = f'http://127.0.0.1:{self.proxy_port}'
         self.stage = self.stage_copy(checkout)
         self.render(nginx)
@@ -684,8 +761,12 @@ class Smoke:
             'OCU_STUB_RECORD': str(self.record),
         }
         stub_log = self.scratch / 'stub.log'
-        self.start_owned([self.python, str(self.root / 'scripts/ocu-stub.py')], stub_env,
-                         f'http://127.0.0.1:{self.stub_port}/internal/describe/running', stub_log)
+        self.start_owned(
+            [self.python, str(self.root / 'scripts/ocu-stub.py')],
+            stub_env,
+            f'http://127.0.0.1:{self.stub_port}/internal/describe/running',
+            stub_log,
+        )
         launcher_env = {
             'PATH': os.environ.get('PATH', ''),
             'HOME': os.environ.get('HOME', ''),
@@ -704,41 +785,9 @@ class Smoke:
         return 0
 
 
-
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    smoke = Smoke()
-
-    def handle(_signum, _frame) -> None:
-        raise KeyboardInterrupt
-
-    signal.signal(signal.SIGINT, handle)
-    signal.signal(signal.SIGTERM, handle)
-    code = 1
-    try:
-        code = smoke.run()
-    except Fail as exc:
-        log.error('smoke-proxy: %s', exc)
-        code = 1
-    except KeyboardInterrupt:
-        log.error('smoke-proxy: interrupted')
-        code = 130
-    finally:
-        smoke.cleanup_procs()
-        try:
-            smoke.cleanup_data()
-        except Exception:
-            log.exception('owned data cleanup failed')
-        try:
-            smoke.assert_sentinel()
-        except Fail as exc:
-            log.error('smoke-proxy: %s', exc)
-            if code == 0:
-                code = 1
-        if smoke.scratch and smoke.scratch.exists():
-            shutil.rmtree(smoke.scratch, ignore_errors=True)
-    return code
-
+    return run_owned_lifecycle(Smoke(), log)
 
 
 if __name__ == '__main__':

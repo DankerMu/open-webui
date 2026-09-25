@@ -13,12 +13,13 @@ base="http://127.0.0.1:${port}"
 log="$(mktemp "${TMPDIR:-/tmp}/ocu-stub.XXXXXX")"
 body="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-body.XXXXXX")"
 hdr="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-hdr.XXXXXX")"
+auth_cfg="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-auth.XXXXXX")"
 python3 "$repo_root/scripts/ocu-stub.py" >"$log" 2>&1 &
 stub_pid=$!
 cleanup() {
   kill "$stub_pid" 2>/dev/null || true
   wait "$stub_pid" 2>/dev/null || true
-  rm -f "$log" "$body" "$hdr"
+  rm -f "$log" "$body" "$hdr" "$auth_cfg"
 }
 trap cleanup EXIT
 
@@ -115,10 +116,13 @@ grep -q '/ocu/static/preview.js' "$body" || fail "preview missing prefixed stati
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/ocu/static/preview.js")"
 [ "$code" = "200" ] || fail "static HTTP $code"
 
+umask 077
+: >"$auth_cfg"
+chmod 0600 "$auth_cfg"
 auth_kind=Bearer
-auth_header="Authorization: ${auth_kind} ${probe_token}"
+printf 'header = "Authorization: %s %s"\n' "$auth_kind" "$probe_token" >"$auth_cfg"
 code="$(curl -sS -D "$hdr" -o "$body" -w '%{http_code}' \
-  -H "$auth_header" \
+  -K "$auth_cfg" \
   "$base/files/running/page.html")"
 [ "$code" = "200" ] || fail "public files HTTP $code"
 if grep -qi 'X-Echo-Authorization' "$hdr"; then fail "public files echoed Authorization"; fi

@@ -116,6 +116,7 @@ jobs:
           repository: DankerMu/open-computer-use
           ref: ${{ steps.ocu.outputs.sha }}
           path: .run/open-computer-use
+          persist-credentials: false
       - run: npx playwright install --with-deps chromium
       - run: make db-verify
       - run: make dev-bg
