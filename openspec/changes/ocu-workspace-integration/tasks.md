@@ -118,7 +118,7 @@ Minimal mergeable slice: 13.2 (stub + dev script, `[webui]`) - green alone as ha
 ## 14. [deploy] Sandbox bridge, firewall, port matrix, retention (specs: sandbox-network-isolation, lan-deployment-overlay)
 
 - [x] 14.1 Compose: dedicated sandbox bridge (not internal), orchestrator not on it, CDP/ttyd published on the gateway only; port matrix publishes only the proxy (remove the `127.0.0.1:${PORT}` publications for OCU and WebUI); `deploy/check-ports.sh` fails when any other service publishes a port. Development evidence is archived in `2026-09-25-ocu-compose-port-matrix`; actual Docker/Compose acceptance is deferred to [#36](https://github.com/DankerMu/open-webui/issues/36#issuecomment-5830624433) by user decision.
-- [ ] 14.2 `deploy/firewall/docker-user-rules.sh` (idempotent `DOCKER-USER` DROP rules for sandbox subnet → control-plane subnet, Docker socket host address, metadata address) and `deploy/firewall/check.sh` that fails when rules are missing; both hooked into the deploy script.
+- [ ] 14.2 `deploy/firewall/docker-user-rules.sh` and `deploy/firewall/check.sh`: explicit destination allowlist and default deny for sandbox-originated forwarded/host-local traffic, control-plane/metadata hard denies, protected CDP/ttyd replies, IPv6 bypass prevention, idempotent owned rules and ordered-policy verification. Both run after network provisioning and before service starts. Full egress closure also requires group21 / issue79.
 - [ ] 14.3 Retention guard: stop only, keep volume/dirs, stale "restart on MCP" comment in `retention/stop-overage.sh` removed; `OCU_INTERNAL_TOKEN`, `OCU_PUBLIC_PREFIX=/ocu`, `OCU_SANDBOX_NO_AUTOSTART=1`, `PUBLIC_BASE_URL` and the WebUI auth URL provisioned in the overlay env; `deploy/production-like-test/patches/disable-cli-autostart.patch` deleted.
 - [ ] 14.4 Overlay smoke script: `docker compose ps` port assertion, direct probe of OCU's former port refused, `curl` from inside a sandbox to control-plane addresses times out, egress to an allowlisted address succeeds, a new terminal session's foreground process is `bash` with no coding CLI auto-started (terminal default configured in the overlay).
 
@@ -169,3 +169,12 @@ Minimal mergeable slice: 18.1 - green alone: the build pipeline is verifiable by
 
 Suggested fixture level: none - evidence collection and docs; no runtime behaviour change.
 Minimal mergeable slice: atomic - a single evidence/docs PR.
+
+## 21. [ocu] Explicit DNS routing for all-egress policy (issue79)
+
+- [ ] 21.1 Configure explicit sandbox DNS upstreams within the egress allowlist, including a no-external-DNS policy that never inherits host resolvers; verify create, compatible launch and recreate paths through lifecycle tests.
+- [ ] 21.2 Reject missing production policy, non-allowlisted resolvers and incompatible existing-container DNS without destructive migration; verify deployment preflight and preserved container state.
+- [ ] 21.3 Prove embedded-resolver namespace behavior, denied non-allowlisted DNS and allowed resolution under final group19.0 real-engine acceptance. Group14.4 / issue27 and issue36 depend on this mandatory closure.
+
+Suggested fixture level: expanded - network security boundary and immutable-container compatibility.
+Minimal mergeable slice: atomic - DNS configuration, lifecycle compatibility and deployment validation must agree; no optional follow-up or dormant setting.

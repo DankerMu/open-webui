@@ -27,7 +27,7 @@ Sandbox containers SHALL be attached only to a dedicated bridge network that is 
 
 ### Requirement: L3 control-plane isolation
 
-Host firewall rules in the `DOCKER-USER` chain SHALL DROP traffic from the sandbox subnet to the control-plane compose subnet, the Docker socket host address, and the metadata address; the overlay SHALL ship an idempotent rule script and a check that fails the deploy when the rules are absent (A-T08).
+Host firewall rules SHALL enforce an explicit destination allowlist for all sandbox-originated IP egress, including public, company and host-local destinations; unlisted destinations SHALL be denied. The control-plane compose subnet and metadata address SHALL remain hard-denied even within an allowed range. Forwarded traffic SHALL be protected through DOCKER-USER and host-local traffic through INPUT; control-initiated CDP/ttyd replies SHALL remain possible. Unsupported IPv6 SHALL not bypass default deny. The overlay SHALL ship an idempotent installer and an ordered-policy check that fails deployment on missing, shadowed or stale enforcement. Full all-egress closure also requires explicit DNS routing and existing-container compatibility in mandatory issue79; inherited host-namespace DNS is not covered merely by bridge-origin rules.
 
 #### Scenario: curl from inside sandbox (A-T08)
 
@@ -36,13 +36,13 @@ Host firewall rules in the `DOCKER-USER` chain SHALL DROP traffic from the sandb
 
 #### Scenario: Egress still works (A-T14 with allowlist)
 
-- **WHEN** the sandbox fetches an allowed external address per `NETWORK-HARDENING.md:20`
-- **THEN** the request succeeds
+- **WHEN** the sandbox fetches an explicitly allowlisted external address
+- **THEN** this guard permits that request, while an otherwise equivalent request to an unlisted destination is dropped
 
 #### Scenario: Missing rules fail deploy
 
-- **WHEN** the deploy check runs on a host where the `DOCKER-USER` rules are absent
-- **THEN** the deploy exits non-zero and names the missing rule
+- **WHEN** the deploy check finds missing, duplicated, shadowed or misordered guard rules or hooks
+- **THEN** the deploy exits non-zero and names the defective rule or chain
 
 ### Requirement: Dynamic ports publish on the gateway only
 
