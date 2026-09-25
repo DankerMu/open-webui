@@ -22,6 +22,8 @@ The production-like core and WebUI overrides use `ports: !override []`; only the
 
 The proxy image copies only the renderer, route table, template and entrypoint. One unprivileged identity renders a private runtime/config and runs native nginx in the foreground. The route and credential policies remain owned by the existing renderer and gateway decisions.
 
+The adopted initializer writes its completion marker only after required configuration and model persistence succeed. Public model grants require a confirmed saved model; an HTTP-success response without the expected model is not persistence evidence. The canonical initializer owns this check so the deployment wrapper cannot publish a minimal model after a failed create or update.
+
 ## Alternatives considered
 
 - **Empty list without `!override`** — Compose may merge rather than remove a base publication.
@@ -32,4 +34,4 @@ The proxy image copies only the renderer, route table, template and entrypoint. 
 
 ## Consequences
 
-Network creation races must end in a fresh compatibility inspection. Any preflight error prevents service starts and removes the private resolved JSON; a later application start failure is not rolled back destructively. Firewall isolation is owned by issue25, bootstrap/runtime variable adoption by issue26, LAN isolation follow-up by issue33, backup inventory by issue34, and actual Compose/build/start/bridge/publication acceptance by issue36. This decision does not establish safe LAN isolation or real-engine evidence.
+Network creation races must end in a fresh compatibility inspection. Any preflight error prevents service starts and removes the private resolved JSON; a later application start failure is not rolled back destructively. Firewall isolation is owned by issue25, bootstrap/runtime variable adoption by issue26, overlay runtime smoke by issue27, image delivery by issue33, backup inventory by issue34, and actual Compose/build/start/bridge/publication acceptance by issue36. This decision does not establish safe LAN isolation or real-engine evidence.
