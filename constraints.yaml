@@ -209,7 +209,16 @@ verification:
       command: "make doc-gate"
       evidence: "exit 0"
       required_at: "L3+"
+    proxy:
+      command: "make smoke-proxy"
+      evidence: "owner/nonowner-auth+no-contact+containment+exact-sha"
+      required_at: "L3+"
   enforced_by: "Stage 4 matrix-to-target check + PR Runtime evidence section"
+
+ocu_checkout:
+  sha: "818e9ca3ae1880ae1e95b0ad7f84d61bbefb79e4"
+  repository: "DankerMu/open-computer-use"
+  path: ".run/open-computer-use"
 
 # ── Exemptions ──────────────────────────────────────────────────
 exemptions:

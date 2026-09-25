@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-20
 supersedes: none
-references: docs/plans/2026-09-20-workspace-artifact-integration.md §1-2
+references: docs/plans/2026-09-20-workspace-artifact-integration.md §1-2, 2026-09-25-ocu-cookie-gateway-and-paired-smoke
 ---
 
 # OCU workspace access goes through an external reverse proxy with auth_request
@@ -16,7 +16,7 @@ Plan 1 must let the browser reach OCU's preview SPA, file downloads, CDP and tty
 
 ## Decision
 
-nginx/Caddy fronts both WebUI and the `/ocu/` prefix. Every `/ocu/*` request passes `auth_request` to WebUI's `GET /api/v1/ocu/auth`, which answers only `is_chat_owner` with 200/401/403 (403 mapped to 404 by the proxy) and returns identity headers the proxy copies upstream together with an internal token. WebUI adds no proxy code; the allowlist is default-deny; HTML/SVG/XML responses under `/ocu/files/*` get `Content-Security-Policy: sandbox allow-scripts allow-forms` so model-generated pages never execute on the WebUI origin, whether embedded or opened top-level.
+An external proxy fronts both WebUI and the `/ocu/` prefix. Listed chat-bound requests pass `auth_request` to WebUI's `GET /api/v1/ocu/auth`, which answers only `is_chat_owner` with200/401/403 (auth403 mapped to404) and returns identity headers the proxy copies upstream with an internal token. Static assets instead require session-only auth without chat identity. WebUI adds no proxy code; the allowlist is default-deny; generated HTML/SVG/XML file responses receive `Content-Security-Policy: sandbox allow-scripts allow-forms` so model-generated pages never execute on the WebUI origin, whether embedded or opened top-level. The cookie-gateway decision specifies nginx, header/framing ownership and paired smoke acceptance.
 
 ## Alternatives considered
 

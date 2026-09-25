@@ -6,18 +6,20 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+probe_token="$(python3 -c 'import secrets; print("Tok!" + secrets.token_hex(12) + "#$%")')"
 export OCU_STUB_PORT="$port"
 export OCU_PUBLIC_PREFIX="/ocu"
 base="http://127.0.0.1:${port}"
 log="$(mktemp "${TMPDIR:-/tmp}/ocu-stub.XXXXXX")"
 body="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-body.XXXXXX")"
 hdr="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-hdr.XXXXXX")"
+auth_cfg="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-auth.XXXXXX")"
 python3 "$repo_root/scripts/ocu-stub.py" >"$log" 2>&1 &
 stub_pid=$!
 cleanup() {
   kill "$stub_pid" 2>/dev/null || true
   wait "$stub_pid" 2>/dev/null || true
-  rm -f "$log" "$body" "$hdr"
+  rm -f "$log" "$body" "$hdr" "$auth_cfg"
 }
 trap cleanup EXIT
 
@@ -113,6 +115,18 @@ grep -q '/ocu/static/preview.js' "$body" || fail "preview missing prefixed stati
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/ocu/static/preview.js")"
 [ "$code" = "200" ] || fail "static HTTP $code"
+
+umask 077
+: >"$auth_cfg"
+chmod 0600 "$auth_cfg"
+auth_kind=Bearer
+printf 'header = "Authorization: %s %s"\n' "$auth_kind" "$probe_token" >"$auth_cfg"
+code="$(curl -sS -D "$hdr" -o "$body" -w '%{http_code}' \
+  -K "$auth_cfg" \
+  "$base/files/running/page.html")"
+[ "$code" = "200" ] || fail "public files HTTP $code"
+if grep -qi 'X-Echo-Authorization' "$hdr"; then fail "public files echoed Authorization"; fi
+if grep -Fq "$probe_token" "$hdr" "$body"; then fail "public files leaked token"; fi
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/terminal/running/heartbeat")"
 [ "$code" = "200" ] || fail "heartbeat HTTP $code"

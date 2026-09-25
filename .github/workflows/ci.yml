@@ -104,10 +104,27 @@ jobs:
           curl -fsSL --retry 3 -o /tmp/hurl.deb \
             https://github.com/Orange-OpenSource/hurl/releases/download/8.0.1/hurl_8.0.1_amd64.deb
           sudo dpkg -i /tmp/hurl.deb
+      - name: Install native nginx with auth_request
+        run: sudo apt-get update && sudo apt-get install -y nginx-full
+      - name: Resolve pinned OCU SHA
+        id: ocu
+        run: |
+          SHA=$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("constraints.yaml").read_text(); m=re.search(r"ocu_checkout:\n(?:  .*\n)*?  sha:\s*\"([0-9a-f]{40})\"", t); sys.exit("constraints.yaml missing ocu_checkout.sha") if not m else print(m.group(1))')
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: DankerMu/open-computer-use
+          ref: ${{ steps.ocu.outputs.sha }}
+          path: .run/open-computer-use
+          persist-credentials: false
       - run: npx playwright install --with-deps chromium
       - run: make db-verify
       - run: make dev-bg
       - run: make smoke
+      - name: Native proxy smoke
+        env:
+          OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
+        run: make smoke-proxy
       - run: make verify-ui
       - run: make dev-stop
         if: always()
