@@ -33,4 +33,4 @@ Retention stops managed running sandboxes at the configured continuous-runtime l
 
 ## Consequences
 
-Operators supply image references, but image provenance and offline materials still require issue33. Existing configurations require deliberate operator migration rather than overwrite. Actual Compose resolution, service startup and168-hour data-preservation acceptance remain issue36; fake CLI evidence does not certify the engine. DNS issue79 remains mandatory before full all-egress readiness.
+Operators supply image references, but image provenance and offline materials still require issue33. Existing configurations require deliberate operator migration rather than overwrite. Actual Compose resolution, service startup and168-hour data-preservation acceptance remain issue36; fake CLI evidence does not certify the engine. DNS provisioning and immutable compatibility are owned by `2026-09-26-ocu-sandbox-dns`; its real routing acceptance remains required for full all-egress readiness.
