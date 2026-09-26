@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-25
 supersedes: none
-references: 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-24-ocu-sandbox-network-membership, 2026-09-20-lan-topology-external-reverse-proxy, issue-25, issue-79, issue-36
+references: 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-24-ocu-sandbox-network-membership, 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-26-ocu-sandbox-dns, issue-25, issue-79, issue-36
 ---
 
 # Explicit IPv4 destination allowlist for sandbox host egress
@@ -39,4 +39,4 @@ The checker is read-only apart from lock ownership and inspects normalized order
 
 The host must provide Linux Docker with the iptables interface (including its nft frontend), reachable `DOCKER-USER`, IPv6 iptables, and bridge-netfilter sysctls. Host firewall reset or reboot invalidates readiness until the next deployment reconciliation; there is no continuous enforcement agent. Configuration changes may stop existing sandbox egress immediately and never delete containers or networks.
 
-This guard does not close Docker's inherited host-namespace DNS path. Issue 79 remains mandatory before claiming full all-egress readiness; issues 27 and 36 retain that dependency. Real iptables/ip6tables inspection, forwarded and host-local packets, CDP/ttyd replies, and DNS coverage are recorded as required evidence for issue 36 and are not claimed here.
+This guard alone does not close Docker's inherited host-namespace DNS path. Explicit DNS configuration and immutable compatibility are owned by `2026-09-26-ocu-sandbox-dns`. Real iptables/ip6tables inspection, forwarded and host-local packets, CDP/ttyd replies and DNS namespace behavior remain required issue36 evidence; neither decision claims real-engine acceptance.

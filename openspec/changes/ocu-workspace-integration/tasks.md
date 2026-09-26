@@ -172,8 +172,8 @@ Minimal mergeable slice: atomic - a single evidence/docs PR.
 
 ## 21. [ocu] Explicit DNS routing for all-egress policy (issue79)
 
-- [ ] 21.1 Configure explicit sandbox DNS upstreams within the egress allowlist, including a no-external-DNS policy that never inherits host resolvers; verify create, compatible launch and recreate paths through lifecycle tests.
-- [ ] 21.2 Reject missing production policy, non-allowlisted resolvers and incompatible existing-container DNS without destructive migration; verify deployment preflight and preserved container state.
+- [x] 21.1 Configure explicit sandbox DNS upstreams within the egress allowlist, including a no-external-DNS policy that never inherits host resolvers; verify create, compatible launch and recreate paths through lifecycle tests. Development evidence is archived in `2026-09-26-ocu-sandbox-dns`; real-engine proof remains21.3.
+- [x] 21.2 Reject missing production policy, non-allowlisted resolvers and incompatible existing-container DNS without destructive migration; verify deployment preflight and preserved container state.
 - [ ] 21.3 Prove embedded-resolver namespace behavior, denied non-allowlisted DNS and allowed resolution under final group19.0 real-engine acceptance. Group14.4 / issue27 and issue36 depend on this mandatory closure.
 
 Suggested fixture level: expanded - network security boundary and immutable-container compatibility.
