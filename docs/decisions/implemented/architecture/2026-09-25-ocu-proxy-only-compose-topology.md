@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-25
 supersedes: none
-references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-24-ocu-sandbox-network-membership, 2026-09-25-ocu-cookie-gateway-and-paired-smoke, 2026-09-25-ocu-sandbox-egress-guard, issue-24
+references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-24-ocu-sandbox-network-membership, 2026-09-25-ocu-cookie-gateway-and-paired-smoke, 2026-09-25-ocu-sandbox-egress-guard, 2026-09-26-ocu-private-runtime-provisioning, issue-24
 ---
 
 # Proxy-only Compose entry with independent sandbox bridge
@@ -34,4 +34,4 @@ The adopted initializer writes its completion marker only after required configu
 
 ## Consequences
 
-Network creation races must end in a fresh compatibility inspection. Any preflight error prevents service starts and removes the private resolved JSON; a later application start failure is not rolled back destructively. Sandbox destination policy is owned by `2026-09-25-ocu-sandbox-egress-guard`; bootstrap/runtime variable adoption by issue26, overlay runtime smoke by issue27, image delivery by issue33, backup inventory by issue34, DNS closure by issue79, and actual Compose/build/start/bridge/publication/kernel acceptance by issue36. This decision does not establish full all-egress closure or real-engine evidence.
+Network creation races must end in a fresh compatibility inspection. Any preflight error prevents service starts and removes the private resolved JSON; a later application start failure is not rolled back destructively. Sandbox destination policy is owned by `2026-09-25-ocu-sandbox-egress-guard`; private bootstrap and retention by `2026-09-26-ocu-private-runtime-provisioning`, overlay runtime smoke by issue27, image delivery by issue33, backup inventory by issue34, DNS closure by issue79, and actual Compose/build/start/bridge/publication/kernel acceptance by issue36. This decision does not establish full all-egress closure or real-engine evidence.
