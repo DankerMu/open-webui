@@ -1,0 +1,43 @@
+# Design
+
+## Context
+
+`deploy/check-ports.sh` judges resolved configuration, whereas this command judges running Compose services. `netinspect.py` owns authoritative network/container inspection; firewall policy owns allowlist parsing. Product terminal startup is POST `/ocu/terminal/{chat}/start-ttyd`, then a `tty` WebSocket to `/ocu/terminal/{chat}/ws`, which causes ttyd to run `tmux -u new-session -A -s main bash`. Creating an unrelated explicit Bash session or inspecting NO_AUTOSTART alone cannot prove this path.
+
+## Goals / Non-Goals
+
+One bounded operator-run command, not an automatic `up.sh` hook. No services/containers/network/firewall creation or deletion. The only permitted mutation is creating and cleaning the terminal state of an explicitly designated dedicated smoke sandbox with no pre-existing terminal state. No model calls, provider secrets, new terminal APIs or general Docker/Compose emulator.
+
+## Inputs and prerequisites
+
+Require explicit Compose project, deployed public origin, owner session token through a protected runtime input (never command-line argument or printed), canonical chat ID and matching running smoke sandbox ID. Inspect its managed/chat labels, authoritative bridge membership and gateway publications. Operator explicitly designates the sandbox for exclusive smoke use; unrelated sessions/containers must not be touched. Require no pre-existing ttyd process or tmux sessions for the assistant user, no global no-autostart marker and no stale autostart environment marker that could make the negative vacuous.
+
+Run from the configured deployment shell: inherited environment supplies the same Compose interpolation variables as `deploy/up.sh`, including service credentials, but the smoke never dumps or persists that environment. Explicit expected inputs are `COMPOSE_PROJECT_NAME`, `OCU_PROXY_PORT`, `OCU_PRIVATE_NETWORK`, `OCU_SANDBOX_NETWORK`, `OCU_SANDBOX_EGRESS_ALLOW`, `OCU_PRIVATE_SUBNET` and `OCU_WEBUI_ORIGIN`; smoke-specific inputs name the chat/container, exclusive-use acknowledgement, owner token, former-port URL, egress URL and literal host LAN IPv4. Inspect `Config.Env` for `NO_AUTOSTART=1` as a freshness prerequisite, not the terminal oracle; absent policy requests a fresh smoke sandbox rather than misreporting a runtime regression.
+
+Require an IPv4-literal former-OCU URL/port and an IPv4-literal HTTP egress probe URL. Validate the egress address using the existing allowlist parser and hard-deny authority. Explicit-empty allowlist is a valid deployment configuration but cannot satisfy this smoke's required positive-egress assertion: report unsuitable prerequisite and nonzero, never silently grant egress or call a partial run PASS. Do not guess company addresses or substitute refusal for successful HTTP egress.
+
+## Port and network judgments
+
+Run `docker compose -p PROJECT --project-directory ROOT -f ROOT/docker-compose.yml -f OVERLAY/compose.core.override.yml ps --all --format json`, the equivalent WebUI invocation with `docker-compose.webui.yml`/`compose.webui.override.yml`, and the proxy invocation with `--project-directory OVERLAY -f OVERLAY/compose.proxy.yml`. ROOT is the script's source checkout and OVERLAY its `deploy/production-like-test` directory, matching `up.sh`; no inferred working-directory config. Combine inventories by container ID, accepting duplicate consistent rows but rejecting conflicting identities. Accept array or JSON-lines forms, reject malformed/empty/incomplete inventory. Require `computer-use-server`, `open-webui`, `proxy`, `postgres` and `retention-guard` running; one-shot `workspace`/`open-webui-init` may be absent or completed, but any returned row's publications are checked. Running destructive `cleanup` fails. Verify exactly the expected proxy TCP publication and none on other project services. Corroborate IDs/network addresses through inspect; `expose` is not publication. Reuse existing constants/helpers without forcing running-state JSON through a resolved-config parser.
+
+All HTTP probes disable environment proxies, redirects and DNS-dependent target lookup; use explicit bounded connect/total deadlines. A host TCP connection probe to the former OCU address must receive ECONNREFUSED; timeout, DNS failure, permission/routing errors or any successful TCP connection do not establish absence. This probe is not alone proof of LAN-wide exposure, which the port inventory separately covers.
+
+Discover OCU/WebUI control-plane IPv4 endpoints from inspected project containers. First require host-side HTTP responses from each exact endpoint to establish live listeners, and a successful HTTP response from the allowlisted egress target inside the sandbox. Only then probe those control-plane endpoints from the sandbox. Isolation requires a connection-phase timeout: curl exit28 plus no remote connection/HTTP status, using write-out connection metadata; an HTTP response timeout after TCP connection is failure, not DROP evidence. Exit6 (DNS),7 (connection failure),127 (tool missing), malformed output or unrelated engine errors are named failures. Allowed egress requires actual HTTP success (2xx/3xx without redirect following), not merely any nonzero or refused socket. Control probes may accept any valid HTTP response as listener liveness, without logging response bodies or credentials.
+
+The control probe set includes OCU:8081, WebUI:8080 and proxy:8082 at their inspected control-network IPv4 addresses, plus the explicitly supplied host LAN IPv4 at `OCU_PROXY_PORT` to exercise host-local INPUT protection. Each exact endpoint must pass the host-side positive listener check before its sandbox negative is accepted.
+
+## Product terminal judgment
+
+POST start-ttyd through the authenticated proxy with `dangerous_mode=false`, owner cookie, Origin and `X-Requested-With: ocu-workspace`; never override NO_AUTOSTART for the observation. Open and hold the actual ttyd WebSocket with the required `tty` subprotocol/initialization. Use an existing available client library only if already packaged; otherwise author a small stdlib client helper for this protocol, following the existing native smoke handshake pattern without importing across repositories. No new dependency without approval.
+
+Observe the product-created assistant tmux pane with a bounded deadline. Require both `pane_current_command` and the actual pane process from `ps` to be Bash; inspect its foreground process group/descendants to reject a coding CLI hidden behind a Bash parent. Require terminal initialization/readiness before sampling, and a bounded stable observation rather than a single early Bash sample. Do not claim the Claude-only product processes route detects all CLIs. A harmless native autostart fixture must demonstrate that the judge rejects a CLI process rather than bypassing startup with explicit Bash/env overrides.
+
+Record ownership only after preconditions and successful start request. Keep the WebSocket open until observation completes, then close it and invoke the product stop-ttyd cleanup only for this dedicated sandbox whose prior ttyd/tmux absence was proven. Handle failure/cancellation with bounded child/protocol cleanup. Cleanup failure is nonzero, not swallowed. Never call whole-server cleanup on a sandbox with pre-existing terminals; never create persistent escape markers.
+
+## Verification and limitations
+
+Fake CLI fixtures model running Compose records, authoritative inspections and distinct probe exits/state; they must not return predetermined PASS messages. Native local HTTP/TCP/WebSocket and process fixtures exercise protocol/timeout/foreground classification without Docker or real credentials. Qualify extra publication, dead positive listener, DNS error/refused socket/post-connect timeout misclassified as isolation, unreachable allowed target, wrong pane/foreground CLI, pre-existing terminal and failed cleanup faults. Parent runs baselineGREEN, intended semanticRED and restorationGREEN in disposable Git-only exports.
+
+Final issue36 must run the command against the pinned real stack: actual Compose JSON, host/sandbox reachability, packet filtering, ttyd initialization and process state, terminal cleanup and ordinary owner-browser behavior. A valid smoke is evidence for its configured endpoints and observation interval, not universal packet isolation or proof against an administrator with Docker access.
+
+The implementation and independent command/protocol/state judges form one atomic verification slice. If the diff exceeds400lines, justify that boundary in the PR rather than splitting off unverified terminal/network assertions or silently dropping them.
