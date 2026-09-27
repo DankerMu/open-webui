@@ -36,7 +36,10 @@ export OCU_INTERNAL_TOKEN="${OCU_INTERNAL_TOKEN:-harness-no-ocu}"
 export RAG_EMBEDDING_ENGINE="${RAG_EMBEDDING_ENGINE:-openai}"
 export ENABLE_VERSION_UPDATE_CHECK="${ENABLE_VERSION_UPDATE_CHECK:-false}"
 export OFFLINE_MODE="${OFFLINE_MODE:-true}"
-export CORS_ALLOW_ORIGIN="http://localhost:${FRONTEND_PORT};http://localhost:${BACKEND_PORT}"
+if [[ -z "${CORS_ALLOW_ORIGIN:-}" ]]; then
+  CORS_ALLOW_ORIGIN="http://localhost:${FRONTEND_PORT};http://localhost:${BACKEND_PORT}"
+fi
+export CORS_ALLOW_ORIGIN
 export WEBUI_BACKEND_URL="${WEBUI_BACKEND_URL:-http://localhost:${BACKEND_PORT}}"
 
 stage_frontend_assets() {

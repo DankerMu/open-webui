@@ -362,7 +362,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(messageSvg?.headers['content-security-policy']).toBe('sandbox allow-scripts allow-forms');
 	expect(messageSvg?.headers['x-content-type-options']).toBe('nosniff');
 	expect(popupObservations.get(linkedSvg)?.errors).toEqual([]);
-	await linkedSvg.screenshot({ path: `${evidence}/workspace-message-svg.png`, fullPage: true });
+	await linkedSvg.screenshot({ path: `${evidence}/workspace-message-svg.png` });
 	await linkedSvg.close();
 
 	const direct = await browser.newPage();
@@ -394,7 +394,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 			parentAccess: 'blocked',
 			cookie: 'blocked'
 		});
-	await direct.screenshot({ path: `${evidence}/workspace-scripted-svg.png`, fullPage: true });
+	await direct.screenshot({ path: `${evidence}/workspace-scripted-svg.png` });
 	expect(directObs?.errors).toEqual([]);
 	const upstreamStylesheets = fs.readFileSync(context.record, 'utf8')
 		.split('\n').filter(Boolean).map((line) => JSON.parse(line))

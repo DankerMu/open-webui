@@ -34,9 +34,9 @@ export default defineConfig({
 		sourcemap: true
 	},
 	server: {
-		// Gateway does not upgrade Vite's websocket; disable HMR only for owned UI verification.
-		...(process.env.OCU_UI_DISABLE_HMR === 'true'
-			? { hmr: false, allowedHosts: ['ocu_proxy_webui'] }
+		// nginx's upstream Host is an alias; permit it only in the owned proxy browser harness.
+		...(process.env.OCU_UI_PROXY_HARNESS === 'true'
+			? { allowedHosts: ['ocu_proxy_webui'] }
 			: {}),
 		proxy: {
 			'/api': {

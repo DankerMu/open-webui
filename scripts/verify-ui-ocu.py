@@ -284,7 +284,9 @@ class BrowserHarness(Smoke):
             'OCU_INTERNAL_URL': f'http://127.0.0.1:{self.stub_port}',
             'OCU_INTERNAL_TOKEN': self.token,
             'WEBUI_BACKEND_URL': f'http://127.0.0.1:{self.backend_port}',
-            'OCU_UI_DISABLE_HMR': 'true',
+            'CORS_ALLOW_ORIGIN': self.origin,
+            'OCU_UI_PROXY_HARNESS': 'true',
+            'OCU_UI_SVELTEKIT_OUT_DIR': str(self.scratch / 'svelte-kit'),
             'UV_NO_SYNC': '1',
         }
         run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)
