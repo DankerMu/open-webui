@@ -1,4 +1,4 @@
-import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 
 declare global {
 	interface Window {
@@ -19,6 +19,15 @@ const context: { origin: string; chats: Record<string, string>; fixtures: string
 	JSON.parse(fs.readFileSync(contextFile, 'utf8'));
 const evidence = '.run/ui-evidence';
 fs.mkdirSync(evidence, { recursive: true });
+
+const cookieChecks = new WeakMap<Request, Promise<boolean>>();
+function hasCookie(request: Request): Promise<boolean> {
+	const previous = cookieChecks.get(request);
+	if (previous) return previous;
+	const check = request.allHeaders().then((headers) => Boolean(headers.cookie));
+	cookieChecks.set(request, check);
+	return check;
+}
 
 function observe(
 	page: Page,
@@ -61,7 +70,8 @@ function observe(
 
 type StylesheetProof = {
 	url: string;
-	requests: string[];
+	requests: Promise<boolean>[];
+	verifiedRequests: number;
 	responses: number[];
 	failures: string[];
 	confirmed401: boolean;
@@ -69,11 +79,11 @@ type StylesheetProof = {
 
 function observeStylesheet(browser: BrowserContext, chatId: string): StylesheetProof {
 	const url = `${context.origin}/ocu/files/${chatId}/style.css`;
-	const requests: string[] = [];
+	const requests: Promise<boolean>[] = [];
 	const responses: number[] = [];
 	const failures: string[] = [];
 	browser.on('request', (request) => {
-		if (request.url() === url) requests.push(request.headers()['cookie'] ?? '');
+		if (request.url() === url) requests.push(hasCookie(request));
 	});
 	browser.on('response', (response) => {
 		if (response.url() === url) responses.push(response.status());
@@ -81,7 +91,7 @@ function observeStylesheet(browser: BrowserContext, chatId: string): StylesheetP
 	browser.on('requestfailed', (request) => {
 		if (request.url() === url) failures.push(request.failure()?.errorText ?? '');
 	});
-	return { url, requests, responses, failures, confirmed401: false };
+	return { url, requests, verifiedRequests: 0, responses, failures, confirmed401: false };
 }
 
 async function expectDeniedStylesheet(
@@ -97,7 +107,9 @@ async function expectDeniedStylesheet(
 		.poll(() => proof.responses.length + proof.failures.length)
 		.toBeGreaterThan(before.responses + before.failures);
 	expect(proof.confirmed401).toBe(true);
-	expect(proof.requests.slice(before.requests).every((cookie) => cookie === '')).toBe(true);
+	const cookiePresence = await Promise.all(proof.requests.slice(before.requests));
+	expect(cookiePresence.every((present) => !present)).toBe(true);
+	proof.verifiedRequests = before.requests + cookiePresence.length;
 	expect(proof.responses.slice(before.responses).every((status) => status === 401)).toBe(true);
 	expect(
 		proof.failures.slice(before.failures).every((failure) => failure === 'net::ERR_BLOCKED_BY_ORB')
@@ -109,6 +121,79 @@ function stylesheetSnapshot(proof: StylesheetProof) {
 		responses: proof.responses.length,
 		failures: proof.failures.length
 	};
+}
+
+type FileNetworkEvidence = {
+	started: number;
+	events: Array<{
+		ms: number;
+		kind: 'page' | 'request' | 'response' | 'requestfailed';
+		path: string | null;
+		resourceType?: string;
+		status?: number;
+		hasCookie?: boolean | null;
+	}>;
+	pending: Promise<void>[];
+	active: Page;
+};
+
+let fileNetworkEvidence: FileNetworkEvidence | undefined;
+
+function sanitizedLocation(raw: string): string | null {
+	try {
+		const address = new URL(raw, context.origin);
+		if (address.origin !== context.origin) return null;
+		const query = new URLSearchParams();
+		for (const [key, value] of address.searchParams) {
+			const allowed = ['revision', 'download', 'embed'].includes(key);
+			query.append(allowed ? key : 'other', allowed && /^\d+$/.test(value) ? value : '[redacted]');
+		}
+		return address.pathname + (query.size ? `?${query}` : '');
+	} catch {
+		return null;
+	}
+}
+
+function observeFileNetwork(browser: BrowserContext, active: Page): FileNetworkEvidence {
+	const record: FileNetworkEvidence = { started: Date.now(), events: [], pending: [], active };
+	const add = (
+		kind: 'request' | 'response' | 'requestfailed',
+		request: Request,
+		status?: number
+	) => {
+		const path = sanitizedLocation(request.url());
+		if (!path?.startsWith('/ocu/files/')) return;
+		const event: FileNetworkEvidence['events'][number] = {
+			ms: Date.now() - record.started,
+			kind,
+			path,
+			resourceType: request.resourceType(),
+			...(status === undefined ? {} : { status })
+		};
+		record.events.push(event);
+		if (kind === 'request') {
+			record.pending.push(
+				hasCookie(request)
+					.then((present) => {
+						event.hasCookie = present;
+					})
+					.catch(() => {
+						event.hasCookie = null;
+					})
+			);
+		}
+	};
+	browser.on('page', (opened) =>
+		record.events.push({
+			ms: Date.now() - record.started,
+			kind: 'page',
+			path: sanitizedLocation(opened.url())
+		})
+	);
+	browser.on('request', (request) => add('request', request));
+	browser.on('response', (response) => add('response', response.request(), response.status()));
+	browser.on('requestfailed', (request) => add('requestfailed', request));
+	return record;
 }
 
 async function openWorkspace(page: Page, scenario: string, navigate = true) {
@@ -161,11 +246,50 @@ test.beforeEach(async ({ page }) => {
 	await signIn(page);
 });
 
+test.afterEach(async () => {
+	const testInfo = test.info();
+	const record = fileNetworkEvidence;
+	fileNetworkEvidence = undefined;
+	if (!record || testInfo.status === testInfo.expectedStatus) return;
+	await Promise.allSettled(record.pending);
+	const active = record.active.isClosed()
+		? null
+		: await record.active
+				.evaluate(() => ({
+					location: window.location.href,
+					baseURI: document.baseURI,
+					stylesheets: [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(
+						(link) => link.href
+					)
+				}))
+				.catch(() => null);
+	fs.writeFileSync(
+		`${evidence}/workspace-network-failure.json`,
+		JSON.stringify(
+			{
+				expectedStylesheets: [context.chats.normal, context.chats.link].map(
+					(id) => `/ocu/files/${id}/style.css`
+				),
+				events: record.events,
+				active: active && {
+					location: sanitizedLocation(active.location),
+					baseURI: sanitizedLocation(active.baseURI),
+					stylesheets: active.stylesheets.map(sanitizedLocation)
+				}
+			},
+			null,
+			2
+		)
+	);
+});
+
 test('A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab', async ({
 	page,
 	context: browser,
 	playwright
 }) => {
+	const fileNetwork = observeFileNetwork(browser, page);
+	fileNetworkEvidence = fileNetwork;
 	const normalCss = observeStylesheet(browser, context.chats.normal);
 	const linkCss = observeStylesheet(browser, context.chats.link);
 	const anonymous = await playwright.request.newContext();
@@ -182,7 +306,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		return (
 			!!proof?.confirmed401 &&
 			proof.requests.length > 0 &&
-			proof.requests.every((cookie) => cookie === '') &&
+			proof.verifiedRequests === proof.requests.length &&
 			((text.includes('401') && proof.responses.includes(401)) ||
 				(text.includes('ERR_BLOCKED_BY_ORB') && proof.failures.includes('net::ERR_BLOCKED_BY_ORB')))
 		);
@@ -325,6 +449,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		browser.waitForEvent('page'),
 		realLink.click({ modifiers: ['ControlOrMeta'] })
 	]);
+	fileNetwork.active = linked;
 	await linked.bringToFront();
 	const linkedObs = popupObservations.get(linked);
 	expect(linkedObs, 'popup diagnostics must start before navigation').toBeDefined();
@@ -359,6 +484,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		browser.waitForEvent('page'),
 		svgLink.click({ modifiers: ['ControlOrMeta'] })
 	]);
+	fileNetwork.active = linkedSvg;
 	await linkedSvg.bringToFront();
 	await expect
 		.poll(() => linkedSvg.evaluate(() => window.fixtureEvents))
@@ -382,6 +508,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await linkedSvg.close();
 
 	const direct = await browser.newPage();
+	fileNetwork.active = direct;
 	const directObs = popupObservations.get(direct);
 	const directBefore = stylesheetSnapshot(normalCss);
 	const response = await direct.goto(
