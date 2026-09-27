@@ -61,3 +61,13 @@ Embedded mode SHALL not mount runtime views or perform heartbeat, browser/termin
 
 - **WHEN** an embedded preview is opened, changed, removed and opened again
 - **THEN** only necessary file/listing requests occur, no runtime action occurs and removed instances cannot send results or retain owned effects
+
+### Requirement: Converted Office content is not executable
+
+Document-converted HTML SHALL be sanitized before insertion into the trusted SPA DOM using the locally pinned approved sanitizer. This protection SHALL apply at the canonical renderer boundary in both embedded and standalone modes. Scriptable tags, event attributes, unsafe URL schemes and document-controlled style-map output SHALL not execute or escape the approved content subset. Normal content, tables and supported inline images SHALL remain usable; safe-link behavior SHALL be explicit and unsolicited external-resource requests SHALL be prevented.
+
+#### Scenario: Real malicious DOCX
+
+- **WHEN** a genuine DOCX contains a script-bearing hyperlink or hostile embedded style-map output and is rendered through the bundled converter under the fixed trusted iframe sandbox
+- **THEN** activating its content cannot execute frame or parent sentinels or navigate to an executable URL
+- **AND** ordinary DOCX text/table/inline-image content and approved safe links remain usable

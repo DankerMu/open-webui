@@ -6,6 +6,7 @@
 - [ ] 1.2 Resolve selected file_id through bounded coherent pagination with canonical same-chat URLs; test later-page identity, deleted identity followed by a higher-generation parent request, incomplete/error/cursor churn and page/time limits without false missing.
 - [ ] 1.3 Reuse existing renderers with honest result propagation and stale-generation isolation; real browser valid/corrupt Office and delayed render cases under sandbox="allow-scripts allow-same-origin allow-forms" prove visible content, error notification for the parent's download fallback and latest-only results.
 - [ ] 1.4 Suppress runtime clients/effects in embedded mode and clean up owned listeners/timers/observers; browser request/event evidence proves no heartbeat/status/launch/ttyd effects and standalone regressions remain green.
+- [ ] 1.5 Apply user-approved pinned DOMPurify at canonical converted Office HTML sinks; real malicious DOCX link/style-map tests remain inert while normal content/table/inline-image and approved link behavior survive. Verify vendored asset integrity/license and no remote runtime load.
 
 ## 2. Qualification and delivery
 
