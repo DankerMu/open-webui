@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 declare global {
 	interface Window {
@@ -20,12 +20,14 @@ const context: { origin: string; chats: Record<string, string>; fixtures: string
 const evidence = '.run/ui-evidence';
 fs.mkdirSync(evidence, { recursive: true });
 
-function observe(page: Page, partialChatId?: string) {
+function observe(
+	page: Page,
+	partialChatId?: string,
+	expectedStylesheet?: (url: string, text: string) => boolean
+) {
 	const diagnostics: Array<{ text: string; url: string }> = [];
-	const relative: number[] = [];
 	const expectedListing503 = new Set<string>();
 	page.on('response', (response) => {
-		if (response.url().includes('/style.css')) relative.push(response.status());
 		const address = new URL(response.url());
 		if (
 			partialChatId &&
@@ -44,13 +46,12 @@ function observe(page: Page, partialChatId?: string) {
 	});
 	page.on('pageerror', (error) => diagnostics.push({ text: String(error), url: '' }));
 	return {
-		relative,
 		expectedListing503,
 		get errors() {
 			return diagnostics
 				.filter(
 					({ text, url }) =>
-						!(url.includes('/style.css') && text.includes('401') && relative.includes(401)) &&
+						!expectedStylesheet?.(url, text) &&
 						!(expectedListing503.has(url) && text.includes('503'))
 				)
 				.map(({ text }) => text);
@@ -58,12 +59,60 @@ function observe(page: Page, partialChatId?: string) {
 	};
 }
 
-async function openWorkspace(page: Page, scenario: string) {
-	await page.goto(`/c/${context.chats[scenario]}`);
-	await page.getByRole('button', { name: 'Controls', exact: true }).click();
-	await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
-	await expect(page.getByRole('region', { name: 'Workspace Files' })).toBeVisible();
-	return page.getByRole('region', { name: 'Workspace Files' });
+type StylesheetProof = {
+	url: string;
+	requests: string[];
+	responses: number[];
+	failures: string[];
+	confirmed401: boolean;
+};
+
+function observeStylesheet(browser: BrowserContext, chatId: string): StylesheetProof {
+	const url = `${context.origin}/ocu/files/${chatId}/style.css`;
+	const requests: string[] = [];
+	const responses: number[] = [];
+	const failures: string[] = [];
+	browser.on('request', (request) => {
+		if (request.url() === url) requests.push(request.headers()['cookie'] ?? '');
+	});
+	browser.on('response', (response) => {
+		if (response.url() === url) responses.push(response.status());
+	});
+	browser.on('requestfailed', (request) => {
+		if (request.url() === url) failures.push(request.failure()?.errorText ?? '');
+	});
+	return { url, requests, responses, failures, confirmed401: false };
+}
+
+async function expectDeniedStylesheet(proof: StylesheetProof, before: {
+	requests: number; responses: number; failures: number
+}) {
+	await expect.poll(() => proof.requests.length).toBeGreaterThan(before.requests);
+	await expect.poll(() => proof.responses.length + proof.failures.length)
+		.toBeGreaterThan(before.responses + before.failures);
+	expect(proof.confirmed401).toBe(true);
+	expect(proof.requests.slice(before.requests).every((cookie) => cookie === '')).toBe(true);
+	expect(proof.responses.slice(before.responses).every((status) => status === 401)).toBe(true);
+	expect(proof.failures.slice(before.failures).every((failure) => failure === 'net::ERR_BLOCKED_BY_ORB')).toBe(true);
+}
+function stylesheetSnapshot(proof: StylesheetProof) {
+	return { requests: proof.requests.length, responses: proof.responses.length, failures: proof.failures.length };
+}
+
+
+async function openWorkspace(page: Page, scenario: string, navigate = true) {
+	if (navigate) await page.goto(`/c/${context.chats[scenario]}`);
+	await expect(page.locator('#chat-pane')).toBeVisible();
+	const panel = page.getByRole('region', { name: 'Workspace Files' });
+	if (!(await panel.isVisible())) {
+		const entry = page.getByRole('button', { name: 'Workspace Files', exact: true });
+		if (!(await page.locator('#controls-container').isVisible())) {
+			await page.locator('button[aria-label="Controls"]').click();
+		}
+		await entry.click();
+	}
+	await expect(panel).toBeVisible();
+	return panel;
 }
 
 function setScenario(scenario: string, state: string) {
@@ -72,6 +121,16 @@ function setScenario(scenario: string, state: string) {
 	const staged = `${context.fixtures}.next`;
 	fs.writeFileSync(staged, JSON.stringify(rows));
 	fs.renameSync(staged, context.fixtures);
+}
+
+async function finishOnboarding(page: Page) {
+	const changelog = page.getByRole('dialog').filter({
+		has: page.getByRole('heading', { name: /What's New in Open WebUI/ })
+	});
+	if (await changelog.isVisible()) {
+		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();
+		await expect(changelog).toBeHidden();
+	}
 }
 
 async function signIn(page: Page) {
@@ -83,14 +142,8 @@ async function signIn(page: Page) {
 	await page.locator('input[type="password"]').first().fill(process.env.OCU_E2E_PASSWORD!);
 	await page.locator('button[type="submit"]').first().click();
 	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
-	await expect(page.getByRole('button', { name: 'Controls', exact: true })).toBeVisible();
-	const changelog = page.getByRole('dialog').filter({
-		has: page.getByRole('heading', { name: /What's New in Open WebUI/ })
-	});
-	if (await changelog.isVisible()) {
-		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();
-		await expect(changelog).toBeHidden();
-	}
+	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
+	await finishOnboarding(page);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -99,19 +152,35 @@ test.beforeEach(async ({ page }) => {
 
 test('A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab', async ({
 	page,
-	context: browser
+	context: browser,
+	playwright
 }) => {
-	const parent = observe(page);
-	const browserErrors: string[] = [];
+	const normalCss = observeStylesheet(browser, context.chats.normal);
+	const linkCss = observeStylesheet(browser, context.chats.link);
+	const anonymous = await playwright.request.newContext();
+	try {
+		for (const proof of [normalCss, linkCss]) {
+			expect((await anonymous.get(proof.url)).status()).toBe(401);
+			proof.confirmed401 = true;
+		}
+	} finally {
+		await anonymous.dispose();
+	}
+	const expectedStyleDiagnostic = (url: string, text: string) => {
+		const proof = [normalCss, linkCss].find((item) => item.url === url);
+		return !!proof?.confirmed401 && proof.requests.length > 0 &&
+			proof.requests.every((cookie) => cookie === '') &&
+			((text.includes('401') && proof.responses.includes(401)) ||
+				(text.includes('ERR_BLOCKED_BY_ORB') && proof.failures.includes('net::ERR_BLOCKED_BY_ORB')));
+	};
+	const parent = observe(page, undefined, expectedStyleDiagnostic);
+	const browserErrors: Array<{ url: string; text: string }> = [];
 	const fileResponses: Array<{ url: string; status: number; headers: Record<string, string> }> = [];
 	browser.on('console', (message) => {
-		if (
-			message.type() === 'error' &&
-			!(message.location().url.includes('/style.css') && message.text().includes('401'))
-		)
-			browserErrors.push(message.text());
+		if (message.type() === 'error')
+			browserErrors.push({ url: message.location().url, text: message.text() });
 	});
-	browser.on('weberror', (error) => browserErrors.push(error.error().message));
+	browser.on('weberror', (error) => browserErrors.push({ url: '', text: error.error().message }));
 	browser.on('response', (response) => {
 		if (
 			response.request().resourceType() === 'document' &&
@@ -132,6 +201,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		});
 	});
 	const panel = await openWorkspace(page, 'normal');
+	const sidebarBefore = stylesheetSnapshot(normalCss);
 	await panel.getByRole('button', { name: 'page.html' }).click();
 	const frame = page.frameLocator('iframe[title="page.html"]');
 	await expect(frame.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
@@ -148,7 +218,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 			parentAccess: 'blocked',
 			cookie: 'blocked'
 		});
-	await expect.poll(() => parent.relative).toContain(401);
+	await expectDeniedStylesheet(normalCss, sidebarBefore);
 	const generated = page.locator('iframe[title="page.html"]');
 	await expect(generated).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
 	const sidebarDocument = fileResponses.find((item) =>
@@ -180,14 +250,24 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(sidebarSvg?.headers['content-security-policy']).toBe('sandbox allow-scripts allow-forms');
 	expect(sidebarSvg?.headers['x-content-type-options']).toBe('nosniff');
 	const token = await page.evaluate(() => localStorage.token);
+	const settings = await page.request.get(`${context.origin}/api/v1/users/user/settings?raw=true`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	expect(settings.ok()).toBe(true);
+	const previousSettings = await settings.json();
+	expect(previousSettings?.ui).toBeTruthy();
 	const update = await page.request.post(`${context.origin}/api/v1/users/user/settings/update`, {
 		headers: { Authorization: `Bearer ${token}` },
-		data: { ui: { iframeSandboxAllowSameOrigin: true } }
+		data: {
+			...previousSettings,
+			ui: { ...previousSettings.ui, iframeSandboxAllowSameOrigin: true }
+		}
 	});
 	expect(update.ok()).toBe(true);
 	await page.reload();
-	await page.getByRole('button', { name: 'Controls', exact: true }).click();
-	await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
+	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
+	await finishOnboarding(page);
+	await openWorkspace(page, 'normal', false);
 	await page
 		.getByRole('region', { name: 'Workspace Files' })
 		.getByRole('button', { name: 'page.html' })
@@ -219,11 +299,14 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(denied).toEqual([]);
 	expect(parent.errors).toEqual([]);
 
-	const popupObservations = new Map<Page, { errors: string[]; relative: number[] }>();
-	browser.on('page', (popup) => popupObservations.set(popup, observe(popup)));
+	const popupObservations = new Map<Page, { errors: string[] }>();
+	browser.on('page', (popup) =>
+		popupObservations.set(popup, observe(popup, undefined, expectedStyleDiagnostic))
+	);
 	await page.goto(`/c/${context.chats.link}`);
 	const realLink = page.getByRole('link', { name: 'Open generated workspace file' });
 	await expect(realLink).toBeVisible();
+	const linkBefore = stylesheetSnapshot(linkCss);
 	const [linked] = await Promise.all([
 		browser.waitForEvent('page'),
 		realLink.click({ modifiers: ['ControlOrMeta'] })
@@ -251,7 +334,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		'sandbox allow-scripts allow-forms'
 	);
 	expect(linkDocument?.headers['x-content-type-options']).toBe('nosniff');
-	await expect.poll(() => linkedObs!.relative).toContain(401);
+	await expectDeniedStylesheet(linkCss, linkBefore);
 	await linked.screenshot({ path: `${evidence}/workspace-message-link.png`, fullPage: true });
 	expect(linkedObs!.errors).toEqual([]);
 	await linked.close();
@@ -284,6 +367,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 
 	const direct = await browser.newPage();
 	const directObs = popupObservations.get(direct);
+	const directBefore = stylesheetSnapshot(normalCss);
 	const response = await direct.goto(
 		`${context.origin}/ocu/files/${context.chats.normal}/page.html`
 	);
@@ -291,7 +375,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(response?.headers()['x-content-type-options']).toBe('nosniff');
 	await expect(direct.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
 	await expect(direct.locator('#inline')).toHaveCSS('color', 'rgb(0, 128, 0)');
-	await expect.poll(() => directObs?.relative).toContain(401);
+	await expectDeniedStylesheet(normalCss, directBefore);
 	await direct.screenshot({ path: `${evidence}/workspace-direct-tab.png`, fullPage: true });
 	await direct.goto(`${context.origin}/ocu/files/${context.chats.normal}/diagram.svg`);
 	await expect(direct.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
@@ -312,7 +396,11 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		});
 	await direct.screenshot({ path: `${evidence}/workspace-scripted-svg.png`, fullPage: true });
 	expect(directObs?.errors).toEqual([]);
-	expect(browserErrors).toEqual([]);
+	const upstreamStylesheets = fs.readFileSync(context.record, 'utf8')
+		.split('\n').filter(Boolean).map((line) => JSON.parse(line))
+		.filter((row) => row.target.includes('/style.css'));
+	expect(upstreamStylesheets).toEqual([]);
+	expect(browserErrors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual([]);
 	await direct.close();
 });
 
