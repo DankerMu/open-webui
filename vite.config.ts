@@ -20,7 +20,11 @@ export default defineConfig({
 	],
 	// Vitest/jsdom must resolve Svelte's browser export instead of Node's server export.
 	...(process.env.VITEST === 'true'
-		? { test: { server: { deps: { inline: [/^svelte(?:\/.*)?$/] } } } }
+		? {
+				test: { server: { deps: { inline: [/^svelte(?:\/.*)?$/] } } },
+				resolve: { conditions: ['browser'] },
+				ssr: { resolve: { conditions: ['browser'] } }
+			}
 		: {}),
 	define: {
 		APP_VERSION: JSON.stringify(process.env.npm_package_version),
@@ -31,7 +35,9 @@ export default defineConfig({
 	},
 	server: {
 		// Gateway does not upgrade Vite's websocket; disable HMR only for owned UI verification.
-		...(process.env.OCU_UI_DISABLE_HMR === 'true' ? { hmr: false } : {}),
+		...(process.env.OCU_UI_DISABLE_HMR === 'true'
+			? { hmr: false, allowedHosts: ['ocu_proxy_webui'] }
+			: {}),
 		proxy: {
 			'/api': {
 				target: backendTarget,

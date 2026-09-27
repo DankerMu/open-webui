@@ -67,15 +67,20 @@ describe('ocu workspace store', () => {
 	it('orders a remounted chat preference clear after an older failed write', async () => {
 		const stored: Array<string | null> = [];
 		let finishOld: () => void = () => {};
-		const oldWrite = queueWorkspacePrefs('same-chat', () =>
-			new Promise<void>((resolve) => {
+		let markStarted: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			markStarted = resolve;
+		});
+		const oldWrite = queueWorkspacePrefs('same-chat', () => {
+			markStarted();
+			return new Promise<void>((resolve) => {
 				finishOld = resolve;
 			}).then(() => {
 				stored.push('old-selection');
 				throw new Error('old write failed');
-			})
-		);
-		await Promise.resolve();
+			});
+		});
+		await started;
 		const newMountClear = queueWorkspacePrefs('same-chat', async () => {
 			stored.push(null);
 		});

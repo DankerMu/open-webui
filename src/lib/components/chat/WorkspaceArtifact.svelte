@@ -411,9 +411,7 @@
 				>Retry</button
 			>
 		</p>{/if}
-	{#if phase === 'stopped' || (phase === 'error' && workspace?.status === 'stopped')}<p
-			role="status"
-		>
+	{#if workspace?.status === 'stopped'}<p role="status">
 			Workspace is stopped; saved files remain available.
 			{#if workspace?.capabilities.includes('launch')}<button
 					type="button"

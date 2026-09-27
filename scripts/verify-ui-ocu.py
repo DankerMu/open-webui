@@ -53,14 +53,17 @@ def office_document() -> bytes:
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
-<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/document.xml"
+ ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>""",
         )
         archive.writestr(
             '_rels/.rels',
             """<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+<Relationship Id="rId1"
+ Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+ Target="word/document.xml"/>
 </Relationships>""",
         )
         archive.writestr(
@@ -175,7 +178,8 @@ class BrowserHarness(Smoke):
             errors = nginx_error.read_text(encoding='utf-8', errors='replace') if nginx_error.exists() else ''
             summary = redact(errors[-4000:], [self.token, signin['token'], password])
             fail(
-                f'pin asset readiness: proxy={status} content_type={asset_headers.get("content-type")} bytes={len(raw)} '
+                f'pin asset readiness: proxy={status} content_type={asset_headers.get("content-type")} '
+                f'bytes={len(raw)} '
                 f'stub={direct_status} content_type={direct_headers.get("content-type")} bytes={len(direct_raw)} '
                 f'stub_arrivals={hits}; nginx_error_tail={summary}'
             )
@@ -288,7 +292,8 @@ class BrowserHarness(Smoke):
             [
                 'bash',
                 '-c',
-                'source scripts/dev-env.sh && cd backend && exec uv run --no-sync --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
+                'source scripts/dev-env.sh && cd backend && exec uv run --no-sync --quiet '
+                'uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
             ],
             service_env,
             f'http://127.0.0.1:{self.backend_port}/health',

@@ -49,7 +49,8 @@ window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*
     'final.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub final report</body></html>'),
     'diagram.svg': (
         'image/svg+xml',
-        b"""<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><text id="proof" y="20">waiting</text><script><![CDATA[
+        b"""<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">
+<text id="proof" y="20">waiting</text><script><![CDATA[
 let storage='blocked', parentAccess='blocked', cookie='blocked';
 try { localStorage.getItem('token'); storage='leaked' } catch {}
 try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
