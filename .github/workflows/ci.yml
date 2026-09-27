@@ -125,7 +125,26 @@ jobs:
         env:
           OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
         run: make smoke-proxy
-      - run: make verify-ui
+      - name: Baseline and isolated workspace browser verification
+        id: workspace_browser
+        env:
+          OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
+        run: make verify-ui
+      - name: Upload workspace browser failure evidence
+        if: failure() && steps.workspace_browser.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-browser-failure
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            test-results/ocu-workspace.e2e.ts-*/test-failed-*.png
+            test-results/ocu-workspace.e2e.ts-*/error-context.md
+            .run/ui-evidence/workspace-*.png
+            .run/ui-evidence/workspace-network-failure.json
+            .run/ui-evidence/workspace-ui-*/vite.log
+            .run/ui-evidence/workspace-ui-*/proxy.log
       - run: make dev-stop
         if: always()
 

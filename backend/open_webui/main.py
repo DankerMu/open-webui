@@ -2307,9 +2307,9 @@ async def get_app_config(request: Request):
                 if WEBSOCKET_HEARTBEAT_INTERVAL is not None
                 else {}
             ),
-            # --- Authenticated: only consumed by logged-in frontend ---
             **(
                 {
+                    'enable_ocu_workspace': ocu_workspaces.ENABLE_OCU_WORKSPACE,
                     'enable_api_keys': config.get('auth.enable_api_keys'),
                     'enable_password_change_form': config.get('ui.enable_password_change_form'),
                     'enable_version_update_check': ENABLE_VERSION_UPDATE_CHECK,

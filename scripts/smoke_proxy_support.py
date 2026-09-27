@@ -150,21 +150,55 @@ def redact(text: str, secrets: list[str]) -> str:
     return out
 
 
-def kill_tree(pid: int) -> None:
+def _owned_group_absent(pid: int) -> bool:
+    groups = subprocess.run(['ps', '-eo', 'pgid=,stat='], capture_output=True, text=True, timeout=1)
+    if groups.returncode:
+        fail(f'cannot inspect owned process group {pid}')
+    live = any(
+        len(fields) == 2 and fields[0] == str(pid) and not fields[1].startswith('Z')
+        for fields in (line.split() for line in groups.stdout.splitlines())
+    )
+    child = subprocess.run(['ps', '-o', 'stat=', '-p', str(pid)], capture_output=True, text=True, timeout=1)
+    if child.returncode not in (0, 1):
+        fail(f'cannot inspect owned process {pid}')
+    return not live and not child.stdout.strip()
+
+
+def _reap_owned_pid(pid: int, *, blocking: bool = False) -> None:
     try:
-        os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError:
+        os.waitpid(pid, 0 if blocking else os.WNOHANG)
+    except ChildProcessError:
+        pass
+
+
+def _signal_owned_group(pid: int, sig: signal.Signals) -> bool:
+    try:
+        os.killpg(pid, sig)
+    except OSError:
+        if not _owned_group_absent(pid):
+            raise
+        return False
+    return True
+
+
+def kill_tree(pid: int) -> None:
+    if pid <= 0 or pid == os.getpgrp():
+        fail('refusing to signal an unowned process group')
+    _reap_owned_pid(pid)
+    if _owned_group_absent(pid):
         return
-    deadline = time.time() + 3
-    while time.time() < deadline:
-        if os.waitpid(pid, os.WNOHANG)[0]:
+    if not _signal_owned_group(pid, signal.SIGTERM):
+        return
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        _reap_owned_pid(pid)
+        if _owned_group_absent(pid):
             return
         time.sleep(0.05)
-    try:
-        os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        return
-    os.waitpid(pid, 0)
+    _signal_owned_group(pid, signal.SIGKILL)
+    _reap_owned_pid(pid, blocking=True)
+    if not _owned_group_absent(pid):
+        fail(f'owned process group {pid} survived cleanup')
 
 
 def git_blob(checkout: Path, sha: str, rel: str) -> bytes:

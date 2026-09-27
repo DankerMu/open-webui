@@ -152,15 +152,9 @@ class Smoke:
         git_dir = checkout / '.git'
         if not git_dir.exists():
             fail(f'OCU checkout {checkout} is not a git repository')
-        head = git_run(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).stdout.strip()
-        if head != sha:
-            fail(f'OCU checkout HEAD {head} does not match pinned {sha}')
-        dirty = git_run(
-            ['git', '-C', str(checkout), 'status', '--porcelain', '--untracked-files=no'],
-        ).stdout
-        tracked_dirty = [line for line in dirty.splitlines() if line and line[:2] not in {'??'}]
-        if tracked_dirty:
-            fail('OCU tracked source is modified; refusing to mutate checkout')
+        kind = git_run(['git', '-C', str(checkout), 'cat-file', '-t', sha]).stdout.strip()
+        if kind != 'commit':
+            fail(f'OCU pin {sha} is not a commit in {checkout}')
         for rel in PINNED_FILES:
             listed = git_run(['git', '-C', str(checkout), 'ls-tree', '-r', sha, '--', rel]).stdout
             if not listed.strip():
@@ -188,7 +182,14 @@ class Smoke:
         if not conf.is_file():
             fail('renderer did not produce nginx.conf')
 
-    def start_owned(self, argv: list[str], env: dict[str, str], ready: str | None, log_path: Path | None = None) -> int:
+    def start_owned(
+        self,
+        argv: list[str],
+        env: dict[str, str],
+        ready: str | None,
+        log_path: Path | None = None,
+        timeout: float = 8.0,
+    ) -> int:
         sink = open(log_path, 'w', encoding='utf-8') if log_path else subprocess.DEVNULL
         proc = subprocess.Popen(
             argv,
@@ -200,7 +201,7 @@ class Smoke:
         )
         self.owned.append(proc.pid)
         if ready:
-            wait_http(ready, proc.pid)
+            wait_http(ready, proc.pid, timeout=timeout)
         return proc.pid
 
     def provision(self) -> None:

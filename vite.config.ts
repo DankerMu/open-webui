@@ -18,6 +18,14 @@ export default defineConfig({
 			]
 		})
 	],
+	// Vitest/jsdom must resolve Svelte's browser export instead of Node's server export.
+	...(process.env.VITEST === 'true'
+		? {
+				test: { server: { deps: { inline: [/^svelte(?:\/.*)?$/] } } },
+				resolve: { conditions: ['browser'] },
+				ssr: { resolve: { conditions: ['browser'] } }
+			}
+		: {}),
 	define: {
 		APP_VERSION: JSON.stringify(process.env.npm_package_version),
 		APP_BUILD_HASH: JSON.stringify(process.env.APP_BUILD_HASH || 'dev-build')
@@ -26,6 +34,8 @@ export default defineConfig({
 		sourcemap: true
 	},
 	server: {
+		// nginx's upstream Host is an alias; permit it only in the owned proxy browser harness.
+		...(process.env.OCU_UI_PROXY_HARNESS === 'true' ? { allowedHosts: ['ocu_proxy_webui'] } : {}),
 		proxy: {
 			'/api': {
 				target: backendTarget,

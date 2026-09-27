@@ -27,6 +27,8 @@
 	import PyodideFileNav from './PyodideFileNav.svelte';
 	import Overview from './Overview.svelte';
 	import { isSavedChatId } from '$lib/utils/chatId';
+	import WorkspaceArtifact from './WorkspaceArtifact.svelte';
+	import { workspaceFilesEnabled } from '$lib/apis/ocu';
 
 	const i18n = getContext('i18n');
 
@@ -53,6 +55,12 @@
 	let mounted = false;
 	let controlsWidth = 350;
 
+	let showWorkspace = false;
+	$: workspaceAvailable =
+		workspaceFilesEnabled($config) && isSavedChatId(chatId) && chatId !== 'default';
+	$: if (!workspaceAvailable) showWorkspace = false;
+	$: if (showWorkspace && (!$showControls || $showArtifacts || $showEmbeds || $showCallOverlay))
+		showWorkspace = false;
 	// Tab state for Controls+Files panel
 	let activeTab = savedTab;
 	// svelte-ignore reactive_declaration_module_script_dependency
@@ -177,26 +185,32 @@
 		};
 	});
 
+	const closeWorkspace = () => {
+		if (showWorkspace) closeHandler();
+		showControls.set(false);
+	};
+
 	const closeHandler = () => {
 		if (!largeScreen) {
 			showControls.set(false);
 		}
 		showArtifacts.set(false);
 		showEmbeds.set(false);
+		showWorkspace = false;
 		if ($showCallOverlay) showCallOverlay.set(false);
 	};
 
 	$: if (mounted && !chatId) closeHandler();
 
 	// Helper: is a "special" full-screen panel active?
-	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds;
+	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds || showWorkspace;
 </script>
 
 {#if !largeScreen}
 	{#if $showControls}
 		<Drawer
 			show={$showControls}
-			onClose={() => showControls.set(false)}
+			onClose={closeWorkspace}
 			className="min-h-[100dvh] !bg-white dark:!bg-gray-850"
 		>
 			<div class="h-[100dvh] flex flex-col">
@@ -218,6 +232,8 @@
 					<Embeds />
 				{:else if $showArtifacts}
 					<Artifacts {history} />
+				{:else if showWorkspace && workspaceAvailable && chatId}
+					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
 					<div class="flex flex-col h-full min-h-0">
@@ -258,9 +274,18 @@
 									</button>
 								{/if}
 							</div>
+							{#if workspaceAvailable}
+								<button
+									type="button"
+									on:click={() => {
+										showWorkspace = true;
+									}}
+									aria-label="Workspace Files">Workspace Files</button
+								>
+							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
-								on:click={() => showControls.set(false)}
+								on:click={closeWorkspace}
 								aria-label={$i18n.t('Close')}
 							>
 								<svg
@@ -312,7 +337,7 @@
 		minWidth={350}
 		minSiblingWidth={360}
 		closeOnDragBelowMinWidth
-		onClose={() => showControls.set(false)}
+		onClose={closeWorkspace}
 		storageKey="chatControlsSize"
 		className="h-full z-10 bg-white dark:bg-gray-900"
 	>
@@ -341,6 +366,8 @@
 					<Embeds overlay={dragged} />
 				{:else if $showArtifacts}
 					<Artifacts {history} overlay={dragged} />
+				{:else if showWorkspace && workspaceAvailable && chatId}
+					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
 					<div class="flex flex-col h-full min-h-0">
@@ -381,9 +408,18 @@
 									</button>
 								{/if}
 							</div>
+							{#if workspaceAvailable}
+								<button
+									type="button"
+									on:click={() => {
+										showWorkspace = true;
+									}}
+									aria-label="Workspace Files">Workspace Files</button
+								>
+							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
-								on:click={() => showControls.set(false)}
+								on:click={closeWorkspace}
 								aria-label={$i18n.t('Close')}
 							>
 								<svg

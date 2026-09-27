@@ -22,6 +22,29 @@ from open_webui.test.ocu_harness import (
 WORKSPACE_PREFIX = '/api/v1/ocu/workspaces'
 INVALID_CHAT_IDS = ('temporary:abc', 'local:abc', 'channel:abc', 'default')
 XR = {'X-Requested-With': 'ocu-workspace'}
+
+
+def test_authenticated_config_exposes_router_flag_only_to_owner_session(monkeypatch):
+    import open_webui.routers.ocu_workspaces as ocu_workspaces
+
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    try:
+        client = get_client()
+        monkeypatch.setattr(ocu_workspaces, 'ENABLE_OCU_WORKSPACE', True)
+        assert (
+            client.get('/api/config', headers=_session_headers(owner.id)).json()['features']['enable_ocu_workspace']
+            is True
+        )
+        assert 'enable_ocu_workspace' not in client.get('/api/config').json()['features']
+        monkeypatch.setattr(ocu_workspaces, 'ENABLE_OCU_WORKSPACE', False)
+        assert (
+            client.get('/api/config', headers=_session_headers(owner.id)).json()['features']['enable_ocu_workspace']
+            is False
+        )
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
 STOPPED_STATES = ('paused', 'exited', 'created', 'restarting', 'dead', 'stopped')
 
 

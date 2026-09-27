@@ -3,14 +3,17 @@
 
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 log = logging.getLogger('ocu-stub')
@@ -18,14 +21,44 @@ log = logging.getLogger('ocu-stub')
 PREFIX = os.environ.get('OCU_PUBLIC_PREFIX', '').rstrip('/')
 EXPECTED_TOKEN = os.environ.get('OCU_INTERNAL_TOKEN', '')
 RECORD_PATH = os.environ.get('OCU_STUB_RECORD', '')
+FIXTURE_PATH = os.environ.get('OCU_STUB_FIXTURES', '')
+ASSET_ROOT = Path(os.environ.get('OCU_STUB_ASSETS', ''))
+VALID_OFFICE = Path(os.environ.get('OCU_STUB_DOCX', ''))
 WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 # Upstream generated fixtures use a weaker CSP so the proxy's forced
 # sandbox CSP is observable. Binary/download keep this upstream policy.
 WEAK_CSP = "default-src 'self'"
 FILES = {
-    'page.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub page</body></html>'),
+    'page.html': (
+        'text/html; charset=utf-8',
+        b"""<!doctype html><html><head><title>ocu-stub page</title>
+<link rel="stylesheet" href="style.css"><style>#inline{color:rgb(0,128,0)}</style></head><body>
+<p id="inline">ocu-stub page</p><img id="image" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
+<button id="run" onclick="document.querySelector('#clicked').textContent='clicked'">Run</button>
+<span id="clicked"></span><span id="proof"></span>
+<script>
+let storage='blocked', parentAccess='blocked', cookie='blocked';
+try { localStorage.getItem('token'); storage='leaked' } catch {}
+try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
+try { cookie=document.cookie || 'blocked' } catch {}
+document.querySelector('#proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
+window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*');
+</script></body></html>""",
+    ),
     'report.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub report</body></html>'),
-    'diagram.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'),
+    'final.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub final report</body></html>'),
+    'diagram.svg': (
+        'image/svg+xml',
+        b"""<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">
+<text id="proof" y="20">waiting</text><script><![CDATA[
+let storage='blocked', parentAccess='blocked', cookie='blocked';
+try { localStorage.getItem('token'); storage='leaked' } catch {}
+try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
+try { cookie=document.cookie || 'blocked' } catch {}
+document.getElementById('proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
+window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
+]]></script></svg>""",
+    ),
     'report.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'),
     'data.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub</root>'),
     'report.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub-report</root>'),
@@ -83,7 +116,45 @@ BROWSER_WS_RE = re.compile(r'^/browser/([^/]+)/devtools/page/([^/]+)$')
 STATIC_RE = re.compile('^' + re.escape(PREFIX) + r'/static/(.+)$') if PREFIX else re.compile(r'^/static/(.+)$')
 
 
+def _scenario(chat_id: str) -> str | None:
+    if not FIXTURE_PATH:
+        return None
+    fixtures = json.loads(Path(FIXTURE_PATH).read_text(encoding='utf-8'))
+    return fixtures.get(chat_id)
+
+
+def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
+    kind, mime = (
+        ('docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        if name.endswith('.docx')
+        else (
+            ('html', 'text/html')
+            if name.endswith('.html')
+            else ('image', 'image/svg+xml')
+            if name.endswith('.svg')
+            else ('text', 'text/plain')
+        )
+    )
+    file_id = 'fixture-report' if name in ('report.html', 'final.html') else f'fixture-{name}'
+    return {
+        'file_id': file_id,
+        'path': name,
+        'name': name,
+        'url': f'{PREFIX}/files/{chat_id}/{name}',
+        'type': kind,
+        'mime': mime,
+        'revision': revision,
+        'size': 128,
+        'mtime_ns': 1,
+        'hash': 'fixture',
+        'modified': False,
+    }
+
+
 def _state_of(chat_id: str) -> str:
+    scenario = _scenario(chat_id)
+    if scenario is not None:
+        return 'stopped' if scenario == 'stopped' else 'running'
     with _LOCK:
         return _states.get(chat_id, 'never_created')
 
@@ -96,19 +167,41 @@ def _launch(chat_id: str) -> tuple[int, dict]:
     return 200, {'state': 'running'}
 
 
-def _outputs(chat_id: str) -> dict:
-    names = ('page.html', 'diagram.svg', 'data.xml', 'blob.bin')
+def _outputs(chat_id: str, query: dict | None = None) -> dict:
+    scenario = _scenario(chat_id)
+    if scenario is None:
+        names = ('page.html', 'diagram.svg', 'data.xml', 'blob.bin')
+        return {
+            'revision': 1,
+            'files': [
+                {'path': name, 'url': f'{PREFIX}/files/{chat_id}/{name}', 'file_id': f'fixture-{name}', 'revision': 1}
+                for name in names
+            ],
+        }
+    revision = 2 if scenario in ('deleted_after', 'renamed', 'partial_after') else 1
+    names = {
+        'empty': [],
+        'valid': ['page.html', 'valid.docx'],
+        'corrupt': ['page.html', 'corrupt.docx'],
+        'deleted': ['report.html', 'page.html'],
+        'deleted_after': ['page.html'],
+        'renamed': ['final.html', 'page.html'],
+        'partial': ['report.html'] + [f'item-{index:03d}.txt' for index in range(100)],
+        'partial_after': [f'item-{index:03d}.txt' for index in range(101)],
+        'large': ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)],
+    }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
+    offset = int((query or {}).get('cursor', ['0'])[0])
+    if scenario == 'partial_after' and offset > 0:
+        raise ValueError('fixture later page is inaccessible')
+    window = names[offset : offset + 100]
+    next_cursor = str(offset + 100) if offset + 100 < len(names) else None
     return {
-        'revision': 1,
-        'files': [
-            {
-                'path': name,
-                'url': f'{PREFIX}/files/{chat_id}/{name}',
-                'file_id': f'fixture-{name}',
-                'revision': 1,
-            }
-            for name in names
-        ],
+        'chat_id': chat_id,
+        'revision': revision,
+        'files': [_fixture_file(chat_id, name, revision) for name in window],
+        'total': len(names),
+        'timestamp': 1,
+        'next_cursor': next_cursor,
     }
 
 
@@ -126,6 +219,21 @@ def _file_headers(name: str, query: dict) -> dict[str, str]:
 
 
 def _preview_html(chat_id: str) -> bytes:
+    if ASSET_ROOT.is_dir() and FIXTURE_PATH:
+        source = (ASSET_ROOT.parent / 'app.py').read_text(encoding='utf-8')
+        definition = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == '_generate_preview_html'
+        )
+        namespace = {'OCU_PUBLIC_PREFIX': PREFIX, 'json': json}
+        exec(
+            compile(ast.Module(body=[definition], type_ignores=[]), str(ASSET_ROOT.parent / 'app.py'), 'exec'),
+            namespace,
+        )
+        return namespace['_generate_preview_html'](
+            chat_id, f'{PREFIX}/api/outputs/{chat_id}', f'{PREFIX}/files/{chat_id}'
+        ).encode()
     return (
         '<!doctype html><html><head>'
         f'<script type="module" src="{PREFIX}/static/preview.js"></script>'
@@ -212,6 +320,9 @@ class StubHandler(BaseHTTPRequestHandler):
         self._write(404, b'not found', 'text/plain; charset=utf-8')
 
     def _describe(self, match: re.Match[str], _query: dict) -> None:
+        if _scenario(match.group(1)) == 'unreachable':
+            self.close_connection = True
+            return
         state = _state_of(match.group(1))
         views = ['files', 'browser', 'terminal'] if state == 'running' else ['files']
         self._json(200, {'state': state, 'revision': 1, 'views': views})
@@ -219,8 +330,11 @@ class StubHandler(BaseHTTPRequestHandler):
     def _launch_route(self, match: re.Match[str], _query: dict) -> None:
         self._json(*_launch(match.group(1)))
 
-    def _outputs_route(self, match: re.Match[str], _query: dict) -> None:
-        self._json(200, _outputs(match.group(1)))
+    def _outputs_route(self, match: re.Match[str], query: dict) -> None:
+        try:
+            self._json(200, _outputs(match.group(1), query))
+        except ValueError:
+            self._json(503, {'reason': 'listing_incomplete'})
 
     def _archive(self, match: re.Match[str], _query: dict) -> None:
         self._json(200, {'chat': match.group(1), 'archive': True})
@@ -244,6 +358,29 @@ class StubHandler(BaseHTTPRequestHandler):
             self._write(403, b'upstream error', 'TEXT/HTML; charset=utf-8', extra)
             return
         fixture = FILES.get(name)
+        scenario = _scenario(match.group(1))
+        if scenario in ('deleted_after', 'partial_after') and name == 'report.html':
+            self._not_found()
+            return
+        if scenario == 'corrupt' and name == 'corrupt.docx':
+            self._write(
+                200,
+                b'not a ZIP document',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                _file_headers(name, query),
+            )
+            return
+        if scenario == 'valid' and name == 'valid.docx':
+            self._write(
+                200,
+                VALID_OFFICE.read_bytes(),
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                _file_headers(name, query),
+            )
+            return
+        if scenario is not None and re.fullmatch(r'item-[0-9]{3}\.txt', name):
+            self._write(200, name.encode(), 'text/plain; charset=utf-8', _file_headers(name, query))
+            return
         if fixture is None:
             self._not_found()
             return
@@ -251,7 +388,7 @@ class StubHandler(BaseHTTPRequestHandler):
         self._write(200, body, content_type, _file_headers(name, query))
 
     def _preview(self, match: re.Match[str], _query: dict) -> None:
-        extra = {'Content-Security-Policy': WEAK_CSP}
+        extra = {} if FIXTURE_PATH else {'Content-Security-Policy': WEAK_CSP}
         self._write(200, _preview_html(match.group(1)), 'text/html; charset=utf-8', extra)
 
     def _heartbeat(self, match: re.Match[str], _query: dict) -> None:
@@ -261,6 +398,12 @@ class StubHandler(BaseHTTPRequestHandler):
         self._json(200, {'stored': unquote(match.group(2)), 'chat': match.group(1)})
 
     def _serve_static(self, match: re.Match[str], _query: dict) -> None:
+        if ASSET_ROOT.is_dir() and FIXTURE_PATH:
+            target = ASSET_ROOT / unquote(match.group(1))
+            if target.is_file() and target.resolve().is_relative_to(ASSET_ROOT.resolve()):
+                mime = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+                self._write(200, target.read_bytes(), mime)
+                return
         fixture = STATIC.get(unquote(match.group(1)))
         if fixture is None:
             self._not_found()
