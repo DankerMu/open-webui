@@ -132,6 +132,40 @@ async def test_launch_409_never_created_is_typed_result(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation,status,text',
+    [
+        ('describe', 500, '{"revision": 999, "marker": "private-upstream-marker"}'),
+        ('refresh', 500, 'private-upstream-marker'),
+        ('launch', 500, ''),
+        ('describe', 401, '{"reason": "never_created"}'),
+        ('refresh', 403, '{"reason": "never_created"}'),
+        ('describe', 409, '{"reason": "never_created"}'),
+        ('launch', 409, 'private-upstream-marker never_created'),
+        ('launch', 409, '{"detail": "never_created"}'),
+        ('launch', 409, '["never_created"]'),
+        ('launch', 409, '{"reason": "other"}'),
+        ('launch', 409, '{"reason": "never_created later"}'),
+    ],
+)
+async def test_failed_http_responses_are_typed_without_upstream_details(monkeypatch, caplog, operation, status, text):
+    from open_webui.utils.ocu_client import OcuUpstreamError
+
+    session = _StubSession(_StubResponse(status=status, text=text))
+    client = _make_client(monkeypatch, session)
+    caplog.set_level(logging.DEBUG, logger='open_webui.utils.ocu_client')
+
+    with pytest.raises(OcuUpstreamError) as failure:
+        await getattr(client, operation)(CHAT_ID)
+
+    assert failure.value.status == status
+    assert failure.value.reason == 'ocu_upstream_error'
+    assert str(failure.value) == 'ocu_upstream_error'
+    assert 'private-upstream-marker' not in repr(failure.value)
+    assert 'private-upstream-marker' not in ' '.join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_connection_refused_raises_ocu_unreachable(monkeypatch):
     session = _StubSession(error=aiohttp.ClientConnectionError('Connection refused'))
     client = _make_client(monkeypatch, session)

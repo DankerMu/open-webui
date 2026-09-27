@@ -17,6 +17,16 @@ class OcuUnreachable(Exception):
     """OCU did not answer: connection error or timeout."""
 
 
+class OcuUpstreamError(Exception):
+    """OCU returned an unsuccessful HTTP response without exposing its body."""
+
+    reason = 'ocu_upstream_error'
+
+    def __init__(self, status: int):
+        self.status = status
+        super().__init__(self.reason)
+
+
 class OcuNeverCreated:
     """Launch refused because this chat has never had a sandbox."""
 
@@ -80,12 +90,21 @@ class OcuClient:
                 self._url(path),
                 headers=self._headers(),
             ) as response:
-                text = await response.text()
                 status = response.status
+                if not 200 <= status < 300:
+                    if never_created and status == 409:
+                        text = await response.text()
+                        try:
+                            payload = json.loads(text)
+                        except json.JSONDecodeError:
+                            payload = None
+                        del text
+                        if isinstance(payload, dict) and payload.get('reason') == _NEVER_CREATED:
+                            return OcuNeverCreated()
+                    raise OcuUpstreamError(status)
+                text = await response.text()
         except (aiohttp.ClientError, TimeoutError) as exc:
             raise OcuUnreachable('OCU unreachable') from exc
-        if never_created and status == 409 and _NEVER_CREATED in text:
-            return OcuNeverCreated()
         if not text:
             return {}
         try:

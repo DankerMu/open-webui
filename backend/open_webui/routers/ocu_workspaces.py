@@ -13,7 +13,7 @@ from open_webui.models.chats import Chats
 from open_webui.models.ocu_chat_state import OcuChatStates
 from open_webui.utils.auth import get_verified_user
 from open_webui.utils.chat_id import is_saved_chat_id
-from open_webui.utils.ocu_client import OcuClient, OcuNeverCreated, OcuUnreachable
+from open_webui.utils.ocu_client import OcuClient, OcuNeverCreated, OcuUnreachable, OcuUpstreamError
 from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.responses import JSONResponse, Response
 
@@ -198,6 +198,8 @@ async def describe_workspace(chat_id: str, user=Depends(get_verified_user)):
         payload = await get_ocu_client().describe(chat_id)
     except OcuUnreachable:
         return await _describe_unreachable(chat_id)
+    except OcuUpstreamError:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={'reason': OcuUpstreamError.reason})
     if not isinstance(payload, dict):
         payload = {}
     return await _describe_answered(chat_id, payload)
@@ -209,7 +211,12 @@ async def launch_workspace(
     x_requested_with: str | None = Header(default=None, alias='X-Requested-With'),
 ):
     await _gate(chat_id, user, xrw=x_requested_with, mutating=True)
-    result = await get_ocu_client().launch(chat_id)
+    try:
+        result = await get_ocu_client().launch(chat_id)
+    except OcuUpstreamError:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={'reason': OcuUpstreamError.reason})
+    except OcuUnreachable:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={'reason': _UNREACHABLE})
     if isinstance(result, OcuNeverCreated):
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={'reason': _NEVER_CREATED})
     return result if isinstance(result, dict) else {}
@@ -228,7 +235,12 @@ async def refresh_workspace(
             content={},
             headers={'Retry-After': str(retry_after)},
         )
-    payload = await get_ocu_client().refresh(chat_id)
+    try:
+        payload = await get_ocu_client().refresh(chat_id)
+    except OcuUpstreamError:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={'reason': OcuUpstreamError.reason})
+    except OcuUnreachable:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={'reason': _UNREACHABLE})
     payload = payload if isinstance(payload, dict) else {}
     revision = _revision_of(payload)
     await OcuChatStates.advance_cursor(chat_id, revision)
