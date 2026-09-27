@@ -84,21 +84,32 @@ function observeStylesheet(browser: BrowserContext, chatId: string): StylesheetP
 	return { url, requests, responses, failures, confirmed401: false };
 }
 
-async function expectDeniedStylesheet(proof: StylesheetProof, before: {
-	requests: number; responses: number; failures: number
-}) {
+async function expectDeniedStylesheet(
+	proof: StylesheetProof,
+	before: {
+		requests: number;
+		responses: number;
+		failures: number;
+	}
+) {
 	await expect.poll(() => proof.requests.length).toBeGreaterThan(before.requests);
-	await expect.poll(() => proof.responses.length + proof.failures.length)
+	await expect
+		.poll(() => proof.responses.length + proof.failures.length)
 		.toBeGreaterThan(before.responses + before.failures);
 	expect(proof.confirmed401).toBe(true);
 	expect(proof.requests.slice(before.requests).every((cookie) => cookie === '')).toBe(true);
 	expect(proof.responses.slice(before.responses).every((status) => status === 401)).toBe(true);
-	expect(proof.failures.slice(before.failures).every((failure) => failure === 'net::ERR_BLOCKED_BY_ORB')).toBe(true);
+	expect(
+		proof.failures.slice(before.failures).every((failure) => failure === 'net::ERR_BLOCKED_BY_ORB')
+	).toBe(true);
 }
 function stylesheetSnapshot(proof: StylesheetProof) {
-	return { requests: proof.requests.length, responses: proof.responses.length, failures: proof.failures.length };
+	return {
+		requests: proof.requests.length,
+		responses: proof.responses.length,
+		failures: proof.failures.length
+	};
 }
-
 
 async function openWorkspace(page: Page, scenario: string, navigate = true) {
 	if (navigate) await page.goto(`/c/${context.chats[scenario]}`);
@@ -168,10 +179,13 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	}
 	const expectedStyleDiagnostic = (url: string, text: string) => {
 		const proof = [normalCss, linkCss].find((item) => item.url === url);
-		return !!proof?.confirmed401 && proof.requests.length > 0 &&
+		return (
+			!!proof?.confirmed401 &&
+			proof.requests.length > 0 &&
 			proof.requests.every((cookie) => cookie === '') &&
 			((text.includes('401') && proof.responses.includes(401)) ||
-				(text.includes('ERR_BLOCKED_BY_ORB') && proof.failures.includes('net::ERR_BLOCKED_BY_ORB')));
+				(text.includes('ERR_BLOCKED_BY_ORB') && proof.failures.includes('net::ERR_BLOCKED_BY_ORB')))
+		);
 	};
 	const parent = observe(page, undefined, expectedStyleDiagnostic);
 	const browserErrors: Array<{ url: string; text: string }> = [];
@@ -396,8 +410,11 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		});
 	await direct.screenshot({ path: `${evidence}/workspace-scripted-svg.png` });
 	expect(directObs?.errors).toEqual([]);
-	const upstreamStylesheets = fs.readFileSync(context.record, 'utf8')
-		.split('\n').filter(Boolean).map((line) => JSON.parse(line))
+	const upstreamStylesheets = fs
+		.readFileSync(context.record, 'utf8')
+		.split('\n')
+		.filter(Boolean)
+		.map((line) => JSON.parse(line))
 		.filter((row) => row.target.includes('/style.css'));
 	expect(upstreamStylesheets).toEqual([]);
 	expect(browserErrors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual([]);

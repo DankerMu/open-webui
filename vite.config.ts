@@ -35,9 +35,7 @@ export default defineConfig({
 	},
 	server: {
 		// nginx's upstream Host is an alias; permit it only in the owned proxy browser harness.
-		...(process.env.OCU_UI_PROXY_HARNESS === 'true'
-			? { allowedHosts: ['ocu_proxy_webui'] }
-			: {}),
+		...(process.env.OCU_UI_PROXY_HARNESS === 'true' ? { allowedHosts: ['ocu_proxy_webui'] } : {}),
 		proxy: {
 			'/api': {
 				target: backendTarget,

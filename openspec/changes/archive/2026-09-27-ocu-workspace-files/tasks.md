@@ -14,7 +14,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Update decision/interface/harness instructions and CI test wiring, validate OpenSpec and docs gates, cross-review, exact-head CI, merge and archive. Browser/Terminal/full workspace controls remain issue30; history/event interception remains issue32; real Docker acceptance remains issue36.
+- [x] 3.1 Update decision/interface/harness instructions and CI test wiring, validate OpenSpec and docs gates, and complete cross-review. Exact-head CI and merge remain mandatory delivery gates. Browser/Terminal/full workspace controls remain issue30; history/event interception remains issue32; real Docker acceptance remains issue36.
 
 ## Risk mapping
 

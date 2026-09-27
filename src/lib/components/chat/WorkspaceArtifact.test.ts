@@ -288,7 +288,9 @@ describe('mounted workspace Files contract', () => {
 		});
 		delayed = 'refresh';
 		await click('Refresh workspace files');
-		await vi.waitFor(() => expect(calls.filter((call) => call.url.endsWith('/refresh'))).toHaveLength(1));
+		await vi.waitFor(() =>
+			expect(calls.filter((call) => call.url.endsWith('/refresh'))).toHaveLength(1)
+		);
 		const beforeRefresh = calls.length;
 		await unmount(component!);
 		component = undefined;
