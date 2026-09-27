@@ -1,6 +1,7 @@
 # ocu-workspace-files Specification
 
 ## Purpose
+
 Provide the actual chat-mounted Files workspace sidebar with honest lifecycle states, safe previews and independent browser evidence before full workspace controls land.
 
 ## Requirements
