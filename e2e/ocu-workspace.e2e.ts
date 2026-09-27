@@ -83,6 +83,14 @@ async function signIn(page: Page) {
 	await page.locator('input[type="password"]').first().fill(process.env.OCU_E2E_PASSWORD!);
 	await page.locator('button[type="submit"]').first().click();
 	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
+	await expect(page.getByRole('button', { name: 'Controls', exact: true })).toBeVisible();
+	const changelog = page.getByRole('dialog').filter({
+		has: page.getByRole('heading', { name: /What's New in Open WebUI/ })
+	});
+	if (await changelog.isVisible()) {
+		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();
+		await expect(changelog).toBeHidden();
+	}
 }
 
 test.beforeEach(async ({ page }) => {

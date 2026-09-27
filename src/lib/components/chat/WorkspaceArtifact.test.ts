@@ -279,10 +279,16 @@ describe('mounted workspace Files contract', () => {
 		expect(calls).toHaveLength(beforeLaunch);
 		delayed = '';
 		await open();
-		await ready('Workspace is stopped');
+		await vi.waitFor(() => {
+			expect(calls.filter((call) => call.url.includes('/api/outputs/'))).toHaveLength(2);
+			const refresh = [...document.querySelectorAll('button')].find(
+				(button) => button.getAttribute('aria-label') === 'Refresh workspace files'
+			);
+			expect(refresh?.disabled).toBe(false);
+		});
 		delayed = 'refresh';
 		await click('Refresh workspace files');
-		await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/refresh'))).toBe(true));
+		await vi.waitFor(() => expect(calls.filter((call) => call.url.endsWith('/refresh'))).toHaveLength(1));
 		const beforeRefresh = calls.length;
 		await unmount(component!);
 		component = undefined;
