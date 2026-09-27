@@ -325,6 +325,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		browser.waitForEvent('page'),
 		realLink.click({ modifiers: ['ControlOrMeta'] })
 	]);
+	await linked.bringToFront();
 	const linkedObs = popupObservations.get(linked);
 	expect(linkedObs, 'popup diagnostics must start before navigation').toBeDefined();
 	await expect(linked.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
@@ -358,6 +359,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		browser.waitForEvent('page'),
 		svgLink.click({ modifiers: ['ControlOrMeta'] })
 	]);
+	await linkedSvg.bringToFront();
 	await expect
 		.poll(() => linkedSvg.evaluate(() => window.fixtureEvents))
 		.toContainEqual({
