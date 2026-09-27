@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 import pytest
+from aiohttp import web
 
 TOKEN = 'test-token'
 DISTINCTIVE_TOKEN = 'ocu-internal-token-UNIQUE-7f2a9c1e'
@@ -163,6 +164,46 @@ async def test_failed_http_responses_are_typed_without_upstream_details(monkeypa
     assert str(failure.value) == 'ocu_upstream_error'
     assert 'private-upstream-marker' not in repr(failure.value)
     assert 'private-upstream-marker' not in ' '.join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'body,content_type',
+    [
+        (b'\xffprivate-upstream-marker', 'application/json'),
+        ('private-upstream-marker'.encode('utf-16')[:-1], 'application/json; charset=utf-16'),
+        (b'private-upstream-marker', 'application/json; charset=base64_codec'),
+    ],
+)
+async def test_launch_invalid_response_encoding_is_safe_upstream_failure(monkeypatch, caplog, body, content_type):
+    from open_webui.utils.ocu_client import OcuUpstreamError
+
+    async def failed_launch(_request):
+        return web.Response(status=409, body=body, headers={'Content-Type': content_type})
+
+    app = web.Application()
+    app.router.add_post('/internal/launch/{chat_id}', failed_launch)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '127.0.0.1', 0)
+    try:
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        caplog.set_level(logging.DEBUG, logger='open_webui.utils.ocu_client')
+        async with aiohttp.ClientSession() as session:
+            client = _make_client(monkeypatch, session, url=f'http://127.0.0.1:{port}')
+            with pytest.raises(OcuUpstreamError) as failure:
+                await client.launch(CHAT_ID)
+
+        assert failure.value.status == 409
+        assert failure.value.reason == 'ocu_upstream_error'
+        assert str(failure.value) == 'ocu_upstream_error'
+        assert failure.value.__cause__ is None
+        assert failure.value.__context__ is None
+        assert 'private-upstream-marker' not in repr(failure.value)
+        assert 'private-upstream-marker' not in ' '.join(record.getMessage() for record in caplog.records)
+    finally:
+        await runner.cleanup()
 
 
 @pytest.mark.asyncio
