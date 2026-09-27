@@ -3,17 +3,17 @@
 
 from __future__ import annotations
 
-import base64
 import ast
+import base64
 import hashlib
 import json
 import logging
 import mimetypes
-from pathlib import Path
 import os
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 log = logging.getLogger('ocu-stub')

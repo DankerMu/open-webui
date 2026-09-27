@@ -18,6 +18,7 @@
 		beginGeneration,
 		isCurrentGeneration,
 		ocuWorkspaces,
+		queueWorkspacePrefs,
 		type OcuWorkspaceState,
 		retireGeneration,
 		selectWorkspaceFile
@@ -40,7 +41,6 @@
 	let requestGeneration = 0;
 	let readyTimer: ReturnType<typeof setTimeout> | undefined;
 	let resultTimer: ReturnType<typeof setTimeout> | undefined;
-	let prefsWrite: Promise<void> = Promise.resolve();
 	let live = false;
 	let activeGeneration = 0;
 	$: workspace = $ocuWorkspaces[chatId];
@@ -50,7 +50,7 @@
 	$: office = selected && ['docx', 'xlsx', 'pptx'].includes(selected.type);
 	$: generated =
 		selected &&
-		['html', 'image', 'xml'].includes(selected.type) &&
+		!office &&
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
 			selected.mime.split(';')[0].trim().toLowerCase()
 		);
@@ -160,11 +160,9 @@
 	}
 
 	function savePrefs(prefs: WorkspacePrefs): Promise<void> {
-		const pending = prefsWrite.then(async () => {
+		return queueWorkspacePrefs(chatId, async () => {
 			if (live) await putWorkspacePrefs(localStorage.token, chatId, prefs);
 		});
-		prefsWrite = pending.catch(() => undefined);
-		return pending;
 	}
 
 	function selectFile(file: WorkspaceFile) {
@@ -253,13 +251,11 @@
 		}
 	}
 
-	async function reconcile(generation: number, more = false): Promise<void> {
-		const current = get(ocuWorkspaces)[chatId];
-		if (!current?.baseUrl) throw new WorkspaceRequestError(0, 'invalid_response');
+	async function readCoherentWindow(current: OcuWorkspaceState, generation: number, more: boolean) {
+		if (!current.baseUrl) throw new WorkspaceRequestError(0, 'invalid_response');
 		const requiredCount = current.files.length + (more ? 1 : 0);
-		let result: ListingWindow | null;
 		try {
-			result = await readPageSequence(
+			return await readPageSequence(
 				current.baseUrl,
 				generation,
 				more ? current.files : [],
@@ -270,7 +266,7 @@
 			);
 		} catch (error) {
 			if (!(error instanceof WorkspaceRequestError && error.status === 409)) throw error;
-			result = await readPageSequence(
+			return readPageSequence(
 				current.baseUrl,
 				generation,
 				[],
@@ -280,6 +276,11 @@
 				current.selectedFileId
 			);
 		}
+	}
+
+	async function reconcile(generation: number, more = false): Promise<void> {
+		const current = get(ocuWorkspaces)[chatId];
+		const result = await readCoherentWindow(current, generation, more);
 		if (!result || !live || !isCurrentGeneration(chatId, generation)) return;
 		const latestSelection = get(ocuWorkspaces)[chatId]?.selectedFileId;
 		if (
@@ -295,6 +296,23 @@
 		await reconcileSelection({ ...current, selectedFileId: latestSelection }, generation, result);
 	}
 
+	async function describe(generation: number) {
+		const body = await getWorkspace(localStorage.token, chatId);
+		if (!live || !isCurrentGeneration(chatId, generation)) return null;
+		if (
+			body.chat_id !== chatId ||
+			!Array.isArray(body.capabilities) ||
+			!['running', 'stopped', 'unavailable'].includes(body.status)
+		)
+			throw new WorkspaceRequestError(0, 'invalid_response');
+		applyDescribe(chatId, generation, body);
+		if (body.status === 'unavailable') {
+			phase = body.reason === 'ocu_unreachable' ? 'disconnected' : 'unavailable';
+			return null;
+		}
+		return body;
+	}
+
 	async function load(launch = false) {
 		if (busy || !live) return;
 		busy = true;
@@ -302,24 +320,11 @@
 		const generation = (activeGeneration = beginGeneration(chatId));
 		if (!get(ocuWorkspaces)[chatId]?.files.length) phase = 'loading';
 		try {
-			if (launch) await launchWorkspace(localStorage.token, chatId);
-			const body = await getWorkspace(localStorage.token, chatId);
-			if (!live || !isCurrentGeneration(chatId, generation)) return;
-			if (
-				body.chat_id !== chatId ||
-				!Array.isArray(body.capabilities) ||
-				!['running', 'stopped', 'unavailable'].includes(body.status)
-			)
-				throw new WorkspaceRequestError(0, 'invalid_response');
-			applyDescribe(chatId, generation, body);
-			if (body.reason === 'ocu_unreachable') {
-				phase = 'disconnected';
-				return;
+			if (launch) {
+				await launchWorkspace(localStorage.token, chatId);
+				if (!live || !isCurrentGeneration(chatId, generation)) return;
 			}
-			if (body.reason === 'never_created') {
-				phase = 'unavailable';
-				return;
-			}
+			if (!(await describe(generation))) return;
 			await reconcile(generation);
 		} catch (error) {
 			if (!live || !isCurrentGeneration(chatId, generation)) return;
@@ -354,8 +359,12 @@
 		notice = '';
 		const generation = (activeGeneration = beginGeneration(chatId));
 		try {
-			if (workspace?.capabilities.includes('refresh'))
+			const body = await describe(generation);
+			if (!body) return;
+			if (body.capabilities.includes('refresh')) {
 				await refreshWorkspace(localStorage.token, chatId);
+				if (!live || !isCurrentGeneration(chatId, generation)) return;
+			}
 			await reconcile(generation);
 		} catch {
 			if (live && isCurrentGeneration(chatId, generation)) {
@@ -402,7 +411,9 @@
 				>Retry</button
 			>
 		</p>{/if}
-	{#if phase === 'stopped'}<p role="status">
+	{#if phase === 'stopped' || (phase === 'error' && workspace?.status === 'stopped')}<p
+			role="status"
+		>
 			Workspace is stopped; saved files remain available.
 			{#if workspace?.capabilities.includes('launch')}<button
 					type="button"
@@ -438,7 +449,7 @@
 					src={`${selectedUrl}?revision=${selected.revision}`}
 					sandbox="allow-scripts allow-forms"
 					class="w-full flex-1"
-				/>
+				></iframe>
 			{:else if office}
 				{#if previewState}<p role="status">{previewState}</p>{/if}
 				{#if previewState.includes('timed out') || previewState.includes('did not become ready') || previewState.includes('error') || previewState.includes('missing') || previewState.includes('unsupported')}
@@ -450,7 +461,7 @@
 							src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
 							sandbox="allow-scripts allow-same-origin allow-forms"
 							class="w-full flex-1"
-						/>{/key}
+						></iframe>{/key}
 				{/if}
 			{:else}<p role="status">
 					Preview not supported for this file type. Download the file to open it.

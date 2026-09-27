@@ -10,22 +10,24 @@ import logging
 import os
 import secrets
 import shutil
-import subprocess
 import signal
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
 
 from smoke_proxy_support import (
+    fail,
     free_port,
     git_run,
     http_json,
     kill_tree,
     materialize_git_files,
+    observations,
+    redact,
     run,
     run_owned_lifecycle,
     wait_http,
-    fail,
 )
 
 smoke_spec = importlib.util.spec_from_file_location('smoke_proxy', Path(__file__).with_name('smoke-proxy.py'))
@@ -163,9 +165,20 @@ class BrowserHarness(Smoke):
         )
         if status != 200 or describe.get('status') != 'running' or describe.get('base_url') != '/ocu':
             fail(f'owner-chat readiness failed: {status} {describe.get("status")}')
-        status, asset, _, raw = http_json('GET', f'{self.origin}/ocu/static/preview.js', cookie=cookie)
+        status, _, asset_headers, raw = http_json('GET', f'{self.origin}/ocu/static/preview.js', cookie=cookie)
         if status != 200 or b'ocu:preview-ready' not in raw:
-            fail('pinned real Office preview asset is unavailable through proxy')
+            direct_status, _, direct_headers, direct_raw = http_json(
+                'GET', f'http://127.0.0.1:{self.stub_port}/ocu/static/preview.js'
+            )
+            hits = sum('/static/preview.js' in row.get('target', '') for row in observations(self.record))
+            nginx_error = self.stage / 'deploy/proxy/runtime/error.log'
+            errors = nginx_error.read_text(encoding='utf-8', errors='replace') if nginx_error.exists() else ''
+            summary = redact(errors[-4000:], [self.token, signin['token'], password])
+            fail(
+                f'pin asset readiness: proxy={status} content_type={asset_headers.get("content-type")} bytes={len(raw)} '
+                f'stub={direct_status} content_type={direct_headers.get("content-type")} bytes={len(direct_raw)} '
+                f'stub_arrivals={hits}; nginx_error_tail={summary}'
+            )
         return chats, identity, password
 
     def run(self) -> int:
@@ -268,13 +281,14 @@ class BrowserHarness(Smoke):
             'OCU_INTERNAL_TOKEN': self.token,
             'WEBUI_BACKEND_URL': f'http://127.0.0.1:{self.backend_port}',
             'OCU_UI_DISABLE_HMR': 'true',
+            'UV_NO_SYNC': '1',
         }
         run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)
         self.start_owned(
             [
                 'bash',
                 '-c',
-                'source scripts/dev-env.sh && cd backend && exec uv run --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
+                'source scripts/dev-env.sh && cd backend && exec uv run --no-sync --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
             ],
             service_env,
             f'http://127.0.0.1:{self.backend_port}/health',

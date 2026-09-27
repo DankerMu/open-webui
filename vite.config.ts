@@ -4,9 +4,6 @@ import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 const backendTarget = process.env.WEBUI_BACKEND_URL || 'http://localhost:8080';
-if (process.env.OCU_UI_DISABLE_HMR && !['true', 'false'].includes(process.env.OCU_UI_DISABLE_HMR)) {
-	throw new Error('OCU_UI_DISABLE_HMR must be true or false');
-}
 
 export default defineConfig({
 	plugins: [
@@ -21,6 +18,10 @@ export default defineConfig({
 			]
 		})
 	],
+	// Vitest/jsdom must resolve Svelte's browser export instead of Node's server export.
+	...(process.env.VITEST === 'true'
+		? { test: { server: { deps: { inline: [/^svelte(?:\/.*)?$/] } } } }
+		: {}),
 	define: {
 		APP_VERSION: JSON.stringify(process.env.npm_package_version),
 		APP_BUILD_HASH: JSON.stringify(process.env.APP_BUILD_HASH || 'dev-build')

@@ -191,6 +191,17 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await expect(page.frameLocator('iframe[title="page.html"]').locator('#proof')).toHaveText(
 		'null|blocked|blocked|blocked'
 	);
+	await page
+		.getByRole('region', { name: 'Workspace Files' })
+		.getByRole('button', { name: 'diagram.svg' })
+		.click();
+	await expect(page.locator('iframe[title="diagram.svg"]')).toHaveAttribute(
+		'sandbox',
+		'allow-scripts allow-forms'
+	);
+	await expect(page.frameLocator('iframe[title="diagram.svg"]').locator('#proof')).toHaveText(
+		'null|blocked|blocked|blocked'
+	);
 	const denied = fs
 		.readFileSync(context.record, 'utf8')
 		.split('\n')

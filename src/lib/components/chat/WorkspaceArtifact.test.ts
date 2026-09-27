@@ -201,6 +201,96 @@ describe('mounted workspace Files contract', () => {
 		expect(document.querySelector('iframe')).toBeNull();
 	});
 
+	it('embeds code-classified XML and XHTML under the opaque policy', async () => {
+		const xml = { ...file('data.xml'), type: 'code', mime: 'application/xml' };
+		const xhtml = { ...file('page.xhtml'), type: 'code', mime: 'application/xhtml+xml' };
+		scenario = (input) =>
+			input.includes('/workspaces/') ? json(describeBody) : json(listing([xml, xhtml]));
+		await open();
+		await ready('data.xml');
+		await click('data.xml');
+		expect(document.querySelector('iframe[title="data.xml"]')?.getAttribute('sandbox')).toBe(
+			'allow-scripts allow-forms'
+		);
+		await click('page.xhtml');
+		expect(document.querySelector('iframe[title="page.xhtml"]')?.getAttribute('sandbox')).toBe(
+			'allow-scripts allow-forms'
+		);
+	});
+
+	it('discovers stopped status before refresh and keeps Launch after a listing error', async () => {
+		let stopped = false;
+		let listingFails = false;
+		scenario = (input, init) => {
+			if (input.endsWith('/launch') && init?.method === 'POST') {
+				stopped = false;
+				return json({ state: 'running' });
+			}
+			if (input.endsWith('/refresh') && init?.method === 'POST') return json({ revision: 2 });
+			if (input.includes('/workspaces/'))
+				return json({
+					...describeBody,
+					status: stopped ? 'stopped' : 'running',
+					capabilities: stopped ? ['launch', 'refresh', 'prefs'] : ['refresh', 'prefs']
+				});
+			return listingFails
+				? json({ reason: 'inaccessible' }, 503)
+				: json(listing([file('page.html')]));
+		};
+		await open();
+		await ready('page.html');
+		stopped = true;
+		listingFails = true;
+		await click('Refresh workspace files');
+		await ready('Refresh failed; existing files remain available');
+		expect(get(ocuWorkspaces)[chat].status).toBe('stopped');
+		expect(document.body.textContent).toContain('page.html');
+		await click('Launch');
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].status).toBe('running'));
+		expect(calls.filter((call) => call.url.endsWith('/launch'))).toHaveLength(1);
+	});
+
+	it('starts no follow-up work when launch or refresh finishes after unmount', async () => {
+		let delayed: 'launch' | 'refresh' | '' = '';
+		let finish: (response: Response) => void = () => {};
+		scenario = (input, init) => {
+			if (init?.method === 'POST' && delayed && input.endsWith(`/${delayed}`))
+				return new Promise<Response>((resolve) => {
+					finish = resolve;
+				});
+			if (input.includes('/workspaces/'))
+				return json({
+					...describeBody,
+					status: 'stopped',
+					capabilities: ['launch', 'refresh', 'prefs']
+				});
+			return json(listing([file('page.html')]));
+		};
+		await open();
+		await ready('Workspace is stopped');
+		delayed = 'launch';
+		await click('Launch');
+		await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/launch'))).toBe(true));
+		const beforeLaunch = calls.length;
+		await unmount(component!);
+		component = undefined;
+		finish(json({ state: 'running' }));
+		await tick();
+		expect(calls).toHaveLength(beforeLaunch);
+		delayed = '';
+		await open();
+		await ready('Workspace is stopped');
+		delayed = 'refresh';
+		await click('Refresh workspace files');
+		await vi.waitFor(() => expect(calls.some((call) => call.url.endsWith('/refresh'))).toBe(true));
+		const beforeRefresh = calls.length;
+		await unmount(component!);
+		component = undefined;
+		finish(json({ revision: 2 }));
+		await tick();
+		expect(calls).toHaveLength(beforeRefresh);
+	});
+
 	it('preserves the selected identity across rename, clears only complete tombstones and retains failed data', async () => {
 		let state: 'initial' | 'renamed' | 'partial' | 'deleted' = 'initial';
 		const old = file('report.html', 'stable-id');
@@ -641,6 +731,40 @@ describe('mounted workspace Files contract', () => {
 				? Number(command.generation)
 				: -1;
 		expect(freshGeneration).toBeGreaterThan(oldGeneration);
+	});
+
+	it('sends remounted tombstone prefs after the prior panel write completes', async () => {
+		let deleted = false;
+		let finishOld: (response: Response) => void = () => {};
+		const persisted: Array<string | null> = [];
+		scenario = (input, init) => {
+			if (input.endsWith('/prefs') && init?.method === 'PUT') {
+				const selected = JSON.parse(String(init.body)).selected_file_id;
+				if (selected === 'report.html')
+					return new Promise<Response>((resolve) => {
+						finishOld = resolve;
+					});
+				persisted.push(selected);
+				return json({ prefs: JSON.parse(String(init.body)) });
+			}
+			if (input.includes('/workspaces/')) return json(describeBody);
+			return json(listing(deleted ? [] : [file('report.html')], null, deleted ? 2 : 1));
+		};
+		await open();
+		await ready('report.html');
+		await click('report.html');
+		await vi.waitFor(() =>
+			expect(calls.filter((call) => call.url.endsWith('/prefs'))).toHaveLength(1)
+		);
+		await unmount(component!);
+		component = undefined;
+		deleted = true;
+		await open();
+		await ready('Selected file was removed');
+		expect(calls.filter((call) => call.url.endsWith('/prefs'))).toHaveLength(1);
+		finishOld(json({ prefs: { selected_file_id: 'report.html' } }));
+		await vi.waitFor(() => expect(persisted).toEqual([null]));
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBeUndefined();
 	});
 
 	it('drops a late describe after the panel unmounts and rejects arbitrary file URLs', async () => {

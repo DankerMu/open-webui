@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { get } from 'svelte/store';
 
 import { artifactContents } from '$lib/stores';
-import { applyDescribe, applyRevision, beginGeneration, markDirty, ocuWorkspaces } from './ocu';
+import {
+	applyDescribe,
+	applyRevision,
+	beginGeneration,
+	markDirty,
+	ocuWorkspaces,
+	queueWorkspacePrefs
+} from './ocu';
 
 describe('ocu workspace store', () => {
 	beforeEach(() => {
@@ -56,5 +63,26 @@ describe('ocu workspace store', () => {
 		markDirty('A');
 		applyRevision('A', 5);
 		expect(get(artifactContents)).toBe(before);
+	});
+	it('orders a remounted chat preference clear after an older failed write', async () => {
+		const stored: Array<string | null> = [];
+		let finishOld: () => void = () => {};
+		const oldWrite = queueWorkspacePrefs('same-chat', () =>
+			new Promise<void>((resolve) => {
+				finishOld = resolve;
+			}).then(() => {
+				stored.push('old-selection');
+				throw new Error('old write failed');
+			})
+		);
+		await Promise.resolve();
+		const newMountClear = queueWorkspacePrefs('same-chat', async () => {
+			stored.push(null);
+		});
+		expect(stored).toEqual([]);
+		finishOld();
+		await expect(oldWrite).rejects.toThrow('old write failed');
+		await newMountClear;
+		expect(stored).toEqual(['old-selection', null]);
 	});
 });

@@ -18,6 +18,27 @@ export type OcuWorkspaceState = {
 	generation: number;
 };
 
+// A chat's preference writes retain order across panel destruction and remount.
+const prefsWrites = new Map<string, Promise<void>>();
+
+export const queueWorkspacePrefs = (
+	chatId: string,
+	write: () => Promise<unknown>
+): Promise<void> => {
+	const previous = prefsWrites.get(chatId) ?? Promise.resolve();
+	const pending = previous
+		.catch(() => undefined)
+		.then(write)
+		.then(() => undefined);
+	prefsWrites.set(chatId, pending);
+	void pending
+		.finally(() => {
+			if (prefsWrites.get(chatId) === pending) prefsWrites.delete(chatId);
+		})
+		.catch(() => undefined);
+	return pending;
+};
+
 export type OcuDescribeBody = {
 	status?: string;
 	reason?: string;

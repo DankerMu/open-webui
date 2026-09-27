@@ -232,7 +232,7 @@
 					<Embeds />
 				{:else if $showArtifacts}
 					<Artifacts {history} />
-				{:else if showWorkspace && workspaceAvailable}
+				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
@@ -366,7 +366,7 @@
 					<Embeds overlay={dragged} />
 				{:else if $showArtifacts}
 					<Artifacts {history} overlay={dragged} />
-				{:else if showWorkspace && workspaceAvailable}
+				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
