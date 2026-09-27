@@ -12,7 +12,7 @@ endif
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend \
 	coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e verify-ui db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -131,6 +131,10 @@ verify-ui:
 	bash scripts/dev-bg.sh status >/dev/null || bash scripts/dev-bg.sh start
 	bash scripts/seed.sh
 	npx playwright test $(if $(ROUTE),--grep "route $(ROUTE) ",)
+	python3 scripts/verify-ui-ocu.py
+
+verify-ui-ocu:
+	python3 scripts/verify-ui-ocu.py
 
 db-reset:
 	bash scripts/db-reset.sh

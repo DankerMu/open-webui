@@ -125,7 +125,10 @@ jobs:
         env:
           OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
         run: make smoke-proxy
-      - run: make verify-ui
+      - name: Baseline and isolated workspace browser verification
+        env:
+          OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
+        run: make verify-ui
       - run: make dev-stop
         if: always()
 

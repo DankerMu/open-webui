@@ -7,28 +7,9 @@
 set -u
 repo_root="$(git rev-parse --show-toplevel)" || exit 2
 cd "$repo_root" || exit 2
-mkdir -p .run/data
-BACKEND_PORT="${BACKEND_PORT:-8080}"
-FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+source scripts/dev-env.sh || exit 2
+mkdir -p "$DATA_DIR"
 HEALTH_URL="http://localhost:${BACKEND_PORT}/health"
-export DATA_DIR="$repo_root/.run/data"
-export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
-export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
-export OPENAI_API_BASE_URLS="${OPENAI_API_BASE_URLS:-}"
-export ENABLE_OPENAI_API="${ENABLE_OPENAI_API:-false}"
-export ENABLE_OCU_WORKSPACE=true
-export OCU_INTERNAL_URL="${OCU_INTERNAL_URL:-http://127.0.0.1:9}"
-export OCU_INTERNAL_TOKEN="${OCU_INTERNAL_TOKEN:-harness-no-ocu}"
-# Dummy broker: empty URL/token makes OcuClient() raise ValueError and describe
-# 500s; 127.0.0.1:9 connection-refuses so describe maps to 200 unavailable.
-# No model downloads at startup: the default local sentence-transformers embedder
-# pulls ~90 MB from HuggingFace on first boot, which hangs offline (LAN) and
-# blows the readiness budget. Smoke tests do not need embeddings.
-export RAG_EMBEDDING_ENGINE="${RAG_EMBEDDING_ENGINE:-openai}"
-export ENABLE_VERSION_UPDATE_CHECK="${ENABLE_VERSION_UPDATE_CHECK:-false}"
-export OFFLINE_MODE="${OFFLINE_MODE:-true}"
-export CORS_ALLOW_ORIGIN="http://localhost:${FRONTEND_PORT};http://localhost:${BACKEND_PORT}"
-export WEBUI_BACKEND_URL="http://localhost:${BACKEND_PORT}"
 
 alive() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
 
@@ -65,15 +46,9 @@ stop_one() { # stop_one NAME PIDFILE PORT
 }
 
 case "${1:-}" in
+  stage) stage_frontend_assets || exit 2 ;;
   start)
-    # config.py wipes backend/open_webui/static/ at import and refills it from
-    # FRONTEND_BUILD_DIR/static; with no frontend build the avatar and favicon
-    # routes 500 (seen in CI once `uv sync` stopped building the wheel, whose
-    # hatch hook ran `npm run build` as a side effect). The harness never builds
-    # the SPA (vite serves it), so stage the source assets under .run/ instead.
-    export FRONTEND_BUILD_DIR="$repo_root/.run/frontend-build"
-    rm -rf "$FRONTEND_BUILD_DIR/static" && mkdir -p "$FRONTEND_BUILD_DIR" \
-      && cp -R "$repo_root/static/static" "$FRONTEND_BUILD_DIR/static" || exit 2
+    stage_frontend_assets || exit 2
     start_one backend .run/backend.pid .run/backend.log \
       sh -c "cd backend && exec uv run --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port $BACKEND_PORT"
     for i in $(seq 1 180); do
@@ -97,5 +72,5 @@ case "${1:-}" in
     done
     if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then echo "health: OK ($HEALTH_URL)"; else echo "health: UNREACHABLE ($HEALTH_URL)"; exit 1; fi ;;
   logs) tail -n 100 -f .run/backend.log .run/frontend.log ;;
-  *) echo "usage: $0 start|stop|status|logs" >&2; exit 2 ;;
+  *) echo "usage: $0 start|stop|status|logs|stage" >&2; exit 2 ;;
 esac

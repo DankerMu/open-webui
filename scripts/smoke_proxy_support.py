@@ -157,14 +157,23 @@ def kill_tree(pid: int) -> None:
         return
     deadline = time.time() + 3
     while time.time() < deadline:
-        if os.waitpid(pid, os.WNOHANG)[0]:
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
             return
         time.sleep(0.05)
     try:
         os.killpg(pid, signal.SIGKILL)
     except ProcessLookupError:
-        return
-    os.waitpid(pid, 0)
+        pass
+    try:
+        os.waitpid(pid, 0)
+    except ChildProcessError:
+        pass
 
 
 def git_blob(checkout: Path, sha: str, rel: str) -> bytes:
