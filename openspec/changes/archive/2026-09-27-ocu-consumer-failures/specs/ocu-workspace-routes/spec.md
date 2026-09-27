@@ -1,19 +1,6 @@
-# ocu-workspace-routes Specification
+# Spec Delta
 
-## Purpose
-
-Flag-gated owner-only describe/launch/refresh/prefs on the existing OCU router.
-
-## Requirements
-
-### Requirement: Flag-gated workspace routes
-
-When `ENABLE_OCU_WORKSPACE` is true, `GET /api/v1/ocu/workspaces/{chat_id}`, `POST …/launch`, `POST …/refresh`, `PUT …/prefs` SHALL exist. When false they SHALL 404 without calling `is_chat_owner` or `OcuClient`. `GET /api/v1/ocu/auth` SHALL remain registered.
-
-#### Scenario: Flag off
-
-- **WHEN** the flag is false and the owner calls describe or launch
-- **THEN** both return 404
+## MODIFIED Requirements
 
 ### Requirement: Describe mapping and cursor
 
@@ -34,19 +21,7 @@ Describe SHALL use OcuClient.describe, SHALL NOT call launch, SHALL map successf
 - **WHEN** describe receives an upstream HTTP failure while a higher cursor and preferences exist
 - **THEN** the response is502 with only reason ocu_upstream_error and persisted state is unchanged
 
-### Requirement: Mutating header and launch 409
-
-Launch, refresh and prefs SHALL require `X-Requested-With: ocu-workspace` after authentication and before the owner check. Missing header SHALL 403 with client and `is_chat_owner` uncalled. Launch `OcuNeverCreated` SHALL 409.
-
-#### Scenario: Same-site without header
-
-- **WHEN** a valid session calls launch without the header
-- **THEN** the response is 403 and the client is not called
-
-#### Scenario: Launch never_created
-
-- **WHEN** `OcuClient.launch` returns `OcuNeverCreated`
-- **THEN** the response is 409 and no container is assumed started
+## ADDED Requirements
 
 ### Requirement: Mutation dependency failures remain failures
 

@@ -30,11 +30,15 @@ async def _ws_owner_and_chat():
 
 
 class _StubClient:
-    def __init__(self, *, describe=None, launch=None, refresh=None, describe_error=None):
+    def __init__(
+        self, *, describe=None, launch=None, refresh=None, describe_error=None, launch_error=None, refresh_error=None
+    ):
         self.describe_result = describe if describe is not None else {'state': 'stopped', 'revision': 0, 'views': []}
         self.launch_result = launch if launch is not None else {'state': 'running'}
         self.refresh_result = refresh if refresh is not None else {'revision': 1}
         self.describe_error = describe_error
+        self.launch_error = launch_error
+        self.refresh_error = refresh_error
         self.calls: list[tuple[str, str]] = []
 
     async def describe(self, chat_id: str):
@@ -45,10 +49,14 @@ class _StubClient:
 
     async def launch(self, chat_id: str):
         self.calls.append(('launch', chat_id))
+        if self.launch_error is not None:
+            raise self.launch_error
         return self.launch_result
 
     async def refresh(self, chat_id: str):
         self.calls.append(('refresh', chat_id))
+        if self.refresh_error is not None:
+            raise self.refresh_error
         return self.refresh_result
 
 
@@ -252,8 +260,46 @@ def test_launch_never_created_is_409(monkeypatch):
     try:
         response = _launch(chat.id, {**_session_headers(owner.id), **XR})
         assert response.status_code == 409
-        assert response.json()['reason'] == 'never_created'
+        assert response.json() == {'reason': 'never_created'}
         assert stub.calls == [('launch', chat.id)]
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+@pytest.mark.parametrize(
+    'operation,call,error_kind,expected_reason',
+    [
+        ('describe', _describe, 'upstream', 'ocu_upstream_error'),
+        ('launch', _launch, 'upstream', 'ocu_upstream_error'),
+        ('refresh', _refresh, 'upstream', 'ocu_upstream_error'),
+        ('launch', _launch, 'transport', 'ocu_unreachable'),
+        ('refresh', _refresh, 'transport', 'ocu_unreachable'),
+    ],
+)
+def test_dependency_failure_is_502_without_changing_workspace_state(
+    monkeypatch, caplog, operation, call, error_kind, expected_reason
+):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+    from open_webui.utils.ocu_client import OcuUnreachable, OcuUpstreamError
+
+    marker = 'private-upstream-marker'
+    error = OcuUpstreamError(500) if error_kind == 'upstream' else OcuUnreachable('down')
+    error.__cause__ = RuntimeError(marker)
+    stub = _install_client(monkeypatch, _StubClient(**{f'{operation}_error': error}))
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    try:
+        asyncio.run(OcuChatStates.upsert_prefs(chat.id, {'view': 'files'}))
+        asyncio.run(OcuChatStates.advance_cursor(chat.id, 5))
+        before = asyncio.run(OcuChatStates.get(chat.id))
+        caplog.clear()
+        response = call(chat.id, {**_session_headers(owner.id), **XR})
+        assert response.status_code == 502
+        assert response.json() == {'reason': expected_reason}
+        assert marker not in response.text
+        assert marker not in ' '.join(record.getMessage() for record in caplog.records)
+        after = asyncio.run(OcuChatStates.get(chat.id))
+        assert (after.last_seen_revision, after.prefs) == (before.last_seen_revision, before.prefs)
+        assert stub.calls == [(operation, chat.id)]
     finally:
         asyncio.run(_cleanup_owner(owner.id, chat.id))
 

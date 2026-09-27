@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 import aiohttp
 import pytest
+from aiohttp import web
 
 TOKEN = 'test-token'
 DISTINCTIVE_TOKEN = 'ocu-internal-token-UNIQUE-7f2a9c1e'
@@ -129,6 +130,80 @@ async def test_launch_409_never_created_is_typed_result(monkeypatch):
     assert result.reason == 'never_created'
     assert not isinstance(result, OcuUnreachable)
     _assert_bearer_call(session, 'POST', f'/internal/launch/{CHAT_ID}')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation,status,text',
+    [
+        ('describe', 500, '{"revision": 999, "marker": "private-upstream-marker"}'),
+        ('refresh', 500, 'private-upstream-marker'),
+        ('launch', 500, ''),
+        ('describe', 401, '{"reason": "never_created"}'),
+        ('refresh', 403, '{"reason": "never_created"}'),
+        ('describe', 409, '{"reason": "never_created"}'),
+        ('launch', 409, 'private-upstream-marker never_created'),
+        ('launch', 409, '{"detail": "never_created"}'),
+        ('launch', 409, '["never_created"]'),
+        ('launch', 409, '{"reason": "other"}'),
+        ('launch', 409, '{"reason": "never_created later"}'),
+    ],
+)
+async def test_failed_http_responses_are_typed_without_upstream_details(monkeypatch, caplog, operation, status, text):
+    from open_webui.utils.ocu_client import OcuUpstreamError
+
+    session = _StubSession(_StubResponse(status=status, text=text))
+    client = _make_client(monkeypatch, session)
+    caplog.set_level(logging.DEBUG, logger='open_webui.utils.ocu_client')
+
+    with pytest.raises(OcuUpstreamError) as failure:
+        await getattr(client, operation)(CHAT_ID)
+
+    assert failure.value.status == status
+    assert failure.value.reason == 'ocu_upstream_error'
+    assert str(failure.value) == 'ocu_upstream_error'
+    assert 'private-upstream-marker' not in repr(failure.value)
+    assert 'private-upstream-marker' not in ' '.join(record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'body,content_type',
+    [
+        (b'\xffprivate-upstream-marker', 'application/json'),
+        ('private-upstream-marker'.encode('utf-16')[:-1], 'application/json; charset=utf-16'),
+        (b'private-upstream-marker', 'application/json; charset=base64_codec'),
+    ],
+)
+async def test_launch_invalid_response_encoding_is_safe_upstream_failure(monkeypatch, caplog, body, content_type):
+    from open_webui.utils.ocu_client import OcuUpstreamError
+
+    async def failed_launch(_request):
+        return web.Response(status=409, body=body, headers={'Content-Type': content_type})
+
+    app = web.Application()
+    app.router.add_post('/internal/launch/{chat_id}', failed_launch)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '127.0.0.1', 0)
+    try:
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        caplog.set_level(logging.DEBUG, logger='open_webui.utils.ocu_client')
+        async with aiohttp.ClientSession() as session:
+            client = _make_client(monkeypatch, session, url=f'http://127.0.0.1:{port}')
+            with pytest.raises(OcuUpstreamError) as failure:
+                await client.launch(CHAT_ID)
+
+        assert failure.value.status == 409
+        assert failure.value.reason == 'ocu_upstream_error'
+        assert str(failure.value) == 'ocu_upstream_error'
+        assert failure.value.__cause__ is None
+        assert failure.value.__context__ is None
+        assert 'private-upstream-marker' not in repr(failure.value)
+        assert 'private-upstream-marker' not in ' '.join(record.getMessage() for record in caplog.records)
+    finally:
+        await runner.cleanup()
 
 
 @pytest.mark.asyncio
