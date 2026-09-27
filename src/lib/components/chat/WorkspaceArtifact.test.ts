@@ -740,7 +740,6 @@ describe('mounted workspace Files contract', () => {
 				: -1;
 		expect(freshGeneration).toBeGreaterThan(oldGeneration);
 	});
-
 	it('sends remounted tombstone prefs after the prior panel write completes', async () => {
 		let deleted = false;
 		let finishOld: (response: Response) => void = () => {};
