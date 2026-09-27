@@ -2,15 +2,15 @@
 
 ## 1. Files consumer
 
-- [ ] 1.1 Add the real component and paired jsdom/Svelte tests, extend existing OCU API/store seams and minimal authenticated flag/mount hooks; prove off/invalid-chat no requests and chat-generation retirement.
-- [ ] 1.2 Implement state/actions, coherent pagination, identity selection and explicit tombstone prefs clearing; tests prove errors are not empty, stopped browsing, permitted launch, later-page identity and no partial-list deletion.
-- [ ] 1.3 Integrate generated opaque iframe and real restricted Office parent protocol; component tests prove source/origin/schema/generation rejection and parent download fallback, never user-widened sandbox.
+- [x] 1.1 Add the real component and paired jsdom/Svelte tests, extend existing OCU API/store seams and minimal authenticated flag/mount hooks; prove off/invalid-chat no requests and chat-generation retirement.
+- [x] 1.2 Implement state/actions, coherent pagination, identity selection and explicit tombstone prefs clearing; tests prove errors are not empty, stopped browsing, permitted launch, later-page identity and no partial-list deletion.
+- [x] 1.3 Integrate generated opaque iframe and real restricted Office parent protocol; component tests prove source/origin/schema/generation rejection and parent download fallback, never user-widened sandbox.
 
 ## 2. Actual browser evidence
 
-- [ ] 2.1 Extend existing proxy/stub lifecycle with actual SPA origin and real-chat fixtures; use reviewed OCU Git pin and real Office assets, no ignored-file copies or production fixture route; preserve existing proxy smoke.
-- [ ] 2.2 Add A-T01/A-T10 Playwright cases on actual mounted WebUI: three generated-document open paths, scripted SVG, inline resources, blocked storage, expected relative401, empty/large/corrupt/unreachable/deleted states; screenshots and zero unexpected console errors.
-- [ ] 2.3 Parent runs make test-frontend, typecheck, lint-scoped, coverage-gate, smoke, smoke-proxy and verify-ui plus semantic-fault qualification; approved jsdom dependency installed with consistent lockfile, no threshold exemptions. Stop owned services.
+- [x] 2.1 Extend existing proxy/stub lifecycle with actual SPA origin and real-chat fixtures; use reviewed OCU Git pin and real Office assets, no ignored-file copies or production fixture route; preserve existing proxy smoke.
+- [x] 2.2 Add A-T01/A-T10 Playwright cases on actual mounted WebUI: three generated-document open paths, scripted SVG, inline resources, blocked storage, expected relative401, empty/large/corrupt/unreachable/deleted states; screenshots and zero unexpected console errors.
+- [x] 2.3 Parent runs make test-frontend, typecheck, lint-scoped, coverage-gate, smoke, smoke-proxy and verify-ui plus semantic-fault qualification; approved jsdom dependency installed with consistent lockfile, no threshold exemptions. Stop owned services.
 
 ## 3. Delivery
 
