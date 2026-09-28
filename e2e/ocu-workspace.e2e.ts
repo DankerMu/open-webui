@@ -444,11 +444,9 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await page.goto(`/c/${context.chats.link}`);
 	const realLink = page.getByRole('link', { name: 'Open generated workspace file' });
 	await expect(realLink).toBeVisible();
+	await expect(realLink).toHaveAttribute('target', '_blank');
 	const linkBefore = stylesheetSnapshot(linkCss);
-	const [linked] = await Promise.all([
-		browser.waitForEvent('page'),
-		realLink.click({ modifiers: ['ControlOrMeta'] })
-	]);
+	const [linked] = await Promise.all([browser.waitForEvent('page'), realLink.click()]);
 	fileNetwork.active = linked;
 	await linked.bringToFront();
 	const linkedObs = popupObservations.get(linked);
@@ -480,10 +478,8 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await linked.close();
 	const svgLink = page.getByRole('link', { name: 'Open scripted SVG' });
 	await expect(svgLink).toBeVisible();
-	const [linkedSvg] = await Promise.all([
-		browser.waitForEvent('page'),
-		svgLink.click({ modifiers: ['ControlOrMeta'] })
-	]);
+	await expect(svgLink).toHaveAttribute('target', '_blank');
+	const [linkedSvg] = await Promise.all([browser.waitForEvent('page'), svgLink.click()]);
 	fileNetwork.active = linkedSvg;
 	await linkedSvg.bringToFront();
 	await expect
