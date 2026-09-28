@@ -1,5 +1,11 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
+import {
+	captureBrowserTargetPaths,
+	recordAnchorClicks,
+	watchContextLifecycle,
+	type OcuClickProbe
+} from './ocu-fixtures';
 
 declare global {
 	interface Window {
@@ -128,7 +134,16 @@ type FileNetworkEvidence = {
 	started: number;
 	events: Array<{
 		ms: number;
-		kind: 'page' | 'request' | 'response' | 'requestfailed';
+		kind:
+			| 'page'
+			| 'popup'
+			| 'close'
+			| 'crash'
+			| 'download'
+			| 'navigated'
+			| 'request'
+			| 'response'
+			| 'requestfailed';
 		path: string | null;
 		resourceType?: string;
 		status?: number;
@@ -136,6 +151,9 @@ type FileNetworkEvidence = {
 	}>;
 	pending: Promise<void>[];
 	active: Page;
+	browser: BrowserContext;
+	anchorPath: string | null;
+	gestures: OcuClickProbe[];
 };
 
 let fileNetworkEvidence: FileNetworkEvidence | undefined;
@@ -156,7 +174,15 @@ function sanitizedLocation(raw: string): string | null {
 }
 
 function observeFileNetwork(browser: BrowserContext, active: Page): FileNetworkEvidence {
-	const record: FileNetworkEvidence = { started: Date.now(), events: [], pending: [], active };
+	const record: FileNetworkEvidence = {
+		started: Date.now(),
+		events: [],
+		pending: [],
+		active,
+		browser,
+		anchorPath: null,
+		gestures: []
+	};
 	const add = (
 		kind: 'request' | 'response' | 'requestfailed',
 		request: Request,
@@ -184,11 +210,11 @@ function observeFileNetwork(browser: BrowserContext, active: Page): FileNetworkE
 			);
 		}
 	};
-	browser.on('page', (opened) =>
+	watchContextLifecycle(browser, active, (kind, raw) =>
 		record.events.push({
 			ms: Date.now() - record.started,
-			kind: 'page',
-			path: sanitizedLocation(opened.url())
+			kind,
+			path: sanitizedLocation(raw)?.split('?')[0] ?? null
 		})
 	);
 	browser.on('request', (request) => add('request', request));
@@ -241,6 +267,11 @@ test.afterEach(async () => {
 					)
 				}))
 				.catch(() => null);
+	const targets = await captureBrowserTargetPaths(
+		record.browser,
+		record.active,
+		(url) => sanitizedLocation(url)?.split('?')[0] ?? null
+	);
 	fs.writeFileSync(
 		`${evidence}/workspace-network-failure.json`,
 		JSON.stringify(
@@ -249,6 +280,9 @@ test.afterEach(async () => {
 					(id) => `/ocu/files/${id}/style.css`
 				),
 				events: record.events,
+				anchorPath: record.anchorPath,
+				gestures: record.gestures,
+				targets,
 				active: active && {
 					location: sanitizedLocation(active.location),
 					baseURI: sanitizedLocation(active.baseURI),
@@ -529,6 +563,11 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	);
 	expect(browser.pages()).toHaveLength(beforeClickTabs);
 	await page.screenshot({ path: `${evidence}/workspace-message-sidebar.png`, fullPage: true });
+	fileNetwork.anchorPath =
+		sanitizedLocation((await realLink.getAttribute('href')) ?? '')?.split('?')[0] ?? null;
+	await recordAnchorClicks(page, (entry) => {
+		fileNetwork.gestures.push(entry);
+	});
 	const [linked] = await Promise.all([
 		browser.waitForEvent('page'),
 		realLink.click({ modifiers: ['ControlOrMeta'] })

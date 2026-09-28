@@ -3,7 +3,6 @@ import { get } from 'svelte/store';
 
 import {
 	applyDescribe,
-	applyRevision,
 	applyWorkspaceListing,
 	beginGeneration,
 	closeWorkspacePanel,
@@ -108,10 +107,16 @@ describe('ocu workspace store', () => {
 		expect(get(ocuWorkspaces)['B']?.dirty).toBe(true);
 	});
 
-	it('keeps the higher revision when 7 arrives after 9', () => {
-		applyRevision('A', 9);
-		applyRevision('A', 7);
-		expect(get(ocuWorkspaces)['A']?.revision).toBe(9);
+	it('rejects same-generation listing revision 7 after accepting revision 9 without replacing files', () => {
+		const generation = beginGeneration('A');
+		applyWorkspaceListing('A', generation, [file('A', 9)], 9, null, 'W/"nine"');
+		applyWorkspaceListing('A', generation, [file('A', 7)], 7, null, 'W/"seven"');
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			revision: 9,
+			listingRevision: 9,
+			files: [file('A', 9)],
+			etag: 'W/"nine"'
+		});
 	});
 
 	it('auto-opens once per chat, retains a user close across accepted revisions, and acknowledges on explicit open', () => {

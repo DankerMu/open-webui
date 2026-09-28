@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { showArtifacts, showCallOverlay, showControls, showEmbeds } from '$lib/stores';
-import { ocuWorkspaces, selectWorkspaceFile } from '$lib/stores/ocu';
+import { closeWorkspacePanel, ocuWorkspaces, selectWorkspaceFile } from '$lib/stores/ocu';
 import { chat, file, listing, describeBody } from '../../../../test/ocu-workspace-fixtures';
 import { createWorkspaceReconciliation } from './workspace-reconciliation';
 
@@ -63,6 +63,15 @@ const controller = (api: Transport, visible?: () => boolean) =>
 		transport: api,
 		visible
 	});
+
+function clickFileLink(owner: ReturnType<typeof controller>, id: string, path: string) {
+	const anchor = document.createElement('a');
+	anchor.href = `${window.location.origin}/ocu/files/${id}/${path}`;
+	const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+	Object.defineProperty(event, 'target', { value: anchor });
+	owner.handleLinkClick(event, id);
+	expect(event.defaultPrevented).toBe(true);
+}
 
 beforeEach(() => {
 	ocuWorkspaces.set({});
@@ -172,6 +181,77 @@ describe('one active-chat workspace producer', () => {
 		expect(transport.describeCalls).not.toContain('background-chat');
 	});
 
+	it('runs an authoritative pass after a dirty hint arrives ahead of queued More', async () => {
+		vi.useFakeTimers();
+		const transport = fixture();
+		const held = Promise.withResolvers<Awaited<ReturnType<Transport['list']>>>();
+		const first = {
+			kind: 'listing' as const,
+			listing: listing([file('page.html')], 'second', 1, 2),
+			etag: null
+		};
+		let firstReads = 0;
+		transport.api.list = async (_base, _id, cursor) =>
+			cursor
+				? { kind: 'listing', listing: listing([file('next.html')], null, 1, 2), etag: null }
+				: ++firstReads === 2
+					? held.promise
+					: first;
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second');
+		owner.reconnect();
+		const more = owner.more();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(firstReads).toBe(2);
+		owner.acceptHint({
+			chat_id: chat,
+			data: { type: 'ocu:workspace_changed', data: { chat_id: chat, reason: 'tool_completed' } }
+		});
+		expect(get(ocuWorkspaces)[chat].dirty).toBe(true);
+		held.resolve(first);
+		await more;
+		await vi.advanceTimersByTimeAsync(0);
+		expect(transport.describeCalls).toEqual([chat, chat, chat]);
+		expect(firstReads).toBe(3);
+		expect(get(ocuWorkspaces)[chat].dirty).toBe(false);
+	});
+
+	it.each([
+		{ startVisible: true, nextVisible: false, delay: 15_000 },
+		{ startVisible: false, nextVisible: true, delay: 3_000 }
+	])(
+		'reschedules the $delay ms poll when visibility changes during an in-flight read',
+		async ({ startVisible, nextVisible, delay }) => {
+			vi.useFakeTimers();
+			let visible = startVisible;
+			let hold = false;
+			const held = Promise.withResolvers<Awaited<ReturnType<Transport['list']>>>();
+			const transport = fixture();
+			transport.api.list = async () => (hold ? held.promise : firstPage);
+			const owner = controller(transport.api, () => visible);
+			owner.observe(chat, true);
+			stop = owner.mount();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(transport.describeCalls).toHaveLength(1);
+			hold = true;
+			owner.reconnect();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(transport.describeCalls).toHaveLength(2);
+			visible = nextVisible;
+			document.dispatchEvent(new Event('visibilitychange'));
+			hold = false;
+			held.resolve(firstPage);
+			await vi.advanceTimersByTimeAsync(0);
+			await vi.advanceTimersByTimeAsync(delay - 1);
+			expect(transport.describeCalls).toHaveLength(2);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(transport.describeCalls).toHaveLength(3);
+		}
+	);
+
 	it('reuses an accepted matching ETag response without clearing selection, and rejects unqualified 304', async () => {
 		const transport = fixture();
 		let listings = 0;
@@ -263,8 +343,8 @@ describe('one active-chat workspace producer', () => {
 		stop = owner.mount();
 		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
 		const resolved = await owner.resolvePath(chat, 'nested/last.html');
-		expect(resolved?.file_id).toBe('real-file-id');
-		await owner.selectFile(chat, resolved!);
+		expect(resolved).toMatchObject({ kind: 'found', file: { file_id: 'real-file-id' } });
+		if (resolved.kind === 'found') await owner.selectFile(chat, resolved.file);
 		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('real-file-id');
 		expect(transport.writes.at(-1)?.prefs).toMatchObject({ selected_file_id: 'real-file-id' });
 	});
@@ -289,9 +369,9 @@ describe('one active-chat workspace producer', () => {
 		stop = owner.mount();
 		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
 		const resolved = await owner.resolvePath(chat, 'report.html');
-		expect(resolved?.file_id).toBe('root-id');
+		expect(resolved).toMatchObject({ kind: 'found', file: { file_id: 'root-id' } });
 		expect(cursors).toContain('second');
-		await owner.selectFile(chat, resolved!);
+		if (resolved.kind === 'found') await owner.selectFile(chat, resolved.file);
 		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('root-id');
 	});
 
@@ -310,13 +390,90 @@ describe('one active-chat workspace producer', () => {
 		owner.observe(chat, true);
 		stop = owner.mount();
 		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
-		expect(await owner.resolvePath(chat, 'report.html')).toBeNull();
+		expect(await owner.resolvePath(chat, 'report.html')).toEqual({ kind: 'absent' });
 		expect(get(ocuWorkspaces)[chat].selectedFileId).toBeUndefined();
 		expect(get(ocuWorkspaces)[chat].files.map((entry) => entry.file_id)).toEqual([
 			'nested-id',
 			'other.html'
 		]);
 	});
+
+	it('keeps a link lookup failure distinct from a successfully proven missing file', async () => {
+		vi.useFakeTimers();
+		const transport = fixture();
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(get(ocuWorkspaces)[chat].files).toHaveLength(1);
+		let failedReads = 0;
+		transport.api.list = async () => {
+			failedReads++;
+			throw new Error('listing offline');
+		};
+		clickFileLink(owner, chat, 'missing.html');
+		await vi.advanceTimersByTimeAsync(0);
+		expect(failedReads).toBe(1);
+		expect(get(ocuWorkspaces)[chat]).toMatchObject({
+			files: [file('page.html')],
+			selectedFileId: undefined,
+			notice: 'Workspace request failed'
+		});
+	});
+
+	it('reports a link target missing after a complete successful listing', async () => {
+		const transport = fixture();
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].files).toHaveLength(1));
+		clickFileLink(owner, chat, 'missing.html');
+		await vi.waitFor(() =>
+			expect(get(ocuWorkspaces)[chat].notice).toBe('Selected file was removed')
+		);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBeUndefined();
+	});
+
+	it.each([
+		{ queued: false, reenter: false },
+		{ queued: false, reenter: true },
+		{ queued: true, reenter: true }
+	])(
+		'never applies a $queued queued link result after A→B with return=$reenter',
+		async ({ queued, reenter }) => {
+			vi.useFakeTimers();
+			const transport = fixture();
+			const held = Promise.withResolvers<Awaited<ReturnType<Transport['list']>>>();
+			let aReads = 0;
+			transport.api.describe = async (_token, id) => {
+				transport.describeCalls.push(id);
+				return { ...describeBody, chat_id: id };
+			};
+			transport.api.list = async (_base, id) => {
+				if (id === 'B')
+					return { kind: 'listing', listing: { ...listing([]), chat_id: 'B' }, etag: null };
+				return ++aReads === 2 ? held.promise : firstPage;
+			};
+			const owner = controller(transport.api);
+			owner.observe(chat, true);
+			stop = owner.mount();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(get(ocuWorkspaces)[chat].files).toHaveLength(1);
+			if (queued) owner.reconnect();
+			clickFileLink(owner, chat, 'retired.html');
+			await vi.advanceTimersByTimeAsync(0);
+			expect(aReads).toBe(2);
+			owner.observe('B', true);
+			if (reenter) owner.observe(chat, true);
+			await vi.advanceTimersByTimeAsync(0);
+			held.resolve(firstPage);
+			await vi.advanceTimersByTimeAsync(0);
+			const current = get(ocuWorkspaces)[reenter ? chat : 'B'];
+			expect(current.selectedFileId).toBeUndefined();
+			expect(current.notice).toBe('');
+			expect(current.files.map((entry) => entry.file_id)).toEqual(reenter ? ['page.html'] : []);
+		}
+	);
 
 	it('intercepts only a same-origin current-chat file and preserves unrelated native clicks', async () => {
 		const previous = {
@@ -362,28 +519,37 @@ describe('one active-chat workspace producer', () => {
 		}
 	});
 
-	it('cannot commit a retired preference response after switching away and returning to the same chat', async () => {
+	it('merges an acknowledged retired PUT into the next ordered patch without repainting newer local intent', async () => {
 		const transport = fixture();
 		const held = Promise.withResolvers<{ prefs: object }>();
-		let started = 0;
-		transport.api.prefs = async () => {
-			started++;
-			return held.promise;
+		const writes: Array<Parameters<Transport['prefs']>[2]> = [];
+		transport.api.prefs = async (_token, _id, prefs) => {
+			writes.push(prefs);
+			return writes.length === 1 ? held.promise : { prefs };
 		};
 		const owner = controller(transport.api);
 		owner.observe(chat, true);
 		stop = owner.mount();
 		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].hydrated).toBe(true));
-		const oldWrite = owner.writePrefs(chat, { open: false });
-		await vi.waitFor(() => expect(started).toBe(1));
+		const acknowledged = { view: 'terminal' as const, selected_file_id: 'page.html' };
+		const oldWrite = owner.writePrefs(chat, acknowledged);
+		await vi.waitFor(() => expect(writes).toEqual([acknowledged]));
 		owner.observe('other-chat', true);
 		owner.observe(chat, true);
 		await vi.waitFor(() =>
 			expect(transport.describeCalls.filter((id) => id === chat)).toHaveLength(2)
 		);
-		held.resolve({ prefs: { open: false } });
-		await oldWrite;
-		expect(get(ocuWorkspaces)[chat].serverPrefs).toEqual({});
+		closeWorkspacePanel(chat);
+		const newWrite = owner.writePrefs(chat, { open: false });
+		expect(writes).toHaveLength(1);
+		held.resolve({ prefs: acknowledged });
+		await Promise.all([oldWrite, newWrite]);
+		expect(writes).toEqual([acknowledged, { ...acknowledged, open: false }]);
+		expect(get(ocuWorkspaces)[chat]).toMatchObject({
+			view: 'files',
+			open: false,
+			selectedFileId: undefined
+		});
 	});
 
 	it('retires a delayed describe before any stale status or listing reaches another chat', async () => {

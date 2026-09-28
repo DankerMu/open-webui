@@ -212,21 +212,6 @@ export const markDirty = (chatId: string) => {
 	});
 };
 
-export const applyRevision = (chatId: string, revision: number) => {
-	ocuWorkspaces.update((workspaces) => {
-		const current = { ...(workspaces[chatId] ?? EMPTY_WORKSPACE) };
-		const acceptedRevision = Math.max(current.revision, revision);
-		return {
-			...workspaces,
-			[chatId]: {
-				...current,
-				revision: acceptedRevision,
-				acknowledgedRevision: current.open ? acceptedRevision : current.acknowledgedRevision
-			}
-		};
-	});
-};
-
 const restoredSelectedFileId = (
 	intent: WorkspacePrefs,
 	prefs: WorkspacePrefs,

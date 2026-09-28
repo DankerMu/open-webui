@@ -45,6 +45,10 @@ type ListingWindow = {
 	cursor: string | null;
 	etag?: string;
 };
+type LinkResolution =
+	| { kind: 'found'; file: WorkspaceFile }
+	| { kind: 'absent' }
+	| { kind: 'inconclusive' };
 type Command = 'poll' | 'refresh' | 'launch' | 'more' | 'retry';
 
 type Transport = {
@@ -243,7 +247,7 @@ export function createWorkspaceReconciliation(options: {
 			const state = get(ocuWorkspaces)[id];
 			const prefs = { ...state.serverPrefs, ...patch };
 			await transport.prefs(options.token(), id, prefs);
-			if (mounted && activeId === id && owner === ownershipEpoch) acceptWorkspacePrefs(id, prefs);
+			acceptWorkspacePrefs(id, prefs);
 		});
 	}
 
@@ -543,7 +547,7 @@ export function createWorkspaceReconciliation(options: {
 		clearTimer();
 		const generation = beginGeneration(id);
 		const controller = (abort = new AbortController());
-		consumeWorkspaceDirty(id);
+		if (mode !== 'more') consumeWorkspaceDirty(id);
 		const current = get(ocuWorkspaces)[id];
 		setWorkspacePresentation(id, generation, {
 			busy: mode !== 'poll',
@@ -561,8 +565,8 @@ export function createWorkspaceReconciliation(options: {
 		}
 	}
 
-	async function resolvePath(id: string, encodedPath: string): Promise<WorkspaceFile | null> {
-		if (activeId !== id || !mounted) return null;
+	async function resolvePath(id: string, encodedPath: string): Promise<LinkResolution> {
+		if (activeId !== id || !mounted) return { kind: 'inconclusive' };
 		const current = get(ocuWorkspaces)[id];
 		const wantedUrl = encodedFileUrl('/ocu', id, encodedPath);
 		const match = (files: WorkspaceFile[]) =>
@@ -574,10 +578,12 @@ export function createWorkspaceReconciliation(options: {
 				}
 			});
 		const loaded = match(current?.files ?? []);
-		if (loaded) return loaded;
+		if (loaded) return { kind: 'found', file: loaded };
 		const result = await run('poll', encodedPath);
-		if (activeId !== id || !result) return null;
-		return match(result.files) ?? null;
+		if (activeId !== id || !result) return { kind: 'inconclusive' };
+		const file = match(result.files);
+		if (file) return { kind: 'found', file };
+		return result.cursor === null ? { kind: 'absent' } : { kind: 'inconclusive' };
 	}
 	function retry() {
 		return run('retry');
@@ -611,6 +617,8 @@ export function createWorkspaceReconciliation(options: {
 	function handleLinkClick(event: MouseEvent, id: string | null) {
 		const encodedPath = previewLinkPath(event, id);
 		if (!encodedPath || !id) return;
+		const owner = ownershipEpoch;
+		const currentLink = () => mounted && activeId === id && owner === ownershipEpoch;
 		event.preventDefault();
 		showArtifacts.set(false);
 		showEmbeds.set(false);
@@ -619,22 +627,22 @@ export function createWorkspaceReconciliation(options: {
 		openWorkspacePanel(id);
 		void writePrefs(id, { open: true }).catch(() => {
 			const current = get(ocuWorkspaces)[id];
-			if (activeId === id && current)
+			if (currentLink() && current)
 				setWorkspacePresentation(id, current.generation, {
 					notice: options.translate('Workspace preference could not be saved')
 				});
 		});
-		void resolvePath(id, encodedPath).then((file) => {
-			if (activeId !== id) return;
-			if (file)
-				void selectFile(id, file).catch(() => {
+		void resolvePath(id, encodedPath).then((result) => {
+			if (!currentLink()) return;
+			if (result.kind === 'found') {
+				void selectFile(id, result.file).catch(() => {
 					const current = get(ocuWorkspaces)[id];
-					if (current)
+					if (currentLink() && current)
 						setWorkspacePresentation(id, current.generation, {
 							notice: options.translate('Selection could not be saved')
 						});
 				});
-			else {
+			} else if (result.kind === 'absent') {
 				const current = get(ocuWorkspaces)[id];
 				if (current)
 					setWorkspacePresentation(id, current.generation, {
