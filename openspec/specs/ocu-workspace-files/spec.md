@@ -8,7 +8,7 @@ Provide the actual chat-mounted Files workspace sidebar with honest lifecycle st
 
 ### Requirement: Flag-gated saved-chat Files panel
 
-WorkspaceArtifact SHALL accept chatId and mount through minimal existing ChatControls hooks for a saved owner chat. An authenticated config flag SHALL control visibility and requests; missing/false or unsaveable IDs SHALL produce no workspace mount/request. A saveable unsaved chat MAY expose the workspace action, but SHALL first complete upstream persistence before mounting the Files consumer or making workspace requests. Workspace state SHALL use the existing chat-keyed store, not artifactContents. Closing or switching chats SHALL retire owned work and prevent late data from changing another chat. Native Artifact behavior SHALL remain unchanged.
+WorkspaceArtifact SHALL accept chatId and mount through minimal existing ChatControls hooks for a saved owner chat. An authenticated config flag SHALL control visibility and requests; missing/false or unsaveable IDs SHALL produce no workspace mount/request. A saveable unsaved chat MAY expose the workspace action, but SHALL first complete upstream persistence before mounting the Files consumer or making workspace requests. Workspace state SHALL use the existing chat-keyed store, not artifactContents. The Chat-owned producer SHALL be the sole describe/listing reconciliation owner; the panel SHALL consume that state and delegate data commands instead of owning a second fetch path. Closing retires consumer frames and preview timers while the active-chat producer may continue closed-panel discovery; switching chats retires both owners' obsolete work. Late data SHALL never change another chat. Native Artifact behavior SHALL remain unchanged.
 
 #### Scenario: Disabled and temporary isolation
 
@@ -31,13 +31,19 @@ The panel SHALL render distinct unavailable/loading/ready/empty/error/stopped/di
 
 ### Requirement: Identity-coherent selection and preferences
 
-Selection SHALL use file_id and revision, survive rename and reject late generations. Partial/error/incoherent listings SHALL not establish deletion. When complete authorized enumeration proves the selected identity absent, the panel SHALL return to the list, show a notice and clear selected_file_id in prefs without dropping known view/open preferences.
+Selection SHALL use file_id and revision, survive rename and reject late generations. Partial/error/incoherent listings SHALL not establish deletion. When complete authorized enumeration proves the selected identity absent, the panel SHALL return to the list, show a notice and clear selected_file_id in prefs without dropping known view/open preferences. Accepted selected-content changes SHALL refresh previews by path plus revision, not mtime or object identity. Unchanged selected content and unrelated file updates SHALL preserve active iframe identity. Restored Office selection and returns from unavailable runtime views SHALL establish one live handshake with the existing bounded ready/result protocol.
 
 #### Scenario: Selected file deleted
 
 - **WHEN** the selected file is absent from a complete successful reconciliation
 - **THEN** selection clears with a visible notice and prefs selected_file_id is explicitly cleared
 - **AND** an incomplete later-page listing never triggers that clearing
+
+#### Scenario: Changed and unchanged content
+
+- **WHEN** reconciliation changes the selected file's path/revision, or changes only another file
+- **THEN** the former reloads the selected preview while the latter preserves its iframe element and connection
+- **AND** an Office selection restored from prefs reaches actual rendered content rather than an unarmed preview shell
 
 ### Requirement: Separate generated and Office preview trust
 
@@ -51,7 +57,7 @@ Generated HTML/SVG/XML SHALL load its canonical current-chat cookie URL in an if
 
 #### Scenario: A-T01 three open paths
 
-- **WHEN** generated HTML and scripted SVG open via the sidebar iframe, a rendered message link in a new tab, and a directly entered file URL while the user enables same-origin sandbox settings
+- **WHEN** generated HTML and scripted SVG open via the sidebar (including an ordinary recognized message click), an explicit modified new-tab message-link gesture, and a directly entered file URL while the user enables same-origin sandbox settings
 - **THEN** script and inline CSS/data-image work but storage/parent-token access remains blocked and the execution origin is opaque
 - **AND** relative stylesheet retrieval receives401 as the documented limitation, without widening the sandbox or granting credentials
 
