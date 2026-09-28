@@ -114,7 +114,9 @@ def _revision_of(payload: dict) -> int:
         return 0
 
 
-def _describe_body(chat_id: str, mapped: str, reason: str | None, caps: list[str], revision: int, views: list) -> dict:
+def _describe_body(
+    chat_id: str, mapped: str, reason: str | None, caps: list[str], revision: int, views: list, prefs: dict
+) -> dict:
     body = {
         'chat_id': chat_id,
         'status': mapped,
@@ -122,6 +124,7 @@ def _describe_body(chat_id: str, mapped: str, reason: str | None, caps: list[str
         'revision': revision,
         'views': views,
         'base_url': BASE_URL,
+        'prefs': prefs,
     }
     if reason is not None:
         body['reason'] = reason
@@ -131,15 +134,23 @@ def _describe_body(chat_id: str, mapped: str, reason: str | None, caps: list[str
 async def _describe_unreachable(chat_id: str) -> dict:
     row = await OcuChatStates.get(chat_id)
     revision = row.last_seen_revision if row is not None else 0
-    return _describe_body(chat_id, 'unavailable', _UNREACHABLE, _capabilities('unavailable', False), revision, [])
+    return _describe_body(
+        chat_id,
+        'unavailable',
+        _UNREACHABLE,
+        _capabilities('unavailable', False),
+        revision,
+        [],
+        row.prefs if row is not None else {},
+    )
 
 
 async def _describe_answered(chat_id: str, payload: dict) -> dict:
     mapped, reason = _map_status(str(payload.get('state', '')))
     revision = _revision_of(payload)
-    await OcuChatStates.advance_cursor(chat_id, revision)
+    row = await OcuChatStates.advance_cursor(chat_id, revision)
     views = payload.get('views') if isinstance(payload.get('views'), list) else []
-    body = _describe_body(chat_id, mapped, reason, _capabilities(mapped, True), revision, views)
+    body = _describe_body(chat_id, mapped, reason, _capabilities(mapped, True), revision, views, row.prefs)
     if 'cli_badge' in payload:
         body['cli_badge'] = payload['cli_badge']
     return body
