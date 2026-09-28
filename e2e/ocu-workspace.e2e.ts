@@ -570,7 +570,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	});
 	const [linked] = await Promise.all([
 		browser.waitForEvent('page'),
-		realLink.click({ modifiers: ['ControlOrMeta'] })
+		realLink.click({ modifiers: ['ControlOrMeta', 'Shift'] })
 	]);
 	fileNetwork.active = linked;
 	await linked.bringToFront();
@@ -616,7 +616,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(browser.pages()).toHaveLength(beforeClickTabs);
 	const [linkedSvg] = await Promise.all([
 		browser.waitForEvent('page'),
-		svgLink.click({ modifiers: ['ControlOrMeta'] })
+		svgLink.click({ modifiers: ['ControlOrMeta', 'Shift'] })
 	]);
 	fileNetwork.active = linkedSvg;
 	await linkedSvg.bringToFront();
