@@ -1,9 +1,9 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 export type WorkspacePrefs = {
-	view?: 'files' | 'browser' | 'terminal';
+	view?: 'files' | 'browser' | 'terminal' | null;
 	selected_file_id?: string | null;
-	open?: boolean;
+	open?: boolean | null;
 };
 
 export type WorkspaceFile = {
@@ -24,6 +24,10 @@ export type WorkspaceListing = {
 	next_cursor: string | null;
 	total: number;
 };
+
+export type WorkspaceListingResult =
+	| { kind: 'listing'; listing: WorkspaceListing; etag: string | null }
+	| { kind: 'not_modified'; etag: string };
 
 // This flag is served only in the authenticated config payload.
 export const workspaceFilesEnabled = (config: unknown): boolean =>
@@ -96,14 +100,26 @@ const validWorkspaceFile = (file: WorkspaceFile): boolean =>
 export const listWorkspaceFiles = async (
 	baseUrl: string,
 	chatId: string,
-	cursor?: string
-): Promise<WorkspaceListing> => {
+	cursor?: string,
+	options: { etag?: string; signal?: AbortSignal } = {}
+): Promise<WorkspaceListingResult> => {
 	const url = `${workspaceBase(baseUrl)}/api/outputs/${encodeURIComponent(chatId)}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`;
 	let response: Response;
 	try {
-		response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+		response = await fetch(url, {
+			credentials: 'same-origin',
+			cache: 'no-store',
+			signal: options.signal,
+			...(options.etag && !cursor ? { headers: { 'If-None-Match': options.etag } } : {})
+		});
 	} catch {
 		throw new WorkspaceRequestError(0, 'request_failed');
+	}
+	if (response.status === 304) {
+		const etag = response.headers.get('ETag');
+		if (!options.etag || !etag || etag !== options.etag || cursor)
+			throw new WorkspaceRequestError(304, 'invalid_response');
+		return { kind: 'not_modified', etag };
 	}
 	if (!response.ok) throw new WorkspaceRequestError(response.status, 'request_failed');
 	let body: WorkspaceListing;
@@ -119,7 +135,7 @@ export const listWorkspaceFiles = async (
 			throw new WorkspaceRequestError(response.status, 'invalid_response');
 		workspaceFileUrl(baseUrl, chatId, file);
 	}
-	return body;
+	return { kind: 'listing', listing: body, etag: response.headers.get('ETag') };
 };
 
 export class WorkspaceRequestError extends Error {
@@ -151,7 +167,8 @@ const requestWorkspace = async (
 	chatId: string,
 	method: string,
 	suffix = '',
-	body?: object
+	body?: object,
+	signal?: AbortSignal
 ) => {
 	let response: Response;
 	try {
@@ -163,7 +180,8 @@ const requestWorkspace = async (
 				authorization: `Bearer ${token}`,
 				'X-Requested-With': 'ocu-workspace'
 			},
-			...(body !== undefined ? { body: JSON.stringify(body) } : {})
+			...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+			signal
 		});
 	} catch {
 		throw new WorkspaceRequestError(0, 'request_failed');
@@ -189,8 +207,8 @@ const requestWorkspace = async (
 	}
 };
 
-export const getWorkspace = (token: string, chatId: string) =>
-	requestWorkspace(token, chatId, 'GET');
+export const getWorkspace = (token: string, chatId: string, signal?: AbortSignal) =>
+	requestWorkspace(token, chatId, 'GET', '', undefined, signal);
 
 export const launchWorkspace = (token: string, chatId: string) =>
 	requestWorkspace(token, chatId, 'POST', '/launch');

@@ -516,7 +516,23 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await expect(realLink).toBeVisible();
 	await expect(realLink).toHaveAttribute('target', '_blank');
 	const linkBefore = stylesheetSnapshot(linkCss);
-	const [linked] = await Promise.all([browser.waitForEvent('page'), realLink.click()]);
+	const messagePanel = page.getByRole('region', { name: 'Workspace Files' });
+	const beforeClickTabs = browser.pages().length;
+	await realLink.click();
+	await expect(messagePanel).toBeVisible();
+	await expect(messagePanel.getByRole('button', { name: 'page.html' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(page.frameLocator('iframe[title="page.html"]').locator('#proof')).toHaveText(
+		'null|blocked|blocked|blocked'
+	);
+	expect(browser.pages()).toHaveLength(beforeClickTabs);
+	await page.screenshot({ path: `${evidence}/workspace-message-sidebar.png`, fullPage: true });
+	const [linked] = await Promise.all([
+		browser.waitForEvent('page'),
+		realLink.click({ modifiers: ['ControlOrMeta'] })
+	]);
 	fileNetwork.active = linked;
 	await linked.bringToFront();
 	const linkedObs = popupObservations.get(linked);
@@ -549,7 +565,20 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	const svgLink = page.getByRole('link', { name: 'Open scripted SVG' });
 	await expect(svgLink).toBeVisible();
 	await expect(svgLink).toHaveAttribute('target', '_blank');
-	const [linkedSvg] = await Promise.all([browser.waitForEvent('page'), svgLink.click()]);
+	fileNetwork.active = page;
+	await svgLink.click();
+	await expect(messagePanel.getByRole('button', { name: 'diagram.svg' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(page.frameLocator('iframe[title="diagram.svg"]').locator('#proof')).toHaveText(
+		'null|blocked|blocked|blocked'
+	);
+	expect(browser.pages()).toHaveLength(beforeClickTabs);
+	const [linkedSvg] = await Promise.all([
+		browser.waitForEvent('page'),
+		svgLink.click({ modifiers: ['ControlOrMeta'] })
+	]);
 	fileNetwork.active = linkedSvg;
 	await linkedSvg.bringToFront();
 	await expect

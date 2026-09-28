@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	getWorkspace,
+	listWorkspaceFiles,
 	launchWorkspace,
 	putWorkspacePrefs,
 	refreshWorkspace,
@@ -96,6 +97,69 @@ describe('ocu workspace client', () => {
 			status: 200,
 			reason: 'invalid_response',
 			message: 'invalid_response'
+		});
+	});
+	it('uses an explicit ETag for an accepted listing and safely distinguishes 304 from empty', async () => {
+		const listing = {
+			chat_id: 'chat-1',
+			revision: 7,
+			total: 1,
+			next_cursor: null,
+			files: [
+				{
+					file_id: 'f1',
+					path: 'page.html',
+					name: 'page.html',
+					url: '/ocu/files/chat-1/page.html',
+					type: 'html',
+					mime: 'text/html',
+					revision: 7,
+					size: 10
+				}
+			]
+		};
+		const requests: RequestInit[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+				requests.push(init ?? {});
+				return requests.length === 1
+					? new Response(JSON.stringify(listing), { headers: { ETag: 'W/"revision-seven"' } })
+					: new Response(null, { status: 304, headers: { ETag: 'W/"revision-seven"' } });
+			})
+		);
+		expect(await listWorkspaceFiles('/ocu', 'chat-1')).toEqual({
+			kind: 'listing',
+			listing,
+			etag: 'W/"revision-seven"'
+		});
+		expect(
+			await listWorkspaceFiles('/ocu', 'chat-1', undefined, { etag: 'W/"revision-seven"' })
+		).toEqual({
+			kind: 'not_modified',
+			etag: 'W/"revision-seven"'
+		});
+		expect(new Headers(requests[0].headers).has('If-None-Match')).toBe(false);
+		expect(new Headers(requests[1].headers).get('If-None-Match')).toBe('W/"revision-seven"');
+		expect(requests[1]).toMatchObject({ credentials: 'same-origin', cache: 'no-store' });
+	});
+
+	it('rejects an unqualified or mismatched 304 instead of accepting an empty listing', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi
+				.fn()
+				.mockResolvedValue(new Response(null, { status: 304, headers: { ETag: 'W/"unknown"' } }))
+		);
+		await expect(listWorkspaceFiles('/ocu', 'chat-1')).rejects.toMatchObject({
+			status: 304,
+			reason: 'invalid_response'
+		});
+		await expect(
+			listWorkspaceFiles('/ocu', 'chat-1', undefined, { etag: 'W/"known"' })
+		).rejects.toMatchObject({
+			status: 304,
+			reason: 'invalid_response'
 		});
 	});
 });

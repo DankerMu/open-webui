@@ -271,7 +271,7 @@ baseline:
     size_violations: 75      # files > 800 lines (src + backend, exemptions excluded)
     complexity_violations: 110   # functions with ruff C901 > 15 in backend
     lint_errors: 2594        # ruff check backend with current pyproject config
-    typecheck_errors: 7778   # svelte-check --output machine, repo-wide; CI-compared ceiling via scripts/typecheck-ratchet.sh
+    typecheck_errors: 7777   # svelte-check --output machine, repo-wide; CI-compared ceiling via scripts/typecheck-ratchet.sh
     eslint_repo_wide: "crashes"  # upstream @typescript-eslint crash on src/lib/components/chat/AskUserCard.svelte; eslint is per-file scoped only
     coverage_gap: 80         # backend line coverage 0% vs 80% gate
     duplicate_code: 0        # jscpd not run on upstream — unknown, not measured

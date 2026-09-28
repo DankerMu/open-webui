@@ -2,7 +2,7 @@
 	import { v4 as uuidv4 } from 'uuid';
 	import { toast } from 'svelte-sonner';
 
-	import { getContext, onDestroy, onMount, tick } from 'svelte';
+	import { getContext, onDestroy, onMount, setContext, tick } from 'svelte';
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -67,7 +67,15 @@
 	import { AudioQueue } from '$lib/utils/audio';
 	import { createTemporaryChatId, isTemporaryChatId } from '$lib/utils/chatId';
 	import { applyResponseStreamEvent, getOutputText } from './Messages/structuredOutput';
-	import { createWorkspaceChatPersistence, persistWebUIChat } from './workspace-chat-persistence';
+	import {
+		bindWorkspaceChatPersistence,
+		createWorkspaceChatPersistence
+	} from './workspace-chat-persistence';
+	import { workspaceFilesEnabled } from '$lib/apis/ocu';
+	import {
+		createWorkspaceReconciliation,
+		WORKSPACE_RECONCILIATION
+	} from './workspace-reconciliation';
 
 	import {
 		archiveChatById,
@@ -146,6 +154,15 @@
 	let loading = true;
 	const workspaceChat = createWorkspaceChatPersistence();
 	const firstSendPending = workspaceChat.firstSendPending;
+	$: workspaceEnabled = workspaceFilesEnabled($config) && !$temporaryChatEnabled && !embedded;
+	const workspaceReconciliation = createWorkspaceReconciliation({
+		token: () => localStorage.token,
+		translate: (key, values) => $i18n.t(key, values),
+		available: () => workspaceEnabled
+	});
+	setContext(WORKSPACE_RECONCILIATION, workspaceReconciliation);
+	const delegateWorkspaceLinks = workspaceReconciliation.delegateLinks;
+	$: workspaceReconciliation.observe($chatId, workspaceEnabled);
 	$: workspaceChat.observeTemporary($temporaryChatEnabled);
 	$: chatContainerId = embedded ? 'note-chat-container' : 'chat-container';
 	$: messageInputDropzoneId = embedded ? 'note-chat-input-dropzone' : 'chat-pane';
@@ -802,6 +819,7 @@
 
 	const navigateHandler = async () => {
 		workspaceChat.retire();
+		workspaceReconciliation.retire();
 		noteChatDebug('navigateHandler start');
 		// Mark the outgoing chat as read before loading the new one.
 		// $chatId still holds the previous chat here — loadChat() updates it.
@@ -1198,6 +1216,7 @@
 
 	const chatEventHandler = async (event, cb) => {
 		console.log(event);
+		if (workspaceReconciliation.acceptHint(event)) return;
 
 		if (event.chat_id === $chatId) {
 			await tick();
@@ -1520,6 +1539,7 @@
 		if (!$chatId || $temporaryChatEnabled) {
 			return;
 		}
+		workspaceReconciliation.reconnect();
 
 		if (!hasPendingAssistantLeaf()) {
 			return;
@@ -1540,6 +1560,7 @@
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
 		$socket?.on('connect', handleSocketConnect);
+		const stopWorkspaceReconciliation = workspaceReconciliation.mount();
 
 		$audioQueue?.destroy();
 
@@ -1614,6 +1635,7 @@
 
 		return () => {
 			workspaceChat.retire();
+			stopWorkspaceReconciliation();
 			try {
 				clearTimeout(saveControlsTimer);
 				saveControls();
@@ -1998,6 +2020,7 @@
 
 	const initNewChat = async () => {
 		workspaceChat.retire();
+		workspaceReconciliation.retire();
 		console.log('initNewChat');
 		resetWebSearchConfirmation();
 
@@ -2664,7 +2687,7 @@
 				scrollToBottom();
 			}
 
-			await persistGeneratedMessages(messages.length !== 0);
+			await boundWorkspaceChat.persistGeneratedMessages(messages.length !== 0);
 		}
 	};
 
@@ -2724,7 +2747,7 @@
 			scrollToBottom();
 		}
 
-		await persistGeneratedMessages(messages.length !== 0);
+		await boundWorkspaceChat.persistGeneratedMessages(messages.length !== 0);
 	};
 
 	const responseCompletionEventHandler = (data, message) => {
@@ -3932,40 +3955,17 @@
 		}
 	};
 
-	const initChatHandler = (snapshot, canAdopt: () => boolean = () => true) =>
-		persistWebUIChat({
-			snapshot,
-			sourceId: $chatId,
-			embedded,
-			title: $i18n.t('New Chat'),
-			models: selectedModels,
-			params,
-			variables: chatVariables,
-			isCurrent: workspaceChat.guard(
-				() => $chatId,
-				() => !!$temporaryChatEnabled,
-				canAdopt
-			),
-			onCreated: (created) => (chat = created)
-		});
-
-	const persistGeneratedMessages = async (hasExistingMessages: boolean) => {
-		if (hasExistingMessages) return saveChatHandler($chatId, history);
-		return workspaceChat.persistSiblingMessages({
-			activeHistory: () => history,
-			create: () => initChatHandler(history),
-			update: (id) => saveChatHandler(id, history)
-		});
-	};
-
-	const ensureSavedChat = () =>
-		workspaceChat.ensureSavedWebUIChat({
-			embedded,
-			history,
-			chatIdProp,
-			active: () => ({ history, chatIdProp }),
-			save: initChatHandler
-		});
+	const boundWorkspaceChat = bindWorkspaceChatPersistence(workspaceChat, {
+		history: () => history,
+		chatIdProp: () => chatIdProp,
+		embedded: () => embedded,
+		title: () => $i18n.t('New Chat'),
+		models: () => selectedModels,
+		params: () => params,
+		variables: () => chatVariables,
+		onCreated: (created) => (chat = created),
+		saveExisting: (id, current) => saveChatHandler(id, current)
+	});
 
 	const saveChatHandler = async (_chatId, history) => {
 		if ($chatId == _chatId) {
@@ -4373,6 +4373,7 @@
 										messagesContainerElement.clientHeight + 5;
 									isNearTop = messagesContainerElement.scrollTop <= 100;
 								}}
+								use:delegateWorkspaceLinks={$chatId}
 							>
 								<div class=" h-full w-full flex flex-col">
 									<Messages
@@ -4641,7 +4642,7 @@
 							return a;
 						}, [])}
 						submitPrompt={submitHandler}
-						{ensureSavedChat}
+						ensureSavedChat={boundWorkspaceChat.ensureSavedChat}
 						firstSendPending={$firstSendPending}
 						{stopResponse}
 						{showMessage}

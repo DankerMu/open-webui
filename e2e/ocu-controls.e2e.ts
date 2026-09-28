@@ -1,13 +1,6 @@
 import { expect, type Page } from '@playwright/test';
-import * as fs from 'node:fs';
 import { openAuthenticatedPage, test } from './ocu-auth';
-
-const contextFile = process.env.OCU_E2E_CONTEXT;
-if (!contextFile) throw new Error('OCU_E2E_CONTEXT is required; run make verify-ui-ocu');
-const context: { origin: string; chats: Record<string, string>; fixtures: string; record: string } =
-	JSON.parse(fs.readFileSync(contextFile, 'utf8'));
-const evidence = '.run/ui-evidence';
-fs.mkdirSync(evidence, { recursive: true });
+import { context, createScenarioChat, evidence, records, setScenario } from './ocu-fixtures';
 
 const completionModelTests = new Set([
 	'A-T07 Send-first holds Workspace disabled until an authenticated server id arrives',
@@ -121,55 +114,6 @@ async function openWorkspace(page: Page, chatId: string) {
 	}
 	await expect(panel).toBeVisible();
 	return panel;
-}
-
-function records() {
-	return fs
-		.readFileSync(context.record, 'utf8')
-		.split('\n')
-		.filter(Boolean)
-		.map((line) => JSON.parse(line));
-}
-
-function setScenario(chatId: string, scenario: string) {
-	const rows = JSON.parse(fs.readFileSync(context.fixtures, 'utf8'));
-	rows[chatId] = scenario;
-	const staged = `${context.fixtures}.controls`;
-	fs.writeFileSync(staged, JSON.stringify(rows));
-	fs.renameSync(staged, context.fixtures);
-}
-
-async function createScenarioChat(
-	page: Page,
-	scenario: string,
-	nativeArtifact = false
-): Promise<string> {
-	const token = await page.evaluate(() => localStorage.token);
-	const message = {
-		id: 'fixture-artifact',
-		role: 'assistant',
-		content:
-			'```svg\n<svg xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="5"/></svg>\n```',
-		parentId: null,
-		childrenIds: [],
-		timestamp: 1
-	};
-	const response = await page.request.post('/api/v1/chats/new', {
-		headers: { Authorization: `Bearer ${token}` },
-		data: {
-			chat: {
-				title: 'Workspace controls fixture',
-				history: nativeArtifact
-					? { messages: { [message.id]: message }, currentId: message.id }
-					: { messages: {}, currentId: null }
-			}
-		}
-	});
-	expect(response.ok()).toBe(true);
-	const created = await response.json();
-	expect(created.id).toBeTruthy();
-	setScenario(created.id, scenario);
-	return created.id;
 }
 
 async function prepareCompletionBoundary(page: Page) {

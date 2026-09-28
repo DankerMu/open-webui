@@ -210,6 +210,13 @@ def _outputs(chat_id: str, query: dict | None = None) -> dict:
     }
 
 
+def _listing_etag(body: dict, query: dict) -> str:
+    representation = {key: value for key, value in body.items() if key != 'timestamp'}
+    representation['limit'] = int(query.get('limit', ['100'])[0])
+    digest = hashlib.sha256(json.dumps(representation, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return f'W/"{digest}"'
+
+
 def _file_headers(name: str, query: dict) -> dict[str, str]:
     extra: dict[str, str] = {
         'Content-Security-Policy': WEAK_CSP,
@@ -377,7 +384,13 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def _outputs_route(self, match: re.Match[str], query: dict) -> None:
         try:
-            self._json(200, _outputs(match.group(1), query))
+            body = _outputs(match.group(1), query)
+            etag = _listing_etag(body, query)
+            headers = {'ETag': etag, 'Cache-Control': 'no-cache, no-store, must-revalidate'}
+            if self.headers.get('If-None-Match') == etag:
+                self._write(304, b'', 'application/json; charset=utf-8', headers)
+            else:
+                self._write(200, json.dumps(body).encode(), 'application/json; charset=utf-8', headers)
         except ValueError:
             self._json(503, {'reason': 'listing_incomplete'})
 
