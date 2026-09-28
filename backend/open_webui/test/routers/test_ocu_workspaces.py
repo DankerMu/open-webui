@@ -17,6 +17,7 @@ from open_webui.test.ocu_harness import (
     _session_headers,
     _unique,
     get_client,
+    session_test_client,
 )
 
 WORKSPACE_PREFIX = '/api/v1/ocu/workspaces'
@@ -354,6 +355,161 @@ def test_describe_advances_cursor_to_broker_revision_when_stopped(monkeypatch):
         status='stopped',
         revision=7,
     )
+
+
+@pytest.mark.parametrize(
+    'state,expected_status,revision',
+    [
+        ('running', 'running', 4),
+        ('stopped', 'stopped', 4),
+        ('never_created', 'unavailable', 0),
+    ],
+)
+def test_describe_reads_exact_owner_prefs_after_put_and_replacement(monkeypatch, state, expected_status, revision):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    stub = _install_client(
+        monkeypatch,
+        _StubClient(
+            describe={
+                'state': state,
+                'revision': revision,
+                'views': ['files'] if state != 'never_created' else [],
+                'prefs': {'view': 'terminal', 'selected_file_id': 'upstream', 'open': False},
+            }
+        ),
+    )
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    headers = _session_headers(owner.id)
+    try:
+        # A successful first describe creates only the existing cursor row with empty prefs.
+        assert _describe(chat.id, headers).json()['prefs'] == {}
+        initial = {'view': 'browser', 'selected_file_id': 'local-file', 'open': True}
+        written = _prefs(chat.id, initial, {**headers, **XR})
+        assert written.status_code == 200
+        assert written.json() == {'prefs': initial}
+        with session_test_client() as independent:
+            described = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=headers)
+            assert described.status_code == 200
+            body = described.json()
+            assert body['status'] == expected_status
+            assert body['revision'] == revision
+            assert body['prefs'] == initial
+            assert 'selected_file_id' not in body
+
+            latest = {'selected_file_id': None, 'open': False}
+            replaced = _prefs(chat.id, latest, {**headers, **XR})
+            assert replaced.status_code == 200
+            assert replaced.json() == {'prefs': latest}
+            refreshed = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=headers)
+            assert refreshed.status_code == 200
+            assert refreshed.json()['prefs'] == latest
+        stored = asyncio.run(OcuChatStates.get(chat.id))
+        assert stored is not None
+        assert stored.prefs == latest
+        assert stored.last_seen_revision == revision
+        assert stub.calls == [('describe', chat.id)] * 3
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+def test_describe_uses_newest_db_prefs_not_process_local_or_ocu_cache(monkeypatch):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+
+    _install_client(
+        monkeypatch,
+        _StubClient(
+            describe={
+                'state': 'running',
+                'revision': 3,
+                'views': ['files'],
+                'prefs': {'view': 'browser', 'selected_file_id': 'ocu-file'},
+            }
+        ),
+    )
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    headers = _session_headers(owner.id)
+    try:
+        assert _prefs(chat.id, {'view': 'files', 'selected_file_id': 'initial'}, {**headers, **XR}).status_code == 200
+        with session_test_client() as independent:
+            assert independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=headers).json()['prefs'] == {
+                'view': 'files',
+                'selected_file_id': 'initial',
+            }
+            newest = {'view': 'terminal', 'selected_file_id': None}
+            asyncio.run(OcuChatStates.upsert_prefs(chat.id, newest))
+            response = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=headers)
+            assert response.status_code == 200
+            assert response.json()['prefs'] == newest
+        assert asyncio.run(OcuChatStates.get(chat.id)).prefs == newest
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+def test_unreachable_describe_returns_stored_prefs_without_creating_an_empty_row(monkeypatch):
+    from open_webui.models.ocu_chat_state import OcuChatStates
+    from open_webui.utils.ocu_client import OcuUnreachable
+
+    stub = _install_client(monkeypatch, _StubClient(describe_error=OcuUnreachable('down')))
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    empty = asyncio.run(_insert_chat(owner.id))
+    try:
+        headers = _session_headers(owner.id)
+        selected = {'view': 'terminal', 'selected_file_id': None}
+        assert _prefs(chat.id, selected, {**headers, **XR}).status_code == 200
+        asyncio.run(OcuChatStates.advance_cursor(chat.id, 5))
+        before = asyncio.run(OcuChatStates.get(chat.id))
+        with session_test_client() as independent:
+            saved = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=headers)
+            absent = independent.get(f'{WORKSPACE_PREFIX}/{empty.id}', headers=headers)
+        assert saved.status_code == absent.status_code == 200
+        assert saved.json()['prefs'] == selected
+        assert saved.json()['revision'] == 5
+        assert saved.json()['status'] == 'unavailable'
+        assert saved.json()['reason'] == 'ocu_unreachable'
+        assert saved.json()['views'] == []
+        assert absent.json()['prefs'] == {}
+        assert absent.json()['revision'] == 0
+        assert asyncio.run(OcuChatStates.get(empty.id)) is None
+        after = asyncio.run(OcuChatStates.get(chat.id))
+        assert (after.last_seen_revision, after.prefs) == (before.last_seen_revision, before.prefs)
+        assert stub.calls == [('describe', chat.id), ('describe', empty.id)]
+    finally:
+        asyncio.run(_delete_chat(empty.id))
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+def test_describe_failure_and_denied_callers_never_expose_stored_prefs(monkeypatch):
+    import open_webui.routers.ocu_workspaces as ocu_workspaces
+    from open_webui.models.ocu_chat_state import OcuChatStates
+    from open_webui.utils.ocu_client import OcuUpstreamError
+
+    stub = _install_client(monkeypatch, _StubClient(describe_error=OcuUpstreamError(500)))
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    foreign = asyncio.run(_insert_user(role='user', prefix='ws-prefs-foreign'))
+    secret = {'view': 'terminal', 'selected_file_id': 'private-file', 'open': True}
+    try:
+        assert _prefs(chat.id, secret, {**_session_headers(owner.id), **XR}).status_code == 200
+        asyncio.run(OcuChatStates.advance_cursor(chat.id, 7))
+        before = asyncio.run(OcuChatStates.get(chat.id))
+        with session_test_client() as independent:
+            failed = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=_session_headers(owner.id))
+            denied = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=_session_headers(foreign.id))
+            anonymous = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}')
+            monkeypatch.setattr(ocu_workspaces, 'ENABLE_OCU_WORKSPACE', False)
+            disabled = independent.get(f'{WORKSPACE_PREFIX}/{chat.id}', headers=_session_headers(owner.id))
+        assert failed.status_code == 502
+        assert failed.json() == {'reason': 'ocu_upstream_error'}
+        assert (denied.status_code, anonymous.status_code, disabled.status_code) == (404, 401, 404)
+        for response in (denied, anonymous, disabled):
+            assert 'prefs' not in response.text
+            assert 'private-file' not in response.text
+        after = asyncio.run(OcuChatStates.get(chat.id))
+        assert (after.last_seen_revision, after.prefs) == (before.last_seen_revision, before.prefs)
+        assert stub.calls == [('describe', chat.id)]
+    finally:
+        asyncio.run(_delete_user(foreign.id))
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
 
 
 def test_prefs_owner_200(monkeypatch):
