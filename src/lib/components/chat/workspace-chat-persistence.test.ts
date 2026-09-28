@@ -1,11 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { createWorkspaceChatPersistence, persistInitialChat } from './workspace-chat-persistence';
-import { settings } from '$lib/stores';
+import { chatId, settings, temporaryChatEnabled } from '$lib/stores';
 
 const previousSettings = get(settings);
-beforeEach(() => settings.set({ autoFollowUps: false }));
-afterEach(() => settings.set(previousSettings));
+const previousChatId = get(chatId);
+const previousTemporary = get(temporaryChatEnabled);
+beforeEach(() => {
+	settings.set({ autoFollowUps: false });
+	chatId.set('');
+	temporaryChatEnabled.set(false);
+});
+afterEach(() => {
+	settings.set(previousSettings);
+	chatId.set(previousChatId);
+	temporaryChatEnabled.set(previousTemporary);
+});
 
 describe('workspace chat persistence boundary', () => {
 	it('shares an unsaved persistence while blocking first Send until the same server id is adopted', async () => {
@@ -211,4 +221,135 @@ describe('workspace chat persistence boundary', () => {
 			)
 		).not.toHaveProperty('title_generation');
 	});
+	it('settles a rejecting sibling-owned create for concurrent Workspace and Send consumers', async () => {
+		const owner = createWorkspaceChatPersistence();
+		const history = {};
+		let failCreate: (error: Error) => void = () => {};
+		let creates = 0;
+		let workspaceCreates = 0;
+		const sibling = owner.persistSiblingMessages({
+			activeHistory: () => history,
+			create: () => {
+				creates++;
+				return new Promise<string>((_resolve, reject) => {
+					failCreate = reject;
+				});
+			},
+			update: async () => {
+				throw new Error('A failed create cannot update a chat');
+			}
+		});
+		const workspace = owner.ensureSavedChat({
+			chatId: null,
+			enabled: true,
+			temporary: false,
+			embedded: false,
+			isCurrent: () => true,
+			wasEmpty: false,
+			save: async () => {
+				workspaceCreates++;
+				return 'duplicate';
+			}
+		});
+		const send = owner.beginSend(
+			() => get(chatId),
+			() => get(temporaryChatEnabled),
+			false,
+			history,
+			() => history
+		);
+		await vi.waitFor(() => expect(creates).toBe(1));
+		failCreate(new Error('backend create failed'));
+		const outcomes = await Promise.allSettled([sibling, workspace, Promise.resolve(send)]);
+		expect(outcomes[0]).toMatchObject({ status: 'fulfilled', value: null });
+		expect(outcomes[1]).toMatchObject({ status: 'fulfilled', value: null });
+		expect(outcomes[2]).toMatchObject({ status: 'fulfilled', value: { first: true } });
+		expect(workspaceCreates).toBe(0);
+		expect(creates).toBe(1);
+		expect(get(owner.firstSendPending)).toBe(true);
+	});
+
+	it('creates once with current generated history after an earlier Workspace save fails', async () => {
+		const owner = createWorkspaceChatPersistence();
+		const history = {};
+		let finishWorkspace: (id: string | null) => void = () => {};
+		let creates = 0;
+		const workspace = owner.ensureSavedChat({
+			chatId: null,
+			enabled: true,
+			temporary: false,
+			embedded: false,
+			isCurrent: () => true,
+			wasEmpty: true,
+			save: () =>
+				new Promise<string | null>((resolve) => {
+					finishWorkspace = resolve;
+				})
+		});
+		const sibling = owner.persistSiblingMessages({
+			activeHistory: () => history,
+			create: async () => {
+				creates++;
+				chatId.set('new-server-id');
+				return 'new-server-id';
+			},
+			update: async () => {
+				throw new Error('No accepted id exists to update');
+			}
+		});
+		finishWorkspace(null);
+		await expect(workspace).resolves.toBeNull();
+		await expect(sibling).resolves.toBe('new-server-id');
+		expect(creates).toBe(1);
+		expect(get(chatId)).toBe('new-server-id');
+	});
+
+	it.each(['navigation', 'temporary mode'] as const)(
+		'does not retry or adopt a joined obsolete Workspace save after %s',
+		async (transition) => {
+			const owner = createWorkspaceChatPersistence();
+			owner.observeTemporary(false);
+			let history = {};
+			let finishWorkspace: (id: string | null) => void = () => {};
+			let creates = 0;
+			let updates = 0;
+			const workspace = owner.ensureSavedChat({
+				chatId: null,
+				enabled: true,
+				temporary: false,
+				embedded: false,
+				isCurrent: () => true,
+				wasEmpty: true,
+				save: () =>
+					new Promise<string | null>((resolve) => {
+						finishWorkspace = resolve;
+					})
+			});
+			const sibling = owner.persistSiblingMessages({
+				activeHistory: () => history,
+				create: async () => {
+					creates++;
+					return 'wrong-server-id';
+				},
+				update: async () => {
+					updates++;
+				}
+			});
+			if (transition === 'navigation') {
+				history = {};
+				chatId.set('other-chat');
+				owner.retire();
+				finishWorkspace(null);
+			} else {
+				temporaryChatEnabled.set(true);
+				owner.observeTemporary(true);
+				finishWorkspace('old-chat');
+			}
+			const results = await Promise.allSettled([workspace, sibling]);
+			expect(results[1]).toMatchObject({ status: 'fulfilled', value: null });
+			expect(creates).toBe(0);
+			expect(updates).toBe(0);
+			expect(get(chatId)).toBe(transition === 'navigation' ? 'other-chat' : '');
+		}
+	);
 });

@@ -151,6 +151,7 @@ export function createWorkspaceChatPersistence() {
 		const candidate = epoch;
 		const promise = Promise.resolve()
 			.then(create)
+			.catch(() => null)
 			.finally(() => {
 				if (pending?.promise === promise) pending = null;
 			});
