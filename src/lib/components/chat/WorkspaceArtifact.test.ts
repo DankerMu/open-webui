@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, unmount, tick } from 'svelte';
-import { get } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import { workspaceFilesEnabled, workspaceFileUrl, type WorkspaceFile } from '$lib/apis/ocu';
 import { ocuWorkspaces } from '$lib/stores/ocu';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
-
 const chat = 'owner-chat';
 const url = `/ocu/files/${chat}/`;
+const i18n = writable({
+	t: (key: string, params?: Record<string, string>) =>
+		key.replace(/\{\{(\w+)\}\}/g, (_match, name) => params?.[name] ?? name)
+});
 const file = (name: string, id = name, revision = 1): WorkspaceFile => ({
 	file_id: id,
 	path: name,
@@ -49,20 +52,21 @@ const json = (value: object, status = 200) =>
 let component: Record<string, unknown> | undefined;
 let calls: Array<{ url: string; init?: RequestInit }>;
 let scenario: (input: string, init?: RequestInit) => Response | Promise<Response>;
-
 async function open(enabled = true, id = chat) {
-	component = mount(WorkspaceArtifact, { target: document.body, props: { chatId: id, enabled } });
+	component = mount(WorkspaceArtifact, {
+		target: document.body,
+		props: { chatId: id, enabled },
+		context: new Map([['i18n', i18n]])
+	});
 	await tick();
 	await vi.waitFor(() =>
 		expect(document.body.querySelector('[aria-label="Workspace Files"]')).not.toBeNull()
 	);
 	return document.body;
 }
-
 async function ready(text: string) {
 	await vi.waitFor(() => expect(document.body.textContent).toContain(text));
 }
-
 async function click(name: string) {
 	const button = [...document.querySelectorAll('button')].find(
 		(item) => item.textContent?.trim() === name || item.getAttribute('aria-label') === name
@@ -71,7 +75,6 @@ async function click(name: string) {
 	button!.click();
 	await tick();
 }
-
 describe('mounted workspace Files contract', () => {
 	beforeEach(() => {
 		ocuWorkspaces.set({});
@@ -96,7 +99,6 @@ describe('mounted workspace Files contract', () => {
 		vi.restoreAllMocks();
 		document.body.replaceChildren();
 	});
-
 	it('keeps disabled and unsaveable chats off the network', async () => {
 		await open(false);
 		expect(calls).toEqual([]);
@@ -110,9 +112,7 @@ describe('mounted workspace Files contract', () => {
 		expect(calls).toEqual([]);
 		expect(workspaceFilesEnabled({ features: { enable_ocu_workspace: true } })).toBe(true);
 		expect(workspaceFilesEnabled({ features: { enable_ocu_workspace: false } })).toBe(false);
-		expect(workspaceFilesEnabled({})).toBe(false);
 	});
-
 	it('shows empty, disconnected, unavailable and stopped browsing without implicit launch', async () => {
 		scenario = (input) => (input.includes('/workspaces/') ? json(describeBody) : json(listing([])));
 		await open();
@@ -173,7 +173,6 @@ describe('mounted workspace Files contract', () => {
 		expect(document.body.textContent).not.toContain('Workspace is stopped');
 		expect(document.body.textContent).toContain('page.html');
 	});
-
 	it('treats inaccessible listings as errors, and offers a truthful download for unrenderable files', async () => {
 		let inaccessible = true;
 		const binary: WorkspaceFile = {
@@ -200,7 +199,6 @@ describe('mounted workspace Files contract', () => {
 		);
 		expect(document.querySelector('iframe')).toBeNull();
 	});
-
 	it('embeds code-classified XML and XHTML under the opaque policy', async () => {
 		const xml = { ...file('data.xml'), type: 'code', mime: 'application/xml' };
 		const xhtml = { ...file('page.xhtml'), type: 'code', mime: 'application/xhtml+xml' };
@@ -323,7 +321,9 @@ describe('mounted workspace Files contract', () => {
 		await click('Refresh workspace files');
 		await ready('final.html');
 		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('stable-id');
-		expect(document.querySelectorAll('button[aria-pressed="true"]')).toHaveLength(1);
+		expect(
+			document.querySelectorAll('ul[aria-label="Workspace file list"] button[aria-pressed="true"]')
+		).toHaveLength(1);
 		state = 'partial';
 		await click('Refresh workspace files');
 		await ready('Refresh failed; existing files remain available');

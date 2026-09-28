@@ -23,7 +23,7 @@ X-Requested-With: ocu-workspace
 
 HTTP 200
 [Asserts]
-jsonpath "$.ok" == true
+jsonpath "$.sessions" isCollection
 
 GET {{proxy_url}}/ocu/terminal/{{chat_id}}/processes
 Cookie: {{owner_cookie}}

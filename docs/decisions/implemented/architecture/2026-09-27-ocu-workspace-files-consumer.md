@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-27
 supersedes: none
-references: 2026-09-27-ocu-restricted-office-embedding, 2026-09-27-ocu-consumer-failures
+references: 2026-09-27-ocu-restricted-office-embedding, 2026-09-27-ocu-consumer-failures, 2026-09-27-ocu-workspace-controls
 ---
 
 # Chat-owned Files selection with isolated preview surfaces
@@ -16,7 +16,7 @@ The Files sidebar must preserve selected identity across broker pagination and a
 
 ## Decision
 
-The authenticated feature flag gates a saved-chat Files entry. The existing chat-keyed OCU store owns state and serializes preference writes across component mounts. Request generations retire obsolete completions. Only complete coherent enumeration can clear missing selection; failures retain known data and expose retryable state.
+The authenticated feature flag gates Files mounting on a saved chat. Unsaved activation obtains that identity through the workspace-controls persistence contract. The existing chat-keyed OCU store owns state and serializes preference writes across component mounts. Request generations retire obsolete completions. Only complete coherent enumeration can clear missing selection; failures retain known data and expose retryable state.
 
 Generated HTML/SVG/XML uses cookie-path iframe navigation with fixed `allow-scripts allow-forms`. User sandbox preferences cannot widen it. Office uses the existing restricted parent-selection protocol with exact source/origin/chat/file/generation checks and bounded ready/result deadlines. The parent owns download and explicit retry; it never duplicates Office rendering.
 

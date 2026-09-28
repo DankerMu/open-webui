@@ -11,6 +11,9 @@ export type OcuWorkspaceState = {
 	dirty: boolean;
 	view: 'files' | 'browser' | 'terminal';
 	open: boolean;
+	userClosed: boolean;
+	autoOpened: boolean;
+	acknowledgedRevision: number;
 	selectedFileId?: string;
 	files: WorkspaceFile[];
 	nextCursor: string | null;
@@ -59,6 +62,9 @@ const EMPTY_WORKSPACE: OcuWorkspaceState = {
 	views: [],
 	view: 'files',
 	open: false,
+	userClosed: false,
+	autoOpened: false,
+	acknowledgedRevision: 0,
 	files: [],
 	nextCursor: null
 };
@@ -93,10 +99,44 @@ export const selectWorkspaceFile = (chatId: string, fileId: string | undefined) 
 						...current,
 						selectedFileId: fileId,
 						view: fileId ? 'files' : current.view,
-						open: fileId ? true : current.open
+						open: fileId ? true : current.open,
+						userClosed: fileId ? false : current.userClosed,
+						acknowledgedRevision: fileId ? current.revision : current.acknowledgedRevision
 					}
 				}
 			: workspaces;
+	});
+};
+
+export const openWorkspacePanel = (chatId: string) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId] ?? EMPTY_WORKSPACE;
+		return {
+			...workspaces,
+			[chatId]: {
+				...current,
+				open: true,
+				userClosed: false,
+				autoOpened: true,
+				acknowledgedRevision: current.revision
+			}
+		};
+	});
+};
+
+export const closeWorkspacePanel = (chatId: string) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId];
+		return current
+			? { ...workspaces, [chatId]: { ...current, open: false, userClosed: true } }
+			: workspaces;
+	});
+};
+
+export const selectWorkspaceView = (chatId: string, view: OcuWorkspaceState['view']) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId];
+		return current ? { ...workspaces, [chatId]: { ...current, view } } : workspaces;
 	});
 };
 
@@ -110,6 +150,9 @@ export const applyWorkspaceListing = (
 	ocuWorkspaces.update((workspaces) => {
 		const current = workspaces[chatId];
 		if (!current || current.generation !== generation) return workspaces;
+		const acceptedRevision = Math.max(current.revision, revision);
+		const firstOutput = files.length > 0 && !current.autoOpened;
+		const open = current.open || (firstOutput && !current.userClosed);
 		return {
 			...workspaces,
 			[chatId]: {
@@ -117,8 +160,11 @@ export const applyWorkspaceListing = (
 				files,
 				listingRevision: revision,
 				nextCursor,
-				revision: Math.max(current.revision, revision),
-				dirty: false
+				revision: acceptedRevision,
+				dirty: false,
+				open,
+				autoOpened: current.autoOpened || firstOutput,
+				acknowledgedRevision: open ? acceptedRevision : current.acknowledgedRevision
 			}
 		};
 	});
@@ -162,9 +208,14 @@ export const markDirty = (chatId: string) => {
 export const applyRevision = (chatId: string, revision: number) => {
 	ocuWorkspaces.update((workspaces) => {
 		const current = { ...(workspaces[chatId] ?? EMPTY_WORKSPACE) };
+		const acceptedRevision = Math.max(current.revision, revision);
 		return {
 			...workspaces,
-			[chatId]: { ...current, revision: Math.max(current.revision, revision) }
+			[chatId]: {
+				...current,
+				revision: acceptedRevision,
+				acknowledgedRevision: current.open ? acceptedRevision : current.acknowledgedRevision
+			}
 		};
 	});
 };
