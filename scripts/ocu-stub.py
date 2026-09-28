@@ -278,6 +278,7 @@ def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None
     expected = f'Bearer {EXPECTED_TOKEN}' if EXPECTED_TOKEN else ''
     entry = {
         'id': None,
+        'record_type': 'arrival',
         'method': handler.command,
         'target': handler.path,
         'identity': {
@@ -512,7 +513,15 @@ class StubHandler(BaseHTTPRequestHandler):
             b'\x81\x14{"id":0,"result":{}}' if BROWSER_WS_RE.match(urlparse(self.path).path) else b'\x81\x02ok'
         )
         self.wfile.flush()
-        _observe(self, {'ws_event': 'open', 'target': f'/ws-events{self.path}'})
+        _observe(
+            self,
+            {
+                'record_type': 'ws_lifecycle',
+                'ws_event': 'open',
+                'request_target': self.path,
+                'target': f'/ws-events{self.path}',
+            },
+        )
         try:
             while True:
                 frame = _masked_ws_frame(self.rfile)
@@ -535,7 +544,15 @@ class StubHandler(BaseHTTPRequestHandler):
         except OSError:
             return
         finally:
-            _observe(self, {'ws_event': 'close', 'target': f'/ws-events{self.path}'})
+            _observe(
+                self,
+                {
+                    'record_type': 'ws_lifecycle',
+                    'ws_event': 'close',
+                    'request_target': self.path,
+                    'target': f'/ws-events{self.path}',
+                },
+            )
 
     def _read_body(self) -> bytes:
         length = int(self.headers.get('Content-Length', '0') or '0')

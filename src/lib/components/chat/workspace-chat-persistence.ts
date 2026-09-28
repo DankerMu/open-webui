@@ -93,6 +93,27 @@ export function persistWebUIChat(options: {
 	});
 }
 
+type CompletionHistory = {
+	messages: Record<
+		string,
+		{
+			role?: string;
+			parentId?: string | null;
+			done?: boolean;
+			error?: unknown;
+		}
+	>;
+};
+
+const hasSuccessfulAssistant = (history: CompletionHistory) =>
+	Object.values(history.messages).some(
+		(message) => message?.role === 'assistant' && message.done === true && !message.error
+	);
+
+const isEmbeddedFirstMessage = (history: CompletionHistory, responseMessageId: string) =>
+	(history.messages[history.messages[responseMessageId]?.parentId ?? '']?.parentId ?? null) ===
+		null && createMessagesList(history, responseMessageId).length === 2;
+
 export function createWorkspaceChatPersistence() {
 	let epoch = 0;
 	let pending: { epoch: number; promise: Promise<string | null> } | null = null;
@@ -124,6 +145,44 @@ export function createWorkspaceChatPersistence() {
 			current(candidate) && getActiveId() === (id ?? sourceId) && !getTemporary() && canAdopt();
 	};
 	const pendingSave = () => (pending?.epoch === epoch ? pending.promise : null);
+	const ownInitialSave = (create: () => Promise<string | null>): Promise<string | null> => {
+		const active = pendingSave();
+		if (active) return active;
+		const candidate = epoch;
+		const promise = Promise.resolve()
+			.then(create)
+			.finally(() => {
+				if (pending?.promise === promise) pending = null;
+			});
+		pending = { epoch: candidate, promise };
+		return promise;
+	};
+	const persistSiblingMessages = async (options: {
+		activeHistory: () => object;
+		create: () => Promise<string | null>;
+		update: (id: string) => Promise<void>;
+	}) => {
+		const candidate = epoch;
+		const sourceHistory = options.activeHistory();
+		const sourceId = get(chatId);
+		const active = pendingSave();
+		if (!active)
+			return ownInitialSave(() =>
+				candidate === epoch && options.activeHistory() === sourceHistory
+					? options.create()
+					: Promise.resolve(null)
+			);
+		const id = await active;
+		if (
+			candidate !== epoch ||
+			options.activeHistory() !== sourceHistory ||
+			get(temporaryChatEnabled)
+		)
+			return null;
+		if (!id) return get(chatId) === sourceId ? ownInitialSave(options.create) : null;
+		if (get(chatId) === id) await options.update(id);
+		return id;
+	};
 	const startSend = (chatId: string | null, temporary: boolean, embedded: boolean) => {
 		const first = !chatId && !temporary && !embedded;
 		if (first) {
@@ -148,30 +207,26 @@ export function createWorkspaceChatPersistence() {
 		const active = pendingSave();
 		return active ? active.then(() => (canAdopt() ? activate() : null)) : activate();
 	};
-	const finishSend = (candidate: number, chatId: string | null) => {
+	const finishSend = (candidate: number) => {
 		if (firstSendEpoch === candidate) {
 			firstSendEpoch = null;
 			firstSendPending.set(false);
 		}
-		if (chatId === precreatedId) precreatedId = null;
 	};
-	const isPrecreatedFirstMessage = (
+	const generationTasks = (
 		chatId: string | null,
-		parentId: string | null,
-		count: number
-	) => chatId === precreatedId && parentId === null && count === 2;
-	const generationTasks = (options: {
-		chatId: string | null;
-		parentId: string | null;
-		count: number;
-		embedded: boolean;
-	}) => {
+		history: CompletionHistory,
+		responseMessageId: string,
+		embedded: boolean
+	) => {
 		const preference = get(settings);
+		const precreated = !!chatId && chatId === precreatedId;
+		const successfulAssistant = precreated && hasSuccessfulAssistant(history);
+		if (successfulAssistant) precreatedId = null;
+		const embeddedFirst = embedded && isEmbeddedFirstMessage(history, responseMessageId);
 		return {
 			...(!get(temporaryChatEnabled) &&
-			(!options.chatId ||
-				isPrecreatedFirstMessage(options.chatId, options.parentId, options.count) ||
-				(options.embedded && options.parentId === null && options.count === 2))
+			(!chatId || (precreated && !successfulAssistant) || embeddedFirst)
 				? {
 						title_generation: preference?.title?.auto ?? true,
 						tags_generation: preference?.autoTags ?? true
@@ -253,6 +308,7 @@ export function createWorkspaceChatPersistence() {
 		retire,
 		observeTemporary,
 		beginSend,
+		persistSiblingMessages,
 		finishSend,
 		firstSendPending,
 		generationTasks,

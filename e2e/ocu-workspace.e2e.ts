@@ -1,5 +1,5 @@
-import { test, expect, type BrowserContext, type Page, type Request } from '@playwright/test';
-import { finishOnboarding, signIn } from './ocu-auth';
+import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
+import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 
 declare global {
 	interface Window {
@@ -221,7 +221,7 @@ function setScenario(scenario: string, state: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-	await signIn(page);
+	await openAuthenticatedPage(page);
 });
 
 test.afterEach(async () => {
@@ -360,7 +360,9 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	fileNetworkEvidence = fileNetwork;
 	const normalCss = observeStylesheet(browser, context.chats.normal);
 	const linkCss = observeStylesheet(browser, context.chats.link);
-	const anonymous = await playwright.request.newContext();
+	const anonymous = await playwright.request.newContext({
+		storageState: { cookies: [], origins: [] }
+	});
 	try {
 		for (const proof of [normalCss, linkCss]) {
 			expect((await anonymous.get(proof.url)).status()).toBe(401);

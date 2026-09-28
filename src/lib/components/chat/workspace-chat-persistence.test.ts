@@ -43,24 +43,23 @@ describe('workspace chat persistence boundary', () => {
 		resolveSave('server-id');
 		await expect(first).resolves.toBe('server-id');
 		await expect(second).resolves.toBe('server-id');
-		expect(
-			owner.generationTasks({
-				chatId: 'server-id',
-				parentId: null,
-				count: 2,
-				embedded: false
-			})
-		).toEqual({ title_generation: true, tags_generation: true, follow_up_generation: false });
+		expect(owner.generationTasks('server-id', { messages: {} }, 'first', false)).toEqual({
+			title_generation: true,
+			tags_generation: true,
+			follow_up_generation: false
+		});
 		const send = await pendingSend;
 		expect(send?.first).toBe(false);
-		owner.finishSend(send!.epoch, 'server-id');
+		owner.finishSend(send!.epoch);
 		expect(
-			owner.generationTasks({
-				chatId: 'server-id',
-				parentId: null,
-				count: 2,
-				embedded: false
-			})
+			owner.generationTasks(
+				'server-id',
+				{
+					messages: { first: { role: 'assistant', done: true } }
+				},
+				'first',
+				false
+			)
 		).toEqual({ follow_up_generation: false });
 	});
 
@@ -139,7 +138,7 @@ describe('workspace chat persistence boundary', () => {
 		});
 		expect(result).toBeNull();
 		expect(saves).toBe(0);
-		owner.finishSend(send!.epoch, null);
+		owner.finishSend(send!.epoch);
 		expect(get(owner.firstSendPending)).toBe(false);
 	});
 
@@ -159,5 +158,57 @@ describe('workspace chat persistence boundary', () => {
 		const first = await pending;
 		expect(first?.canAdopt()).toBe(false);
 		expect(get(owner.firstSendPending)).toBe(false);
+	});
+	it('keeps first-message generation eligible after an unsuccessful workspace-precreated send', async () => {
+		const owner = createWorkspaceChatPersistence();
+		const id = 'server-chat';
+		await owner.ensureSavedChat({
+			chatId: null,
+			enabled: true,
+			temporary: false,
+			embedded: false,
+			isCurrent: () => true,
+			wasEmpty: true,
+			save: async () => id
+		});
+		const source = {};
+		const attempt = await owner.beginSend(
+			() => id,
+			() => false,
+			false,
+			source,
+			() => source
+		);
+		expect(attempt?.first).toBe(false);
+		expect(owner.generationTasks(id, { messages: {} }, 'first', false)).toMatchObject({
+			title_generation: true,
+			tags_generation: true
+		});
+
+		// The first assistant attempt failed; no completed assistant exists yet.
+		owner.finishSend(attempt!.epoch);
+		const failed = {
+			messages: {
+				first: {
+					role: 'assistant',
+					done: true,
+					error: { content: 'request failed' }
+				}
+			}
+		};
+		expect(owner.generationTasks(id, failed, 'retry', false)).toMatchObject({
+			title_generation: true,
+			tags_generation: true
+		});
+		expect(
+			owner.generationTasks(
+				id,
+				{
+					messages: { first: { role: 'assistant', done: true } }
+				},
+				'retry',
+				false
+			)
+		).not.toHaveProperty('title_generation');
 	});
 });

@@ -1,6 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
-import { signIn } from './ocu-auth';
+import { openAuthenticatedPage, test } from './ocu-auth';
 
 const contextFile = process.env.OCU_E2E_CONTEXT;
 if (!contextFile) throw new Error('OCU_E2E_CONTEXT is required; run make verify-ui-ocu');
@@ -9,7 +9,108 @@ const context: { origin: string; chats: Record<string, string>; fixtures: string
 const evidence = '.run/ui-evidence';
 fs.mkdirSync(evidence, { recursive: true });
 
-test.beforeEach(async ({ page }) => signIn(page));
+const completionModelTests = new Set([
+	'A-T07 Send-first holds Workspace disabled until an authenticated server id arrives',
+	'A-T07 Workspace-first sends through its saved id with first-message title and tags',
+	'A-T07 generated message pair joins an in-flight Workspace save without creating an orphan',
+	'A-T07 Workspace joins an in-flight generated pair save without creating a second chat'
+]);
+
+type Diagnostic = { kind: 'console' | 'pageerror'; text: string; url: string; value?: unknown };
+const consoleObservations = new WeakMap<
+	Page,
+	{
+		diagnostics: Diagnostic[];
+		pending: Promise<void>[];
+		expectedFailedSaves: Set<string>;
+	}
+>();
+
+test.beforeEach(async ({ page }) => {
+	const record = {
+		diagnostics: [] as Diagnostic[],
+		pending: [] as Promise<void>[],
+		expectedFailedSaves: new Set<string>()
+	};
+	consoleObservations.set(page, record);
+	page.on('response', (response) => {
+		if (
+			new URL(response.url()).pathname === '/api/v1/chats/new' &&
+			response.request().method() === 'POST' &&
+			response.status() === 503
+		)
+			record.expectedFailedSaves.add(response.url());
+	});
+	page.on('pageerror', (error) =>
+		record.diagnostics.push({
+			kind: 'pageerror',
+			text: String(error),
+			url: ''
+		})
+	);
+	page.on('console', (message) => {
+		if (message.type() !== 'error') return;
+		const diagnostic: Diagnostic = {
+			kind: 'console',
+			text: message.text(),
+			url: message.location().url
+		};
+		record.diagnostics.push(diagnostic);
+		if (message.args().length)
+			record.pending.push(
+				message
+					.args()[0]
+					.jsonValue()
+					.then((value) => {
+						diagnostic.value = value;
+					})
+					.catch(() => {})
+			);
+	});
+	const withModel = completionModelTests.has(test.info().title);
+	if (withModel)
+		await page.route('**/api/models*', (route) =>
+			route.fulfill({
+				contentType: 'application/json',
+				body: JSON.stringify({
+					data: [
+						{ id: 'fixture-model', name: 'Fixture model', info: { meta: { capabilities: {} } } }
+					]
+				})
+			})
+		);
+	await openAuthenticatedPage(page, withModel ? '/?model=fixture-model' : '/');
+});
+
+test.afterEach(async ({ page }) => {
+	const record = consoleObservations.get(page)!;
+	await Promise.all(record.pending);
+	const expectedSaveFailure =
+		test.info().title ===
+		'A-T07 failed save stays in draft and explicitly retries without workspace requests';
+	const unexpected = record.diagnostics.filter((diagnostic) => {
+		if (
+			!expectedSaveFailure ||
+			diagnostic.kind !== 'console' ||
+			record.expectedFailedSaves.size !== 1
+		)
+			return true;
+		const failedResource =
+			record.expectedFailedSaves.has(diagnostic.url) &&
+			/^Failed to load resource: the server responded with a status of 503(?:\b|\s|\()/.test(
+				diagnostic.text
+			);
+		const reportedFailure =
+			diagnostic.value !== null &&
+			typeof diagnostic.value === 'object' &&
+			!Array.isArray(diagnostic.value) &&
+			Object.keys(diagnostic.value).length === 1 &&
+			'detail' in diagnostic.value &&
+			diagnostic.value.detail === 'unavailable';
+		return !(failedResource || reportedFailure);
+	});
+	expect(unexpected).toEqual([]);
+});
 
 async function openWorkspace(page: Page, chatId: string) {
 	await page.goto(`/c/${chatId}`);
@@ -72,16 +173,70 @@ async function createScenarioChat(
 }
 
 async function prepareCompletionBoundary(page: Page) {
-	await page.route('**/api/models*', (route) =>
-		route.fulfill({
-			contentType: 'application/json',
-			body: JSON.stringify({
-				data: [{ id: 'fixture-model', name: 'Fixture model', info: { meta: { capabilities: {} } } }]
-			})
-		})
-	);
-	await page.goto('/?model=fixture-model');
 	await expect(page.locator('#chat-input')).toBeVisible();
+	await expect(page.locator('#model-selector-model-button')).toHaveAttribute(
+		'aria-label',
+		'Selected model: Fixture model'
+	);
+}
+
+async function gateFirstChatCreation(page: Page) {
+	let count = 0;
+	let id = '';
+	let release = () => {};
+	let notify = () => {};
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const started = new Promise<void>((resolve) => {
+		notify = resolve;
+	});
+	await page.route('**/api/v1/chats/new', async (route) => {
+		count++;
+		if (count > 1) return route.continue();
+		const response = await route.fetch();
+		const chat = await response.json();
+		id = chat.id;
+		setScenario(id, 'normal');
+		notify();
+		await gate;
+		await route.fulfill({ response });
+	});
+	return {
+		started,
+		release: () => release(),
+		get id() {
+			return id;
+		},
+		get count() {
+			return count;
+		}
+	};
+}
+
+async function generatePair(page: Page) {
+	await page.evaluate(async () => {
+		// The Generate Message Pair shortcut dispatches this button's click.
+		document.getElementById('generate-message-pair-button')?.click();
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+		);
+	});
+}
+
+async function expectPersistedPair(page: Page, id: string, token: string) {
+	await expect
+		.poll(
+			async () => {
+				const response = await page.request.get(`/api/v1/chats/${id}`, {
+					headers: { Authorization: `Bearer ${token}` }
+				});
+				const chat = await response.json();
+				return Object.keys(chat.chat?.history?.messages ?? {}).length;
+			},
+			{ timeout: 10_000 }
+		)
+		.toBe(2);
 }
 
 test('A-T07 Send-first holds Workspace disabled until an authenticated server id arrives', async ({
@@ -164,6 +319,51 @@ test('A-T07 Workspace-first sends through its saved id with first-message title 
 	});
 	expect(creates).toBe(0);
 	await page.screenshot({ path: `${evidence}/workspace-first-send.png`, fullPage: true });
+});
+
+test('A-T07 generated message pair joins an in-flight Workspace save without creating an orphan', async ({
+	page
+}) => {
+	await prepareCompletionBoundary(page);
+	const token = await page.evaluate(() => localStorage.token);
+	const gate = await gateFirstChatCreation(page);
+	try {
+		await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
+		await gate.started;
+		await generatePair(page);
+		expect(gate.count).toBe(1);
+		gate.release();
+		await expect(page).toHaveURL(`/c/${gate.id}`);
+		await expectPersistedPair(page, gate.id, token);
+		expect(gate.count).toBe(1);
+		await page.screenshot({ path: `${evidence}/workspace-pair-single-save.png`, fullPage: true });
+	} finally {
+		gate.release();
+	}
+});
+
+test('A-T07 Workspace joins an in-flight generated pair save without creating a second chat', async ({
+	page
+}) => {
+	await prepareCompletionBoundary(page);
+	const token = await page.evaluate(() => localStorage.token);
+	const gate = await gateFirstChatCreation(page);
+	try {
+		await generatePair(page);
+		await gate.started;
+		const action = page.getByRole('button', { name: 'Workspace Files', exact: true });
+		await action.click();
+		await expect(action).toBeDisabled();
+		expect(gate.count).toBe(1);
+		gate.release();
+		await expect(page).toHaveURL(`/c/${gate.id}`);
+		await expect(page.getByRole('region', { name: 'Workspace Files' })).toBeVisible();
+		await expectPersistedPair(page, gate.id, token);
+		expect(gate.count).toBe(1);
+		await page.screenshot({ path: `${evidence}/workspace-pair-first-joined.png`, fullPage: true });
+	} finally {
+		gate.release();
+	}
 });
 
 test('A-T07 failed save stays in draft and explicitly retries without workspace requests', async ({
@@ -293,6 +493,38 @@ test('A-T10 delayed A describe cannot replace B; empty runtime and explicit stop
 	}
 });
 
+test('A-T10 stopped runtime automatically returns to Files and re-arms the selected Office preview', async ({
+	page
+}) => {
+	const id = await createScenarioChat(page, 'valid');
+	const panel = await openWorkspace(page, id);
+	await panel.getByRole('button', { name: 'valid.docx' }).click();
+	const office = page.frameLocator('iframe[title="Office preview: valid.docx"]');
+	await expect(office.getByText('Verified Office document')).toBeVisible({ timeout: 30_000 });
+	let stopped = false;
+	await page.route(`**/api/v1/ocu/workspaces/${id}`, async (route) => {
+		if (!stopped) return route.continue();
+		const response = await route.fetch();
+		const body = await response.json();
+		await route.fulfill({
+			response,
+			json: { ...body, status: 'stopped', views: ['files'] }
+		});
+	});
+	await panel.getByRole('button', { name: 'Browser', exact: true }).click();
+	await expect(panel.locator('iframe[title="Workspace Browser"]')).toBeVisible();
+	stopped = true;
+	await panel.getByRole('button', { name: 'Refresh workspace files' }).click();
+	await expect(panel.getByRole('button', { name: 'Files', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(panel.locator('iframe[title="Workspace Browser"]')).toHaveCount(0);
+	await expect(panel.locator('iframe[title="Office preview: valid.docx"]')).toBeVisible();
+	await expect(office.getByText('Verified Office document')).toBeVisible({ timeout: 8_000 });
+	await page.screenshot({ path: `${evidence}/workspace-office-forced-files.png`, fullPage: true });
+});
+
 test('A-T10 runtime iframe identity, selected Files, native Artifacts, and twenty transport teardowns', async ({
 	page
 }) => {
@@ -380,6 +612,37 @@ test('A-T10 runtime iframe identity, selected Files, native Artifacts, and twent
 		path: `${evidence}/workspace-twenty-runtime-teardowns.png`,
 		fullPage: true
 	});
+});
+
+test('A-T07 narrow Workspace entry stays reachable with Controls closed and in the mobile drawer', async ({
+	page
+}) => {
+	const id = await createScenarioChat(page, 'empty');
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(`/c/${id}`);
+	await expect(page.locator('#chat-input')).toBeVisible();
+	const action = page.getByRole('button', { name: 'Workspace Files', exact: true });
+	const controls = page.locator('button[aria-label="Controls"]');
+	await expect(action).toBeVisible();
+	const chip = await action.boundingBox();
+	const trigger = await controls.boundingBox();
+	expect(chip).not.toBeNull();
+	expect(chip!.x).toBeGreaterThanOrEqual(0);
+	expect(chip!.x + chip!.width).toBeLessThanOrEqual(390);
+	expect(trigger).not.toBeNull();
+	expect(
+		chip!.x >= trigger!.x + trigger!.width ||
+			trigger!.x >= chip!.x + chip!.width ||
+			chip!.y >= trigger!.y + trigger!.height ||
+			trigger!.y >= chip!.y + chip!.height
+	).toBe(true);
+	await page.screenshot({ path: `${evidence}/workspace-narrow-closed.png`, fullPage: true });
+	await controls.click();
+	await expect(action).toBeVisible();
+	await action.click();
+	const panel = page.getByRole('region', { name: 'Workspace Files' });
+	await expect(panel).toBeVisible();
+	await page.screenshot({ path: `${evidence}/workspace-narrow-open.png`, fullPage: true });
 });
 
 test('A-T01 positive control confirms credentials are observable on owner documents', async ({

@@ -44,7 +44,7 @@
 	export let history;
 	export let models = [];
 
-	export let chatId = null;
+	export let chatId: string | null = null;
 	export let chatUser = null;
 
 	export let chatFiles = [];

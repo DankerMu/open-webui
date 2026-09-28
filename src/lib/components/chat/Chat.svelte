@@ -2664,11 +2664,7 @@
 				scrollToBottom();
 			}
 
-			if (messages.length === 0) {
-				await initChatHandler(history);
-			} else {
-				await saveChatHandler($chatId, history);
-			}
+			await persistGeneratedMessages(messages.length !== 0);
 		}
 	};
 
@@ -2728,11 +2724,7 @@
 			scrollToBottom();
 		}
 
-		if (messages.length === 0) {
-			await initChatHandler(history);
-		} else {
-			await saveChatHandler($chatId, history);
-		}
+		await persistGeneratedMessages(messages.length !== 0);
 	};
 
 	const responseCompletionEventHandler = (data, message) => {
@@ -3375,9 +3367,9 @@
 				);
 			} finally {
 				if (chatEventEmitter) clearInterval(chatEventEmitter);
-				workspaceChat.finishSend(sendEpoch, _chatId);
+				workspaceChat.finishSend(sendEpoch);
 			}
-		} else workspaceChat.finishSend(sendEpoch, _chatId);
+		} else workspaceChat.finishSend(sendEpoch);
 	};
 
 	const getFeatures = () => {
@@ -3617,12 +3609,12 @@
 				...(regenerationPrompt ? { regeneration_prompt: regenerationPrompt } : {}),
 				...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
 
-				background_tasks: workspaceChat.generationTasks({
-					chatId: _chatId,
-					parentId: userMessage?.parentId ?? null,
-					count: createMessagesList(_history, responseMessageId).length,
+				background_tasks: workspaceChat.generationTasks(
+					_chatId,
+					_history,
+					responseMessageId,
 					embedded
-				})
+				)
 			},
 			`${WEBUI_BASE_URL}/api`
 		).catch(async (error) => {
@@ -3956,6 +3948,15 @@
 			),
 			onCreated: (created) => (chat = created)
 		});
+
+	const persistGeneratedMessages = async (hasExistingMessages: boolean) => {
+		if (hasExistingMessages) return saveChatHandler($chatId, history);
+		return workspaceChat.persistSiblingMessages({
+			activeHistory: () => history,
+			create: () => initChatHandler(history),
+			update: (id) => saveChatHandler(id, history)
+		});
+	};
 
 	const ensureSavedChat = () =>
 		workspaceChat.ensureSavedWebUIChat({

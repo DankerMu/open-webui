@@ -210,6 +210,11 @@
 		});
 	}
 
+	function returnToFiles() {
+		selectWorkspaceView(chatId, 'files');
+		if (selected && office) void startOffice();
+	}
+
 	function selectView(view: OcuWorkspaceState['view']) {
 		const current = get(ocuWorkspaces)[chatId];
 		if (!live || !current || current.view === view) return;
@@ -219,8 +224,8 @@
 		)
 			return;
 		if (current.view === 'files') retireFrame();
-		selectWorkspaceView(chatId, view);
-		if (view === 'files' && selected && office) void startOffice();
+		if (view === 'files') returnToFiles();
+		else selectWorkspaceView(chatId, view);
 		const generation = activeGeneration;
 		void savePrefs({
 			view,
@@ -369,7 +374,7 @@
 			currentView !== 'files' &&
 			(body.status !== 'running' || body.base_url !== '/ocu' || !body.views.includes(currentView))
 		) {
-			selectWorkspaceView(chatId, 'files');
+			returnToFiles();
 			notice = $i18n.t('Workspace view is unavailable');
 		}
 		if (body.status === 'unavailable') {
