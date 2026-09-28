@@ -11,9 +11,12 @@ import logging
 import mimetypes
 import os
 import re
+import secrets
 import threading
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 from urllib.parse import parse_qs, unquote, urlparse
 
 log = logging.getLogger('ocu-stub')
@@ -153,15 +156,17 @@ def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
 
 def _state_of(chat_id: str) -> str:
     scenario = _scenario(chat_id)
-    if scenario is not None:
-        return 'stopped' if scenario == 'stopped' else 'running'
     with _LOCK:
-        return _states.get(chat_id, 'never_created')
+        state = _states.get(chat_id)
+    if scenario is not None:
+        return 'running' if state == 'running' else 'stopped' if scenario == 'stopped' else 'running'
+    return state or 'never_created'
 
 
 def _launch(chat_id: str) -> tuple[int, dict]:
+    scenario = _scenario(chat_id)
     with _LOCK:
-        if _states.get(chat_id, 'never_created') == 'never_created':
+        if scenario is None and _states.get(chat_id, 'never_created') == 'never_created':
             return 409, {'reason': 'never_created'}
         _states[chat_id] = 'running'
     return 200, {'state': 'running'}
@@ -218,22 +223,40 @@ def _file_headers(name: str, query: dict) -> dict[str, str]:
     return extra
 
 
-def _preview_html(chat_id: str) -> bytes:
+@lru_cache(maxsize=1)
+def _preview_generator():
+    source_path = ASSET_ROOT.parent / 'app.py'
+    definition = next(
+        node
+        for node in ast.parse(source_path.read_text(encoding='utf-8')).body
+        if isinstance(node, ast.FunctionDef) and node.name == '_generate_preview_html'
+    )
+    namespace = {'OCU_PUBLIC_PREFIX': PREFIX, 'json': json, 'Optional': Optional}
+    exec(compile(ast.Module(body=[definition], type_ignores=[]), str(source_path), 'exec'), namespace)
+    return namespace['_generate_preview_html']
+
+
+def _preview_html(chat_id: str, embed: str = '') -> tuple[bytes, dict[str, str]]:
     if ASSET_ROOT.is_dir() and FIXTURE_PATH:
-        source = (ASSET_ROOT.parent / 'app.py').read_text(encoding='utf-8')
-        definition = next(
-            node
-            for node in ast.parse(source).body
-            if isinstance(node, ast.FunctionDef) and node.name == '_generate_preview_html'
-        )
-        namespace = {'OCU_PUBLIC_PREFIX': PREFIX, 'json': json}
-        exec(
-            compile(ast.Module(body=[definition], type_ignores=[]), str(ASSET_ROOT.parent / 'app.py'), 'exec'),
-            namespace,
-        )
-        return namespace['_generate_preview_html'](
-            chat_id, f'{PREFIX}/api/outputs/{chat_id}', f'{PREFIX}/files/{chat_id}'
-        ).encode()
+        nonce = secrets.token_urlsafe(24) if embed in ('browser', 'terminal') else None
+        headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
+        if nonce:
+            headers['Content-Security-Policy'] = (
+                "default-src 'none'; "
+                f"script-src 'self' 'nonce-{nonce}'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; "
+                "font-src 'self' data:; "
+                "connect-src 'self'; "
+                "frame-src 'none'; "
+                "base-uri 'none'; "
+                "object-src 'none'; "
+                "form-action 'none'; "
+                "frame-ancestors 'self'"
+            )
+        return _preview_generator()(
+            chat_id, f'{PREFIX}/api/outputs/{chat_id}', f'{PREFIX}/files/{chat_id}', nonce
+        ).encode(), headers
     return (
         '<!doctype html><html><head>'
         f'<script type="module" src="{PREFIX}/static/preview.js"></script>'
@@ -244,7 +267,7 @@ def _preview_html(chat_id: str) -> bytes:
         f' data-describe-url="/api/v1/ocu/workspaces/{chat_id}"></div>'
         f'<script>fetch("{PREFIX}/terminal/{chat_id}/heartbeat")</script>'
         '</body></html>'
-    ).encode()
+    ).encode(), {'Content-Security-Policy': WEAK_CSP}
 
 
 def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None:
@@ -255,6 +278,7 @@ def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None
     expected = f'Bearer {EXPECTED_TOKEN}' if EXPECTED_TOKEN else ''
     entry = {
         'id': None,
+        'record_type': 'arrival',
         'method': handler.command,
         'target': handler.path,
         'identity': {
@@ -273,6 +297,27 @@ def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None
         fd = os.open(RECORD_PATH, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, 'a', encoding='utf-8') as stream:
             stream.write(json.dumps(entry) + '\n')
+
+
+def _masked_ws_frame(stream) -> tuple[int, bytes] | None:
+    header = stream.read(2)
+    if len(header) != 2:
+        return None
+    opcode, length = header
+    if not length & 0x80:
+        return None
+    size = length & 0x7F
+    if size == 126:
+        size = int.from_bytes(stream.read(2), 'big')
+    elif size == 127:
+        size = int.from_bytes(stream.read(8), 'big')
+    if size > 65536:
+        return None
+    mask = stream.read(4)
+    payload = stream.read(size)
+    if len(mask) != 4 or len(payload) != size:
+        return None
+    return opcode & 0x0F, bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
 
 
 class StubHandler(BaseHTTPRequestHandler):
@@ -387,12 +432,53 @@ class StubHandler(BaseHTTPRequestHandler):
         content_type, body = fixture
         self._write(200, body, content_type, _file_headers(name, query))
 
-    def _preview(self, match: re.Match[str], _query: dict) -> None:
-        extra = {} if FIXTURE_PATH else {'Content-Security-Policy': WEAK_CSP}
-        self._write(200, _preview_html(match.group(1)), 'text/html; charset=utf-8', extra)
+    def _preview(self, match: re.Match[str], query: dict) -> None:
+        modes = query.get('embed', [])
+        html, headers = _preview_html(match.group(1), modes[0] if len(modes) == 1 else '')
+        self._write(200, html, 'text/html; charset=utf-8', headers)
 
     def _heartbeat(self, match: re.Match[str], _query: dict) -> None:
         self._write(200, b'', 'text/plain; charset=utf-8')
+
+    def _browser_status(self, match: re.Match[str], _query: dict) -> None:
+        active = _state_of(match.group(1)) == 'running'
+        self._json(
+            200,
+            {
+                'active': active,
+                'pages': [{'id': 'stub-page', 'title': 'OCU fixture browser', 'url': 'about:blank'}] if active else [],
+            },
+        )
+
+    def _browser_pages(self, match: re.Match[str], _query: dict) -> None:
+        chat_id = match.group(1)
+        self._write(
+            200,
+            json.dumps(
+                [
+                    {
+                        'id': 'stub-page',
+                        'type': 'page',
+                        'title': 'OCU fixture browser',
+                        'url': 'about:blank',
+                        'webSocketDebuggerUrl': f'{PREFIX}/browser/{chat_id}/devtools/page/stub-page',
+                    }
+                ]
+            ).encode(),
+            'application/json; charset=utf-8',
+        )
+
+    def _terminal_status(self, match: re.Match[str], _query: dict) -> None:
+        self._json(200, {'active': _state_of(match.group(1)) == 'running'})
+
+    def _terminal_sessions(self, _match: re.Match[str], _query: dict) -> None:
+        self._json(200, {'sessions': []})
+
+    def _terminal_processes(self, _match: re.Match[str], _query: dict) -> None:
+        self._json(200, {'processes': []})
+
+    def _terminal_action(self, match: re.Match[str], _query: dict) -> None:
+        self._json(200, {'success': True, 'chat': match.group(1)})
 
     def _upload_post(self, match: re.Match[str], _query: dict) -> None:
         self._json(200, {'stored': unquote(match.group(2)), 'chat': match.group(1)})
@@ -411,33 +497,62 @@ class StubHandler(BaseHTTPRequestHandler):
         content_type, body = fixture
         self._write(200, body, content_type)
 
-    def _websocket(self, _match: re.Match[str], _query: dict) -> None:
+    def _websocket(self, match: re.Match[str], _query: dict) -> None:
         key = self.headers.get('Sec-WebSocket-Key', '')
+        self.close_connection = True
         digest = base64.b64encode(hashlib.sha1((key + WS_GUID).encode('ascii')).digest()).decode('ascii')
         self.send_response(101, 'Switching Protocols')
         self.send_header('Upgrade', 'websocket')
         self.send_header('Connection', 'Upgrade')
         self.send_header('Sec-WebSocket-Accept', digest)
+        requested_protocols = self.headers.get('Sec-WebSocket-Protocol', '').split(',')
+        if TERM_WS_RE.match(urlparse(self.path).path) and 'tty' in requested_protocols:
+            self.send_header('Sec-WebSocket-Protocol', 'tty')
         self.end_headers()
-        self.wfile.write(b'\x81\x02ok')
+        self.wfile.write(
+            b'\x81\x14{"id":0,"result":{}}' if BROWSER_WS_RE.match(urlparse(self.path).path) else b'\x81\x02ok'
+        )
         self.wfile.flush()
-        while True:
-            header = self.rfile.read(2)
-            if len(header) != 2:
-                return
-            opcode, size = header
-            if not size & 0x80 or size & 0x7F > 125:
-                return
-            mask = self.rfile.read(4)
-            payload = self.rfile.read(size & 0x7F)
-            decoded = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
-            if opcode & 0x0F == 9:
-                self.wfile.write(bytes((0x8A, len(decoded))) + decoded)
+        _observe(
+            self,
+            {
+                'record_type': 'ws_lifecycle',
+                'ws_event': 'open',
+                'request_target': self.path,
+                'target': f'/ws-events{self.path}',
+            },
+        )
+        try:
+            while True:
+                frame = _masked_ws_frame(self.rfile)
+                if frame is None:
+                    return
+                kind, decoded = frame
+                if kind == 8:
+                    self.wfile.write(b'\x88\x00')
+                    self.wfile.flush()
+                    return
+                if kind == 9:
+                    kind = 10
+                elif kind not in (1, 2):
+                    continue
+                # Preserve proxy smoke's echo, but keep real client sockets alive until teardown.
+                prefix = bytes((0x80 | kind,))
+                length = bytes((len(decoded),)) if len(decoded) < 126 else b'\x7e' + len(decoded).to_bytes(2, 'big')
+                self.wfile.write(prefix + length + decoded)
                 self.wfile.flush()
-                continue
-            self.wfile.write(bytes((0x81, len(decoded))) + decoded)
-            self.wfile.flush()
+        except OSError:
             return
+        finally:
+            _observe(
+                self,
+                {
+                    'record_type': 'ws_lifecycle',
+                    'ws_event': 'close',
+                    'request_target': self.path,
+                    'target': f'/ws-events{self.path}',
+                },
+            )
 
     def _read_body(self) -> bytes:
         length = int(self.headers.get('Content-Length', '0') or '0')
@@ -501,13 +616,13 @@ _ROUTES = (
     ('GET', UPLOAD_GET_RE, StubHandler._uploads_list),
     ('POST', UPLOAD_POST_RE, StubHandler._upload_post),
     ('GET', BROWSER_JSON_VERSION_RE, StubHandler._ok),
-    ('GET', BROWSER_JSON_RE, StubHandler._ok),
-    ('GET', BROWSER_STATUS_RE, StubHandler._ok),
-    ('GET', TERM_STATUS_RE, StubHandler._ok),
+    ('GET', BROWSER_JSON_RE, StubHandler._browser_pages),
+    ('GET', BROWSER_STATUS_RE, StubHandler._browser_status),
+    ('GET', TERM_STATUS_RE, StubHandler._terminal_status),
     ('GET', HEARTBEAT_RE, StubHandler._heartbeat),
-    ('GET', TERM_SESSIONS_RE, StubHandler._ok),
-    ('GET', TERM_PROCESSES_RE, StubHandler._ok),
-    ('POST', TERM_ACTION_RE, StubHandler._ok),
+    ('GET', TERM_SESSIONS_RE, StubHandler._terminal_sessions),
+    ('GET', TERM_PROCESSES_RE, StubHandler._terminal_processes),
+    ('POST', TERM_ACTION_RE, StubHandler._terminal_action),
     ('POST', TERM_KILL_RE, StubHandler._ok),
     ('GET', TERM_WS_RE, StubHandler._ws_without_upgrade),
     ('GET', BROWSER_WS_RE, StubHandler._ws_without_upgrade),

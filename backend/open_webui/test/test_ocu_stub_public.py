@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import socket
 import subprocess
 import time
@@ -90,3 +91,28 @@ def test_internal_describe_still_echoes_authorization(stub_server):
     assert status == 200
     assert headers.get('x-echo-authorization') == 'StubEcho stub-token'
     assert headers.get('x-echo-x-requested-with') == 'ocu-workspace'
+
+
+def test_late_ws_close_does_not_hide_denied_or_unknown_arrivals(tmp_path):
+    support = runpy.run_path(str(ROOT / 'scripts/smoke_proxy_support.py'))
+    observations = support['observations']
+    record = tmp_path / 'arrivals.jsonl'
+    owner = {'record_type': 'arrival', 'method': 'GET', 'target': '/browser/owner/ws'}
+    lifecycle = {
+        'record_type': 'ws_lifecycle',
+        'method': 'GET',
+        'upgrade': 'websocket',
+        'ws_event': 'close',
+        'request_target': '/browser/owner/ws',
+        'target': '/ws-events/browser/owner/ws',
+    }
+    denied = {'record_type': 'arrival', 'method': 'GET', 'target': '/browser/foreign/ws'}
+    unknown = {'record_type': 'future_record', 'method': 'GET', 'target': '/unknown'}
+    record.write_text(''.join(json.dumps(row) + '\n' for row in (owner, lifecycle)))
+    assert observations(record) == [owner]
+    record.write_text(''.join(json.dumps(row) + '\n' for row in (owner, lifecycle, denied, unknown)))
+    assert observations(record) == [owner, denied, unknown]
+    invalid = {**lifecycle, 'ws_event': 'unrecognized'}
+    record.write_text(json.dumps(invalid) + '\n')
+    with pytest.raises(support['Fail']):
+        observations(record)

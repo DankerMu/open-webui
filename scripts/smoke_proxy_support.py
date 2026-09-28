@@ -137,8 +137,23 @@ def observations(path: Path) -> list[dict]:
         return []
     rows = []
     for line in path.read_text(encoding='utf-8').splitlines():
-        if line:
-            rows.append(json.loads(line))
+        if not line:
+            continue
+        row = json.loads(line)
+        if not isinstance(row, dict):
+            fail('invalid upstream observation record')
+        if row.get('record_type') == 'ws_lifecycle':
+            request_target = row.get('request_target')
+            if (
+                row.get('ws_event') not in ('open', 'close')
+                or row.get('method') != 'GET'
+                or str(row.get('upgrade', '')).lower() != 'websocket'
+                or not isinstance(request_target, str)
+                or row.get('target') != f'/ws-events{request_target}'
+            ):
+                fail('invalid websocket lifecycle record')
+            continue
+        rows.append(row)
     return rows
 
 

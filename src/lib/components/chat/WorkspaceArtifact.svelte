@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { getContext, onMount, tick } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import { get } from 'svelte/store';
 	import {
 		getWorkspace,
@@ -8,6 +10,7 @@
 		putWorkspacePrefs,
 		refreshWorkspace,
 		workspaceFileUrl,
+		workspaceRuntimeUrl,
 		WorkspaceRequestError,
 		type WorkspaceFile,
 		type WorkspacePrefs
@@ -21,11 +24,14 @@
 		queueWorkspacePrefs,
 		type OcuWorkspaceState,
 		retireGeneration,
+		selectWorkspaceView,
 		selectWorkspaceFile
 	} from '$lib/stores/ocu';
 
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
+	export let onClose: (() => void) | undefined = undefined;
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let enabled = false;
 	const READY_DEADLINE = 10_000;
@@ -35,6 +41,7 @@
 		'loading';
 	let notice = '';
 	let previewState = '';
+	let previewError = false;
 	let busy = false;
 	let officeFrame: HTMLIFrameElement | undefined;
 	let frameKey = 0;
@@ -55,6 +62,15 @@
 			selected.mime.split(';')[0].trim().toLowerCase()
 		);
 	$: downloadUrl = selectedUrl ? `${selectedUrl}?download=1` : '';
+	$: runtimeView =
+		workspace?.view === 'browser' || workspace?.view === 'terminal' ? workspace.view : null;
+	$: runtimeUrl =
+		runtimeView &&
+		workspace?.status === 'running' &&
+		workspace.baseUrl === '/ocu' &&
+		workspace.views.includes(runtimeView)
+			? workspaceRuntimeUrl(workspace.baseUrl, chatId, runtimeView)
+			: '';
 
 	function retireFrame() {
 		clearTimeout(readyTimer);
@@ -66,19 +82,21 @@
 		officeFrame = undefined;
 	}
 
-	function frameFailure(reason: string) {
+	function frameFailure(message: string) {
 		retireFrame();
-		previewState = reason;
+		previewState = message;
+		previewError = true;
 	}
 
 	async function startOffice() {
 		retireFrame();
-		previewState = 'Connecting Office preview';
+		previewState = $i18n.t('Connecting Office preview');
+		previewError = false;
 		const key = frameKey;
 		await tick();
 		if (!live || !office || !officeFrame || key !== frameKey) return;
 		readyTimer = setTimeout(
-			() => frameFailure('Office preview did not become ready'),
+			() => frameFailure($i18n.t('Office preview did not become ready')),
 			READY_DEADLINE
 		);
 	}
@@ -144,19 +162,33 @@
 			clearTimeout(readyTimer);
 			readyTimer = undefined;
 			const generation = ++requestGeneration;
-			previewState = 'Rendering Office file';
+			previewState = $i18n.t('Rendering Office file');
 			frame.contentWindow.postMessage(
 				{ type: 'ocu:preview-select', chat_id: chatId, file_id: file.file_id, generation },
 				window.location.origin
 			);
-			resultTimer = setTimeout(() => frameFailure('Office preview timed out'), RESULT_DEADLINE);
+			resultTimer = setTimeout(
+				() => frameFailure($i18n.t('Office preview timed out')),
+				RESULT_DEADLINE
+			);
 			return;
 		}
 		if (!matchingOfficeState(data, file) || !resultTimer) return;
 		if (data.state === 'loading') return;
 		clearTimeout(resultTimer);
 		resultTimer = undefined;
-		previewState = data.state === 'ready' ? '' : `Office preview ${data.state}`;
+		previewError = data.state !== 'ready';
+		if (!previewError) {
+			previewState = '';
+			return;
+		}
+		const stateLabel =
+			data.state === 'error'
+				? $i18n.t('error')
+				: data.state === 'missing'
+					? $i18n.t('missing')
+					: $i18n.t('unsupported');
+		previewState = $i18n.t('Office preview {{state}}', { state: stateLabel });
 	}
 
 	function savePrefs(prefs: WorkspacePrefs): Promise<void> {
@@ -169,10 +201,39 @@
 		retireFrame();
 		selectWorkspaceFile(chatId, file.file_id);
 		previewState = '';
+		previewError = false;
 		if (['docx', 'xlsx', 'pptx'].includes(file.type)) void startOffice();
 		const generation = activeGeneration;
 		void savePrefs({ view: 'files', open: true, selected_file_id: file.file_id }).catch(() => {
-			if (live && isCurrentGeneration(chatId, generation)) notice = 'Selection could not be saved';
+			if (live && isCurrentGeneration(chatId, generation))
+				notice = $i18n.t('Selection could not be saved');
+		});
+	}
+
+	function returnToFiles() {
+		selectWorkspaceView(chatId, 'files');
+		if (selected && office) void startOffice();
+	}
+
+	function selectView(view: OcuWorkspaceState['view']) {
+		const current = get(ocuWorkspaces)[chatId];
+		if (!live || !current || current.view === view) return;
+		if (
+			view !== 'files' &&
+			(current.status !== 'running' || current.baseUrl !== '/ocu' || !current.views.includes(view))
+		)
+			return;
+		if (current.view === 'files') retireFrame();
+		if (view === 'files') returnToFiles();
+		else selectWorkspaceView(chatId, view);
+		const generation = activeGeneration;
+		void savePrefs({
+			view,
+			open: true,
+			selected_file_id: current.selectedFileId ?? null
+		}).catch(() => {
+			if (live && isCurrentGeneration(chatId, generation))
+				notice = $i18n.t('Workspace preference could not be saved');
 		});
 	}
 
@@ -235,12 +296,12 @@
 		if (!after && !result.cursor) {
 			retireFrame();
 			selectWorkspaceFile(chatId, undefined);
-			notice = 'Selected file was removed';
+			notice = $i18n.t('Selected file was removed');
 			try {
 				await savePrefs({ view: current.view, open: current.open, selected_file_id: null });
 			} catch {
 				if (live && isCurrentGeneration(chatId, generation))
-					notice = 'Selected file was removed; preference could not be cleared';
+					notice = $i18n.t('Selected file was removed; preference could not be cleared');
 			}
 			return;
 		}
@@ -288,7 +349,7 @@
 			latestSelection &&
 			!result.files.some((file) => file.file_id === latestSelection)
 		) {
-			notice = 'Selection changed during refresh; refresh again';
+			notice = $i18n.t('Selection changed during refresh; refresh again');
 			return;
 		}
 		applyWorkspaceListing(chatId, generation, result.files, result.revision, result.cursor);
@@ -302,10 +363,20 @@
 		if (
 			body.chat_id !== chatId ||
 			!Array.isArray(body.capabilities) ||
+			!Array.isArray(body.views) ||
 			!['running', 'stopped', 'unavailable'].includes(body.status)
 		)
 			throw new WorkspaceRequestError(0, 'invalid_response');
 		applyDescribe(chatId, generation, body);
+		const currentView = get(ocuWorkspaces)[chatId]?.view;
+		if (
+			currentView &&
+			currentView !== 'files' &&
+			(body.status !== 'running' || body.base_url !== '/ocu' || !body.views.includes(currentView))
+		) {
+			returnToFiles();
+			notice = $i18n.t('Workspace view is unavailable');
+		}
 		if (body.status === 'unavailable') {
 			phase = body.reason === 'ocu_unreachable' ? 'disconnected' : 'unavailable';
 			return null;
@@ -331,8 +402,8 @@
 			phase = 'error';
 			notice =
 				error instanceof WorkspaceRequestError
-					? `Workspace ${error.reason}`
-					: 'Workspace request failed';
+					? $i18n.t('Workspace {{reason}}', { reason: error.reason })
+					: $i18n.t('Workspace request failed');
 		} finally {
 			if (live && isCurrentGeneration(chatId, generation)) busy = false;
 		}
@@ -347,7 +418,7 @@
 			await reconcile(generation, true);
 		} catch {
 			if (live && isCurrentGeneration(chatId, generation))
-				notice = 'More files could not be loaded; existing files remain available';
+				notice = $i18n.t('More files could not be loaded; existing files remain available');
 		} finally {
 			if (live && isCurrentGeneration(chatId, generation)) busy = false;
 		}
@@ -368,7 +439,7 @@
 			await reconcile(generation);
 		} catch {
 			if (live && isCurrentGeneration(chatId, generation)) {
-				notice = 'Refresh failed; existing files remain available';
+				notice = $i18n.t('Refresh failed; existing files remain available');
 				if (!get(ocuWorkspaces)[chatId]?.files.length) phase = 'error';
 			}
 		} finally {
@@ -390,80 +461,122 @@
 	});
 </script>
 
-<section class="flex h-full flex-col gap-2 p-3" aria-label="Workspace Files">
+<section class="flex h-full flex-col gap-2 p-3" aria-label={$i18n.t('Workspace Files')}>
 	<header class="flex items-center justify-between">
-		<h2>Workspace Files</h2>
-		<button type="button" on:click={refresh} disabled={busy} aria-label="Refresh workspace files"
-			>Refresh</button
-		>
-	</header>
-	{#if phase === 'loading'}<p role="status">Loading workspace files</p>{/if}
-	{#if phase === 'unavailable'}<p role="status">
-			This workspace is created by the first tool call.
-		</p>{/if}
-	{#if phase === 'disconnected'}<p role="alert">
-			Workspace service is unreachable. <button type="button" on:click={() => load()}
-				>Reconnect</button
+		<h2>{$i18n.t('Workspace Files')}</h2>
+		<div class="flex items-center gap-2">
+			<button
+				type="button"
+				on:click={refresh}
+				disabled={busy}
+				aria-label={$i18n.t('Refresh workspace files')}>{$i18n.t('Refresh')}</button
 			>
-		</p>{/if}
-	{#if phase === 'error'}<p role="alert">
-			Workspace files could not be loaded. <button type="button" on:click={() => load()}
-				>Retry</button
-			>
-		</p>{/if}
-	{#if workspace?.status === 'stopped'}<p role="status">
-			Workspace is stopped; saved files remain available.
-			{#if workspace?.capabilities.includes('launch')}<button
-					type="button"
-					on:click={() => load(true)}>Launch</button
+			{#if onClose}<button type="button" on:click={onClose} aria-label={$i18n.t('Close workspace')}
+					>{$i18n.t('Close')}</button
 				>{/if}
-		</p>{/if}
-	{#if phase === 'empty' || (phase === 'stopped' && !workspace?.files.length)}<p role="status">
-			No workspace files yet.
-		</p>{/if}
-	{#if notice}<p role="alert">{notice}</p>{/if}
-	{#if workspace?.files.length}
-		<ul aria-label="Workspace file list" class="overflow-y-auto shrink-0 max-h-48">
-			{#each workspace.files as file (file.file_id)}
-				<li>
-					<button
-						type="button"
-						on:click={() => selectFile(file)}
-						aria-pressed={selected?.file_id === file.file_id}>{file.name || file.path}</button
-					>
-				</li>
-			{/each}
-		</ul>
-		{#if workspace.nextCursor}<button type="button" on:click={loadMore} disabled={busy}
-				>More files</button
-			>{/if}
-	{/if}
-	{#if selected && downloadUrl}
-		<div class="flex flex-col min-h-0 flex-1" aria-label="Selected workspace file">
-			<a href={downloadUrl} download={selected.name}>Download {selected.name}</a>
-			{#if generated}
-				<iframe
-					title={selected.name}
-					src={`${selectedUrl}?revision=${selected.revision}`}
-					sandbox="allow-scripts allow-forms"
-					class="w-full flex-1"
-				></iframe>
-			{:else if office}
-				{#if previewState}<p role="status">{previewState}</p>{/if}
-				{#if previewState.includes('timed out') || previewState.includes('did not become ready') || previewState.includes('error') || previewState.includes('missing') || previewState.includes('unsupported')}
-					<button type="button" on:click={startOffice}>Retry Office preview</button>
-				{:else}
-					{#key frameKey}<iframe
-							bind:this={officeFrame}
-							title={`Office preview: ${selected.name}`}
-							src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
-							sandbox="allow-scripts allow-same-origin allow-forms"
-							class="w-full flex-1"
-						></iframe>{/key}
-				{/if}
-			{:else}<p role="status">
-					Preview not supported for this file type. Download the file to open it.
-				</p>{/if}
 		</div>
+	</header>
+	<nav class="flex gap-2" aria-label={$i18n.t('Workspace views')}>
+		<button
+			type="button"
+			on:click={() => selectView('files')}
+			aria-pressed={workspace?.view === 'files'}>{$i18n.t('Files')}</button
+		>
+		{#if workspace?.views.includes('browser')}
+			<button
+				type="button"
+				on:click={() => selectView('browser')}
+				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
+				aria-pressed={workspace.view === 'browser'}>{$i18n.t('Browser')}</button
+			>
+		{/if}
+		{#if workspace?.views.includes('terminal')}
+			<button
+				type="button"
+				on:click={() => selectView('terminal')}
+				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
+				aria-pressed={workspace.view === 'terminal'}>{$i18n.t('Terminal')}</button
+			>
+		{/if}
+	</nav>
+	{#if notice}<p role="alert">{notice}</p>{/if}
+	{#if runtimeUrl}
+		{#key `${chatId}:${runtimeView}`}
+			<iframe
+				title={$i18n.t('Workspace {{view}}', {
+					view: $i18n.t(runtimeView === 'browser' ? 'Browser' : 'Terminal')
+				})}
+				src={runtimeUrl}
+				sandbox="allow-scripts allow-same-origin allow-forms"
+				class="min-h-0 w-full flex-1"
+			></iframe>
+		{/key}
+	{:else}
+		{#if phase === 'loading'}<p role="status">{$i18n.t('Loading workspace files')}</p>{/if}
+		{#if phase === 'unavailable'}<p role="status">
+				{$i18n.t('This workspace is created by the first tool call.')}
+			</p>{/if}
+		{#if phase === 'disconnected'}<p role="alert">
+				{$i18n.t('Workspace service is unreachable.')}
+				<button type="button" on:click={() => load()}>{$i18n.t('Reconnect')}</button>
+			</p>{/if}
+		{#if phase === 'error'}<p role="alert">
+				{$i18n.t('Workspace files could not be loaded.')}
+				<button type="button" on:click={() => load()}>{$i18n.t('Retry')}</button>
+			</p>{/if}
+		{#if workspace?.status === 'stopped'}<p role="status">
+				{$i18n.t('Workspace is stopped; saved files remain available.')}
+				{#if workspace?.capabilities.includes('launch')}<button
+						type="button"
+						on:click={() => load(true)}>{$i18n.t('Launch')}</button
+					>{/if}
+			</p>{/if}
+		{#if phase === 'empty' || (phase === 'stopped' && !workspace?.files.length)}<p role="status">
+				{$i18n.t('No workspace files yet.')}
+			</p>{/if}
+		{#if workspace?.files.length}
+			<ul aria-label={$i18n.t('Workspace file list')} class="overflow-y-auto shrink-0 max-h-48">
+				{#each workspace.files as file (file.file_id)}
+					<li>
+						<button
+							type="button"
+							on:click={() => selectFile(file)}
+							aria-pressed={selected?.file_id === file.file_id}>{file.name || file.path}</button
+						>
+					</li>
+				{/each}
+			</ul>
+			{#if workspace.nextCursor}<button type="button" on:click={loadMore} disabled={busy}
+					>{$i18n.t('More files')}</button
+				>{/if}
+		{/if}
+		{#if selected && downloadUrl}
+			<div class="flex flex-col min-h-0 flex-1" aria-label={$i18n.t('Selected workspace file')}>
+				<a href={downloadUrl} download={selected.name}>{$i18n.t('Download')} {selected.name}</a>
+				{#if generated}
+					<iframe
+						title={selected.name}
+						src={`${selectedUrl}?revision=${selected.revision}`}
+						sandbox="allow-scripts allow-forms"
+						class="w-full flex-1"
+					></iframe>
+				{:else if office}
+					{#if previewState}<p role="status">{previewState}</p>{/if}
+					{#if previewError}
+						<button type="button" on:click={startOffice}>{$i18n.t('Retry Office preview')}</button>
+					{:else}
+						{#key frameKey}<iframe
+								bind:this={officeFrame}
+								title={`${$i18n.t('Office preview')}: ${selected.name}`}
+								src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
+								sandbox="allow-scripts allow-same-origin allow-forms"
+								class="w-full flex-1"
+							></iframe>{/key}
+					{/if}
+				{:else}<p role="status">
+						{$i18n.t('Preview not supported for this file type. Download the file to open it.')}
+					</p>{/if}
+			</div>
+		{/if}
 	{/if}
 </section>

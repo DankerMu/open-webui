@@ -40,6 +40,12 @@ const workspaceBase = (baseUrl: string): string => {
 	return baseUrl;
 };
 
+export const workspaceRuntimeUrl = (
+	baseUrl: string,
+	chatId: string,
+	view: 'browser' | 'terminal'
+): string => `${workspaceBase(baseUrl)}/preview/${encodeURIComponent(chatId)}?embed=${view}`;
+
 export const workspaceFileUrl = (baseUrl: string, chatId: string, file: WorkspaceFile): string => {
 	const base = `${workspaceBase(baseUrl)}/files/${encodeURIComponent(chatId)}/`;
 	if (

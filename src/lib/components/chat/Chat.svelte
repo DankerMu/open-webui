@@ -67,6 +67,7 @@
 	import { AudioQueue } from '$lib/utils/audio';
 	import { createTemporaryChatId, isTemporaryChatId } from '$lib/utils/chatId';
 	import { applyResponseStreamEvent, getOutputText } from './Messages/structuredOutput';
+	import { createWorkspaceChatPersistence, persistWebUIChat } from './workspace-chat-persistence';
 
 	import {
 		archiveChatById,
@@ -143,6 +144,9 @@
 		null;
 
 	let loading = true;
+	const workspaceChat = createWorkspaceChatPersistence();
+	const firstSendPending = workspaceChat.firstSendPending;
+	$: workspaceChat.observeTemporary($temporaryChatEnabled);
 	$: chatContainerId = embedded ? 'note-chat-container' : 'chat-container';
 	$: messageInputDropzoneId = embedded ? 'note-chat-input-dropzone' : 'chat-pane';
 
@@ -797,6 +801,7 @@
 	}
 
 	const navigateHandler = async () => {
+		workspaceChat.retire();
 		noteChatDebug('navigateHandler start');
 		// Mark the outgoing chat as read before loading the new one.
 		// $chatId still holds the previous chat here — loadChat() updates it.
@@ -1608,6 +1613,7 @@
 		init();
 
 		return () => {
+			workspaceChat.retire();
 			try {
 				clearTimeout(saveControlsTimer);
 				saveControls();
@@ -1991,6 +1997,7 @@
 	};
 
 	const initNewChat = async () => {
+		workspaceChat.retire();
 		console.log('initNewChat');
 		resetWebSearchConfirmation();
 
@@ -2657,11 +2664,7 @@
 				scrollToBottom();
 			}
 
-			if (messages.length === 0) {
-				await initChatHandler(history);
-			} else {
-				await saveChatHandler($chatId, history);
-			}
+			await persistGeneratedMessages(messages.length !== 0);
 		}
 	};
 
@@ -2721,11 +2724,7 @@
 			scrollToBottom();
 		}
 
-		if (messages.length === 0) {
-			await initChatHandler(history);
-		} else {
-			await saveChatHandler($chatId, history);
-		}
+		await persistGeneratedMessages(messages.length !== 0);
 	};
 
 	const responseCompletionEventHandler = (data, message) => {
@@ -3212,6 +3211,16 @@
 		if (autoScroll) {
 			scrollToBottom();
 		}
+		const pending = workspaceChat.beginSend(
+			() => $chatId,
+			() => !!$temporaryChatEnabled,
+			embedded,
+			history,
+			() => history
+		);
+		const ownership = pending instanceof Promise ? await pending : pending;
+		if (!ownership) return;
+		const { epoch: sendEpoch, first: firstSend, canAdopt: canAdoptSend } = ownership;
 
 		let _chatId = JSON.parse(JSON.stringify($chatId));
 		_history = structuredClone(_history);
@@ -3352,13 +3361,15 @@
 						// regenerations in a duplicate-model chat, which would otherwise lose their
 						// column identity and collapse on reload.
 						messageIdsList: messageIdsList.length > 0 ? messageIdsList : undefined,
-						regenerationPrompt
+						regenerationPrompt,
+						canAdopt: firstSend ? canAdoptSend : undefined
 					}
 				);
 			} finally {
 				if (chatEventEmitter) clearInterval(chatEventEmitter);
+				workspaceChat.finishSend(sendEpoch);
 			}
-		}
+		} else workspaceChat.finishSend(sendEpoch);
 	};
 
 	const getFeatures = () => {
@@ -3407,11 +3418,13 @@
 		{
 			messageIdsList,
 			regenerationPrompt,
-			continueResponse = false
+			continueResponse = false,
+			canAdopt
 		}: {
 			messageIdsList?: Array<{ model_id: string; message_id: string }>;
 			regenerationPrompt?: string | null;
 			continueResponse?: boolean;
+			canAdopt?: () => boolean;
 		} = {}
 	) => {
 		const responseMessage = _history.messages[responseMessageId];
@@ -3596,19 +3609,12 @@
 				...(regenerationPrompt ? { regeneration_prompt: regenerationPrompt } : {}),
 				...(continueResponse ? { assistant_message_id: responseMessageId } : {}),
 
-				background_tasks: {
-					...(!$temporaryChatEnabled &&
-					(!_chatId ||
-						(embedded &&
-							(userMessage?.parentId ?? null) === null &&
-							createMessagesList(_history, responseMessageId).length === 2))
-						? {
-								title_generation: $settings?.title?.auto ?? true,
-								tags_generation: $settings?.autoTags ?? true
-							}
-						: {}),
-					follow_up_generation: $settings?.autoFollowUps ?? true
-				}
+				background_tasks: workspaceChat.generationTasks(
+					_chatId,
+					_history,
+					responseMessageId,
+					embedded
+				)
 			},
 			`${WEBUI_BASE_URL}/api`
 		).catch(async (error) => {
@@ -3649,7 +3655,12 @@
 				// Only update if the user hasn't navigated to a different chat
 				// while the request was in flight (prevents overwriting $chatId
 				// and causing spurious toast notifications / state duplication).
-				if (res.chat_id && $chatId !== res.chat_id && $chatId === _chatId) {
+				if (
+					res.chat_id &&
+					$chatId !== res.chat_id &&
+					$chatId === _chatId &&
+					(!canAdopt || canAdopt())
+				) {
 					chatRequestQueues.update((q) => {
 						if (!q[_chatId]?.length) return q;
 
@@ -3921,54 +3932,40 @@
 		}
 	};
 
-	const initChatHandler = async (history) => {
-		let _chatId = $chatId;
-		const selectedFolderId = $selectedFolder?.id;
+	const initChatHandler = (snapshot, canAdopt: () => boolean = () => true) =>
+		persistWebUIChat({
+			snapshot,
+			sourceId: $chatId,
+			embedded,
+			title: $i18n.t('New Chat'),
+			models: selectedModels,
+			params,
+			variables: chatVariables,
+			isCurrent: workspaceChat.guard(
+				() => $chatId,
+				() => !!$temporaryChatEnabled,
+				canAdopt
+			),
+			onCreated: (created) => (chat = created)
+		});
 
-		if (!$temporaryChatEnabled) {
-			chat = await createNewChat(
-				localStorage.token,
-				{
-					id: _chatId,
-					title: $i18n.t('New Chat'),
-					models: selectedModels,
-					system: $settings.system ?? undefined,
-					params: params,
-					history: history,
-					messages: createMessagesList(history, history.currentId),
-					tags: [],
-					timestamp: Date.now()
-				},
-				$selectedFolder?.id,
-				chatVariables
-			);
-
-			_chatId = chat.id;
-			await chatId.set(_chatId);
-
-			if (!embedded) {
-				window.history.replaceState(history.state, '', `/c/${_chatId}`);
-			}
-
-			await tick();
-
-			if (!embedded) {
-				await refreshChatList(localStorage.token);
-			}
-
-			if (selectedFolderId) {
-				await refreshFolderChatLists(selectedFolderId, chat);
-			}
-
-			selectedFolder.set(null);
-		} else {
-			_chatId = createTemporaryChatId($socket?.id);
-			await chatId.set(_chatId);
-		}
-		await tick();
-
-		return _chatId;
+	const persistGeneratedMessages = async (hasExistingMessages: boolean) => {
+		if (hasExistingMessages) return saveChatHandler($chatId, history);
+		return workspaceChat.persistSiblingMessages({
+			activeHistory: () => history,
+			create: () => initChatHandler(history),
+			update: (id) => saveChatHandler(id, history)
+		});
 	};
+
+	const ensureSavedChat = () =>
+		workspaceChat.ensureSavedWebUIChat({
+			embedded,
+			history,
+			chatIdProp,
+			active: () => ({ history, chatIdProp }),
+			save: initChatHandler
+		});
 
 	const saveChatHandler = async (_chatId, history) => {
 		if ($chatId == _chatId) {
@@ -4644,6 +4641,8 @@
 							return a;
 						}, [])}
 						submitPrompt={submitHandler}
+						{ensureSavedChat}
+						firstSendPending={$firstSendPending}
 						{stopResponse}
 						{showMessage}
 						{eventTarget}

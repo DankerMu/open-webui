@@ -1,4 +1,5 @@
-import { test, expect, type BrowserContext, type Page, type Request } from '@playwright/test';
+import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
+import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 
 declare global {
 	interface Window {
@@ -219,31 +220,8 @@ function setScenario(scenario: string, state: string) {
 	fs.renameSync(staged, context.fixtures);
 }
 
-async function finishOnboarding(page: Page) {
-	const changelog = page.getByRole('dialog').filter({
-		has: page.getByRole('heading', { name: /What's New in Open WebUI/ })
-	});
-	if (await changelog.isVisible()) {
-		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();
-		await expect(changelog).toBeHidden();
-	}
-}
-
-async function signIn(page: Page) {
-	await page.goto('/auth');
-	await page
-		.locator('input[type="email"], input[name="email"]')
-		.first()
-		.fill(process.env.OCU_E2E_EMAIL!);
-	await page.locator('input[type="password"]').first().fill(process.env.OCU_E2E_PASSWORD!);
-	await page.locator('button[type="submit"]').first().click();
-	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
-	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
-	await finishOnboarding(page);
-}
-
 test.beforeEach(async ({ page }) => {
-	await signIn(page);
+	await openAuthenticatedPage(page);
 });
 
 test.afterEach(async () => {
@@ -283,6 +261,96 @@ test.afterEach(async () => {
 	);
 });
 
+test('A-T07 unsaved Workspace persists before access and temporary chats stay excluded', async ({
+	page
+}) => {
+	const seen = observe(page);
+	const creates: Request[] = [];
+	const workspaceRequests: Array<{ path: string; beforeSave: boolean }> = [];
+	const order: string[] = [];
+	let saveReleased = false;
+	page.on('request', (request) => {
+		const address = new URL(request.url());
+		if (address.origin !== context.origin) return;
+		if (address.pathname === '/api/v1/chats/new' && request.method() === 'POST') {
+			creates.push(request);
+		} else if (
+			address.pathname.startsWith('/api/v1/ocu/workspaces/') ||
+			address.pathname.startsWith('/ocu/api/outputs/') ||
+			address.pathname.startsWith('/ocu/preview/')
+		) {
+			workspaceRequests.push({ path: address.pathname, beforeSave: !saveReleased });
+			order.push('workspace');
+		}
+	});
+	page.on('response', (response) => {
+		if (
+			new URL(response.url()).pathname === '/api/v1/chats/new' &&
+			response.request().method() === 'POST' &&
+			response.ok()
+		)
+			order.push('saved');
+	});
+
+	await page.goto('/?temporary-chat=true');
+	await expect(page.locator('#chat-input')).toBeVisible();
+	if (!(await page.locator('#controls-container').isVisible())) {
+		await page.locator('button[aria-label="Controls"]').click();
+	}
+	await expect(page.locator('#controls-container')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Workspace Files', exact: true })).toHaveCount(0);
+	expect(creates).toHaveLength(0);
+	expect(workspaceRequests).toHaveLength(0);
+
+	await page.goto('/');
+	await expect(page.locator('#chat-input')).toBeVisible();
+	const action = page.getByRole('button', { name: 'Workspace Files', exact: true });
+	await expect(action).toBeVisible();
+	const draft = 'Workspace save must preserve this draft';
+	await page.locator('#chat-input').fill(draft);
+	await expect(page.getByRole('region', { name: 'Workspace Files' })).toHaveCount(0);
+
+	let releaseSave = () => {};
+	const saveGate = new Promise<void>((resolve) => {
+		releaseSave = resolve;
+	});
+	let savedId: string | null = null;
+	const createRoute = '**/api/v1/chats/new';
+	await page.route(createRoute, async (route) => {
+		const response = await route.fetch();
+		const saved = await response.json();
+		savedId = saved.id;
+		if (!savedId || !response.ok()) throw new Error('owner chat persistence failed');
+		context.chats.unsaved = savedId;
+		setScenario('unsaved', 'normal');
+		await saveGate;
+		await route.fulfill({ response });
+	});
+	try {
+		await action.click();
+		await expect.poll(() => savedId).not.toBeNull();
+		expect(creates).toHaveLength(1);
+		expect(workspaceRequests).toHaveLength(0);
+		await expect(page.locator('#chat-input')).toHaveText(draft);
+		saveReleased = true;
+		releaseSave();
+		await expect(page).toHaveURL(new RegExp(`/c/${savedId}$`));
+		await expect(page.getByRole('region', { name: 'Workspace Files' })).toBeVisible();
+		await expect.poll(() => workspaceRequests.length).toBeGreaterThan(0);
+		expect(order.indexOf('saved')).toBeGreaterThanOrEqual(0);
+		expect(order.indexOf('workspace')).toBeGreaterThan(order.indexOf('saved'));
+		expect(
+			workspaceRequests.every(({ path, beforeSave }) => !beforeSave && path.includes(`/${savedId}`))
+		).toBe(true);
+		await expect(page.locator('#chat-input')).toHaveText(draft);
+		await page.screenshot({ path: `${evidence}/workspace-unsaved-persisted.png`, fullPage: true });
+		expect(seen.errors).toEqual([]);
+	} finally {
+		releaseSave();
+		await page.unroute(createRoute);
+	}
+});
+
 test('A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab', async ({
 	page,
 	context: browser,
@@ -292,7 +360,9 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	fileNetworkEvidence = fileNetwork;
 	const normalCss = observeStylesheet(browser, context.chats.normal);
 	const linkCss = observeStylesheet(browser, context.chats.link);
-	const anonymous = await playwright.request.newContext();
+	const anonymous = await playwright.request.newContext({
+		storageState: { cookies: [], origins: [] }
+	});
 	try {
 		for (const proof of [normalCss, linkCss]) {
 			expect((await anonymous.get(proof.url)).status()).toBe(401);

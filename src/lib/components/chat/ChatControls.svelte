@@ -4,11 +4,14 @@
 
 <script lang="ts">
 	import { onMount, tick, getContext } from 'svelte';
+	import { get, type Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	import {
 		config,
 		terminalServers,
 		showControls,
 		showCallOverlay,
+		temporaryChatEnabled,
 		showArtifacts,
 		showEmbeds,
 		settings,
@@ -28,14 +31,20 @@
 	import Overview from './Overview.svelte';
 	import { isSavedChatId } from '$lib/utils/chatId';
 	import WorkspaceArtifact from './WorkspaceArtifact.svelte';
-	import { workspaceFilesEnabled } from '$lib/apis/ocu';
+	import { putWorkspacePrefs, workspaceFilesEnabled } from '$lib/apis/ocu';
+	import {
+		closeWorkspacePanel,
+		ocuWorkspaces,
+		openWorkspacePanel,
+		queueWorkspacePrefs
+	} from '$lib/stores/ocu';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let history;
 	export let models = [];
 
-	export let chatId = null;
+	export let chatId: string | null = null;
 	export let chatUser = null;
 
 	export let chatFiles = [];
@@ -45,6 +54,8 @@
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
 	export let showMessage: Function;
+	export let ensureSavedChat: () => Promise<string | null>;
+	export let firstSendPending = false;
 	export let files;
 	export let modelId;
 
@@ -55,12 +66,62 @@
 	let mounted = false;
 	let controlsWidth = 350;
 
-	let showWorkspace = false;
-	$: workspaceAvailable =
-		workspaceFilesEnabled($config) && isSavedChatId(chatId) && chatId !== 'default';
-	$: if (!workspaceAvailable) showWorkspace = false;
-	$: if (showWorkspace && (!$showControls || $showArtifacts || $showEmbeds || $showCallOverlay))
-		showWorkspace = false;
+	let workspaceActionPending = false;
+	let workspaceError = '';
+	let controlsWasOpen = false;
+	let actionEpoch = 0;
+	let actionChatId = chatId;
+	let actionHistory = history;
+	$: if (actionChatId !== chatId || actionHistory !== history) {
+		actionChatId = chatId;
+		actionHistory = history;
+		actionEpoch++;
+		workspaceActionPending = false;
+		workspaceError = '';
+	}
+	$: workspaceActionAvailable =
+		workspaceFilesEnabled($config) &&
+		!$temporaryChatEnabled &&
+		(!chatId || (isSavedChatId(chatId) && chatId !== 'default'));
+	$: workspaceAvailable = workspaceActionAvailable && isSavedChatId(chatId);
+	$: workspace = chatId ? $ocuWorkspaces[chatId] : undefined;
+	$: showWorkspace =
+		workspaceAvailable &&
+		workspace?.open &&
+		$showControls &&
+		!$showArtifacts &&
+		!$showEmbeds &&
+		!$showCallOverlay;
+	$: workspaceChanged =
+		!!workspace && !workspace.open && workspace.revision > workspace.acknowledgedRevision;
+	$: {
+		const controlsOpen = $showControls;
+		if (mounted && chatId && workspace?.open) {
+			if (controlsWasOpen && !controlsOpen) {
+				closeWorkspacePanel(chatId);
+				persistOpen(chatId, false);
+			} else if (
+				!controlsWasOpen &&
+				!controlsOpen &&
+				workspaceAvailable &&
+				!$showArtifacts &&
+				!$showEmbeds &&
+				!$showCallOverlay
+			) {
+				showControls.set(true);
+			}
+		}
+		controlsWasOpen = controlsOpen;
+	}
+	$: if (
+		mounted &&
+		chatId &&
+		workspace?.open &&
+		($showArtifacts || $showEmbeds || $showCallOverlay)
+	) {
+		closeWorkspacePanel(chatId);
+		persistOpen(chatId, false);
+	}
 	// Tab state for Controls+Files panel
 	let activeTab = savedTab;
 	// svelte-ignore reactive_declaration_module_script_dependency
@@ -185,19 +246,58 @@
 		};
 	});
 
-	const closeWorkspace = () => {
-		if (showWorkspace) closeHandler();
-		showControls.set(false);
+	const persistOpen = (id: string, open: boolean) => {
+		const state = get(ocuWorkspaces)[id];
+		if (!state) return;
+		void queueWorkspacePrefs(id, () =>
+			putWorkspacePrefs(localStorage.token, id, {
+				view: state.view,
+				open,
+				selected_file_id: state.selectedFileId ?? null
+			})
+		).catch(() => {
+			if (chatId === id) workspaceError = $i18n.t('Workspace preference could not be saved');
+		});
+	};
+
+	const openWorkspace = async () => {
+		if (!workspaceActionAvailable || firstSendPending || workspaceActionPending) return;
+		const sourceId = chatId;
+		const sourceHistory = history;
+		const epoch = actionEpoch;
+		workspaceActionPending = true;
+		workspaceError = '';
+		const savedId = await ensureSavedChat();
+		if (actionEpoch === epoch) workspaceActionPending = false;
+		if (!savedId) {
+			if (chatId === sourceId && history === sourceHistory && !$temporaryChatEnabled)
+				workspaceError = $i18n.t('Workspace chat could not be saved');
+			return;
+		}
+		if (!workspaceActionAvailable || history !== sourceHistory || (chatId && chatId !== savedId))
+			return;
+		showArtifacts.set(false);
+		showEmbeds.set(false);
+		showCallOverlay.set(false);
+		showControls.set(true);
+		openWorkspacePanel(savedId);
+		persistOpen(savedId, true);
 	};
 
 	const closeHandler = () => {
-		if (!largeScreen) {
-			showControls.set(false);
+		if (showWorkspace && chatId) {
+			closeWorkspacePanel(chatId);
+			persistOpen(chatId, false);
 		}
+		if (!largeScreen) showControls.set(false);
 		showArtifacts.set(false);
 		showEmbeds.set(false);
-		showWorkspace = false;
 		if ($showCallOverlay) showCallOverlay.set(false);
+	};
+
+	const closeWorkspace = () => {
+		if (showWorkspace) closeHandler();
+		showControls.set(false);
 	};
 
 	$: if (mounted && !chatId) closeHandler();
@@ -205,6 +305,28 @@
 	// Helper: is a "special" full-screen panel active?
 	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds || showWorkspace;
 </script>
+
+{#if workspaceActionAvailable && (!$showControls || $showArtifacts || $showEmbeds || $showCallOverlay)}
+	<div
+		class="fixed right-3 top-14 z-40 flex items-center gap-2 rounded-lg bg-white p-2 text-sm shadow-md dark:bg-gray-900"
+	>
+		<button
+			type="button"
+			on:click={openWorkspace}
+			disabled={firstSendPending || workspaceActionPending}
+			title={firstSendPending ? $i18n.t('Waiting for chat to save') : $i18n.t('Workspace Files')}
+			aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
+		>
+		{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
+		{#if firstSendPending}<span role="status">{$i18n.t('Waiting for chat to save')}</span>{/if}
+	</div>
+{/if}
+{#if workspaceError}<p
+		class="fixed right-3 top-28 z-40 rounded-lg bg-white p-2 text-sm dark:bg-gray-900"
+		role="alert"
+	>
+		{workspaceError}
+	</p>{/if}
 
 {#if !largeScreen}
 	{#if $showControls}
@@ -233,7 +355,11 @@
 				{:else if $showArtifacts}
 					<Artifacts {history} />
 				{:else if showWorkspace && workspaceAvailable && chatId}
-					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
+					{#key chatId}<WorkspaceArtifact
+							{chatId}
+							enabled={workspaceAvailable}
+							onClose={closeWorkspace}
+						/>{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
 					<div class="flex flex-col h-full min-h-0">
@@ -274,14 +400,20 @@
 									</button>
 								{/if}
 							</div>
-							{#if workspaceAvailable}
+							{#if workspaceActionAvailable}
 								<button
 									type="button"
-									on:click={() => {
-										showWorkspace = true;
-									}}
-									aria-label="Workspace Files">Workspace Files</button
+									on:click={openWorkspace}
+									disabled={firstSendPending || workspaceActionPending}
+									title={firstSendPending
+										? $i18n.t('Waiting for chat to save')
+										: $i18n.t('Workspace Files')}
+									aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
 								>
+								{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
+								{#if firstSendPending}<span role="status"
+										>{$i18n.t('Waiting for chat to save')}</span
+									>{/if}
 							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
@@ -367,7 +499,11 @@
 				{:else if $showArtifacts}
 					<Artifacts {history} overlay={dragged} />
 				{:else if showWorkspace && workspaceAvailable && chatId}
-					{#key chatId}<WorkspaceArtifact {chatId} enabled={workspaceAvailable} />{/key}
+					{#key chatId}<WorkspaceArtifact
+							{chatId}
+							enabled={workspaceAvailable}
+							onClose={closeWorkspace}
+						/>{/key}
 				{:else}
 					<!-- Controls + Files tabs -->
 					<div class="flex flex-col h-full min-h-0">
@@ -408,14 +544,20 @@
 									</button>
 								{/if}
 							</div>
-							{#if workspaceAvailable}
+							{#if workspaceActionAvailable}
 								<button
 									type="button"
-									on:click={() => {
-										showWorkspace = true;
-									}}
-									aria-label="Workspace Files">Workspace Files</button
+									on:click={openWorkspace}
+									disabled={firstSendPending || workspaceActionPending}
+									title={firstSendPending
+										? $i18n.t('Waiting for chat to save')
+										: $i18n.t('Workspace Files')}
+									aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
 								>
+								{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
+								{#if firstSendPending}<span role="status"
+										>{$i18n.t('Waiting for chat to save')}</span
+									>{/if}
 							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
