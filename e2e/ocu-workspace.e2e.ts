@@ -674,8 +674,15 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	await page.screenshot({ path: `${evidence}/workspace-unreachable.png`, fullPage: true });
 
 	panel = await openWorkspace(page, 'deleted');
+	const initialReport = page.waitForResponse((response) =>
+		response.url().endsWith(`/ocu/files/${context.chats.deleted}/report.html?revision=1`)
+	);
 	await panel.getByRole('button', { name: 'report.html' }).click();
 	await expect(panel.locator('iframe[title="report.html"]')).toBeVisible();
+	expect((await initialReport).status()).toBe(200);
+	await expect(
+		page.frameLocator('iframe[title="report.html"]').getByText('ocu-stub report')
+	).toBeVisible();
 	setScenario('deleted', 'renamed');
 	await panel.getByRole('button', { name: 'Refresh workspace files' }).click();
 	await expect(panel.getByRole('button', { name: 'final.html' })).toHaveAttribute(
@@ -702,7 +709,14 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	await page.screenshot({ path: `${evidence}/workspace-deleted.png`, fullPage: true });
 
 	panel = await openWorkspace(page, 'partial');
+	const retainedReport = page.waitForResponse((response) =>
+		response.url().endsWith(`/ocu/files/${context.chats.partial}/report.html?revision=1`)
+	);
 	await panel.getByRole('button', { name: 'report.html' }).click();
+	expect((await retainedReport).status()).toBe(200);
+	await expect(
+		page.frameLocator('iframe[title="report.html"]').getByText('ocu-stub report')
+	).toBeVisible();
 	setScenario('partial', 'partial_after');
 	await panel.getByRole('button', { name: 'Refresh workspace files' }).click();
 	await expect(panel.getByText('Refresh failed; existing files remain available')).toBeVisible();
