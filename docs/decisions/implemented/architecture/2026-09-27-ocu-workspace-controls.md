@@ -18,7 +18,9 @@ An unsaved chat has no execution identity. Workspace activation and first Send c
 
 Chat.svelte supplies the save callback and preserves the upstream persistence path through the fork-owned workspace-chat-persistence module. Workspace activation and generated-message creation share initial persistence ownership; joining an empty snapshot save also persists the generated messages under its returned ID. Workspace-first activation shares pending persistence with Send. Send-first activation disables the workspace action until the completion API supplies an authoritative chat ID or fails. Epoch, history and temporary-mode guards prevent obsolete adoption. Pre-saving an empty chat retains title and tag generation eligibility across failed attempts until a successful assistant response. Draft state remains in Chat; no client-generated saved identity is accepted.
 
-ChatControls owns the reachable, feature-gated workspace action and native-panel exclusion. Temporary, local, channel, default and embedded contexts cannot activate it. The chat-keyed OCU store owns open/view preferences, user-close and one-time auto-open latches, and acknowledged revisions independently of listing dirtiness. Accepted nonempty outputs may open once; explicit close prevents later accepted revisions from reopening. Background discovery, reconciliation and reload restoration belong to the separate Chat integration producer.
+ChatControls owns the reachable, feature-gated workspace action and native-panel exclusion. Temporary, local, channel, default and embedded contexts cannot activate it. The chat-keyed OCU store owns open/view preferences, user-close and one-time auto-open latches, and acknowledged revisions independently of listing dirtiness. Accepted nonempty outputs may open once; explicit close prevents later accepted revisions from reopening.
+
+The Chat-owned workspace-reconciliation controller is provided through Svelte context. It owns describe/listing, coherent pagination, first preference hydration and one visible/hidden polling schedule. Closing the consumer retires its frames, not the producer needed for change discovery; leaving the chat retires both. Event handling only marks valid chat-keyed dirtiness, which the producer consumes later. Ordered preference patches wait for authoritative hydration so opening before describe cannot erase a stored selection.
 
 WorkspaceArtifact selects Files or a capability-gated Browser/Terminal mode on the validated current-chat preview URL. Runtime frames use the fixed trusted-application sandbox; generated document isolation remains separate. Switching away destroys the selected runtime frame, while ordinary same-chat updates preserve its element. Manual and capability-forced returns to Files re-arm the selected Office handshake. Frame teardown retires client transports, not the sandbox process. Selected file identity survives runtime views and preference writes remain serialized per chat.
 
@@ -26,7 +28,7 @@ WorkspaceArtifact selects Files or a capability-gated Browser/Terminal mode on t
 
 - **Save inside ChatControls** — duplicates the authoritative save path and cannot guard upstream identity adoption.
 - **Always await a resolved promise before Send** — introduces a microtask window before the synchronous first-send latch; the no-pending-save path remains synchronous.
-- **A second polling loop for controls** — duplicates the upcoming event/history reconciler and splits accepted-state ownership.
+- **A second polling loop for controls** — duplicates the Chat-owned reconciler and splits accepted-state ownership.
 - **Raw CDP/ttyd clients in WebUI** — duplicates the selected-mode OCU application and its transport teardown contract.
 
 ## Consequences

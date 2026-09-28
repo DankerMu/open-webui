@@ -269,6 +269,55 @@ describe('one active-chat workspace producer', () => {
 		expect(transport.writes.at(-1)?.prefs).toMatchObject({ selected_file_id: 'real-file-id' });
 	});
 
+	it('resolves a root href to the exact canonical file on a later page, not a loaded nested suffix', async () => {
+		const transport = fixture();
+		const nested = {
+			...file('report.html', 'nested-id'),
+			path: 'nested/report.html',
+			url: `/ocu/files/${chat}/nested/report.html`
+		};
+		const root = file('report.html', 'root-id');
+		const cursors: Array<string | undefined> = [];
+		transport.api.list = async (_base, _id, cursor) => {
+			cursors.push(cursor);
+			return cursor
+				? { kind: 'listing', listing: listing([root], null, 1, 2), etag: null }
+				: { kind: 'listing', listing: listing([nested], 'second', 1, 2), etag: null };
+		};
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
+		const resolved = await owner.resolvePath(chat, 'report.html');
+		expect(resolved?.file_id).toBe('root-id');
+		expect(cursors).toContain('second');
+		await owner.selectFile(chat, resolved!);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('root-id');
+	});
+
+	it('returns absence for a root href when only a nested suffix exists after complete enumeration', async () => {
+		const transport = fixture();
+		const nested = {
+			...file('report.html', 'nested-id'),
+			path: 'nested/report.html',
+			url: `/ocu/files/${chat}/nested/report.html`
+		};
+		transport.api.list = async (_base, _id, cursor) =>
+			cursor
+				? { kind: 'listing', listing: listing([file('other.html')], null, 1, 2), etag: null }
+				: { kind: 'listing', listing: listing([nested], 'second', 1, 2), etag: null };
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
+		expect(await owner.resolvePath(chat, 'report.html')).toBeNull();
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBeUndefined();
+		expect(get(ocuWorkspaces)[chat].files.map((entry) => entry.file_id)).toEqual([
+			'nested-id',
+			'other.html'
+		]);
+	});
+
 	it('intercepts only a same-origin current-chat file and preserves unrelated native clicks', async () => {
 		const previous = {
 			controls: get(showControls),

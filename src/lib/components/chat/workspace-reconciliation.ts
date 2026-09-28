@@ -247,6 +247,9 @@ export function createWorkspaceReconciliation(options: {
 		});
 	}
 
+	function encodedFileUrl(baseUrl: string, id: string, encodedPath: string): string {
+		return `${baseUrl}/files/${encodeURIComponent(id)}/${encodedPath}`;
+	}
 	function windowReady(
 		cursor: string | null,
 		loaded: number,
@@ -307,9 +310,7 @@ export function createWorkspaceReconciliation(options: {
 		let files = [...initial];
 		let seenIds = new Set(files.map((file) => file.file_id));
 		let seenPaths = new Set(files.map((file) => file.url));
-		const wantedUrl = wantedPath
-			? `${baseUrl}/files/${encodeURIComponent(id)}/${wantedPath}`
-			: undefined;
+		const wantedUrl = wantedPath ? encodedFileUrl(baseUrl, id, wantedPath) : undefined;
 		let cursor = startCursor;
 		let revision = startRevision;
 		let etag: string | undefined;
@@ -563,10 +564,11 @@ export function createWorkspaceReconciliation(options: {
 	async function resolvePath(id: string, encodedPath: string): Promise<WorkspaceFile | null> {
 		if (activeId !== id || !mounted) return null;
 		const current = get(ocuWorkspaces)[id];
+		const wantedUrl = encodedFileUrl('/ocu', id, encodedPath);
 		const match = (files: WorkspaceFile[]) =>
 			files.find((file) => {
 				try {
-					return workspaceFileUrl('/ocu', id, file).endsWith(`/${encodedPath}`);
+					return workspaceFileUrl('/ocu', id, file) === wantedUrl;
 				} catch {
 					return false;
 				}
@@ -666,7 +668,6 @@ export function createWorkspaceReconciliation(options: {
 		observe,
 		mount,
 		retire,
-		hint,
 		acceptHint,
 		reconnect,
 		refresh,
