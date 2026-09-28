@@ -1,9 +1,10 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 import {
-	captureBrowserTargetPaths,
 	recordAnchorClicks,
 	watchContextLifecycle,
+	watchOcuProtocol,
+	writeOcuFailureEvidence,
 	type OcuClickProbe
 } from './ocu-fixtures';
 
@@ -154,6 +155,7 @@ type FileNetworkEvidence = {
 	browser: BrowserContext;
 	anchorPath: string | null;
 	gestures: OcuClickProbe[];
+	protocol?: Awaited<ReturnType<typeof watchOcuProtocol>>;
 };
 
 let fileNetworkEvidence: FileNetworkEvidence | undefined;
@@ -251,48 +253,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async () => {
-	const testInfo = test.info();
 	const record = fileNetworkEvidence;
 	fileNetworkEvidence = undefined;
-	if (!record || testInfo.status === testInfo.expectedStatus) return;
-	await Promise.allSettled(record.pending);
-	const active = record.active.isClosed()
-		? null
-		: await record.active
-				.evaluate(() => ({
-					location: window.location.href,
-					baseURI: document.baseURI,
-					stylesheets: [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(
-						(link) => link.href
-					)
-				}))
-				.catch(() => null);
-	const targets = await captureBrowserTargetPaths(
-		record.browser,
-		record.active,
-		(url) => sanitizedLocation(url)?.split('?')[0] ?? null
-	);
-	fs.writeFileSync(
-		`${evidence}/workspace-network-failure.json`,
-		JSON.stringify(
-			{
-				expectedStylesheets: [context.chats.normal, context.chats.link].map(
-					(id) => `/ocu/files/${id}/style.css`
-				),
-				events: record.events,
-				anchorPath: record.anchorPath,
-				gestures: record.gestures,
-				targets,
-				active: active && {
-					location: sanitizedLocation(active.location),
-					baseURI: sanitizedLocation(active.baseURI),
-					stylesheets: active.stylesheets.map(sanitizedLocation)
-				}
-			},
-			null,
-			2
-		)
-	);
+	if (!record) return;
+	await record.protocol?.close();
+	if (test.info().status !== test.info().expectedStatus)
+		await writeOcuFailureEvidence(record, sanitizedLocation);
 });
 
 test('A-T07 unsaved Workspace persists before access and temporary chats stay excluded', async ({
@@ -392,6 +358,11 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 }) => {
 	const fileNetwork = observeFileNetwork(browser, page);
 	fileNetworkEvidence = fileNetwork;
+	fileNetwork.protocol = await watchOcuProtocol(
+		browser,
+		page,
+		(url) => sanitizedLocation(url)?.split('?')[0] ?? null
+	);
 	const normalCss = observeStylesheet(browser, context.chats.normal);
 	const linkCss = observeStylesheet(browser, context.chats.link);
 	const anonymous = await playwright.request.newContext({
