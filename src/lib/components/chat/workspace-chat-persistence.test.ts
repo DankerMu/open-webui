@@ -30,7 +30,6 @@ describe('workspace chat persistence boundary', () => {
 		};
 		const first = owner.ensureSavedChat(options);
 		const second = owner.ensureSavedChat(options);
-		expect(first).toBe(second);
 		expect(creates).toBe(1);
 		const pendingSend = owner.beginSend(
 			() => activeId,
@@ -43,6 +42,7 @@ describe('workspace chat persistence boundary', () => {
 		activeId = 'server-id';
 		resolveSave('server-id');
 		await expect(first).resolves.toBe('server-id');
+		await expect(second).resolves.toBe('server-id');
 		expect(
 			owner.generationTasks({
 				chatId: 'server-id',

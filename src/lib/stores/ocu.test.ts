@@ -10,9 +10,21 @@ import {
 	markDirty,
 	ocuWorkspaces,
 	openWorkspacePanel,
+	retireGeneration,
 	queueWorkspacePrefs,
 	selectWorkspaceView
 } from './ocu';
+
+const file = (chatId: string, revision: number) => ({
+	file_id: `file-${revision}`,
+	name: `file-${revision}.txt`,
+	path: `file-${revision}.txt`,
+	url: `/ocu/files/${chatId}/file-${revision}.txt`,
+	type: 'text',
+	mime: 'text/plain',
+	size: 1,
+	revision
+});
 
 describe('ocu workspace store', () => {
 	beforeEach(() => {
@@ -62,17 +74,7 @@ describe('ocu workspace store', () => {
 	it('auto-opens once per chat, retains a user close across accepted revisions, and acknowledges on explicit open', () => {
 		const a = beginGeneration('A');
 		beginGeneration('B');
-		const file = (revision: number) => ({
-			file_id: `file-${revision}`,
-			name: `file-${revision}.txt`,
-			path: `file-${revision}.txt`,
-			url: `/ocu/files/A/file-${revision}.txt`,
-			type: 'text',
-			mime: 'text/plain',
-			size: 1,
-			revision
-		});
-		applyWorkspaceListing('A', a, [file(1)], 1, null);
+		applyWorkspaceListing('A', a, [file('A', 1)], 1, null);
 		expect(get(ocuWorkspaces).A).toMatchObject({
 			open: true,
 			autoOpened: true,
@@ -80,7 +82,7 @@ describe('ocu workspace store', () => {
 			acknowledgedRevision: 1
 		});
 		closeWorkspacePanel('A');
-		applyWorkspaceListing('A', a, [file(2)], 2, null);
+		applyWorkspaceListing('A', a, [file('A', 2)], 2, null);
 		expect(get(ocuWorkspaces).A).toMatchObject({
 			open: false,
 			userClosed: true,
@@ -98,6 +100,51 @@ describe('ocu workspace store', () => {
 			view: 'browser'
 		});
 		expect(get(ocuWorkspaces).B.view).toBe('files');
+	});
+
+	it('rejects an obsolete listing before and after a newer generation is accepted', () => {
+		const oldA = beginGeneration('A');
+		const b = beginGeneration('B');
+		const currentA = retireGeneration('A');
+		applyWorkspaceListing('B', b, [file('B', 4)], 4, null);
+
+		applyWorkspaceListing('A', oldA, [file('A', 99)], 99, 'obsolete');
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			files: [],
+			revision: 0,
+			open: false,
+			autoOpened: false,
+			acknowledgedRevision: 0
+		});
+
+		applyWorkspaceListing('A', currentA, [file('A', 1)], 1, null);
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			files: [file('A', 1)],
+			open: true,
+			autoOpened: true,
+			acknowledgedRevision: 1
+		});
+		closeWorkspacePanel('A');
+		applyWorkspaceListing('A', currentA, [file('A', 2)], 2, null);
+		applyWorkspaceListing('A', oldA, [file('A', 99)], 99, 'obsolete');
+
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			files: [file('A', 2)],
+			revision: 2,
+			listingRevision: 2,
+			open: false,
+			userClosed: true,
+			autoOpened: true,
+			acknowledgedRevision: 1
+		});
+		expect(get(ocuWorkspaces).B).toMatchObject({
+			files: [file('B', 4)],
+			revision: 4,
+			open: true,
+			userClosed: false,
+			autoOpened: true,
+			acknowledgedRevision: 4
+		});
 	});
 
 	it('orders a remounted chat preference clear after an older failed write', async () => {
