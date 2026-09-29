@@ -1,64 +1,46 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, unmount, tick } from 'svelte';
-import { get, writable } from 'svelte/store';
+import { get } from 'svelte/store';
 import { workspaceFilesEnabled, workspaceFileUrl, type WorkspaceFile } from '$lib/apis/ocu';
 import { ocuWorkspaces } from '$lib/stores/ocu';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
-const chat = 'owner-chat';
-const url = `/ocu/files/${chat}/`;
-const i18n = writable({
-	t: (key: string, params?: Record<string, string>) =>
-		key.replace(/\{\{(\w+)\}\}/g, (_match, name) => params?.[name] ?? name)
-});
-const file = (name: string, id = name, revision = 1): WorkspaceFile => ({
-	file_id: id,
-	path: name,
-	name,
-	url: url + name,
-	type: name.endsWith('.docx') ? 'docx' : 'html',
-	mime: name.endsWith('.docx')
-		? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-		: 'text/html',
-	revision,
-	size: 10
-});
-const describeBody = {
-	chat_id: chat,
-	status: 'running',
-	reason: null,
-	capabilities: ['refresh', 'prefs'],
-	views: ['files'],
-	base_url: '/ocu',
-	revision: 1
-};
-const listing = (
-	files: WorkspaceFile[],
-	next_cursor: string | null = null,
-	revision = 1,
-	total = files.length + (next_cursor ? 1 : 0)
-) => ({
-	chat_id: chat,
-	revision,
-	files,
-	total,
-	next_cursor
-});
-const json = (value: object, status = 200) =>
-	new Response(JSON.stringify(value), {
-		status,
-		headers: { 'Content-Type': 'application/json' }
-	});
+import {
+	chat,
+	url,
+	i18n,
+	file,
+	describeBody,
+	listing,
+	json
+} from '../../../../test/ocu-workspace-fixtures';
+import {
+	createWorkspaceReconciliation,
+	WORKSPACE_RECONCILIATION,
+	type WorkspaceReconciliation
+} from './workspace-reconciliation';
+import { isSavedChatId } from '$lib/utils/chatId';
 let component: Record<string, unknown> | undefined;
 let calls: Array<{ url: string; init?: RequestInit }>;
 let scenario: (input: string, init?: RequestInit) => Response | Promise<Response>;
+let controller: WorkspaceReconciliation;
+let detachController: () => void;
+let boundChat: string | null = null;
 async function open(enabled = true, id = chat) {
 	component = mount(WorkspaceArtifact, {
 		target: document.body,
 		props: { chatId: id, enabled },
-		context: new Map([['i18n', i18n]])
+		context: new Map<unknown, unknown>([
+			['i18n', i18n],
+			[WORKSPACE_RECONCILIATION, controller]
+		])
 	});
 	await tick();
+	const valid = enabled && isSavedChatId(id) && id !== 'default';
+	const sameChat = valid && boundChat === id;
+	controller.observe(id, enabled);
+	if (sameChat) controller.reconnect();
+	boundChat = valid ? id : null;
 	await vi.waitFor(() =>
 		expect(document.body.querySelector('[aria-label="Workspace Files"]')).not.toBeNull()
 	);
@@ -90,9 +72,17 @@ describe('mounted workspace Files contract', () => {
 				return Promise.resolve(scenario(String(input), init));
 			})
 		);
+		boundChat = null;
+		controller = createWorkspaceReconciliation({
+			token: () => localStorage.token,
+			available: () => true,
+			translate: (key, params) => get(i18n).t(key, params)
+		});
+		detachController = controller.mount();
 	});
 	afterEach(async () => {
 		if (component) await unmount(component);
+		detachController();
 		component = undefined;
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
@@ -272,6 +262,8 @@ describe('mounted workspace Files contract', () => {
 		const beforeLaunch = calls.length;
 		await unmount(component!);
 		component = undefined;
+		controller.retire();
+		boundChat = null;
 		finish(json({ state: 'running' }));
 		await tick();
 		expect(calls).toHaveLength(beforeLaunch);
@@ -292,6 +284,8 @@ describe('mounted workspace Files contract', () => {
 		const beforeRefresh = calls.length;
 		await unmount(component!);
 		component = undefined;
+		controller.retire();
+		boundChat = null;
 		finish(json({ revision: 2 }));
 		await tick();
 		expect(calls).toHaveLength(beforeRefresh);
@@ -785,6 +779,8 @@ describe('mounted workspace Files contract', () => {
 		await open();
 		await unmount(component!);
 		component = undefined;
+		controller.retire();
+		boundChat = null;
 		answer(json(describeBody));
 		await tick();
 		expect(get(ocuWorkspaces)[chat]?.status).toBeUndefined();

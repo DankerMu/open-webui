@@ -1,5 +1,12 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
+import {
+	observeNativeOcuPopup,
+	recordAnchorClicks,
+	watchContextLifecycle,
+	writeOcuFailureEvidence,
+	type OcuClickProbe
+} from './ocu-fixtures';
 
 declare global {
 	interface Window {
@@ -128,7 +135,16 @@ type FileNetworkEvidence = {
 	started: number;
 	events: Array<{
 		ms: number;
-		kind: 'page' | 'request' | 'response' | 'requestfailed';
+		kind:
+			| 'page'
+			| 'popup'
+			| 'close'
+			| 'crash'
+			| 'download'
+			| 'navigated'
+			| 'request'
+			| 'response'
+			| 'requestfailed';
 		path: string | null;
 		resourceType?: string;
 		status?: number;
@@ -136,6 +152,9 @@ type FileNetworkEvidence = {
 	}>;
 	pending: Promise<void>[];
 	active: Page;
+	browser: BrowserContext;
+	anchorPath: string | null;
+	gestures: OcuClickProbe[];
 };
 
 let fileNetworkEvidence: FileNetworkEvidence | undefined;
@@ -156,7 +175,15 @@ function sanitizedLocation(raw: string): string | null {
 }
 
 function observeFileNetwork(browser: BrowserContext, active: Page): FileNetworkEvidence {
-	const record: FileNetworkEvidence = { started: Date.now(), events: [], pending: [], active };
+	const record: FileNetworkEvidence = {
+		started: Date.now(),
+		events: [],
+		pending: [],
+		active,
+		browser,
+		anchorPath: null,
+		gestures: []
+	};
 	const add = (
 		kind: 'request' | 'response' | 'requestfailed',
 		request: Request,
@@ -184,11 +211,11 @@ function observeFileNetwork(browser: BrowserContext, active: Page): FileNetworkE
 			);
 		}
 	};
-	browser.on('page', (opened) =>
+	watchContextLifecycle(browser, active, (kind, raw) =>
 		record.events.push({
 			ms: Date.now() - record.started,
-			kind: 'page',
-			path: sanitizedLocation(opened.url())
+			kind,
+			path: sanitizedLocation(raw)?.split('?')[0] ?? null
 		})
 	);
 	browser.on('request', (request) => add('request', request));
@@ -225,40 +252,11 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.afterEach(async () => {
-	const testInfo = test.info();
 	const record = fileNetworkEvidence;
 	fileNetworkEvidence = undefined;
-	if (!record || testInfo.status === testInfo.expectedStatus) return;
-	await Promise.allSettled(record.pending);
-	const active = record.active.isClosed()
-		? null
-		: await record.active
-				.evaluate(() => ({
-					location: window.location.href,
-					baseURI: document.baseURI,
-					stylesheets: [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(
-						(link) => link.href
-					)
-				}))
-				.catch(() => null);
-	fs.writeFileSync(
-		`${evidence}/workspace-network-failure.json`,
-		JSON.stringify(
-			{
-				expectedStylesheets: [context.chats.normal, context.chats.link].map(
-					(id) => `/ocu/files/${id}/style.css`
-				),
-				events: record.events,
-				active: active && {
-					location: sanitizedLocation(active.location),
-					baseURI: sanitizedLocation(active.baseURI),
-					stylesheets: active.stylesheets.map(sanitizedLocation)
-				}
-			},
-			null,
-			2
-		)
-	);
+	if (!record) return;
+	if (test.info().status !== test.info().expectedStatus)
+		await writeOcuFailureEvidence(record, sanitizedLocation);
 });
 
 test('A-T07 unsaved Workspace persists before access and temporary chats stay excluded', async ({
@@ -507,33 +505,54 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(denied).toEqual([]);
 	expect(parent.errors).toEqual([]);
 
-	const popupObservations = new Map<Page, { errors: string[] }>();
-	browser.on('page', (popup) =>
-		popupObservations.set(popup, observe(popup, undefined, expectedStyleDiagnostic))
-	);
 	await page.goto(`/c/${context.chats.link}`);
 	const realLink = page.getByRole('link', { name: 'Open generated workspace file' });
 	await expect(realLink).toBeVisible();
 	await expect(realLink).toHaveAttribute('target', '_blank');
 	const linkBefore = stylesheetSnapshot(linkCss);
-	const [linked] = await Promise.all([browser.waitForEvent('page'), realLink.click()]);
-	fileNetwork.active = linked;
-	await linked.bringToFront();
-	const linkedObs = popupObservations.get(linked);
-	expect(linkedObs, 'popup diagnostics must start before navigation').toBeDefined();
-	await expect(linked.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
-	await expect
-		.poll(() => linked.evaluate(() => window.fixtureEvents))
-		.toContainEqual({
-			origin: 'null',
-			type: 'fixture-opaque',
-			storage: 'blocked',
-			parentAccess: 'blocked',
-			cookie: 'blocked'
-		});
-	await expect(linked.locator('#inline')).toHaveCSS('color', 'rgb(0, 128, 0)');
-	await expect(linked.locator('#image')).toHaveJSProperty('naturalWidth', 1);
-	expect(new URL(linked.url()).origin).toBe(context.origin);
+	const messagePanel = page.getByRole('region', { name: 'Workspace Files' });
+	const beforeClickTabs = browser.pages().length;
+	await realLink.click();
+	await expect(messagePanel).toBeVisible();
+	await expect(messagePanel.getByRole('button', { name: 'page.html' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(page.frameLocator('iframe[title="page.html"]').locator('#proof')).toHaveText(
+		'null|blocked|blocked|blocked'
+	);
+	expect(browser.pages()).toHaveLength(beforeClickTabs);
+	await page.screenshot({ path: `${evidence}/workspace-message-sidebar.png`, fullPage: true });
+	fileNetwork.anchorPath =
+		sanitizedLocation((await realLink.getAttribute('href')) ?? '')?.split('?')[0] ?? null;
+	await recordAnchorClicks(page, (entry) => {
+		fileNetwork.gestures.push(entry);
+	});
+	fileNetwork.active = page;
+	const linked = await observeNativeOcuPopup(
+		browser,
+		page,
+		`/ocu/files/${context.chats.link}/page.html`,
+		'html',
+		() => realLink.click({ modifiers: ['ControlOrMeta'] }),
+		`${evidence}/workspace-message-link.png`
+	);
+	expect(linked.document).toMatchObject({
+		path: `/ocu/files/${context.chats.link}/page.html`,
+		origin: context.origin,
+		readyState: 'complete',
+		proof: 'null|blocked|blocked|blocked',
+		inlineColor: 'rgb(0, 128, 0)',
+		imageNaturalWidth: 1,
+		imageComplete: true
+	});
+	expect(linked.document.fixtureEvents).toContainEqual({
+		origin: 'null',
+		type: 'fixture-opaque',
+		storage: 'blocked',
+		parentAccess: 'blocked',
+		cookie: 'blocked'
+	});
 	const linkDocument = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/page.html`)
 	);
@@ -543,39 +562,57 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	);
 	expect(linkDocument?.headers['x-content-type-options']).toBe('nosniff');
 	await expectDeniedStylesheet(linkCss, linkBefore);
-	await linked.screenshot({ path: `${evidence}/workspace-message-link.png`, fullPage: true });
-	expect(linkedObs!.errors).toEqual([]);
-	await linked.close();
+	expect(linked.errors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual([]);
 	const svgLink = page.getByRole('link', { name: 'Open scripted SVG' });
 	await expect(svgLink).toBeVisible();
 	await expect(svgLink).toHaveAttribute('target', '_blank');
-	const [linkedSvg] = await Promise.all([browser.waitForEvent('page'), svgLink.click()]);
-	fileNetwork.active = linkedSvg;
-	await linkedSvg.bringToFront();
-	await expect
-		.poll(() => linkedSvg.evaluate(() => window.fixtureEvents))
-		.toContainEqual({
-			origin: 'null',
-			type: 'fixture-svg',
-			storage: 'blocked',
-			parentAccess: 'blocked',
-			cookie: 'blocked'
-		});
-	await expect(linkedSvg.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
-	expect(new URL(linkedSvg.url()).origin).toBe(context.origin);
+	fileNetwork.active = page;
+	await svgLink.click();
+	await expect(messagePanel.getByRole('button', { name: 'diagram.svg' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(page.frameLocator('iframe[title="diagram.svg"]').locator('#proof')).toHaveText(
+		'null|blocked|blocked|blocked'
+	);
+	expect(browser.pages()).toHaveLength(beforeClickTabs);
+	const linkedSvg = await observeNativeOcuPopup(
+		browser,
+		page,
+		`/ocu/files/${context.chats.link}/diagram.svg`,
+		'svg',
+		() => svgLink.click({ modifiers: ['ControlOrMeta'] }),
+		`${evidence}/workspace-message-svg.png`
+	);
+	expect(linkedSvg.document).toMatchObject({
+		path: `/ocu/files/${context.chats.link}/diagram.svg`,
+		origin: context.origin,
+		readyState: 'complete',
+		proof: 'null|blocked|blocked|blocked',
+		inlineColor: null,
+		imageNaturalWidth: null,
+		imageComplete: null
+	});
+	expect(linkedSvg.document.fixtureEvents).toContainEqual({
+		origin: 'null',
+		type: 'fixture-svg',
+		storage: 'blocked',
+		parentAccess: 'blocked',
+		cookie: 'blocked'
+	});
 	const messageSvg = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/diagram.svg`)
 	);
 	expect(messageSvg?.status).toBe(200);
 	expect(messageSvg?.headers['content-security-policy']).toBe('sandbox allow-scripts allow-forms');
 	expect(messageSvg?.headers['x-content-type-options']).toBe('nosniff');
-	expect(popupObservations.get(linkedSvg)?.errors).toEqual([]);
-	await linkedSvg.screenshot({ path: `${evidence}/workspace-message-svg.png` });
-	await linkedSvg.close();
+	expect(linkedSvg.errors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual(
+		[]
+	);
 
 	const direct = await browser.newPage();
 	fileNetwork.active = direct;
-	const directObs = popupObservations.get(direct);
+	const directObs = observe(direct, undefined, expectedStyleDiagnostic);
 	const directBefore = stylesheetSnapshot(normalCss);
 	const response = await direct.goto(
 		`${context.origin}/ocu/files/${context.chats.normal}/page.html`
@@ -645,8 +682,15 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	await page.screenshot({ path: `${evidence}/workspace-unreachable.png`, fullPage: true });
 
 	panel = await openWorkspace(page, 'deleted');
+	const initialReport = page.waitForResponse((response) =>
+		response.url().endsWith(`/ocu/files/${context.chats.deleted}/report.html?revision=1`)
+	);
 	await panel.getByRole('button', { name: 'report.html' }).click();
 	await expect(panel.locator('iframe[title="report.html"]')).toBeVisible();
+	expect((await initialReport).status()).toBe(200);
+	await expect(
+		page.frameLocator('iframe[title="report.html"]').getByText('ocu-stub report')
+	).toBeVisible();
 	setScenario('deleted', 'renamed');
 	await panel.getByRole('button', { name: 'Refresh workspace files' }).click();
 	await expect(panel.getByRole('button', { name: 'final.html' })).toHaveAttribute(
@@ -673,7 +717,14 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	await page.screenshot({ path: `${evidence}/workspace-deleted.png`, fullPage: true });
 
 	panel = await openWorkspace(page, 'partial');
+	const retainedReport = page.waitForResponse((response) =>
+		response.url().endsWith(`/ocu/files/${context.chats.partial}/report.html?revision=1`)
+	);
 	await panel.getByRole('button', { name: 'report.html' }).click();
+	expect((await retainedReport).status()).toBe(200);
+	await expect(
+		page.frameLocator('iframe[title="report.html"]').getByText('ocu-stub report')
+	).toBeVisible();
 	setScenario('partial', 'partial_after');
 	await panel.getByRole('button', { name: 'Refresh workspace files' }).click();
 	await expect(panel.getByText('Refresh failed; existing files remain available')).toBeVisible();

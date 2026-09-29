@@ -276,11 +276,11 @@ export function createWorkspaceChatPersistence() {
 
 	function ensureSavedWebUIChat(options: {
 		embedded: boolean;
-		history: { currentId: string | null };
+		history: { currentId: string | null; messages: Record<string, unknown> };
 		chatIdProp: string;
 		active: () => { history: object; chatIdProp: string };
 		save: (
-			snapshot: { currentId: string | null },
+			snapshot: { currentId: string | null; messages: Record<string, unknown> },
 			canAdopt: () => boolean
 		) => Promise<string | null>;
 	}) {
@@ -316,6 +316,62 @@ export function createWorkspaceChatPersistence() {
 		ensureSavedChat,
 		ensureSavedWebUIChat
 	};
+}
+
+export function bindWorkspaceChatPersistence(
+	owner: ReturnType<typeof createWorkspaceChatPersistence>,
+	deps: {
+		history: () => { currentId: string | null; messages: Record<string, unknown> };
+		chatIdProp: () => string;
+		embedded: () => boolean;
+		title: () => string;
+		models: () => string[];
+		params: () => object;
+		variables: () => object | null;
+		onCreated: (created: Awaited<ReturnType<typeof createNewChat>>) => void;
+		saveExisting: (
+			id: string,
+			history: { currentId: string | null; messages: Record<string, unknown> }
+		) => Promise<void>;
+	}
+) {
+	const initChatHandler = (
+		snapshot: { currentId: string | null; messages: Record<string, unknown> },
+		canAdopt: () => boolean = () => true
+	) =>
+		persistWebUIChat({
+			snapshot,
+			sourceId: get(chatId),
+			embedded: deps.embedded(),
+			title: deps.title(),
+			models: deps.models(),
+			params: deps.params(),
+			variables: deps.variables(),
+			isCurrent: owner.guard(
+				() => get(chatId),
+				() => !!get(temporaryChatEnabled),
+				canAdopt
+			),
+			onCreated: deps.onCreated
+		});
+	const persistGeneratedMessages = (hasExistingMessages: boolean) => {
+		const history = deps.history();
+		if (hasExistingMessages) return deps.saveExisting(get(chatId), history);
+		return owner.persistSiblingMessages({
+			activeHistory: deps.history,
+			create: () => initChatHandler(history),
+			update: (id) => deps.saveExisting(id, history)
+		});
+	};
+	const ensureSavedChat = () =>
+		owner.ensureSavedWebUIChat({
+			embedded: deps.embedded(),
+			history: deps.history(),
+			chatIdProp: deps.chatIdProp(),
+			active: () => ({ history: deps.history(), chatIdProp: deps.chatIdProp() }),
+			save: initChatHandler
+		});
+	return { persistGeneratedMessages, ensureSavedChat };
 }
 
 export async function persistInitialChat<T extends { id: string }>(options: {

@@ -3,53 +3,35 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { get } from 'svelte/store';
+	import { workspaceFileUrl, workspaceRuntimeUrl, type WorkspaceFile } from '$lib/apis/ocu';
+	import { ocuWorkspaces, selectWorkspaceView, type OcuWorkspaceState } from '$lib/stores/ocu';
 	import {
-		getWorkspace,
-		launchWorkspace,
-		listWorkspaceFiles,
-		putWorkspacePrefs,
-		refreshWorkspace,
-		workspaceFileUrl,
-		workspaceRuntimeUrl,
-		WorkspaceRequestError,
-		type WorkspaceFile,
-		type WorkspacePrefs
-	} from '$lib/apis/ocu';
-	import {
-		applyDescribe,
-		applyWorkspaceListing,
-		beginGeneration,
-		isCurrentGeneration,
-		ocuWorkspaces,
-		queueWorkspacePrefs,
-		type OcuWorkspaceState,
-		retireGeneration,
-		selectWorkspaceView,
-		selectWorkspaceFile
-	} from '$lib/stores/ocu';
+		WORKSPACE_RECONCILIATION,
+		type WorkspaceReconciliation
+	} from './workspace-reconciliation';
 
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
 	export let onClose: (() => void) | undefined = undefined;
 	const i18n: Writable<i18nType> = getContext('i18n');
+	const controller: WorkspaceReconciliation = getContext(WORKSPACE_RECONCILIATION);
 
 	export let enabled = false;
 	const READY_DEADLINE = 10_000;
 	const RESULT_DEADLINE = 30_000;
-	const MAX_PAGES = 100;
-	let phase: 'loading' | 'ready' | 'empty' | 'error' | 'stopped' | 'disconnected' | 'unavailable' =
-		'loading';
-	let notice = '';
+	let localNotice = '';
 	let previewState = '';
 	let previewError = false;
-	let busy = false;
 	let officeFrame: HTMLIFrameElement | undefined;
 	let frameKey = 0;
 	let requestGeneration = 0;
 	let readyTimer: ReturnType<typeof setTimeout> | undefined;
 	let resultTimer: ReturnType<typeof setTimeout> | undefined;
 	let live = false;
-	let activeGeneration = 0;
+	let officeIdentity = '';
+	$: phase = workspace?.phase ?? 'loading';
+	$: notice = localNotice || workspace?.notice || '';
+	$: busy = workspace?.busy ?? false;
 	$: workspace = $ocuWorkspaces[chatId];
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
@@ -71,6 +53,19 @@
 		workspace.views.includes(runtimeView)
 			? workspaceRuntimeUrl(workspace.baseUrl, chatId, runtimeView)
 			: '';
+	$: {
+		const key =
+			live && workspace?.view === 'files' && office && selected
+				? `${selected.file_id}:${selected.path}:${selected.revision}`
+				: '';
+		if (key && key !== officeIdentity) {
+			officeIdentity = key;
+			void startOffice();
+		} else if (!key && officeIdentity) {
+			officeIdentity = '';
+			retireFrame();
+		}
+	}
 
 	function retireFrame() {
 		clearTimeout(readyTimer);
@@ -191,28 +186,16 @@
 		previewState = $i18n.t('Office preview {{state}}', { state: stateLabel });
 	}
 
-	function savePrefs(prefs: WorkspacePrefs): Promise<void> {
-		return queueWorkspacePrefs(chatId, async () => {
-			if (live) await putWorkspacePrefs(localStorage.token, chatId, prefs);
-		});
-	}
-
 	function selectFile(file: WorkspaceFile) {
-		retireFrame();
-		selectWorkspaceFile(chatId, file.file_id);
-		previewState = '';
-		previewError = false;
-		if (['docx', 'xlsx', 'pptx'].includes(file.type)) void startOffice();
-		const generation = activeGeneration;
-		void savePrefs({ view: 'files', open: true, selected_file_id: file.file_id }).catch(() => {
-			if (live && isCurrentGeneration(chatId, generation))
-				notice = $i18n.t('Selection could not be saved');
+		localNotice = '';
+		if (selected?.file_id === file.file_id && office) void startOffice();
+		else {
+			previewState = '';
+			previewError = false;
+		}
+		void controller.selectFile(chatId, file).catch(() => {
+			if (live) localNotice = $i18n.t('Selection could not be saved');
 		});
-	}
-
-	function returnToFiles() {
-		selectWorkspaceView(chatId, 'files');
-		if (selected && office) void startOffice();
 	}
 
 	function selectView(view: OcuWorkspaceState['view']) {
@@ -223,239 +206,34 @@
 			(current.status !== 'running' || current.baseUrl !== '/ocu' || !current.views.includes(view))
 		)
 			return;
-		if (current.view === 'files') retireFrame();
-		if (view === 'files') returnToFiles();
-		else selectWorkspaceView(chatId, view);
-		const generation = activeGeneration;
-		void savePrefs({
-			view,
-			open: true,
-			selected_file_id: current.selectedFileId ?? null
-		}).catch(() => {
-			if (live && isCurrentGeneration(chatId, generation))
-				notice = $i18n.t('Workspace preference could not be saved');
+		localNotice = '';
+		selectWorkspaceView(chatId, view);
+		void controller.writePrefs(chatId, { view, open: true }).catch(() => {
+			if (live) localNotice = $i18n.t('Workspace preference could not be saved');
 		});
 	}
 
-	type ListingWindow = { files: WorkspaceFile[]; revision: number; cursor: string | null };
-	// A missing identity requires the final page; a found identity retains the loaded window.
-	function windowReady(
-		cursor: string | null,
-		loaded: number,
-		required: number,
-		selectedId: string | undefined,
-		seen: Set<string>
-	): boolean {
-		if (!cursor) return true;
-		return loaded >= required && (!selectedId || seen.has(selectedId));
+	function refresh() {
+		localNotice = '';
+		void controller.refresh();
 	}
-
-	async function readPageSequence(
-		baseUrl: string,
-		generation: number,
-		initial: WorkspaceFile[],
-		startCursor: string | null,
-		startRevision: number | undefined,
-		requiredCount: number,
-		selectedId: string | undefined
-	): Promise<ListingWindow | null> {
-		const files = [...initial];
-		const seen = new Set(files.map((file) => file.file_id));
-		let cursor = startCursor;
-		let revision = startRevision;
-		for (let pages = 0; pages < MAX_PAGES; pages++) {
-			const page = await listWorkspaceFiles(baseUrl, chatId, cursor ?? undefined);
-			if (!live || !isCurrentGeneration(chatId, generation)) return null;
-			if (revision !== undefined && revision !== page.revision)
-				throw new WorkspaceRequestError(409, 'stale_cursor');
-			revision = page.revision;
-			for (const file of page.files) {
-				if (seen.has(file.file_id)) throw new WorkspaceRequestError(0, 'invalid_response');
-				seen.add(file.file_id);
-				files.push(file);
-			}
-			if (page.next_cursor === cursor && cursor !== null)
-				throw new WorkspaceRequestError(0, 'invalid_response');
-			cursor = page.next_cursor;
-			if (!cursor && files.length !== page.total)
-				throw new WorkspaceRequestError(0, 'listing_incomplete');
-			if (windowReady(cursor, files.length, requiredCount, selectedId, seen))
-				return { files, revision, cursor };
-		}
-		throw new WorkspaceRequestError(0, 'listing_incomplete');
+	function load(launch = false) {
+		localNotice = '';
+		if (launch) void controller.launch();
+		else void controller.retry();
 	}
-
-	async function reconcileSelection(
-		current: OcuWorkspaceState,
-		generation: number,
-		result: ListingWindow
-	) {
-		const selectedId = current.selectedFileId;
-		if (!selectedId) return;
-		const after = result.files.find((file) => file.file_id === selectedId);
-		if (!after && !result.cursor) {
-			retireFrame();
-			selectWorkspaceFile(chatId, undefined);
-			notice = $i18n.t('Selected file was removed');
-			try {
-				await savePrefs({ view: current.view, open: current.open, selected_file_id: null });
-			} catch {
-				if (live && isCurrentGeneration(chatId, generation))
-					notice = $i18n.t('Selected file was removed; preference could not be cleared');
-			}
-			return;
-		}
-		const before = current.files.find((file) => file.file_id === selectedId);
-		if (before && after && (before.path !== after.path || before.revision !== after.revision)) {
-			retireFrame();
-			if (['docx', 'xlsx', 'pptx'].includes(after.type)) void startOffice();
-		}
-	}
-
-	async function readCoherentWindow(current: OcuWorkspaceState, generation: number, more: boolean) {
-		if (!current.baseUrl) throw new WorkspaceRequestError(0, 'invalid_response');
-		const requiredCount = current.files.length + (more ? 1 : 0);
-		try {
-			return await readPageSequence(
-				current.baseUrl,
-				generation,
-				more ? current.files : [],
-				more ? current.nextCursor : null,
-				more ? current.listingRevision : undefined,
-				requiredCount,
-				current.selectedFileId
-			);
-		} catch (error) {
-			if (!(error instanceof WorkspaceRequestError && error.status === 409)) throw error;
-			return readPageSequence(
-				current.baseUrl,
-				generation,
-				[],
-				null,
-				undefined,
-				requiredCount,
-				current.selectedFileId
-			);
-		}
-	}
-
-	async function reconcile(generation: number, more = false): Promise<void> {
-		const current = get(ocuWorkspaces)[chatId];
-		const result = await readCoherentWindow(current, generation, more);
-		if (!result || !live || !isCurrentGeneration(chatId, generation)) return;
-		const latestSelection = get(ocuWorkspaces)[chatId]?.selectedFileId;
-		if (
-			latestSelection !== current.selectedFileId &&
-			latestSelection &&
-			!result.files.some((file) => file.file_id === latestSelection)
-		) {
-			notice = $i18n.t('Selection changed during refresh; refresh again');
-			return;
-		}
-		applyWorkspaceListing(chatId, generation, result.files, result.revision, result.cursor);
-		phase = current.status === 'stopped' ? 'stopped' : result.files.length ? 'ready' : 'empty';
-		await reconcileSelection({ ...current, selectedFileId: latestSelection }, generation, result);
-	}
-
-	async function describe(generation: number) {
-		const body = await getWorkspace(localStorage.token, chatId);
-		if (!live || !isCurrentGeneration(chatId, generation)) return null;
-		if (
-			body.chat_id !== chatId ||
-			!Array.isArray(body.capabilities) ||
-			!Array.isArray(body.views) ||
-			!['running', 'stopped', 'unavailable'].includes(body.status)
-		)
-			throw new WorkspaceRequestError(0, 'invalid_response');
-		applyDescribe(chatId, generation, body);
-		const currentView = get(ocuWorkspaces)[chatId]?.view;
-		if (
-			currentView &&
-			currentView !== 'files' &&
-			(body.status !== 'running' || body.base_url !== '/ocu' || !body.views.includes(currentView))
-		) {
-			returnToFiles();
-			notice = $i18n.t('Workspace view is unavailable');
-		}
-		if (body.status === 'unavailable') {
-			phase = body.reason === 'ocu_unreachable' ? 'disconnected' : 'unavailable';
-			return null;
-		}
-		return body;
-	}
-
-	async function load(launch = false) {
-		if (busy || !live) return;
-		busy = true;
-		notice = '';
-		const generation = (activeGeneration = beginGeneration(chatId));
-		if (!get(ocuWorkspaces)[chatId]?.files.length) phase = 'loading';
-		try {
-			if (launch) {
-				await launchWorkspace(localStorage.token, chatId);
-				if (!live || !isCurrentGeneration(chatId, generation)) return;
-			}
-			if (!(await describe(generation))) return;
-			await reconcile(generation);
-		} catch (error) {
-			if (!live || !isCurrentGeneration(chatId, generation)) return;
-			phase = 'error';
-			notice =
-				error instanceof WorkspaceRequestError
-					? $i18n.t('Workspace {{reason}}', { reason: error.reason })
-					: $i18n.t('Workspace request failed');
-		} finally {
-			if (live && isCurrentGeneration(chatId, generation)) busy = false;
-		}
-	}
-
-	async function loadMore() {
-		if (busy || !workspace?.nextCursor || !live) return;
-		busy = true;
-		notice = '';
-		const generation = (activeGeneration = beginGeneration(chatId));
-		try {
-			await reconcile(generation, true);
-		} catch {
-			if (live && isCurrentGeneration(chatId, generation))
-				notice = $i18n.t('More files could not be loaded; existing files remain available');
-		} finally {
-			if (live && isCurrentGeneration(chatId, generation)) busy = false;
-		}
-	}
-
-	async function refresh() {
-		if (busy || !live) return;
-		busy = true;
-		notice = '';
-		const generation = (activeGeneration = beginGeneration(chatId));
-		try {
-			const body = await describe(generation);
-			if (!body) return;
-			if (body.capabilities.includes('refresh')) {
-				await refreshWorkspace(localStorage.token, chatId);
-				if (!live || !isCurrentGeneration(chatId, generation)) return;
-			}
-			await reconcile(generation);
-		} catch {
-			if (live && isCurrentGeneration(chatId, generation)) {
-				notice = $i18n.t('Refresh failed; existing files remain available');
-				if (!get(ocuWorkspaces)[chatId]?.files.length) phase = 'error';
-			}
-		} finally {
-			if (live && isCurrentGeneration(chatId, generation)) busy = false;
-		}
+	function loadMore() {
+		localNotice = '';
+		void controller.more();
 	}
 
 	onMount(() => {
 		if (!enabled || !isSavedChatId(chatId) || chatId === 'default') return;
 		live = true;
 		window.addEventListener('message', receivePreview);
-		void load();
 		return () => {
 			live = false;
 			retireFrame();
-			retireGeneration(chatId);
 			window.removeEventListener('message', receivePreview);
 		};
 	});

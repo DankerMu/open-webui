@@ -3,16 +3,17 @@ import { get } from 'svelte/store';
 
 import {
 	applyDescribe,
-	applyRevision,
 	applyWorkspaceListing,
 	beginGeneration,
 	closeWorkspacePanel,
+	hydrateWorkspacePrefs,
 	markDirty,
 	ocuWorkspaces,
 	openWorkspacePanel,
-	retireGeneration,
 	queueWorkspacePrefs,
-	selectWorkspaceView
+	retireGeneration,
+	selectWorkspaceView,
+	stageWorkspacePrefs
 } from './ocu';
 
 const file = (chatId: string, revision: number) => ({
@@ -34,13 +35,13 @@ describe('ocu workspace store', () => {
 	it('drops a late describe so it does not paint the other chat', () => {
 		const genA = beginGeneration('A');
 		const genB = beginGeneration('B');
-		applyDescribe('B', genB, { status: 'running', view: 'files' });
+		applyDescribe('B', genB, { status: 'running', views: ['files'] });
 		const bBefore = get(ocuWorkspaces)['B'];
 
 		applyDescribe('A', genA, {
 			status: 'stopped',
-			view: 'terminal',
-			selectedFileId: 'file-from-a'
+			views: ['files', 'terminal'],
+			prefs: { view: 'terminal', selected_file_id: 'file-from-a' }
 		});
 		expect(get(ocuWorkspaces)['B']).toEqual(bBefore);
 		expect(get(ocuWorkspaces)['B']?.status).toBe('running');
@@ -49,9 +50,50 @@ describe('ocu workspace store', () => {
 
 		const genA2 = beginGeneration('A');
 		applyDescribe('A', genA2, { status: 'running' });
-		applyDescribe('A', genA, { status: 'stopped', view: 'terminal' });
+		applyDescribe('A', genA, { status: 'stopped', views: ['files'] });
 		expect(get(ocuWorkspaces)['A']?.status).toBe('running');
 		expect(get(ocuWorkspaces)['B']).toEqual(bBefore);
+	});
+
+	it('hydrates nested preferences once while explicit local open intent wins over stored close', () => {
+		const generation = beginGeneration('A');
+		stageWorkspacePrefs('A', { open: true });
+		const saved = { view: 'terminal' as const, selected_file_id: 'selected', open: false };
+		hydrateWorkspacePrefs('A', generation, saved);
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			hydrated: true,
+			serverPrefs: saved,
+			view: 'terminal',
+			selectedFileId: 'selected',
+			open: true,
+			userClosed: false
+		});
+		applyDescribe('A', generation, {
+			status: 'running',
+			prefs: { view: 'browser', selected_file_id: 'stale', open: false }
+		});
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			view: 'terminal',
+			selectedFileId: 'selected',
+			open: true
+		});
+		const b = beginGeneration('B');
+		hydrateWorkspacePrefs('B', b, { open: false, selected_file_id: null });
+		applyWorkspaceListing('B', b, [file('B', 1)], 1, null);
+		expect(get(ocuWorkspaces).B).toMatchObject({
+			open: false,
+			userClosed: true,
+			autoOpened: true,
+			selectedFileId: undefined
+		});
+		const c = beginGeneration('C');
+		hydrateWorkspacePrefs('C', c, { open: null, selected_file_id: null });
+		applyWorkspaceListing('C', c, [file('C', 1)], 1, null);
+		expect(get(ocuWorkspaces).C).toMatchObject({
+			open: true,
+			userClosed: false,
+			autoOpened: true
+		});
 	});
 
 	it('marks dirty per chat', () => {
@@ -65,10 +107,16 @@ describe('ocu workspace store', () => {
 		expect(get(ocuWorkspaces)['B']?.dirty).toBe(true);
 	});
 
-	it('keeps the higher revision when 7 arrives after 9', () => {
-		applyRevision('A', 9);
-		applyRevision('A', 7);
-		expect(get(ocuWorkspaces)['A']?.revision).toBe(9);
+	it('rejects same-generation listing revision 7 after accepting revision 9 without replacing files', () => {
+		const generation = beginGeneration('A');
+		applyWorkspaceListing('A', generation, [file('A', 9)], 9, null, 'W/"nine"');
+		applyWorkspaceListing('A', generation, [file('A', 7)], 7, null, 'W/"seven"');
+		expect(get(ocuWorkspaces).A).toMatchObject({
+			revision: 9,
+			listingRevision: 9,
+			files: [file('A', 9)],
+			etag: 'W/"nine"'
+		});
 	});
 
 	it('auto-opens once per chat, retains a user close across accepted revisions, and acknowledges on explicit open', () => {
@@ -100,6 +148,14 @@ describe('ocu workspace store', () => {
 			view: 'browser'
 		});
 		expect(get(ocuWorkspaces).B.view).toBe('files');
+	});
+
+	it('forgets a conditional validator when a newer accepted listing has none', () => {
+		const generation = beginGeneration('A');
+		applyWorkspaceListing('A', generation, [file('A', 1)], 1, null, 'W/"one"');
+		applyWorkspaceListing('A', generation, [file('A', 2)], 2, null);
+		expect(get(ocuWorkspaces).A.etag).toBeUndefined();
+		expect(get(ocuWorkspaces).A.files).toEqual([file('A', 2)]);
 	});
 
 	it('rejects an obsolete listing before and after a newer generation is accepted', () => {

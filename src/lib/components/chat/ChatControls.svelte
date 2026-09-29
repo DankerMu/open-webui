@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	import { onMount, tick, getContext } from 'svelte';
-	import { get, type Writable } from 'svelte/store';
+	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import {
 		config,
@@ -31,15 +31,15 @@
 	import Overview from './Overview.svelte';
 	import { isSavedChatId } from '$lib/utils/chatId';
 	import WorkspaceArtifact from './WorkspaceArtifact.svelte';
-	import { putWorkspacePrefs, workspaceFilesEnabled } from '$lib/apis/ocu';
+	import { workspaceFilesEnabled } from '$lib/apis/ocu';
+	import { closeWorkspacePanel, ocuWorkspaces, openWorkspacePanel } from '$lib/stores/ocu';
 	import {
-		closeWorkspacePanel,
-		ocuWorkspaces,
-		openWorkspacePanel,
-		queueWorkspacePrefs
-	} from '$lib/stores/ocu';
+		WORKSPACE_RECONCILIATION,
+		type WorkspaceReconciliation
+	} from './workspace-reconciliation';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
+	const workspaceController: WorkspaceReconciliation = getContext(WORKSPACE_RECONCILIATION);
 
 	export let history;
 	export let models = [];
@@ -247,15 +247,7 @@
 	});
 
 	const persistOpen = (id: string, open: boolean) => {
-		const state = get(ocuWorkspaces)[id];
-		if (!state) return;
-		void queueWorkspacePrefs(id, () =>
-			putWorkspacePrefs(localStorage.token, id, {
-				view: state.view,
-				open,
-				selected_file_id: state.selectedFileId ?? null
-			})
-		).catch(() => {
+		void workspaceController.writePrefs(id, { open }).catch(() => {
 			if (chatId === id) workspaceError = $i18n.t('Workspace preference could not be saved');
 		});
 	};

@@ -1,4 +1,4 @@
-import type { WorkspaceFile } from '$lib/apis/ocu';
+import type { WorkspaceFile, WorkspacePrefs } from '$lib/apis/ocu';
 import { writable, type Writable } from 'svelte/store';
 
 export type OcuWorkspaceState = {
@@ -18,6 +18,13 @@ export type OcuWorkspaceState = {
 	files: WorkspaceFile[];
 	nextCursor: string | null;
 	listingRevision?: number;
+	hydrated: boolean;
+	serverPrefs: WorkspacePrefs;
+	pendingPrefs: WorkspacePrefs;
+	etag?: string;
+	phase: 'loading' | 'ready' | 'empty' | 'error' | 'stopped' | 'disconnected' | 'unavailable';
+	notice: string;
+	busy: boolean;
 	generation: number;
 };
 
@@ -49,8 +56,7 @@ export type OcuDescribeBody = {
 	views?: string[];
 	base_url?: string;
 	revision?: number;
-	view?: 'files' | 'browser' | 'terminal';
-	selectedFileId?: string;
+	prefs?: WorkspacePrefs;
 };
 export const ocuWorkspaces: Writable<Record<string, OcuWorkspaceState>> = writable({});
 
@@ -66,6 +72,12 @@ const EMPTY_WORKSPACE: OcuWorkspaceState = {
 	autoOpened: false,
 	acknowledgedRevision: 0,
 	files: [],
+	hydrated: false,
+	serverPrefs: {},
+	pendingPrefs: {},
+	phase: 'loading',
+	notice: '',
+	busy: false,
 	nextCursor: null
 };
 
@@ -145,11 +157,13 @@ export const applyWorkspaceListing = (
 	generation: number,
 	files: WorkspaceFile[],
 	revision: number,
-	nextCursor: string | null
+	nextCursor: string | null,
+	etag?: string
 ) => {
 	ocuWorkspaces.update((workspaces) => {
 		const current = workspaces[chatId];
-		if (!current || current.generation !== generation) return workspaces;
+		if (!current || current.generation !== generation || revision < current.revision)
+			return workspaces;
 		const acceptedRevision = Math.max(current.revision, revision);
 		const firstOutput = files.length > 0 && !current.autoOpened;
 		const open = current.open || (firstOutput && !current.userClosed);
@@ -160,8 +174,8 @@ export const applyWorkspaceListing = (
 				files,
 				listingRevision: revision,
 				nextCursor,
+				etag,
 				revision: acceptedRevision,
-				dirty: false,
 				open,
 				autoOpened: current.autoOpened || firstOutput,
 				acknowledgedRevision: open ? acceptedRevision : current.acknowledgedRevision
@@ -173,27 +187,20 @@ export const applyWorkspaceListing = (
 export const applyDescribe = (chatId: string, generation: number, body: OcuDescribeBody) => {
 	ocuWorkspaces.update((workspaces) => {
 		const current = workspaces[chatId];
-		if (!current || generation !== current.generation) {
-			return workspaces;
-		}
-		const next: OcuWorkspaceState = { ...current };
-		if (body.status !== undefined) {
-			next.status = body.status;
-		}
-		if (body.reason !== undefined) next.reason = body.reason;
-		else next.reason = undefined;
-		if (body.capabilities !== undefined) next.capabilities = body.capabilities;
-		if (body.views !== undefined) next.views = body.views;
-		if (body.base_url !== undefined) next.baseUrl = body.base_url;
-		if (body.view !== undefined) {
-			next.view = body.view;
-		}
-		if (body.selectedFileId !== undefined) {
-			next.selectedFileId = body.selectedFileId;
-		}
-		if (typeof body.revision === 'number') {
-			next.revision = Math.max(current.revision, body.revision);
-		}
+		if (!current || generation !== current.generation) return workspaces;
+		// The nested server prefs are hydrated once by hydrateWorkspacePrefs.
+		const next: OcuWorkspaceState = {
+			...current,
+			...(body.status !== undefined ? { status: body.status } : {}),
+			reason: body.reason,
+			...(body.capabilities !== undefined ? { capabilities: body.capabilities } : {}),
+			...(body.views !== undefined ? { views: body.views } : {}),
+			...(body.base_url !== undefined ? { baseUrl: body.base_url } : {}),
+			revision:
+				typeof body.revision === 'number'
+					? Math.max(current.revision, body.revision)
+					: current.revision
+		};
 		return { ...workspaces, [chatId]: next };
 	});
 };
@@ -205,17 +212,87 @@ export const markDirty = (chatId: string) => {
 	});
 };
 
-export const applyRevision = (chatId: string, revision: number) => {
+const restoredSelectedFileId = (
+	intent: WorkspacePrefs,
+	prefs: WorkspacePrefs,
+	selectedFileId: string | undefined
+): string | undefined => {
+	if ('selected_file_id' in intent) return intent.selected_file_id ?? undefined;
+	if ('selected_file_id' in prefs) return prefs.selected_file_id ?? undefined;
+	return selectedFileId;
+};
+
+const restoredOpen = (intent: WorkspacePrefs, prefs: WorkspacePrefs, current: boolean) => {
+	const requested = typeof intent.open === 'boolean' ? intent.open : undefined;
+	const stored = typeof prefs.open === 'boolean' ? prefs.open : undefined;
+	return { requested, stored, open: requested ?? stored ?? current };
+};
+
+export const hydrateWorkspacePrefs = (
+	chatId: string,
+	generation: number,
+	prefs: WorkspacePrefs
+) => {
 	ocuWorkspaces.update((workspaces) => {
-		const current = { ...(workspaces[chatId] ?? EMPTY_WORKSPACE) };
-		const acceptedRevision = Math.max(current.revision, revision);
+		const current = workspaces[chatId];
+		if (!current || current.generation !== generation || current.hydrated) return workspaces;
+		const intent = current.pendingPrefs;
+		const view = intent.view ?? prefs.view ?? current.view;
+		const selectedFileId = restoredSelectedFileId(intent, prefs, current.selectedFileId);
+		const { requested, stored, open } = restoredOpen(intent, prefs, current.open);
 		return {
 			...workspaces,
 			[chatId]: {
 				...current,
-				revision: acceptedRevision,
-				acknowledgedRevision: current.open ? acceptedRevision : current.acknowledgedRevision
+				hydrated: true,
+				serverPrefs: { ...prefs },
+				view,
+				selectedFileId,
+				open,
+				userClosed: !open && (requested === false || stored === false || current.userClosed),
+				autoOpened: current.autoOpened || open,
+				acknowledgedRevision: open ? current.revision : current.acknowledgedRevision
 			}
 		};
+	});
+};
+
+export const stageWorkspacePrefs = (chatId: string, patch: WorkspacePrefs) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId] ?? EMPTY_WORKSPACE;
+		return {
+			...workspaces,
+			[chatId]: {
+				...current,
+				pendingPrefs: { ...current.pendingPrefs, ...patch }
+			}
+		};
+	});
+};
+
+export const acceptWorkspacePrefs = (chatId: string, prefs: WorkspacePrefs) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId];
+		return current ? { ...workspaces, [chatId]: { ...current, serverPrefs: prefs } } : workspaces;
+	});
+};
+
+export const consumeWorkspaceDirty = (chatId: string) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId];
+		return current ? { ...workspaces, [chatId]: { ...current, dirty: false } } : workspaces;
+	});
+};
+
+export const setWorkspacePresentation = (
+	chatId: string,
+	generation: number,
+	update: Partial<Pick<OcuWorkspaceState, 'phase' | 'notice' | 'busy'>>
+) => {
+	ocuWorkspaces.update((workspaces) => {
+		const current = workspaces[chatId];
+		return current && current.generation === generation
+			? { ...workspaces, [chatId]: { ...current, ...update } }
+			: workspaces;
 	});
 };

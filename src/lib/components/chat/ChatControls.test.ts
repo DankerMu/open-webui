@@ -15,10 +15,16 @@ import {
 import {
 	applyWorkspaceListing,
 	beginGeneration,
+	hydrateWorkspacePrefs,
 	ocuWorkspaces,
 	queueWorkspacePrefs
 } from '$lib/stores/ocu';
 import ChatControls from './ChatControls.svelte';
+import {
+	createWorkspaceReconciliation,
+	WORKSPACE_RECONCILIATION,
+	type WorkspaceReconciliation
+} from './workspace-reconciliation';
 // This policy case never mounts XTerminal; its eager xterm import needs canvas in jsdom.
 vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn() }));
 
@@ -39,6 +45,7 @@ const json = (body: object) =>
 	});
 const i18n = writable({ t: (key: string) => key });
 let component: Record<string, unknown> | undefined;
+let controller: WorkspaceReconciliation;
 let prior: {
 	chatId: string;
 	config: Parameters<typeof config.set>[0];
@@ -114,11 +121,20 @@ beforeEach(() => {
 			throw new Error(`Unexpected workspace request ${url}`);
 		})
 	);
+	controller = createWorkspaceReconciliation({
+		token: () => localStorage.token,
+		available: () => true,
+		translate: (key) => get(i18n).t(key)
+	});
+	controller.observe(id, true);
 });
 
 afterEach(async () => {
-	await queueWorkspacePrefs(id, async () => {});
 	if (component) await unmount(component);
+	const generation = get(ocuWorkspaces)[id]?.generation;
+	if (generation !== undefined) hydrateWorkspacePrefs(id, generation, {});
+	controller.retire();
+	await queueWorkspacePrefs(id, async () => {});
 	component = undefined;
 	chatId.set(prior.chatId);
 	config.set(prior.config);
@@ -140,7 +156,10 @@ describe('mounted chat workspace policy', () => {
 	it('auto-opens first output, keeps a user-closed panel closed with a change badge, then acknowledges explicit open', async () => {
 		component = mount(ChatControls, {
 			target: document.body,
-			context: new Map([['i18n', i18n]]),
+			context: new Map<unknown, unknown>([
+				['i18n', i18n],
+				[WORKSPACE_RECONCILIATION, controller]
+			]),
 			props: {
 				chatId: id,
 				history: { messages: {}, currentId: null },

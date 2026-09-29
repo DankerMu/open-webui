@@ -40,7 +40,19 @@ require_tools = smoke_module.require_tools
 PINNED_FILES = smoke_module.PINNED_FILES
 
 log = logging.getLogger('verify-ui-ocu')
-SCENARIOS = ('normal', 'empty', 'large', 'valid', 'corrupt', 'unreachable', 'deleted', 'partial', 'stopped', 'link')
+SCENARIOS = (
+    'normal',
+    'empty',
+    'large',
+    'valid',
+    'corrupt',
+    'unreachable',
+    'deleted',
+    'partial',
+    'stopped',
+    'link',
+    'restart',
+)
 
 
 def office_document() -> bytes:
@@ -141,7 +153,7 @@ class BrowserHarness(Smoke):
             if status != 200 or not created.get('id'):
                 fail(f'owner chat creation failed for {scenario}: {status}')
             chats[scenario] = created['id']
-            scenarios[created['id']] = scenario
+            scenarios[created['id']] = 'valid' if scenario == 'restart' else scenario
         link_chat = chats['link']
         message = {
             'id': 'fixture-message',
@@ -163,6 +175,16 @@ class BrowserHarness(Smoke):
         if status != 200:
             fail(f'fixture message could not be saved: {status}')
         self.fixtures.write_text(json.dumps(scenarios), encoding='utf-8')
+        restart_prefs = {'view': 'files', 'selected_file_id': 'fixture-valid.docx', 'open': True}
+        status, saved, _, _ = http_json(
+            'PUT',
+            f'{self.origin}/api/v1/ocu/workspaces/{chats["restart"]}/prefs',
+            cookie=cookie,
+            headers={'Content-Type': 'application/json', 'X-Requested-With': 'ocu-workspace'},
+            body=json.dumps(restart_prefs).encode(),
+        )
+        if status != 200 or saved.get('prefs') != restart_prefs:
+            fail('restart-chat preferences were not persisted before process restart')
         status, describe, _, _ = http_json(
             'GET', f'{self.origin}/api/v1/ocu/workspaces/{chats["valid"]}', cookie=cookie
         )
@@ -185,6 +207,41 @@ class BrowserHarness(Smoke):
             )
         return chats, identity, password
 
+    def restart_native(
+        self,
+        old_stub: int,
+        old_backend: int,
+        stub_cmd: list[str],
+        backend_cmd: list[str],
+        stub_env: dict,
+        backend_env: dict,
+    ) -> dict:
+        for pid in (old_backend, old_stub):
+            if pid not in self.owned:
+                fail('refusing to restart a process not owned by this harness')
+            kill_tree(pid)
+            self.owned.remove(pid)
+        new_stub = self.start_owned(
+            stub_cmd,
+            stub_env,
+            f'http://127.0.0.1:{self.stub_port}/internal/describe/running',
+            self.scratch / 'stub-restart.log',
+        )
+        new_backend = self.start_owned(
+            backend_cmd,
+            backend_env,
+            f'http://127.0.0.1:{self.backend_port}/health',
+            self.scratch / 'backend-restart.log',
+            timeout=180,
+        )
+        if new_stub == old_stub or new_backend == old_backend:
+            fail('native restart did not change the owned service identity')
+        return {
+            'stub': {'old_pid': old_stub, 'new_pid': new_stub},
+            'backend': {'old_pid': old_backend, 'new_pid': new_backend},
+            'record_offset': self.record.stat().st_size,
+        }
+
     def run(self) -> int:
         try:
             return self.run_stack()
@@ -192,7 +249,7 @@ class BrowserHarness(Smoke):
             if self.scratch:
                 evidence = self.root / '.run/ui-evidence' / self.scratch.name
                 evidence.mkdir(parents=True, exist_ok=True)
-                for name in ('stub', 'backend', 'vite', 'proxy'):
+                for name in ('stub', 'backend', 'stub-restart', 'backend-restart', 'vite', 'proxy'):
                     source = self.scratch / f'{name}.log'
                     if source.is_file():
                         data = source.read_text(encoding='utf-8', errors='replace')
@@ -264,8 +321,9 @@ class BrowserHarness(Smoke):
             'OCU_STUB_ASSETS': str(self.stage / 'computer-use-server/static'),
             'OCU_STUB_DOCX': str(docx),
         }
-        self.start_owned(
-            [self.python, str(self.root / 'scripts/ocu-stub.py')],
+        stub_cmd = [self.python, str(self.root / 'scripts/ocu-stub.py')]
+        old_stub = self.start_owned(
+            stub_cmd,
             env,
             f'http://127.0.0.1:{self.stub_port}/internal/describe/running',
             self.scratch / 'stub.log',
@@ -290,13 +348,14 @@ class BrowserHarness(Smoke):
             'UV_NO_SYNC': '1',
         }
         run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)
-        self.start_owned(
-            [
-                'bash',
-                '-c',
-                'source scripts/dev-env.sh && cd backend && exec uv run --no-sync --quiet '
-                'uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
-            ],
+        backend_cmd = [
+            'bash',
+            '-c',
+            'source scripts/dev-env.sh && cd backend && exec uv run --no-sync --quiet '
+            'uvicorn open_webui.main:app --host 127.0.0.1 --port "$BACKEND_PORT"',
+        ]
+        old_backend = self.start_owned(
+            backend_cmd,
             service_env,
             f'http://127.0.0.1:{self.backend_port}/health',
             self.scratch / 'backend.log',
@@ -325,10 +384,17 @@ class BrowserHarness(Smoke):
         )
         wait_http(self.origin + '/', self.owned[-1], timeout=20)
         chats, identity, password = self.provision()
+        restart = self.restart_native(old_stub, old_backend, stub_cmd, backend_cmd, env, service_env)
         context = self.scratch / 'browser.json'
         context.write_text(
             json.dumps(
-                {'origin': self.origin, 'chats': chats, 'fixtures': str(self.fixtures), 'record': str(self.record)}
+                {
+                    'origin': self.origin,
+                    'chats': chats,
+                    'fixtures': str(self.fixtures),
+                    'record': str(self.record),
+                    'restart': restart,
+                }
             ),
             encoding='utf-8',
         )

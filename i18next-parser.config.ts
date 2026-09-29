@@ -17,7 +17,7 @@ export default {
 	lexers: {
 		svelte: ['JavascriptLexer'],
 		js: ['JavascriptLexer'],
-		ts: ['JavascriptLexer'],
+		ts: [{ lexer: 'JavascriptLexer', functions: ['t', 'translate'] }],
 
 		default: ['JavascriptLexer']
 	},
@@ -26,7 +26,7 @@ export default {
 	namespaceSeparator: false,
 	output: 'src/lib/i18n/locales/$LOCALE/$NAMESPACE.json',
 	pluralSeparator: '_',
-	input: 'src/**/*.{js,svelte}',
+	input: ['src/**/*.{js,svelte}', 'src/lib/components/chat/workspace-reconciliation.ts'],
 	sort: true,
 	verbose: true,
 	failOnWarnings: false,

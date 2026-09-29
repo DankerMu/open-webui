@@ -1,19 +1,6 @@
-# ocu-workspace-store Specification
+# Spec Delta
 
-## Purpose
-
-Chat-keyed OCU workspace store and API client for the four flag-gated routes, with the mutating header and late-response discard.
-
-## Requirements
-
-### Requirement: Client always sends X-Requested-With
-
-`getWorkspace`, `launchWorkspace`, `refreshWorkspace` and `putWorkspacePrefs` SHALL send `X-Requested-With: ocu-workspace` on every request to `/api/v1/ocu/workspaces/{chat_id}` (and `/launch`, `/refresh`, `/prefs`).
-
-#### Scenario: Header on every verb
-
-- **WHEN** each of the four client functions is called
-- **THEN** the request includes `X-Requested-With: ocu-workspace`
+## MODIFIED Requirements
 
 ### Requirement: Chat-keyed store discards late responses
 
@@ -33,6 +20,8 @@ Workspace state SHALL be keyed by `chat_id`. A describe or listing response whos
 
 - **WHEN** a current-chat hint arrives after a pass has started but before it accepts its listing
 - **THEN** that pass cannot erase the newer dirtiness and one subsequent authoritative pass occurs without overlapping requests
+
+## ADDED Requirements
 
 ### Requirement: One active-chat reconciliation producer
 
