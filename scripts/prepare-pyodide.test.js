@@ -195,6 +195,69 @@ describe('offline Pyodide material preparation', () => {
 		expect(await readFile(join(root, 'static', backups[0], 'marker.txt'), 'utf8')).toBe(prior);
 	});
 
+	it('keeps the newly published bundle when backup cleanup fails after commit', async () => {
+		const root = await tempDir();
+		const dest = join(root, 'static', 'pyodide');
+		const stage = join(root, 'stage');
+		await mkdir(dest, { recursive: true });
+		await mkdir(stage, { recursive: true });
+		await writeFile(join(dest, 'marker.txt'), 'prior-valid-bundle');
+		await writeFile(join(dest, 'old-only.txt'), 'old-material');
+		await writeFile(join(stage, 'marker.txt'), 'new-accepted-bundle');
+		await writeFile(join(stage, 'new-only.txt'), 'new-material');
+		await expect(
+			publishBundle(stage, dest, {
+				remove: async (target, opts) => {
+					if (String(target).startsWith(`${dest}.prev-`)) {
+						await rm(join(target, 'old-only.txt'), { force: true });
+						throw new Error('forced backup cleanup failure');
+					}
+					return rm(target, opts);
+				}
+			})
+		).rejects.toMatchObject({ cause: { message: 'forced backup cleanup failure' } });
+		expect(await readFile(join(dest, 'marker.txt'), 'utf8')).toBe('new-accepted-bundle');
+		expect(await readFile(join(dest, 'new-only.txt'), 'utf8')).toBe('new-material');
+	});
+
+	it('does not let a paused publisher delete a later complete publication', async () => {
+		const root = await tempDir();
+		const dest = join(root, 'static', 'pyodide');
+		const first = join(root, 'stage-one');
+		const second = join(root, 'stage-two');
+		await mkdir(dest, { recursive: true });
+		await mkdir(first, { recursive: true });
+		await mkdir(second, { recursive: true });
+		await writeFile(join(dest, 'marker.txt'), 'generation-old');
+		await writeFile(join(first, 'marker.txt'), 'generation-a');
+		await writeFile(join(second, 'marker.txt'), 'generation-b');
+		let pause;
+		const gate = new Promise((resolveGate) => {
+			pause = resolveGate;
+		});
+		let releaseA;
+		const holdA = new Promise((resolveHold) => {
+			releaseA = resolveHold;
+		});
+		const firstMove = async (from, to) => {
+			if (from === dest) {
+				const { rename } = await import('node:fs/promises');
+				await rename(from, to);
+				pause();
+				await holdA;
+				return;
+			}
+			const { rename } = await import('node:fs/promises');
+			return rename(from, to);
+		};
+		const firstJob = publishBundle(first, dest, { rename: firstMove });
+		await gate;
+		await expect(publishBundle(second, dest)).rejects.toThrow(/already in progress/);
+		releaseA();
+		await firstJob;
+		expect(await readFile(join(dest, 'marker.txt'), 'utf8')).toBe('generation-a');
+	});
+
 	it('rejects invalid explicit proxy configuration without exposing secrets', () => {
 		const secret = 'super-secret-proxy-credential';
 		expect(() => initNetworkProxyFromEnv({ HTTPS_PROXY: 'not a url' })).toThrow();

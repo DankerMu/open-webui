@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { closeSync, openSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -244,7 +245,7 @@ async function materializeFile(url, dest, expected, cacheDir, fetchImpl) {
 }
 
 async function writeAtomic(path, bytes) {
-	const tmp = `${path}.partial`;
+	const tmp = `${path}.partial-${process.pid}-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 	await mkdir(dirname(path), { recursive: true });
 	await writeFile(tmp, bytes);
 	await rename(tmp, path);
@@ -266,38 +267,60 @@ async function copyRuntime(distDir, dest) {
 export async function publishBundle(stageDir, destDir, options = {}) {
 	await stat(stageDir);
 	const move = options.rename ?? rename;
+	const remove = options.remove ?? rm;
+	const lockPath = `${destDir}.publish.lock`;
+	let lockFd;
+	try {
+		lockFd = openSync(lockPath, 'wx');
+	} catch (error) {
+		if (error?.code === 'EEXIST') throw new Error(`publication already in progress for ${destDir}`);
+		throw error;
+	}
 	const stamp = `${process.pid}-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 	const staged = `${destDir}.next-${stamp}`;
 	const backup = `${destDir}.prev-${stamp}`;
-	await move(stageDir, staged);
-	let replaced = false;
+	let committed = false;
 	try {
+		await move(stageDir, staged);
 		try {
 			await stat(destDir);
 			await move(destDir, backup);
-			replaced = true;
 		} catch (error) {
 			if (error?.code !== 'ENOENT') throw error;
 		}
 		await move(staged, destDir);
-		if (replaced) await rm(backup, { recursive: true, force: true });
+		committed = true;
+		await remove(backup, { recursive: true, force: true }).catch((cleanupError) => {
+			throw new Error(`published ${destDir}; residual backup remains at ${backup}`, {
+				cause: cleanupError
+			});
+		});
 	} catch (error) {
-		const failures = [error];
-		if (replaced) {
+		if (!committed) {
+			const failures = [error];
 			try {
-				await rm(destDir, { recursive: true, force: true });
+				await stat(backup);
+				await remove(destDir, { recursive: true, force: true }).catch(() => undefined);
 				await move(backup, destDir);
 			} catch (restoreError) {
-				failures.push(
-					new Error(`publication rollback failed; prior bundle remains at ${backup}`, {
-						cause: restoreError
-					})
-				);
+				if (restoreError?.code !== 'ENOENT') {
+					failures.push(
+						new Error(`publication rollback failed; prior bundle remains at ${backup}`, {
+							cause: restoreError
+						})
+					);
+				}
 			}
+			await remove(staged, { recursive: true, force: true }).catch(() => undefined);
+			if (failures.length > 1) throw new AggregateError(failures, 'publication failed');
 		}
-		await rm(staged, { recursive: true, force: true }).catch(() => undefined);
-		if (failures.length > 1) throw new AggregateError(failures, 'publication failed');
 		throw error;
+	} finally {
+		try {
+			closeSync(lockFd);
+		} finally {
+			await rm(lockPath, { force: true }).catch(() => undefined);
+		}
 	}
 }
 
