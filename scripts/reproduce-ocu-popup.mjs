@@ -164,6 +164,161 @@ async function readDom(page) {
 	}
 }
 
+function withDeadline(work, label) {
+	const { promise, reject } = Promise.withResolvers();
+	const timer = setTimeout(() => reject(new Error(label)), WAIT_MS);
+	return Promise.race([work, promise]).finally(() => clearTimeout(timer));
+}
+
+function createTargetBridge(cdp, sessionId) {
+	let nextId = 1;
+	const pending = new Map();
+	const onMessage = (event) => {
+		if (event.sessionId !== sessionId) return;
+		let message;
+		try {
+			message = JSON.parse(event.message);
+		} catch {
+			return;
+		}
+		const waiter = message && typeof message.id === 'number' ? pending.get(message.id) : undefined;
+		if (!waiter) return;
+		pending.delete(message.id);
+		if (message.error) waiter.reject(new Error('rpc-error'));
+		else waiter.resolve(message.result);
+	};
+	cdp.on('Target.receivedMessageFromTarget', onMessage);
+	return {
+		async send(method, params) {
+			const id = nextId++;
+			const { promise, resolve, reject } = Promise.withResolvers();
+			pending.set(id, { resolve, reject });
+			try {
+				return await withDeadline(
+					(async () => {
+						await cdp.send('Target.sendMessageToTarget', {
+							sessionId,
+							message: JSON.stringify({ id, method, params })
+						});
+						return promise;
+					})(),
+					'rpc-timeout'
+				);
+			} finally {
+				pending.delete(id);
+			}
+		},
+		dispose() {
+			cdp.off('Target.receivedMessageFromTarget', onMessage);
+			pending.clear();
+		}
+	};
+}
+
+function exactAttemptTarget(info, origin, attempt) {
+	if (info.type !== 'page' && info.type !== 'tab') return false;
+	try {
+		const url = new URL(info.url);
+		return (
+			url.origin === origin &&
+			url.pathname === '/file' &&
+			url.searchParams.get('attempt') === attempt
+		);
+	} catch {
+		return false;
+	}
+}
+
+function probeFailure(error) {
+	const allowed = [
+		'attach-timeout',
+		'rpc-timeout',
+		'rpc-error',
+		'evaluate-exception',
+		'evaluate-empty',
+		'detach-timeout',
+		'snapshot-timeout'
+	];
+	return allowed.includes(error?.message) ? error.message : 'probe-failed';
+}
+
+function summarizeProbedDocument(doc, origin, variant) {
+	const proof = proofSummary(doc.proof, origin);
+	return {
+		path: doc.path === '/file' ? '/file' : 'other',
+		readyState: ['loading', 'interactive', 'complete'].includes(doc.readyState)
+			? doc.readyState
+			: 'other',
+		origin: doc.origin === origin ? 'same-origin' : 'other',
+		scriptOrigin:
+			doc.scriptOrigin === 'null'
+				? 'opaque'
+				: doc.scriptOrigin === origin
+					? 'same-origin'
+					: 'other',
+		proof,
+		matchesExpected:
+			doc.path === '/file' &&
+			doc.readyState === 'complete' &&
+			doc.origin === origin &&
+			doc.scriptOrigin === (variant === 'sandbox' ? 'null' : origin) &&
+			matchesProof(proof, expectedProof(variant))
+	};
+}
+
+async function probeUnexposedTarget(cdp, snapshot, row, origin) {
+	const matches = snapshot.targetInfos.filter((info) =>
+		exactAttemptTarget(info, origin, row.attempt)
+	);
+	if (matches.length !== 1) {
+		row.probeError = matches.length ? 'target-not-unique' : 'target-missing';
+		return;
+	}
+	const target = matches[0];
+	if (
+		!row.targetEvents.some(
+			(event) => event.kind === 'created' && event.targetId === target.targetId
+		)
+	) {
+		row.probeError = 'target-not-created-in-attempt';
+		return;
+	}
+	let sessionId;
+	let bridge;
+	try {
+		({ sessionId } = await withDeadline(
+			cdp.send('Target.attachToTarget', {
+				targetId: target.targetId,
+				flatten: false
+			}),
+			'attach-timeout'
+		));
+		bridge = createTargetBridge(cdp, sessionId);
+		const expression = `JSON.stringify({
+			readyState: document.readyState,
+			path: location.pathname,
+			origin: location.origin,
+			scriptOrigin: self.origin,
+			proof: document.querySelector('#proof')?.textContent ?? null
+		})`;
+		const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
+		if (result?.exceptionDetails) throw new Error('evaluate-exception');
+		if (typeof result?.result?.value !== 'string') throw new Error('evaluate-empty');
+		row.cdpDocument = summarizeProbedDocument(JSON.parse(result.result.value), origin, row.variant);
+	} catch (error) {
+		row.probeError = probeFailure(error);
+	} finally {
+		bridge?.dispose();
+		if (sessionId)
+			await withDeadline(
+				cdp.send('Target.detachFromTarget', { sessionId }),
+				'detach-timeout'
+			).catch((error) => {
+				row.probeError ??= probeFailure(error);
+			});
+	}
+}
+
 async function runAttempt(browser, origin, arrivals, pending, cdp, capture, type, variant, index) {
 	const attempt = `${type}-${variant}-${index}`;
 	const row = {
@@ -193,8 +348,9 @@ async function runAttempt(browser, origin, arrivals, pending, cdp, capture, type
 		row.pageExposed = Boolean(popup);
 		if (!popup) {
 			row.classification = hasDocument(row.http) ? 'page-unexposed' : 'http-failed';
+			let snapshot;
 			try {
-				const snapshot = await cdp.send('Target.getTargets');
+				snapshot = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
 				row.targets = snapshot.targetInfos
 					.filter(({ type: kind }) => kind === 'page' || kind === 'tab')
 					.map(({ targetId, type: kind, url, openerId }) => ({
@@ -203,9 +359,15 @@ async function runAttempt(browser, origin, arrivals, pending, cdp, capture, type
 						path: pathname(url, origin),
 						openerId: openerId ?? null
 					}));
-			} catch {
+			} catch (error) {
 				row.targetsUnavailable = true;
+				row.probeError ??=
+					probeFailure(error) === 'snapshot-timeout' ? 'snapshot-timeout' : 'snapshot-unavailable';
 			}
+			if (snapshot)
+				await probeUnexposedTarget(cdp, snapshot, row, origin).catch((error) => {
+					row.probeError ??= probeFailure(error);
+				});
 			return row;
 		}
 		if (!hasDocument(row.http)) {
@@ -319,7 +481,10 @@ async function main() {
 		cdp.on('Target.targetInfoChanged', ({ targetInfo }) => record('changed', targetInfo));
 		cdp.on('Target.targetDestroyed', ({ targetId }) => record('destroyed', { targetId }));
 		cdp.on('Target.targetCrashed', ({ targetId }) => record('crashed', { targetId }));
-		await cdp.send('Target.setDiscoverTargets', { discover: true });
+		await withDeadline(
+			cdp.send('Target.setDiscoverTargets', { discover: true }),
+			'discovery-timeout'
+		);
 		report.attempts = await reproduce(browser, origin, arrivals, pending, cdp, capture);
 	} catch (error) {
 		report.setupError = error instanceof Error ? error.name : 'unknown';
@@ -327,10 +492,13 @@ async function main() {
 		for (const release of pending.values()) release(null);
 		pending.clear();
 		if (cdp) {
-			await cdp
-				.send('Target.setDiscoverTargets', { discover: false })
-				.catch(() => report.cleanupErrors.push('target-discovery'));
-			await cdp.detach().catch(() => report.cleanupErrors.push('cdp-session'));
+			await withDeadline(
+				cdp.send('Target.setDiscoverTargets', { discover: false }),
+				'discovery-stop-timeout'
+			).catch(() => report.cleanupErrors.push('target-discovery'));
+			await withDeadline(cdp.detach(), 'root-detach-timeout').catch(() =>
+				report.cleanupErrors.push('cdp-session')
+			);
 		}
 		if (browser) await browser.close().catch(() => report.cleanupErrors.push('browser'));
 		if (server.listening) {
