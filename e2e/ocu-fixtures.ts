@@ -149,6 +149,34 @@ export function watchContextLifecycle(
 	});
 }
 
+export async function expectOpaqueFileDocument(page: Page, path: string, type: 'html' | 'svg') {
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const inline = document.querySelector<HTMLElement>('#inline');
+				const image = document.querySelector<HTMLImageElement>('#image');
+				return {
+					path: window.location.pathname,
+					origin: window.location.origin,
+					readyState: document.readyState,
+					proof: document.querySelector('#proof')?.textContent ?? null,
+					inlineColor: inline ? getComputedStyle(inline).color : null,
+					imageNaturalWidth: image?.naturalWidth ?? null,
+					imageComplete: image?.complete ?? null
+				};
+			})
+		)
+		.toEqual({
+			path,
+			origin: context.origin,
+			readyState: 'complete',
+			proof: 'null|blocked|blocked|blocked',
+			inlineColor: type === 'html' ? 'rgb(0, 128, 0)' : null,
+			imageNaturalWidth: type === 'html' ? 1 : null,
+			imageComplete: type === 'html' ? true : null
+		});
+}
+
 export async function recordAnchorClicks(page: Page, record: (entry: OcuClickProbe) => void) {
 	await page.exposeFunction('__recordOcuClick', (entry: OcuClickProbe) => {
 		record(entry);

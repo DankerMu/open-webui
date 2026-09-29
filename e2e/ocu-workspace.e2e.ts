@@ -1,6 +1,7 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 import {
+	expectOpaqueFileDocument,
 	recordAnchorClicks,
 	watchContextLifecycle,
 	watchOcuProtocol,
@@ -547,7 +548,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await linked.bringToFront();
 	const linkedObs = popupObservations.get(linked);
 	expect(linkedObs, 'popup diagnostics must start before navigation').toBeDefined();
-	await expect(linked.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
+	await expectOpaqueFileDocument(linked, `/ocu/files/${context.chats.link}/page.html`, 'html');
 	await expect
 		.poll(() => linked.evaluate(() => window.fixtureEvents))
 		.toContainEqual({
@@ -557,8 +558,6 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 			parentAccess: 'blocked',
 			cookie: 'blocked'
 		});
-	await expect(linked.locator('#inline')).toHaveCSS('color', 'rgb(0, 128, 0)');
-	await expect(linked.locator('#image')).toHaveJSProperty('naturalWidth', 1);
 	expect(new URL(linked.url()).origin).toBe(context.origin);
 	const linkDocument = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/page.html`)
@@ -600,7 +599,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 			parentAccess: 'blocked',
 			cookie: 'blocked'
 		});
-	await expect(linkedSvg.locator('#proof')).toHaveText('null|blocked|blocked|blocked');
+	await expectOpaqueFileDocument(linkedSvg, `/ocu/files/${context.chats.link}/diagram.svg`, 'svg');
 	expect(new URL(linkedSvg.url()).origin).toBe(context.origin);
 	const messageSvg = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/diagram.svg`)
