@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-29
 supersedes: none
-references: issue96, issue33, openspec/changes/ocu-pyodide-offline-materials
+references: issue96, issue33, openspec/specs/ocu-pyodide-materials/spec.md
 ---
 
 # Pinned local Pyodide material closure
