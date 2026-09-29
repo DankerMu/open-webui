@@ -1,10 +1,9 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 import {
-	expectOpaqueFileDocument,
+	observeNativeOcuPopup,
 	recordAnchorClicks,
 	watchContextLifecycle,
-	watchOcuProtocol,
 	writeOcuFailureEvidence,
 	type OcuClickProbe
 } from './ocu-fixtures';
@@ -156,7 +155,6 @@ type FileNetworkEvidence = {
 	browser: BrowserContext;
 	anchorPath: string | null;
 	gestures: OcuClickProbe[];
-	protocol?: Awaited<ReturnType<typeof watchOcuProtocol>>;
 };
 
 let fileNetworkEvidence: FileNetworkEvidence | undefined;
@@ -257,7 +255,6 @@ test.afterEach(async () => {
 	const record = fileNetworkEvidence;
 	fileNetworkEvidence = undefined;
 	if (!record) return;
-	await record.protocol?.close();
 	if (test.info().status !== test.info().expectedStatus)
 		await writeOcuFailureEvidence(record, sanitizedLocation);
 });
@@ -359,11 +356,6 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 }) => {
 	const fileNetwork = observeFileNetwork(browser, page);
 	fileNetworkEvidence = fileNetwork;
-	fileNetwork.protocol = await watchOcuProtocol(
-		browser,
-		page,
-		(url) => sanitizedLocation(url)?.split('?')[0] ?? null
-	);
 	const normalCss = observeStylesheet(browser, context.chats.normal);
 	const linkCss = observeStylesheet(browser, context.chats.link);
 	const anonymous = await playwright.request.newContext({
@@ -513,10 +505,6 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	expect(denied).toEqual([]);
 	expect(parent.errors).toEqual([]);
 
-	const popupObservations = new Map<Page, { errors: string[] }>();
-	browser.on('page', (popup) =>
-		popupObservations.set(popup, observe(popup, undefined, expectedStyleDiagnostic))
-	);
 	await page.goto(`/c/${context.chats.link}`);
 	const realLink = page.getByRole('link', { name: 'Open generated workspace file' });
 	await expect(realLink).toBeVisible();
@@ -540,25 +528,31 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	await recordAnchorClicks(page, (entry) => {
 		fileNetwork.gestures.push(entry);
 	});
-	const [linked] = await Promise.all([
-		browser.waitForEvent('page'),
-		realLink.click({ modifiers: ['ControlOrMeta'] })
-	]);
-	fileNetwork.active = linked;
-	await linked.bringToFront();
-	const linkedObs = popupObservations.get(linked);
-	expect(linkedObs, 'popup diagnostics must start before navigation').toBeDefined();
-	await expectOpaqueFileDocument(linked, `/ocu/files/${context.chats.link}/page.html`, 'html');
-	await expect
-		.poll(() => linked.evaluate(() => window.fixtureEvents))
-		.toContainEqual({
-			origin: 'null',
-			type: 'fixture-opaque',
-			storage: 'blocked',
-			parentAccess: 'blocked',
-			cookie: 'blocked'
-		});
-	expect(new URL(linked.url()).origin).toBe(context.origin);
+	fileNetwork.active = page;
+	const linked = await observeNativeOcuPopup(
+		browser,
+		page,
+		`/ocu/files/${context.chats.link}/page.html`,
+		'html',
+		() => realLink.click({ modifiers: ['ControlOrMeta'] }),
+		`${evidence}/workspace-message-link.png`
+	);
+	expect(linked.document).toMatchObject({
+		path: `/ocu/files/${context.chats.link}/page.html`,
+		origin: context.origin,
+		readyState: 'complete',
+		proof: 'null|blocked|blocked|blocked',
+		inlineColor: 'rgb(0, 128, 0)',
+		imageNaturalWidth: 1,
+		imageComplete: true
+	});
+	expect(linked.document.fixtureEvents).toContainEqual({
+		origin: 'null',
+		type: 'fixture-opaque',
+		storage: 'blocked',
+		parentAccess: 'blocked',
+		cookie: 'blocked'
+	});
 	const linkDocument = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/page.html`)
 	);
@@ -568,9 +562,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 	);
 	expect(linkDocument?.headers['x-content-type-options']).toBe('nosniff');
 	await expectDeniedStylesheet(linkCss, linkBefore);
-	await linked.screenshot({ path: `${evidence}/workspace-message-link.png`, fullPage: true });
-	expect(linkedObs!.errors).toEqual([]);
-	await linked.close();
+	expect(linked.errors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual([]);
 	const svgLink = page.getByRole('link', { name: 'Open scripted SVG' });
 	await expect(svgLink).toBeVisible();
 	await expect(svgLink).toHaveAttribute('target', '_blank');
@@ -584,36 +576,43 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 		'null|blocked|blocked|blocked'
 	);
 	expect(browser.pages()).toHaveLength(beforeClickTabs);
-	const [linkedSvg] = await Promise.all([
-		browser.waitForEvent('page'),
-		svgLink.click({ modifiers: ['ControlOrMeta'] })
-	]);
-	fileNetwork.active = linkedSvg;
-	await linkedSvg.bringToFront();
-	await expect
-		.poll(() => linkedSvg.evaluate(() => window.fixtureEvents))
-		.toContainEqual({
-			origin: 'null',
-			type: 'fixture-svg',
-			storage: 'blocked',
-			parentAccess: 'blocked',
-			cookie: 'blocked'
-		});
-	await expectOpaqueFileDocument(linkedSvg, `/ocu/files/${context.chats.link}/diagram.svg`, 'svg');
-	expect(new URL(linkedSvg.url()).origin).toBe(context.origin);
+	const linkedSvg = await observeNativeOcuPopup(
+		browser,
+		page,
+		`/ocu/files/${context.chats.link}/diagram.svg`,
+		'svg',
+		() => svgLink.click({ modifiers: ['ControlOrMeta'] }),
+		`${evidence}/workspace-message-svg.png`
+	);
+	expect(linkedSvg.document).toMatchObject({
+		path: `/ocu/files/${context.chats.link}/diagram.svg`,
+		origin: context.origin,
+		readyState: 'complete',
+		proof: 'null|blocked|blocked|blocked',
+		inlineColor: null,
+		imageNaturalWidth: null,
+		imageComplete: null
+	});
+	expect(linkedSvg.document.fixtureEvents).toContainEqual({
+		origin: 'null',
+		type: 'fixture-svg',
+		storage: 'blocked',
+		parentAccess: 'blocked',
+		cookie: 'blocked'
+	});
 	const messageSvg = fileResponses.find((item) =>
 		item.url.endsWith(`/ocu/files/${context.chats.link}/diagram.svg`)
 	);
 	expect(messageSvg?.status).toBe(200);
 	expect(messageSvg?.headers['content-security-policy']).toBe('sandbox allow-scripts allow-forms');
 	expect(messageSvg?.headers['x-content-type-options']).toBe('nosniff');
-	expect(popupObservations.get(linkedSvg)?.errors).toEqual([]);
-	await linkedSvg.screenshot({ path: `${evidence}/workspace-message-svg.png` });
-	await linkedSvg.close();
+	expect(linkedSvg.errors.filter(({ url, text }) => !expectedStyleDiagnostic(url, text))).toEqual(
+		[]
+	);
 
 	const direct = await browser.newPage();
 	fileNetwork.active = direct;
-	const directObs = popupObservations.get(direct);
+	const directObs = observe(direct, undefined, expectedStyleDiagnostic);
 	const directBefore = stylesheetSnapshot(normalCss);
 	const response = await direct.goto(
 		`${context.origin}/ocu/files/${context.chats.normal}/page.html`

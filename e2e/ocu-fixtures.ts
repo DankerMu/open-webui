@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { expect, type BrowserContext, type Page } from '@playwright/test';
+import { expect, type BrowserContext, type CDPSession, type Page } from '@playwright/test';
 import { attachCdpTarget, cdpDeadline } from '../scripts/ocu-target-bridge.mjs';
 
 export type OcuClickProbe = {
@@ -150,34 +150,6 @@ export function watchContextLifecycle(
 	});
 }
 
-export async function expectOpaqueFileDocument(page: Page, path: string, type: 'html' | 'svg') {
-	await expect
-		.poll(() =>
-			page.evaluate(() => {
-				const inline = document.querySelector<HTMLElement>('#inline');
-				const image = document.querySelector<HTMLImageElement>('#image');
-				return {
-					path: window.location.pathname,
-					origin: window.location.origin,
-					readyState: document.readyState,
-					proof: document.querySelector('#proof')?.textContent ?? null,
-					inlineColor: inline ? getComputedStyle(inline).color : null,
-					imageNaturalWidth: image?.naturalWidth ?? null,
-					imageComplete: image?.complete ?? null
-				};
-			})
-		)
-		.toEqual({
-			path,
-			origin: context.origin,
-			readyState: 'complete',
-			proof: 'null|blocked|blocked|blocked',
-			inlineColor: type === 'html' ? 'rgb(0, 128, 0)' : null,
-			imageNaturalWidth: type === 'html' ? 1 : null,
-			imageComplete: type === 'html' ? true : null
-		});
-}
-
 export async function recordAnchorClicks(page: Page, record: (entry: OcuClickProbe) => void) {
 	await page.exposeFunction('__recordOcuClick', (entry: OcuClickProbe) => {
 		record(entry);
@@ -204,18 +176,184 @@ export async function recordAnchorClicks(page: Page, record: (entry: OcuClickPro
 	});
 }
 
-type ProtocolEvent = {
-	ms: number;
-	source: 'browser' | 'original' | 'exposed';
-	kind: string;
-	targetId?: string;
-	openerId?: string;
-	frameId?: string;
-	requestId?: string;
-	path?: string | null;
-	status?: number;
-	value?: string | number | boolean;
+type PopupCdpEvent = {
+	type?: string;
+	args?: Array<{ value?: unknown; description?: string }>;
+	stackTrace?: { callFrames?: Array<{ url: string }> };
+	exceptionDetails?: { url?: string; text?: string; exception?: { description?: string } };
+	entry?: { level?: string; url?: string; text?: string };
 };
+
+function collectPopupError(
+	errors: Array<{ url: string; text: string }>,
+	method: string,
+	params: PopupCdpEvent
+) {
+	if (method === 'Runtime.consoleAPICalled' && params.type === 'error')
+		errors.push({
+			url: params.stackTrace?.callFrames?.[0]?.url ?? '',
+			text: params.args?.map((arg) => String(arg.value ?? arg.description ?? '')).join(' ') ?? ''
+		});
+	if (method === 'Runtime.exceptionThrown')
+		errors.push({
+			url: params.exceptionDetails?.url ?? '',
+			text: params.exceptionDetails?.exception?.description ?? params.exceptionDetails?.text ?? ''
+		});
+	if (method === 'Log.entryAdded' && params.entry?.level === 'error')
+		errors.push({ url: params.entry.url ?? '', text: params.entry.text ?? '' });
+}
+
+async function sourceTargetContext(
+	browser: BrowserContext,
+	source: Page,
+	targets: Array<{ targetId: string; browserContextId?: string }>
+) {
+	const sourceSession = await cdpDeadline(browser.newCDPSession(source), 'source-attach-timeout');
+	let info: { targetId: string; browserContextId?: string };
+	try {
+		const response = await cdpDeadline(
+			sourceSession.send('Target.getTargetInfo'),
+			'source-info-timeout'
+		);
+		info = response.targetInfo;
+	} finally {
+		await cdpDeadline(sourceSession.detach(), 'source-detach-timeout');
+	}
+	const original = targets.find(({ targetId }) => targetId === info.targetId);
+	if (!original || !info.browserContextId || original.browserContextId !== info.browserContextId)
+		throw new Error('Native popup source target identity unavailable');
+	return info.browserContextId;
+}
+type PopupBridge = Awaited<ReturnType<typeof attachCdpTarget>>;
+
+function matchesPopupPath(url: string, path: string) {
+	try {
+		const address = new URL(url);
+		return (
+			address.origin === context.origin &&
+			address.pathname === path &&
+			address.search === '' &&
+			address.hash === ''
+		);
+	} catch {
+		return false;
+	}
+}
+
+async function awaitPopupDestination(
+	root: CDPSession,
+	targetId: string,
+	contextId: string,
+	path: string,
+	valid: () => boolean
+) {
+	const deadline = Date.now() + 20_000;
+	do {
+		if (!valid()) throw new Error('Native popup target lost or ambiguous');
+		const { targetInfos } = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
+		const matches = targetInfos.filter(
+			(info) => (info.type === 'page' || info.type === 'tab') && matchesPopupPath(info.url, path)
+		);
+		if (
+			matches.length > 1 ||
+			(matches.length === 1 &&
+				(matches[0].targetId !== targetId || matches[0].browserContextId !== contextId))
+		)
+			throw new Error('Native popup destination identity mismatch');
+		if (matches.length === 1) return;
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	} while (Date.now() < deadline);
+	throw new Error('Native popup destination identity mismatch');
+}
+
+const POPUP_DOCUMENT_EXPRESSION = `JSON.stringify((() => {
+	const proof = document.querySelector('#proof')?.textContent;
+	const inline = document.querySelector('#inline');
+	const image = document.querySelector('#image');
+	const safe = (value) => value === 'blocked' ? 'blocked' : 'unexpected';
+	return {
+		path: location.pathname, origin: location.origin, readyState: document.readyState,
+		proof: proof === 'null|blocked|blocked|blocked' ? proof : 'unexpected',
+		inlineColor: inline ? getComputedStyle(inline).color : null,
+		imageNaturalWidth: image?.naturalWidth ?? null, imageComplete: image?.complete ?? null,
+		fixtureEvents: (window.fixtureEvents ?? []).map((event) => ({
+			origin: event.origin === 'null' ? 'null' : 'unexpected',
+			type: ['fixture-opaque', 'fixture-svg'].includes(event.type) ? event.type : 'unexpected',
+			storage: safe(event.storage), parentAccess: safe(event.parentAccess),
+			cookie: safe(event.cookie)
+		}))
+	};
+})())`;
+
+type PopupFixtureEvent = {
+	origin: string;
+	type: string;
+	storage: string;
+	parentAccess: string;
+	cookie: string;
+};
+
+function expectedPopupEvent(event: PopupFixtureEvent, type: 'html' | 'svg') {
+	return (
+		event.origin === 'null' &&
+		event.type === (type === 'html' ? 'fixture-opaque' : 'fixture-svg') &&
+		event.storage === 'blocked' &&
+		event.parentAccess === 'blocked' &&
+		event.cookie === 'blocked'
+	);
+}
+
+async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', valid: () => boolean) {
+	const deadline = Date.now() + 20_000;
+	do {
+		if (!valid()) throw new Error('Native popup target lost or ambiguous');
+		const result = await bridge.send('Runtime.evaluate', {
+			expression: POPUP_DOCUMENT_EXPRESSION,
+			returnByValue: true
+		});
+		if (result.exceptionDetails || typeof result.result?.value !== 'string')
+			throw new Error('Native popup DOM evaluation failed');
+		const document = JSON.parse(result.result.value);
+		if (
+			document.readyState === 'complete' &&
+			document.fixtureEvents.some((event: PopupFixtureEvent) => expectedPopupEvent(event, type))
+		)
+			return document;
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	} while (Date.now() < deadline);
+	throw new Error('Native popup fixture event missing');
+}
+
+async function capturePopupScreenshot(bridge: PopupBridge, path: string) {
+	const capture = await bridge.send('Page.captureScreenshot', { format: 'png' });
+	const png = Buffer.from(capture.data ?? '', 'base64');
+	if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')))
+		throw new Error('Native popup screenshot is not PNG');
+	fs.writeFileSync(path, png);
+}
+
+async function releasePopupTarget(
+	root: CDPSession,
+	bridge: PopupBridge | undefined,
+	targetId: string | undefined,
+	targetLost: boolean
+) {
+	const errors: string[] = [];
+	if (bridge) await bridge.detach().catch(() => errors.push('target detach'));
+	if (targetId) {
+		const closed = await cdpDeadline(
+			root.send('Target.closeTarget', { targetId }),
+			'target-close-timeout'
+		).catch(() => ({ success: false }));
+		if (!closed.success && !targetLost) errors.push('target close');
+	}
+	await cdpDeadline(
+		root.send('Target.setDiscoverTargets', { discover: false }),
+		'discovery-stop-timeout'
+	).catch(() => errors.push('target discovery'));
+	await cdpDeadline(root.detach(), 'root-detach-timeout').catch(() => errors.push('root detach'));
+	return errors;
+}
 
 /**
  * Observe a native modifier-click through the browser target channel, including
@@ -225,6 +363,7 @@ export async function observeNativeOcuPopup(
 	browser: BrowserContext,
 	source: Page,
 	expectedPath: string,
+	type: 'html' | 'svg',
 	click: () => Promise<void>,
 	screenshotPath: string
 ) {
@@ -232,17 +371,31 @@ export async function observeNativeOcuPopup(
 	if (!owner) throw new Error('Native popup observation requires a Chromium browser');
 	const root = await owner.newBrowserCDPSession();
 	let targetId: string | undefined;
-	let bridge: Awaited<ReturnType<typeof attachCdpTarget>> | undefined;
+	let bridge: PopupBridge | undefined;
 	let onCreated:
 		| ((event: {
 				targetInfo: { targetId: string; type: string; browserContextId?: string };
 		  }) => void)
 		| undefined;
 	let exposed = false;
+	let targetLost = false;
+	const onLost = ({ targetId: lost }: { targetId: string }) => {
+		if (lost === targetId) targetLost = true;
+	};
 	const errors: Array<{ url: string; text: string }> = [];
 	const onPage = (page: Page) => {
 		if (page !== source) exposed = true;
 	};
+	let observation:
+		| {
+				document: Awaited<ReturnType<typeof readPopupDocument>>;
+				errors: Array<{ url: string; text: string }>;
+				pageExposed: boolean;
+				targetId: string;
+		  }
+		| undefined;
+	let failure: unknown;
+	let cleanupErrors: string[] = [];
 	try {
 		await cdpDeadline(
 			root.send('Target.setDiscoverTargets', { discover: true }),
@@ -250,34 +403,9 @@ export async function observeNativeOcuPopup(
 		);
 		const { targetInfos } = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
 		const existing = new Set(targetInfos.map(({ targetId }) => targetId));
-		const originals = targetInfos.filter(
-			({ url, type }) => (type === 'page' || type === 'tab') && url === source.url()
-		);
-		if (originals.length !== 1 || !originals[0].browserContextId)
-			throw new Error('Native popup source target identity unavailable');
-		const contextId = originals[0].browserContextId;
+		const contextId = await sourceTargetContext(browser, source, targetInfos);
 		const candidates = new Set<string>();
 		const created = Promise.withResolvers<string>();
-		const onTargetEvent = (method: string, params: any) => {
-			if (method === 'Runtime.consoleAPICalled' && params.type === 'error')
-				errors.push({
-					url: params.stackTrace?.callFrames?.[0]?.url ?? '',
-					text:
-						params.args
-							?.map((arg: { value?: unknown; description?: string }) =>
-								String(arg.value ?? arg.description ?? '')
-							)
-							.join(' ') ?? ''
-				});
-			if (method === 'Runtime.exceptionThrown')
-				errors.push({
-					url: params.exceptionDetails?.url ?? '',
-					text:
-						params.exceptionDetails?.exception?.description ?? params.exceptionDetails?.text ?? ''
-				});
-			if (method === 'Log.entryAdded' && params.entry?.level === 'error')
-				errors.push({ url: params.entry.url ?? '', text: params.entry.text ?? '' });
-		};
 		onCreated = ({ targetInfo }) => {
 			if (
 				existing.has(targetInfo.targetId) ||
@@ -290,244 +418,48 @@ export async function observeNativeOcuPopup(
 			targetId = targetInfo.targetId;
 			created.resolve(
 				(async () => {
-					bridge = await attachCdpTarget(root, targetInfo.targetId, { onEvent: onTargetEvent });
+					bridge = await attachCdpTarget(root, targetInfo.targetId, {
+						onEvent: (method, params: PopupCdpEvent) => collectPopupError(errors, method, params)
+					});
 					await Promise.all([bridge.send('Runtime.enable'), bridge.send('Log.enable')]);
 					return targetInfo.targetId;
 				})()
 			);
 		};
 		root.on('Target.targetCreated', onCreated);
+		root.on('Target.targetDestroyed', onLost);
+		root.on('Target.targetCrashed', onLost);
 		browser.on('page', onPage);
 		await click();
 		targetId = await cdpDeadline(created.promise, 'target-created-timeout');
-		if (candidates.size !== 1) throw new Error('Native popup target not unique');
-		const targets = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
-		const matches = targets.targetInfos.filter((info) => {
-			if (info.type !== 'page' && info.type !== 'tab') return false;
-			try {
-				const url = new URL(info.url);
-				return (
-					url.origin === context.origin &&
-					url.pathname === expectedPath &&
-					url.search === '' &&
-					url.hash === ''
-				);
-			} catch {
-				return false;
-			}
-		});
-		if (
-			matches.length !== 1 ||
-			matches[0].targetId !== targetId ||
-			matches[0].browserContextId !== contextId
-		)
-			throw new Error('Native popup destination identity mismatch');
-		const expression = `JSON.stringify((() => {
-			const proof = document.querySelector('#proof')?.textContent;
-			const inline = document.querySelector('#inline');
-			const image = document.querySelector('#image');
-			const safe = (value) => value === 'blocked' ? 'blocked' : 'unexpected';
-			return {
-				path: location.pathname, origin: location.origin, readyState: document.readyState,
-				proof: proof === 'null|blocked|blocked|blocked' ? proof : 'unexpected',
-				inlineColor: inline ? getComputedStyle(inline).color : null,
-				imageNaturalWidth: image?.naturalWidth ?? null, imageComplete: image?.complete ?? null,
-				fixtureEvents: (window.fixtureEvents ?? []).map((event) => ({
-					origin: event.origin === 'null' ? 'null' : 'unexpected',
-					type: ['fixture-opaque', 'fixture-svg'].includes(event.type) ? event.type : 'unexpected',
-					storage: safe(event.storage), parentAccess: safe(event.parentAccess),
-					cookie: safe(event.cookie)
-				}))
-			};
-		})())`;
-		let document;
-		const until = Date.now() + 3_000;
-		do {
-			const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
-			if (result.exceptionDetails || typeof result.result?.value !== 'string')
-				throw new Error('Native popup DOM evaluation failed');
-			document = JSON.parse(result.result.value);
-			if (document.readyState === 'complete' && document.proof !== 'unexpected') break;
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		} while (Date.now() < until);
-		const capture = await bridge.send('Page.captureScreenshot', { format: 'png' });
-		const png = Buffer.from(capture.data ?? '', 'base64');
-		if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')))
-			throw new Error('Native popup screenshot is not PNG');
-		fs.writeFileSync(screenshotPath, png);
+		if (candidates.size !== 1 || targetLost) throw new Error('Native popup target not unique');
+		const valid = () => !targetLost && candidates.size === 1;
+		await awaitPopupDestination(root, targetId, contextId, expectedPath, valid);
+		if (!bridge) throw new Error('Native popup CDP attachment missing');
+		const document = await readPopupDocument(bridge, type, valid);
+		if (!valid()) throw new Error('Native popup target lost or ambiguous');
+		await capturePopupScreenshot(bridge, screenshotPath);
 		if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
-		return { document, errors, pageExposed: exposed, targetId };
+		observation = { document, errors, pageExposed: exposed, targetId };
+	} catch (error) {
+		failure = error;
 	} finally {
 		if (onCreated) root.off('Target.targetCreated', onCreated);
+		root.off('Target.targetDestroyed', onLost);
+		root.off('Target.targetCrashed', onLost);
 		browser.off('page', onPage);
-		if (bridge) await bridge.detach().catch(() => undefined);
-		if (targetId)
-			await cdpDeadline(
-				root.send('Target.closeTarget', { targetId }),
-				'target-close-timeout'
-			).catch(() => undefined);
-		await cdpDeadline(
-			root.send('Target.setDiscoverTargets', { discover: false }),
-			'discovery-stop-timeout'
-		).catch(() => undefined);
-		await cdpDeadline(root.detach(), 'root-detach-timeout').catch(() => undefined);
+		cleanupErrors = await releasePopupTarget(root, bridge, targetId, targetLost);
 	}
-}
-
-export async function watchOcuProtocol(
-	browser: BrowserContext,
-	original: Page,
-	sanitize: (url: string) => string | null
-) {
-	const started = Date.now();
-	const events: ProtocolEvent[] = [];
-	const attached: string[] = [];
-	const sessions: Array<Awaited<ReturnType<BrowserContext['newCDPSession']>>> = [];
-	const pending: Promise<void>[] = [];
-	let dropped = 0;
-	const add = (
-		source: ProtocolEvent['source'],
-		kind: string,
-		info: Omit<ProtocolEvent, 'ms' | 'source' | 'kind'> = {}
-	) => {
-		if (events.length >= 400) {
-			events.splice(100, 1);
-			dropped++;
-		}
-		events.push({ ms: Date.now() - started, source, kind, ...info });
-	};
-	const originClass = (origin: string) => {
-		if (origin === '://') return 'opaque';
-		try {
-			return new URL(origin).origin === context.origin ? 'same-origin' : 'other';
-		} catch {
-			return origin === 'null' ? 'opaque' : 'unknown';
-		}
-	};
-	const attach = async (page: Page, source: 'original' | 'exposed') => {
-		try {
-			const session = await browser.newCDPSession(page);
-			sessions.push(session);
-			const documents = new Map<string, string | null>();
-			session.on('Page.frameNavigated', ({ frame }) =>
-				add(source, 'frameNavigated', { frameId: frame.id, path: sanitize(frame.url) })
-			);
-			session.on('Page.frameStartedLoading', ({ frameId }) =>
-				add(source, 'frameStartedLoading', { frameId })
-			);
-			session.on('Page.frameStoppedLoading', ({ frameId }) =>
-				add(source, 'frameStoppedLoading', { frameId })
-			);
-			session.on('Page.lifecycleEvent', ({ frameId, name }) =>
-				add(source, 'lifecycleEvent', { frameId, value: name })
-			);
-			session.on('Runtime.executionContextCreated', ({ context: execution }) =>
-				add(source, 'executionContextCreated', {
-					value: execution.id,
-					path: originClass(execution.origin)
-				})
-			);
-			session.on('Runtime.executionContextDestroyed', ({ executionContextId }) =>
-				add(source, 'executionContextDestroyed', { value: executionContextId })
-			);
-			session.on('Network.requestWillBeSent', ({ type, requestId, request }) => {
-				if (type !== 'Document') return;
-				const path = sanitize(request.url);
-				documents.set(requestId, path);
-				add(source, 'documentRequested', { requestId, path });
-			});
-			session.on('Network.responseReceived', ({ type, requestId, response }) => {
-				if (type !== 'Document') return;
-				documents.set(requestId, sanitize(response.url));
-				add(source, 'documentResponse', {
-					requestId,
-					path: documents.get(requestId),
-					status: response.status
-				});
-			});
-			session.on('Network.loadingFinished', ({ requestId }) => {
-				if (!documents.has(requestId)) return;
-				add(source, 'documentFinished', { requestId, path: documents.get(requestId) });
-				documents.delete(requestId);
-			});
-			session.on('Network.loadingFailed', ({ requestId, errorText }) => {
-				if (!documents.has(requestId)) return;
-				add(source, 'documentFailed', {
-					requestId,
-					path: documents.get(requestId),
-					value: /^net::[A-Z_]+$/.test(errorText) ? errorText : 'other'
-				});
-				documents.delete(requestId);
-			});
-			await Promise.all([
-				session.send('Page.enable'),
-				session.send('Runtime.enable'),
-				session.send('Network.enable')
-			]);
-			await session.send('Page.setLifecycleEventsEnabled', { enabled: true });
-			const info = await session.send('Target.getTargetInfo').catch(() => null);
-			attached.push(source);
-			add(source, 'attached', {
-				targetId: info?.targetInfo.targetId,
-				path: sanitize(page.url())
-			});
-		} catch {
-			add(source, 'attachFailed');
-		}
-	};
-	let root: Awaited<ReturnType<BrowserContext['newCDPSession']>> | undefined;
-	try {
-		root = await browser.browser()?.newBrowserCDPSession();
-		if (root) {
-			sessions.push(root);
-			root.on('Target.targetCreated', ({ targetInfo }) =>
-				add('browser', 'targetCreated', {
-					targetId: targetInfo.targetId,
-					openerId: targetInfo.openerId,
-					path: sanitize(targetInfo.url),
-					value: targetInfo.type
-				})
-			);
-			root.on('Target.targetInfoChanged', ({ targetInfo }) =>
-				add('browser', 'targetInfoChanged', {
-					targetId: targetInfo.targetId,
-					openerId: targetInfo.openerId,
-					path: sanitize(targetInfo.url),
-					value: targetInfo.type
-				})
-			);
-			root.on('Target.targetDestroyed', ({ targetId }) =>
-				add('browser', 'targetDestroyed', { targetId })
-			);
-			root.on('Target.targetCrashed', ({ targetId, status }) =>
-				add('browser', 'targetCrashed', { targetId, value: status })
-			);
-			await root.send('Target.setDiscoverTargets', { discover: true });
-		}
-		if (!root) add('browser', 'discoveryUnavailable');
-	} catch {
-		add('browser', 'discoveryUnavailable');
-	}
-	await attach(original, 'original');
-	const onPage = (page: Page) => {
-		if (page === original) return;
-		pending.push(attach(page, 'exposed'));
-	};
-	browser.on('page', onPage);
-	return {
-		events,
-		attached,
-		get dropped() {
-			return dropped;
-		},
-		async close() {
-			browser.off('page', onPage);
-			await Promise.allSettled(pending);
-			if (root)
-				await root.send('Target.setDiscoverTargets', { discover: false }).catch(() => undefined);
-			await Promise.allSettled(sessions.map((session) => session.detach()));
-		}
-	};
+	if (failure && cleanupErrors.length)
+		throw new AggregateError(
+			[failure, new Error(`Native popup cleanup failed: ${cleanupErrors.join(', ')}`)],
+			'Native popup observation and cleanup failed'
+		);
+	if (failure) throw failure;
+	if (cleanupErrors.length)
+		throw new Error(`Native popup cleanup failed: ${cleanupErrors.join(', ')}`);
+	if (!observation) throw new Error('Native popup observation unavailable');
+	return observation;
 }
 
 export async function writeOcuFailureEvidence(
@@ -538,7 +470,6 @@ export async function writeOcuFailureEvidence(
 		events: unknown[];
 		anchorPath: string | null;
 		gestures: OcuClickProbe[];
-		protocol?: Awaited<ReturnType<typeof watchOcuProtocol>>;
 	},
 	sanitize: (url: string) => string | null
 ) {
@@ -567,30 +498,6 @@ export async function writeOcuFailureEvidence(
 		record.active,
 		(url) => sanitize(url)?.split('?')[0] ?? null
 	);
-	const observed = record.protocol?.events ?? [];
-	const attachedIds = new Set(
-		observed
-			.filter((event) => event.kind === 'attached')
-			.map((event) => event.targetId)
-			.filter((id): id is string => !!id)
-	);
-	const unattachedTargets =
-		!record.protocol || observed.some((event) => event.kind === 'discoveryUnavailable')
-			? null
-			: observed
-					.filter(
-						(event) =>
-							event.kind === 'targetCreated' &&
-							(event.value === 'page' || event.value === 'tab') &&
-							event.targetId &&
-							!attachedIds.has(event.targetId)
-					)
-					.map(({ targetId, path, openerId, value }) => ({
-						targetId,
-						path,
-						openerId,
-						type: value
-					}));
 	fs.writeFileSync(
 		`${evidence}/workspace-network-failure.json`,
 		JSON.stringify(
@@ -604,15 +511,6 @@ export async function writeOcuFailureEvidence(
 				anchorPath: record.anchorPath,
 				gestures: record.gestures,
 				targets,
-				protocol: record.protocol && {
-					events: record.protocol.events,
-					attached: record.protocol.attached,
-					dropped: record.protocol.dropped,
-					unattachedTargets,
-					attachmentIdentityUnknown: observed.some(
-						(event) => event.kind === 'attached' && !event.targetId
-					)
-				},
 				active: active && {
 					location: sanitize(active.location),
 					baseURI: sanitize(active.baseURI),

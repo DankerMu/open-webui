@@ -195,6 +195,89 @@ function summarizeProbedDocument(doc, origin, variant) {
 	};
 }
 
+function sourceAttemptTarget(infos, origin, attempt) {
+	return infos.find((info) => {
+		try {
+			const url = new URL(info.url);
+			return (
+				url.origin === origin &&
+				url.pathname === '/source' &&
+				url.searchParams.get('attempt') === attempt
+			);
+		} catch {
+			return false;
+		}
+	});
+}
+
+function recordCdpError(row, capture, method, params) {
+	let text = '';
+	if (method === 'Runtime.consoleAPICalled' && params.type === 'error')
+		text = params.args?.map((arg) => arg.value ?? arg.description).join(' ') ?? '';
+	if (method === 'Runtime.exceptionThrown')
+		text =
+			params.exceptionDetails?.text + ' ' + (params.exceptionDetails?.exception?.description ?? '');
+	if (method === 'Log.entryAdded' && params.entry?.level === 'error') text = params.entry.text;
+	if (!text) return;
+	const marker = [
+		'ocu-canary-early-console',
+		'ocu-canary-early-exception',
+		'ocu-canary-late-console'
+	].find((name) => text.includes(name));
+	row.cdpEvents.push({
+		kind: method,
+		marker: marker ?? 'other',
+		ms: Date.now() - capture.current.started
+	});
+}
+
+async function verifyAttemptTarget(cdp, origin, attempt, contextId, targetId) {
+	const snapshot = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
+	const matches = snapshot.targetInfos.filter((info) => exactAttemptTarget(info, origin, attempt));
+	if (
+		matches.length !== 1 ||
+		matches[0].targetId !== targetId ||
+		matches[0].browserContextId !== contextId
+	)
+		throw new Error('target-identity-failed');
+}
+
+async function readAttemptDocument(bridge, origin, variant) {
+	const expression = `JSON.stringify({
+		readyState: document.readyState, path: location.pathname,
+		origin: location.origin, scriptOrigin: self.origin,
+		proof: document.querySelector('#proof')?.textContent ?? null
+	})`;
+	const deadline = Date.now() + WAIT_MS;
+	let document;
+	do {
+		const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
+		if (result?.exceptionDetails) throw new Error('evaluate-exception');
+		if (typeof result?.result?.value !== 'string') throw new Error('evaluate-empty');
+		document = summarizeProbedDocument(JSON.parse(result.result.value), origin, variant);
+		if (document.readyState === 'complete') break;
+		await new Promise((resolve) => setTimeout(resolve, 100));
+	} while (Date.now() < deadline);
+	return document;
+}
+
+async function screenshotIsPng(bridge) {
+	const screenshot = await bridge.send('Page.captureScreenshot', { format: 'png' });
+	return Buffer.from(screenshot.data ?? '', 'base64')
+		.subarray(0, 8)
+		.equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+}
+
+function attemptVerdict(row, bridge) {
+	const passed =
+		row.cdpDocument.matchesExpected &&
+		row.screenshotPng &&
+		!bridge.eventErrors &&
+		(!row.cdpEvents.length || row.canary);
+	if (passed) return row.variant === 'sandbox' ? 'secure' : 'control-ok';
+	return row.variant === 'sandbox' ? 'security-failed' : 'control-failed';
+}
+
 async function runAttempt(
 	browser,
 	origin,
@@ -231,18 +314,7 @@ async function runAttempt(
 		await page.evaluate(() => localStorage.setItem('fixture', 'present'));
 		const before = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
 		const existing = new Set(before.targetInfos.map((info) => info.targetId));
-		const source = before.targetInfos.find((info) => {
-			try {
-				const url = new URL(info.url);
-				return (
-					url.origin === origin &&
-					url.pathname === '/source' &&
-					url.searchParams.get('attempt') === attempt
-				);
-			} catch {
-				return false;
-			}
-		});
+		const source = sourceAttemptTarget(before.targetInfos, origin, attempt);
 		if (!source?.browserContextId) throw new Error('source-context-unknown');
 		const created = Promise.withResolvers();
 		const candidates = new Set();
@@ -259,31 +331,7 @@ async function runAttempt(
 				(async () => {
 					if (canary) await new Promise((resolve) => setTimeout(resolve, 400));
 					const attached = await attachCdpTarget(cdp, targetInfo.targetId, {
-						onEvent(method, params) {
-							const text =
-								method === 'Runtime.consoleAPICalled'
-									? params.type === 'error'
-										? params.args?.map((arg) => arg.value ?? arg.description).join(' ')
-										: ''
-									: method === 'Runtime.exceptionThrown'
-										? params.exceptionDetails?.text +
-											' ' +
-											(params.exceptionDetails?.exception?.description ?? '')
-										: method === 'Log.entryAdded' && params.entry?.level === 'error'
-											? params.entry.text
-											: '';
-							if (!text) return;
-							const marker = [
-								'ocu-canary-early-console',
-								'ocu-canary-early-exception',
-								'ocu-canary-late-console'
-							].find((name) => text.includes(name));
-							row.cdpEvents.push({
-								kind: method,
-								marker: marker ?? 'other',
-								ms: Date.now() - capture.current.started
-							});
-						}
+						onEvent: (method, params) => recordCdpError(row, capture, method, params)
 					});
 					bridge = attached;
 					const attachedAt = Date.now() - capture.current.started;
@@ -302,52 +350,16 @@ async function runAttempt(
 		row.httpAt = Date.now() - capture.current.started;
 		const targetId = await withDeadline(created.promise, 'target-created-timeout');
 		if (candidates.size !== 1 || existing.has(targetId)) throw new Error('target-not-unique');
-		const snapshot = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
-		const matches = snapshot.targetInfos.filter(
-			(info) =>
-				exactAttemptTarget(info, origin, attempt) &&
-				info.browserContextId === source.browserContextId &&
-				info.targetId === targetId
-		);
-		if (
-			matches.length !== 1 ||
-			snapshot.targetInfos.filter((info) => exactAttemptTarget(info, origin, attempt)).length !== 1
-		)
-			throw new Error('target-identity-failed');
+		await verifyAttemptTarget(cdp, origin, attempt, source.browserContextId, targetId);
 		if (!hasDocument(row.http)) {
 			row.classification = 'http-failed';
 			return row;
 		}
-		const expression = `JSON.stringify({
-			readyState: document.readyState, path: location.pathname,
-			origin: location.origin, scriptOrigin: self.origin,
-			proof: document.querySelector('#proof')?.textContent ?? null
-		})`;
-		const deadline = Date.now() + WAIT_MS;
-		do {
-			const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
-			if (result?.exceptionDetails) throw new Error('evaluate-exception');
-			if (typeof result?.result?.value !== 'string') throw new Error('evaluate-empty');
-			row.cdpDocument = summarizeProbedDocument(JSON.parse(result.result.value), origin, variant);
-			if (row.cdpDocument.readyState === 'complete') break;
-			await new Promise((resolve) => setTimeout(resolve, 100));
-		} while (Date.now() < deadline);
-		const screenshot = await bridge.send('Page.captureScreenshot', { format: 'png' });
-		const png = Buffer.from(screenshot.data ?? '', 'base64');
-		row.screenshotPng = png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+		row.cdpDocument = await readAttemptDocument(bridge, origin, variant);
+		row.screenshotPng = await screenshotIsPng(bridge);
 		row.pageExposed = Boolean(await exposed);
 		if (canary) await new Promise((resolve) => setTimeout(resolve, 1400));
-		row.classification =
-			row.cdpDocument.matchesExpected &&
-			row.screenshotPng &&
-			!bridge.eventErrors &&
-			(!row.cdpEvents.length || canary)
-				? variant === 'sandbox'
-					? 'secure'
-					: 'control-ok'
-				: variant === 'sandbox'
-					? 'security-failed'
-					: 'control-failed';
+		row.classification = attemptVerdict(row, bridge);
 	} catch (error) {
 		row.error = probeFailure(error);
 	} finally {
@@ -381,6 +393,103 @@ async function reproduce(browser, origin, arrivals, pending, cdp, capture) {
 	return attempts;
 }
 
+function recordTargetEvent(capture, origin, kind, info) {
+	const active = capture.current;
+	if (!active) return;
+	if (active.events.length >= 64) {
+		active.dropped++;
+		return;
+	}
+	active.events.push({
+		ms: Date.now() - active.started,
+		kind,
+		targetId: info.targetId,
+		type: info.type,
+		openerId: info.openerId ?? null,
+		path: info.url ? pathname(info.url, origin) : null
+	});
+}
+
+async function cleanupReproduction(server, browser, cdp, pending, report) {
+	for (const release of pending.values()) release(null);
+	pending.clear();
+	if (cdp) {
+		await withDeadline(
+			cdp.send('Target.setDiscoverTargets', { discover: false }),
+			'discovery-stop-timeout'
+		).catch(() => report.cleanupErrors.push('target-discovery'));
+		await withDeadline(cdp.detach(), 'root-detach-timeout').catch(() =>
+			report.cleanupErrors.push('cdp-session')
+		);
+	}
+	if (browser) await browser.close().catch(() => report.cleanupErrors.push('browser'));
+	if (server.listening) {
+		const closed = Promise.withResolvers();
+		server.close((error) => (error ? closed.reject(error) : closed.resolve()));
+		await closed.promise.catch(() => report.cleanupErrors.push('http-server'));
+	}
+}
+
+async function finishReport(report) {
+	const counts = Object.fromEntries(
+		['secure', 'control-ok', 'security-failed', 'control-failed', 'http-failed', 'error'].map(
+			(name) => [name, report.attempts.filter((row) => row.classification === name).length]
+		)
+	);
+	const byPair = Object.fromEntries(
+		TYPES.flatMap((type) =>
+			VARIANTS.map((variant) => [
+				`${type}/${variant}`,
+				Object.fromEntries(
+					Object.keys(counts).map((name) => [
+						name,
+						report.attempts.filter(
+							(row) => row.type === type && row.variant === variant && row.classification === name
+						).length
+					])
+				)
+			])
+		)
+	);
+	report.summary = {
+		total: report.attempts.length,
+		byOutcome: counts,
+		byPair,
+		exposed: report.attempts.filter((row) => row.pageExposed).length,
+		cdpOnly: report.attempts.filter(
+			(row) => !row.pageExposed && ['secure', 'control-ok'].includes(row.classification)
+		).length
+	};
+	report.summary.canary = {
+		classification: report.canary?.classification ?? 'unavailable',
+		preAttachDelayMs:
+			report.canary?.cdpAttachedAt == null || report.canary?.httpAt == null
+				? null
+				: report.canary.cdpAttachedAt - report.canary.httpAt,
+		earlyConsole:
+			report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-console') ??
+			false,
+		earlyException:
+			report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-exception') ??
+			false,
+		lateConsole:
+			report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-late-console') ?? false
+	};
+	await mkdir('.run/ocu-popup-repro', { recursive: true });
+	await writeFile(REPORT, JSON.stringify(report, null, 2) + '\n');
+	console.log(JSON.stringify({ report: REPORT, ...report.summary }));
+	if (
+		report.setupError ||
+		report.cleanupErrors.length ||
+		report.attempts.length !== TYPES.length * VARIANTS.length * ATTEMPTS_PER_PAIR ||
+		report.canary?.classification !== 'secure' ||
+		report.attempts.some(
+			(row) => row.classification !== 'secure' && row.classification !== 'control-ok'
+		)
+	)
+		process.exitCode = 1;
+}
+
 async function main() {
 	const arrivals = new Map();
 	const pending = new Map();
@@ -406,22 +515,7 @@ async function main() {
 		browser = await chromium.launch({ headless: true });
 		report.browser = browser.version();
 		cdp = await browser.newBrowserCDPSession();
-		const record = (kind, info) => {
-			const active = capture.current;
-			if (!active) return;
-			if (active.events.length >= 64) {
-				active.dropped++;
-				return;
-			}
-			active.events.push({
-				ms: Date.now() - active.started,
-				kind,
-				targetId: info.targetId,
-				type: info.type,
-				openerId: info.openerId ?? null,
-				path: info.url ? pathname(info.url, origin) : null
-			});
-		};
+		const record = (kind, info) => recordTargetEvent(capture, origin, kind, info);
 		cdp.on('Target.targetCreated', ({ targetInfo }) => record('created', targetInfo));
 		cdp.on('Target.targetInfoChanged', ({ targetInfo }) => record('changed', targetInfo));
 		cdp.on('Target.targetDestroyed', ({ targetId }) => record('destroyed', { targetId }));
@@ -446,81 +540,8 @@ async function main() {
 	} catch (error) {
 		report.setupError = error instanceof Error ? error.name : 'unknown';
 	} finally {
-		for (const release of pending.values()) release(null);
-		pending.clear();
-		if (cdp) {
-			await withDeadline(
-				cdp.send('Target.setDiscoverTargets', { discover: false }),
-				'discovery-stop-timeout'
-			).catch(() => report.cleanupErrors.push('target-discovery'));
-			await withDeadline(cdp.detach(), 'root-detach-timeout').catch(() =>
-				report.cleanupErrors.push('cdp-session')
-			);
-		}
-		if (browser) await browser.close().catch(() => report.cleanupErrors.push('browser'));
-		if (server.listening) {
-			const closed = Promise.withResolvers();
-			server.close((error) => (error ? closed.reject(error) : closed.resolve()));
-			await closed.promise.catch(() => report.cleanupErrors.push('http-server'));
-		}
-		const counts = Object.fromEntries(
-			['secure', 'control-ok', 'security-failed', 'control-failed', 'http-failed', 'error'].map(
-				(name) => [name, report.attempts.filter((row) => row.classification === name).length]
-			)
-		);
-		const byPair = Object.fromEntries(
-			TYPES.flatMap((type) =>
-				VARIANTS.map((variant) => [
-					`${type}/${variant}`,
-					Object.fromEntries(
-						Object.keys(counts).map((name) => [
-							name,
-							report.attempts.filter(
-								(row) => row.type === type && row.variant === variant && row.classification === name
-							).length
-						])
-					)
-				])
-			)
-		);
-		report.summary = {
-			total: report.attempts.length,
-			byOutcome: counts,
-			byPair,
-			exposed: report.attempts.filter((row) => row.pageExposed).length,
-			cdpOnly: report.attempts.filter(
-				(row) => !row.pageExposed && ['secure', 'control-ok'].includes(row.classification)
-			).length
-		};
-		report.summary.canary = {
-			classification: report.canary?.classification ?? 'unavailable',
-			preAttachDelayMs:
-				report.canary?.cdpAttachedAt == null || report.canary?.httpAt == null
-					? null
-					: report.canary.cdpAttachedAt - report.canary.httpAt,
-			earlyConsole:
-				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-console') ??
-				false,
-			earlyException:
-				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-exception') ??
-				false,
-			lateConsole:
-				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-late-console') ??
-				false
-		};
-		await mkdir('.run/ocu-popup-repro', { recursive: true });
-		await writeFile(REPORT, JSON.stringify(report, null, 2) + '\n');
-		console.log(JSON.stringify({ report: REPORT, ...report.summary }));
-		if (
-			report.setupError ||
-			report.cleanupErrors.length ||
-			report.attempts.length !== TYPES.length * VARIANTS.length * ATTEMPTS_PER_PAIR ||
-			report.canary?.classification !== 'secure' ||
-			report.attempts.some(
-				(row) => row.classification !== 'secure' && row.classification !== 'control-ok'
-			)
-		)
-			process.exitCode = 1;
+		await cleanupReproduction(server, browser, cdp, pending, report);
+		await finishReport(report);
 	}
 }
 
