@@ -12,7 +12,7 @@ endif
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend \
 	coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu reproduce-ocu-popup db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -136,8 +136,6 @@ verify-ui:
 verify-ui-ocu:
 	python3 scripts/verify-ui-ocu.py
 
-reproduce-ocu-popup:
-	node scripts/reproduce-ocu-popup.mjs
 
 db-reset:
 	bash scripts/db-reset.sh
