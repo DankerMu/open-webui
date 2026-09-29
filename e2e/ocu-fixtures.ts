@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import { expect, type BrowserContext, type Page } from '@playwright/test';
+import { attachCdpTarget, cdpDeadline } from '../scripts/ocu-target-bridge.mjs';
 
 export type OcuClickProbe = {
 	path: string;
@@ -215,6 +216,163 @@ type ProtocolEvent = {
 	status?: number;
 	value?: string | number | boolean;
 };
+
+/**
+ * Observe a native modifier-click through the browser target channel, including
+ * tabs that Chromium does not surface as Playwright Page objects.
+ */
+export async function observeNativeOcuPopup(
+	browser: BrowserContext,
+	source: Page,
+	expectedPath: string,
+	click: () => Promise<void>,
+	screenshotPath: string
+) {
+	const owner = browser.browser();
+	if (!owner) throw new Error('Native popup observation requires a Chromium browser');
+	const root = await owner.newBrowserCDPSession();
+	let targetId: string | undefined;
+	let bridge: Awaited<ReturnType<typeof attachCdpTarget>> | undefined;
+	let onCreated:
+		| ((event: {
+				targetInfo: { targetId: string; type: string; browserContextId?: string };
+		  }) => void)
+		| undefined;
+	let exposed = false;
+	const errors: Array<{ url: string; text: string }> = [];
+	const onPage = (page: Page) => {
+		if (page !== source) exposed = true;
+	};
+	try {
+		await cdpDeadline(
+			root.send('Target.setDiscoverTargets', { discover: true }),
+			'discovery-timeout'
+		);
+		const { targetInfos } = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
+		const existing = new Set(targetInfos.map(({ targetId }) => targetId));
+		const originals = targetInfos.filter(
+			({ url, type }) => (type === 'page' || type === 'tab') && url === source.url()
+		);
+		if (originals.length !== 1 || !originals[0].browserContextId)
+			throw new Error('Native popup source target identity unavailable');
+		const contextId = originals[0].browserContextId;
+		const candidates = new Set<string>();
+		const created = Promise.withResolvers<string>();
+		const onTargetEvent = (method: string, params: any) => {
+			if (method === 'Runtime.consoleAPICalled' && params.type === 'error')
+				errors.push({
+					url: params.stackTrace?.callFrames?.[0]?.url ?? '',
+					text:
+						params.args
+							?.map((arg: { value?: unknown; description?: string }) =>
+								String(arg.value ?? arg.description ?? '')
+							)
+							.join(' ') ?? ''
+				});
+			if (method === 'Runtime.exceptionThrown')
+				errors.push({
+					url: params.exceptionDetails?.url ?? '',
+					text:
+						params.exceptionDetails?.exception?.description ?? params.exceptionDetails?.text ?? ''
+				});
+			if (method === 'Log.entryAdded' && params.entry?.level === 'error')
+				errors.push({ url: params.entry.url ?? '', text: params.entry.text ?? '' });
+		};
+		onCreated = ({ targetInfo }) => {
+			if (
+				existing.has(targetInfo.targetId) ||
+				(targetInfo.type !== 'page' && targetInfo.type !== 'tab') ||
+				targetInfo.browserContextId !== contextId
+			)
+				return;
+			candidates.add(targetInfo.targetId);
+			if (candidates.size !== 1) return;
+			targetId = targetInfo.targetId;
+			created.resolve(
+				(async () => {
+					bridge = await attachCdpTarget(root, targetInfo.targetId, { onEvent: onTargetEvent });
+					await Promise.all([bridge.send('Runtime.enable'), bridge.send('Log.enable')]);
+					return targetInfo.targetId;
+				})()
+			);
+		};
+		root.on('Target.targetCreated', onCreated);
+		browser.on('page', onPage);
+		await click();
+		targetId = await cdpDeadline(created.promise, 'target-created-timeout');
+		if (candidates.size !== 1) throw new Error('Native popup target not unique');
+		const targets = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
+		const matches = targets.targetInfos.filter((info) => {
+			if (info.type !== 'page' && info.type !== 'tab') return false;
+			try {
+				const url = new URL(info.url);
+				return (
+					url.origin === context.origin &&
+					url.pathname === expectedPath &&
+					url.search === '' &&
+					url.hash === ''
+				);
+			} catch {
+				return false;
+			}
+		});
+		if (
+			matches.length !== 1 ||
+			matches[0].targetId !== targetId ||
+			matches[0].browserContextId !== contextId
+		)
+			throw new Error('Native popup destination identity mismatch');
+		const expression = `JSON.stringify((() => {
+			const proof = document.querySelector('#proof')?.textContent;
+			const inline = document.querySelector('#inline');
+			const image = document.querySelector('#image');
+			const safe = (value) => value === 'blocked' ? 'blocked' : 'unexpected';
+			return {
+				path: location.pathname, origin: location.origin, readyState: document.readyState,
+				proof: proof === 'null|blocked|blocked|blocked' ? proof : 'unexpected',
+				inlineColor: inline ? getComputedStyle(inline).color : null,
+				imageNaturalWidth: image?.naturalWidth ?? null, imageComplete: image?.complete ?? null,
+				fixtureEvents: (window.fixtureEvents ?? []).map((event) => ({
+					origin: event.origin === 'null' ? 'null' : 'unexpected',
+					type: ['fixture-opaque', 'fixture-svg'].includes(event.type) ? event.type : 'unexpected',
+					storage: safe(event.storage), parentAccess: safe(event.parentAccess),
+					cookie: safe(event.cookie)
+				}))
+			};
+		})())`;
+		let document;
+		const until = Date.now() + 3_000;
+		do {
+			const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
+			if (result.exceptionDetails || typeof result.result?.value !== 'string')
+				throw new Error('Native popup DOM evaluation failed');
+			document = JSON.parse(result.result.value);
+			if (document.readyState === 'complete' && document.proof !== 'unexpected') break;
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		} while (Date.now() < until);
+		const capture = await bridge.send('Page.captureScreenshot', { format: 'png' });
+		const png = Buffer.from(capture.data ?? '', 'base64');
+		if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')))
+			throw new Error('Native popup screenshot is not PNG');
+		fs.writeFileSync(screenshotPath, png);
+		if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
+		return { document, errors, pageExposed: exposed, targetId };
+	} finally {
+		if (onCreated) root.off('Target.targetCreated', onCreated);
+		browser.off('page', onPage);
+		if (bridge) await bridge.detach().catch(() => undefined);
+		if (targetId)
+			await cdpDeadline(
+				root.send('Target.closeTarget', { targetId }),
+				'target-close-timeout'
+			).catch(() => undefined);
+		await cdpDeadline(
+			root.send('Target.setDiscoverTargets', { discover: false }),
+			'discovery-stop-timeout'
+		).catch(() => undefined);
+		await cdpDeadline(root.detach(), 'root-detach-timeout').catch(() => undefined);
+	}
+}
 
 export async function watchOcuProtocol(
 	browser: BrowserContext,

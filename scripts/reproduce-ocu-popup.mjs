@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
+import { attachCdpTarget, cdpDeadline as withDeadline } from './ocu-target-bridge.mjs';
 
 const REPORT = '.run/ocu-popup-repro/report.json';
 const TYPES = ['html', 'svg'];
@@ -15,6 +16,11 @@ try { localStorage.getItem('fixture'); storage = 'leaked'; } catch {}
 try { window.parent.localStorage.getItem('fixture'); parentAccess = 'leaked'; } catch {}
 try { cookie = document.cookie || 'blocked'; } catch {}
 document.querySelector('#proof').textContent = [self.origin, storage, parentAccess, cookie].join('|');
+if (location.search.includes('canary=1')) {
+  console.error('ocu-canary-early-console');
+  setTimeout(() => { throw new Error('ocu-canary-early-exception'); }, 0);
+  setTimeout(() => console.error('ocu-canary-late-console'), 1200);
+}
 `;
 const documents = {
 	html: Buffer.from(
@@ -71,20 +77,6 @@ function hasDocument(arrival) {
 	return arrival?.status === 200 && arrival.cookie === true;
 }
 
-function failedClassification(variant) {
-	return variant === 'sandbox' ? 'security-failed' : 'control-failed';
-}
-
-function classifyPopup(dom, origin, variant, observed) {
-	const valid =
-		dom.path === '/file' &&
-		dom.readyState === 'complete' &&
-		matchesProof(proofSummary(dom.proof, origin), expectedProof(variant));
-	if (!valid) return failedClassification(variant);
-	if (!observed) return 'dom-wait-failed';
-	return variant === 'sandbox' ? 'secure' : 'control-ok';
-}
-
 function startServer(arrivals, pending) {
 	return createServer((request, response) => {
 		const url = new URL(request.url ?? '/', 'http://127.0.0.1');
@@ -93,7 +85,7 @@ function startServer(arrivals, pending) {
 			const anchors = TYPES.flatMap((type) =>
 				VARIANTS.map(
 					(variant) =>
-						`<a id="${type}-${variant}" target="_blank" href="/file?attempt=${encodeURIComponent(attempt)}&amp;type=${type}&amp;variant=${variant}">${type} ${variant}</a>`
+						`<a id="${type}-${variant}" target="_blank" href="/file?attempt=${encodeURIComponent(attempt)}&amp;type=${type}&amp;variant=${variant}${attempt.endsWith('-canary') ? '&amp;canary=1' : ''}">${type} ${variant}</a>`
 				)
 			).join(' ');
 			response.writeHead(200, {
@@ -145,84 +137,21 @@ function waitForArrival(attempt, arrivals, pending) {
 	return promise;
 }
 
-async function readDom(page) {
-	const { promise, resolve } = Promise.withResolvers();
-	const timer = setTimeout(() => resolve(null), WAIT_MS);
-	try {
-		return await Promise.race([
-			page
-				.evaluate(() => ({
-					readyState: document.readyState,
-					path: location.pathname,
-					proof: document.querySelector('#proof')?.textContent ?? null
-				}))
-				.catch(() => null),
-			promise
-		]);
-	} finally {
-		clearTimeout(timer);
-	}
-}
-
-function withDeadline(work, label) {
-	const { promise, reject } = Promise.withResolvers();
-	const timer = setTimeout(() => reject(new Error(label)), WAIT_MS);
-	return Promise.race([work, promise]).finally(() => clearTimeout(timer));
-}
-
-function createTargetBridge(cdp, sessionId) {
-	let nextId = 1;
-	const pending = new Map();
-	const onMessage = (event) => {
-		if (event.sessionId !== sessionId) return;
-		let message;
-		try {
-			message = JSON.parse(event.message);
-		} catch {
-			return;
-		}
-		const waiter = message && typeof message.id === 'number' ? pending.get(message.id) : undefined;
-		if (!waiter) return;
-		pending.delete(message.id);
-		if (message.error) waiter.reject(new Error('rpc-error'));
-		else waiter.resolve(message.result);
-	};
-	cdp.on('Target.receivedMessageFromTarget', onMessage);
-	return {
-		async send(method, params) {
-			const id = nextId++;
-			const { promise, resolve, reject } = Promise.withResolvers();
-			pending.set(id, { resolve, reject });
-			try {
-				return await withDeadline(
-					(async () => {
-						await cdp.send('Target.sendMessageToTarget', {
-							sessionId,
-							message: JSON.stringify({ id, method, params })
-						});
-						return promise;
-					})(),
-					'rpc-timeout'
-				);
-			} finally {
-				pending.delete(id);
-			}
-		},
-		dispose() {
-			cdp.off('Target.receivedMessageFromTarget', onMessage);
-			pending.clear();
-		}
-	};
-}
-
 function exactAttemptTarget(info, origin, attempt) {
 	if (info.type !== 'page' && info.type !== 'tab') return false;
 	try {
 		const url = new URL(info.url);
+		const [type, variant] = attempt.split('-');
+		const canary = attempt.endsWith('-canary');
 		return (
 			url.origin === origin &&
 			url.pathname === '/file' &&
-			url.searchParams.get('attempt') === attempt
+			!url.hash &&
+			url.searchParams.size === (canary ? 4 : 3) &&
+			url.searchParams.get('attempt') === attempt &&
+			url.searchParams.get('type') === type &&
+			url.searchParams.get('variant') === variant &&
+			(!canary || url.searchParams.get('canary') === '1')
 		);
 	} catch {
 		return false;
@@ -266,158 +195,173 @@ function summarizeProbedDocument(doc, origin, variant) {
 	};
 }
 
-async function probeUnexposedTarget(cdp, snapshot, row, origin) {
-	const matches = snapshot.targetInfos.filter((info) =>
-		exactAttemptTarget(info, origin, row.attempt)
-	);
-	if (matches.length !== 1) {
-		row.probeError = matches.length ? 'target-not-unique' : 'target-missing';
-		return;
-	}
-	const target = matches[0];
-	if (
-		!row.targetEvents.some(
-			(event) => event.kind === 'created' && event.targetId === target.targetId
-		)
-	) {
-		row.probeError = 'target-not-created-in-attempt';
-		return;
-	}
-	let sessionId;
-	let bridge;
-	try {
-		({ sessionId } = await withDeadline(
-			cdp.send('Target.attachToTarget', {
-				targetId: target.targetId,
-				flatten: false
-			}),
-			'attach-timeout'
-		));
-		bridge = createTargetBridge(cdp, sessionId);
-		const expression = `JSON.stringify({
-			readyState: document.readyState,
-			path: location.pathname,
-			origin: location.origin,
-			scriptOrigin: self.origin,
-			proof: document.querySelector('#proof')?.textContent ?? null
-		})`;
-		const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
-		if (result?.exceptionDetails) throw new Error('evaluate-exception');
-		if (typeof result?.result?.value !== 'string') throw new Error('evaluate-empty');
-		row.cdpDocument = summarizeProbedDocument(JSON.parse(result.result.value), origin, row.variant);
-	} catch (error) {
-		row.probeError = probeFailure(error);
-	} finally {
-		bridge?.dispose();
-		if (sessionId)
-			await withDeadline(
-				cdp.send('Target.detachFromTarget', { sessionId }),
-				'detach-timeout'
-			).catch((error) => {
-				row.probeError ??= probeFailure(error);
-			});
-	}
-}
-
-async function runAttempt(browser, origin, arrivals, pending, cdp, capture, type, variant, index) {
+async function runAttempt(
+	browser,
+	origin,
+	arrivals,
+	pending,
+	cdp,
+	capture,
+	type,
+	variant,
+	index,
+	canary = false
+) {
 	const attempt = `${type}-${variant}-${index}`;
 	const row = {
 		attempt,
 		type,
 		variant,
+		canary,
 		classification: 'error',
 		http: null,
 		pageExposed: false,
-		dom: null,
 		targetEvents: [],
-		targets: null
+		cdpEvents: [],
+		cdpDocument: null
 	};
-	let context;
+	let browserContext;
+	let bridge;
+	let onCreated;
 	try {
 		capture.current = { started: Date.now(), events: row.targetEvents, dropped: 0 };
-		context = await browser.newContext();
-		const page = await context.newPage();
+		browserContext = await browser.newContext();
+		const page = await browserContext.newPage();
 		await page.goto(`${origin}/source?attempt=${attempt}`, { timeout: WAIT_MS });
 		await page.evaluate(() => localStorage.setItem('fixture', 'present'));
-		const exposed = context.waitForEvent('page', { timeout: WAIT_MS }).catch(() => null);
+		const before = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
+		const existing = new Set(before.targetInfos.map((info) => info.targetId));
+		const source = before.targetInfos.find((info) => {
+			try {
+				const url = new URL(info.url);
+				return (
+					url.origin === origin &&
+					url.pathname === '/source' &&
+					url.searchParams.get('attempt') === attempt
+				);
+			} catch {
+				return false;
+			}
+		});
+		if (!source?.browserContextId) throw new Error('source-context-unknown');
+		const created = Promise.withResolvers();
+		const candidates = new Set();
+		onCreated = ({ targetInfo }) => {
+			if (
+				existing.has(targetInfo.targetId) ||
+				!['page', 'tab'].includes(targetInfo.type) ||
+				targetInfo.browserContextId !== source.browserContextId
+			)
+				return;
+			candidates.add(targetInfo.targetId);
+			if (candidates.size !== 1) return;
+			created.resolve(
+				(async () => {
+					if (canary) await new Promise((resolve) => setTimeout(resolve, 400));
+					const attached = await attachCdpTarget(cdp, targetInfo.targetId, {
+						onEvent(method, params) {
+							const text =
+								method === 'Runtime.consoleAPICalled'
+									? params.type === 'error'
+										? params.args?.map((arg) => arg.value ?? arg.description).join(' ')
+										: ''
+									: method === 'Runtime.exceptionThrown'
+										? params.exceptionDetails?.text +
+											' ' +
+											(params.exceptionDetails?.exception?.description ?? '')
+										: method === 'Log.entryAdded' && params.entry?.level === 'error'
+											? params.entry.text
+											: '';
+							if (!text) return;
+							const marker = [
+								'ocu-canary-early-console',
+								'ocu-canary-early-exception',
+								'ocu-canary-late-console'
+							].find((name) => text.includes(name));
+							row.cdpEvents.push({
+								kind: method,
+								marker: marker ?? 'other',
+								ms: Date.now() - capture.current.started
+							});
+						}
+					});
+					bridge = attached;
+					const attachedAt = Date.now() - capture.current.started;
+					await Promise.all([attached.send('Runtime.enable'), attached.send('Log.enable')]);
+					row.cdpAttachedAt = attachedAt;
+					return targetInfo.targetId;
+				})()
+			);
+		};
+		cdp.on('Target.targetCreated', onCreated);
+		const exposed = browserContext.waitForEvent('page', { timeout: WAIT_MS }).catch(() => null);
 		const documentRequest = waitForArrival(attempt, arrivals, pending);
 		const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 		await page.click(`#${type}-${variant}`, { modifiers: [modifier], timeout: WAIT_MS });
-		const popup = await exposed;
 		row.http = await documentRequest;
-		row.pageExposed = Boolean(popup);
-		if (!popup) {
-			row.classification = hasDocument(row.http) ? 'page-unexposed' : 'http-failed';
-			let snapshot;
-			try {
-				snapshot = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
-				row.targets = snapshot.targetInfos
-					.filter(({ type: kind }) => kind === 'page' || kind === 'tab')
-					.map(({ targetId, type: kind, url, openerId }) => ({
-						targetId,
-						type: kind,
-						path: pathname(url, origin),
-						openerId: openerId ?? null
-					}));
-			} catch (error) {
-				row.targetsUnavailable = true;
-				row.probeError ??=
-					probeFailure(error) === 'snapshot-timeout' ? 'snapshot-timeout' : 'snapshot-unavailable';
-			}
-			if (snapshot)
-				await probeUnexposedTarget(cdp, snapshot, row, origin).catch((error) => {
-					row.probeError ??= probeFailure(error);
-				});
-			return row;
-		}
+		row.httpAt = Date.now() - capture.current.started;
+		const targetId = await withDeadline(created.promise, 'target-created-timeout');
+		if (candidates.size !== 1 || existing.has(targetId)) throw new Error('target-not-unique');
+		const snapshot = await withDeadline(cdp.send('Target.getTargets'), 'snapshot-timeout');
+		const matches = snapshot.targetInfos.filter(
+			(info) =>
+				exactAttemptTarget(info, origin, attempt) &&
+				info.browserContextId === source.browserContextId &&
+				info.targetId === targetId
+		);
+		if (
+			matches.length !== 1 ||
+			snapshot.targetInfos.filter((info) => exactAttemptTarget(info, origin, attempt)).length !== 1
+		)
+			throw new Error('target-identity-failed');
 		if (!hasDocument(row.http)) {
-			const dom = await readDom(popup);
-			if (dom)
-				row.dom = {
-					path: dom.path,
-					readyState: dom.readyState,
-					proof: proofSummary(dom.proof, origin)
-				};
 			row.classification = 'http-failed';
 			return row;
 		}
-		const observed = await popup
-			.waitForFunction(
-				() =>
-					location.pathname === '/file' &&
-					document.readyState === 'complete' &&
-					Boolean(document.querySelector('#proof')?.textContent) &&
-					document.querySelector('#proof')?.textContent !== 'waiting',
-				null,
-				{ polling: 100, timeout: WAIT_MS }
-			)
-			.then(
-				() => true,
-				() => false
-			);
-		const dom = await readDom(popup);
-		if (!dom) {
-			row.classification = 'error';
-			row.error = 'DomReadUnavailable';
-			return row;
-		}
-		row.dom = {
-			path: dom.path,
-			readyState: dom.readyState,
-			proof: proofSummary(dom.proof, origin)
-		};
-		row.classification = classifyPopup(dom, origin, variant, observed);
+		const expression = `JSON.stringify({
+			readyState: document.readyState, path: location.pathname,
+			origin: location.origin, scriptOrigin: self.origin,
+			proof: document.querySelector('#proof')?.textContent ?? null
+		})`;
+		const deadline = Date.now() + WAIT_MS;
+		do {
+			const result = await bridge.send('Runtime.evaluate', { expression, returnByValue: true });
+			if (result?.exceptionDetails) throw new Error('evaluate-exception');
+			if (typeof result?.result?.value !== 'string') throw new Error('evaluate-empty');
+			row.cdpDocument = summarizeProbedDocument(JSON.parse(result.result.value), origin, variant);
+			if (row.cdpDocument.readyState === 'complete') break;
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		} while (Date.now() < deadline);
+		const screenshot = await bridge.send('Page.captureScreenshot', { format: 'png' });
+		const png = Buffer.from(screenshot.data ?? '', 'base64');
+		row.screenshotPng = png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+		row.pageExposed = Boolean(await exposed);
+		if (canary) await new Promise((resolve) => setTimeout(resolve, 1400));
+		row.classification =
+			row.cdpDocument.matchesExpected &&
+			row.screenshotPng &&
+			!bridge.eventErrors &&
+			(!row.cdpEvents.length || canary)
+				? variant === 'sandbox'
+					? 'secure'
+					: 'control-ok'
+				: variant === 'sandbox'
+					? 'security-failed'
+					: 'control-failed';
 	} catch (error) {
-		row.classification = row.pageExposed ? failedClassification(variant) : 'error';
-		row.error = error instanceof Error ? error.name : 'unknown';
+		row.error = probeFailure(error);
 	} finally {
+		if (onCreated) cdp.off('Target.targetCreated', onCreated);
+		if (bridge)
+			await bridge.detach().catch((error) => {
+				row.classification = 'error';
+				row.error = probeFailure(error);
+			});
 		pending.get(attempt)?.(null);
-		try {
-			await context?.close();
-		} catch {
+		await browserContext?.close().catch(() => {
 			row.classification = 'error';
 			row.error = 'ContextCloseError';
-		}
+		});
 		row.targetEventsDropped = capture.current?.dropped ?? 0;
 		capture.current = null;
 	}
@@ -451,6 +395,7 @@ async function main() {
 		browser: null,
 		attempts: [],
 		summary: {},
+		canary: null,
 		setupError: null,
 		cleanupErrors: []
 	};
@@ -485,6 +430,18 @@ async function main() {
 			cdp.send('Target.setDiscoverTargets', { discover: true }),
 			'discovery-timeout'
 		);
+		report.canary = await runAttempt(
+			browser,
+			origin,
+			arrivals,
+			pending,
+			cdp,
+			capture,
+			'html',
+			'sandbox',
+			'canary',
+			true
+		);
 		report.attempts = await reproduce(browser, origin, arrivals, pending, cdp, capture);
 	} catch (error) {
 		report.setupError = error instanceof Error ? error.name : 'unknown';
@@ -507,16 +464,9 @@ async function main() {
 			await closed.promise.catch(() => report.cleanupErrors.push('http-server'));
 		}
 		const counts = Object.fromEntries(
-			[
-				'secure',
-				'control-ok',
-				'page-unexposed',
-				'dom-wait-failed',
-				'security-failed',
-				'control-failed',
-				'http-failed',
-				'error'
-			].map((name) => [name, report.attempts.filter((row) => row.classification === name).length])
+			['secure', 'control-ok', 'security-failed', 'control-failed', 'http-failed', 'error'].map(
+				(name) => [name, report.attempts.filter((row) => row.classification === name).length]
+			)
 		);
 		const byPair = Object.fromEntries(
 			TYPES.flatMap((type) =>
@@ -537,7 +487,26 @@ async function main() {
 			total: report.attempts.length,
 			byOutcome: counts,
 			byPair,
-			exposed: report.attempts.filter((row) => row.pageExposed).length
+			exposed: report.attempts.filter((row) => row.pageExposed).length,
+			cdpOnly: report.attempts.filter(
+				(row) => !row.pageExposed && ['secure', 'control-ok'].includes(row.classification)
+			).length
+		};
+		report.summary.canary = {
+			classification: report.canary?.classification ?? 'unavailable',
+			preAttachDelayMs:
+				report.canary?.cdpAttachedAt == null || report.canary?.httpAt == null
+					? null
+					: report.canary.cdpAttachedAt - report.canary.httpAt,
+			earlyConsole:
+				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-console') ??
+				false,
+			earlyException:
+				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-early-exception') ??
+				false,
+			lateConsole:
+				report.canary?.cdpEvents.some((event) => event.marker === 'ocu-canary-late-console') ??
+				false
 		};
 		await mkdir('.run/ocu-popup-repro', { recursive: true });
 		await writeFile(REPORT, JSON.stringify(report, null, 2) + '\n');
@@ -546,6 +515,7 @@ async function main() {
 			report.setupError ||
 			report.cleanupErrors.length ||
 			report.attempts.length !== TYPES.length * VARIANTS.length * ATTEMPTS_PER_PAIR ||
+			report.canary?.classification !== 'secure' ||
 			report.attempts.some(
 				(row) => row.classification !== 'secure' && row.classification !== 'control-ok'
 			)
