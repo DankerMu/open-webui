@@ -13,7 +13,7 @@
 
 ## 3. Integration acceptance
 
-- [ ] 3.1 Complete cross-review, bind exact OCU source pin in WebUI, run affected control gates and matching CI, archive this contract and document the preparation command plus offline-runtime boundary.
+- [x] 3.1 Complete cross-review, bind exact OCU source pin in WebUI, run affected control gates and matching CI, archive this contract and document the preparation command plus offline-runtime boundary.
 
 ## Risk pack mapping
 
