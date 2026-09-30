@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-26
 supersedes: none
-references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-25-ocu-sandbox-egress-guard, issue-26, issue-33, issue-36, issue-79
+references: 2026-09-22-ocu-lifecycle-lock-and-launch-semantics, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-25-ocu-sandbox-egress-guard, 2026-09-30-ocu-offline-image-delivery, issue-26, issue-33, issue-36, issue-79
 ---
 
 # Explicit private runtime provisioning and stop-only retention
@@ -16,7 +16,7 @@ A bootstrap configuration must agree with proxy-only routing and explicit sandbo
 
 ## Decision
 
-Bootstrap requires an operator-selected full source SHA matching the checkout, runtime image references and an HTTP(S) public origin without path, credentials, query, fragment or trailing slash. The public OCU base is that origin plus `/ocu`; authorization uses `http://open-webui:8080/api/v1/ocu/auth` on the control network. The core replacement environment carries `/ocu` and `OCU_SANDBOX_NO_AUTOSTART=1`; no deployment-local source patch implements terminal policy.
+Bootstrap requires an operator-selected full source SHA matching the checkout, a verified release inventory binding both repository commits and runtime images, and an HTTP(S) public origin without path, credentials, query, fragment or trailing slash. Image references may be supplied explicitly only when they match the inventory. The public OCU base is that origin plus `/ocu`; authorization uses `http://open-webui:8080/api/v1/ocu/auth` on the control network. The core replacement environment carries `/ocu` and `OCU_SANDBOX_NO_AUTOSTART=1`; no deployment-local source patch implements terminal policy.
 
 The existing production parser validates the explicitly supplied IPv4/CIDR egress list. Unset fails; empty remains deny-all. Control and sandbox networks remain distinct, and gateway publication follows the sandbox network contract.
 
@@ -33,4 +33,4 @@ Retention stops managed running sandboxes at the configured continuous-runtime l
 
 ## Consequences
 
-Operators supply image references, but image provenance and offline materials still require issue33. Existing configurations require deliberate operator migration rather than overwrite. Actual Compose resolution, service startup and168-hour data-preservation acceptance remain issue36; fake CLI evidence does not certify the engine. DNS provisioning and immutable compatibility are owned by `2026-09-26-ocu-sandbox-dns`; its real routing acceptance remains required for full all-egress readiness.
+Image provenance and offline delivery are owned by `2026-09-30-ocu-offline-image-delivery`; engine acceptance remains required. Existing configurations require deliberate operator migration rather than overwrite. Actual Compose resolution, service startup and168-hour data-preservation acceptance remain issue36; fake CLI evidence does not certify the engine. DNS provisioning and immutable compatibility are owned by `2026-09-26-ocu-sandbox-dns`; its real routing acceptance remains required for full all-egress readiness.
