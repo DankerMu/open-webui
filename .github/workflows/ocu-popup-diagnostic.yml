@@ -3,7 +3,9 @@ name: OCU popup diagnostic
 on:
   pull_request:
     paths:
-      - scripts/reproduce-ocu-popup.mjs
+      - scripts/reproduce-ocu-popup.py
+      - scripts/ocu-popup-diagnostic-reporter.mjs
+      - Makefile
       - .github/workflows/ocu-popup-diagnostic.yml
   workflow_dispatch:
 
@@ -14,25 +16,72 @@ concurrency:
   group: ocu-popup-diagnostic-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  UV_NO_SYNC: '1'
+
 jobs:
-  native-popup:
+  native-at01-characterization:
+    name: Nonacceptance native A-T01 characterization
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .tool-versions
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
+      - name: Install hurl
+        run: |
+          curl -fsSL --retry 3 -o /tmp/hurl.deb \
+            https://github.com/Orange-OpenSource/hurl/releases/download/8.0.1/hurl_8.0.1_amd64.deb
+          sudo dpkg -i /tmp/hurl.deb
+      - name: Install native nginx with auth_request
+        run: sudo apt-get update && sudo apt-get install -y nginx-full
+      - name: Resolve pinned OCU SHA
+        id: ocu
+        run: |
+          SHA=$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("constraints.yaml").read_text(); m=re.search(r"ocu_checkout:\n(?:  .*\n)*?  sha:\s*\"([0-9a-f]{40})\"", t); sys.exit("constraints.yaml missing ocu_checkout.sha") if not m else print(m.group(1))')
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: DankerMu/open-computer-use
+          ref: ${{ steps.ocu.outputs.sha }}
+          path: .run/open-computer-use
+          persist-credentials: false
       - run: npx playwright install --with-deps chromium
-      - run: make reproduce-ocu-popup
+      - name: Native A-T01 characterization (nonacceptance)
+        id: characterization
+        env:
+          OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
+        run: make reproduce-ocu-popup
+      - name: Require sanitized characterization report
+        if: always()
+        run: test -s .run/ocu-popup-repro/report.json
       - name: Upload sanitized popup characterization
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ocu-popup-diagnostic
           path: .run/ocu-popup-repro/report.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload this-run failure screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocu-popup-diagnostic-screenshots
+          path: .run/ocu-popup-repro/screenshots/*.png
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7

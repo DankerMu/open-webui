@@ -138,7 +138,7 @@ verify-ui-ocu:
 
 .PHONY: reproduce-ocu-popup
 reproduce-ocu-popup:
-	node scripts/reproduce-ocu-popup.mjs
+	python3 scripts/reproduce-ocu-popup.py
 
 pyodide-fetch:
 	npm run pyodide:fetch
