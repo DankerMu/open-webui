@@ -83,6 +83,35 @@ window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
     ),
     'sub/report.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>nested</body></html>'),
     'backend-html403.html': ('TEXT/HTML; charset=utf-8', b'upstream error'),
+    'diagram.drawio': (
+        'application/xml',
+        b"""<mxfile>
+<diagram id="combined" name="Combined">
+<mxGraphModel math="1">
+<root>
+<mxCell id="0"/>
+<mxCell id="1" parent="0"/>
+<mxCell id="ordinary" value="Page one" style="whiteSpace=wrap;" vertex="1" parent="1">
+<mxGeometry x="40" y="40" width="120" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="and" value="AND"
+style="shape=mxgraph.electrical.logic_gates.and;whiteSpace=wrap;"
+vertex="1" parent="1">
+<mxGeometry x="200" y="40" width="100" height="60" as="geometry"/>
+</mxCell>
+<mxCell id="phone" value=""
+style="shape=image;image=img/telecommunication/Cellphone_128x128.png;aspect=fixed;"
+vertex="1" parent="1">
+<mxGeometry x="40" y="140" width="80" height="80" as="geometry"/>
+</mxCell>
+<mxCell id="math" value="$$E=mc^2$$" style="html=1;" vertex="1" parent="1">
+<mxGeometry x="160" y="140" width="120" height="40" as="geometry"/>
+</mxCell>
+</root>
+</mxGraphModel>
+</diagram>
+</mxfile>""",
+    ),
 }
 STATIC = {
     'preview.js': ('text/javascript; charset=utf-8', b'export const ocuStub = true;\n'),
@@ -131,11 +160,15 @@ def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
         ('docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         if name.endswith('.docx')
         else (
-            ('html', 'text/html')
-            if name.endswith('.html')
-            else ('image', 'image/svg+xml')
-            if name.endswith('.svg')
-            else ('text', 'text/plain')
+            ('drawio', 'application/xml')
+            if name.endswith('.drawio')
+            else (
+                ('html', 'text/html')
+                if name.endswith('.html')
+                else ('image', 'image/svg+xml')
+                if name.endswith('.svg')
+                else ('text', 'text/plain')
+            )
         )
     )
     file_id = 'fixture-report' if name in ('report.html', 'final.html') else f'fixture-{name}'
@@ -194,6 +227,8 @@ def _outputs(chat_id: str, query: dict | None = None) -> dict:
         'partial': ['report.html'] + [f'item-{index:03d}.txt' for index in range(100)],
         'partial_after': [f'item-{index:03d}.txt' for index in range(101)],
         'large': ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)],
+        'drawio': ['diagram.drawio'],
+        'drawio_embedded': ['diagram.drawio'],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
     offset = int((query or {}).get('cursor', ['0'])[0])
     if scenario == 'partial_after' and offset > 0:

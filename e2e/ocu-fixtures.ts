@@ -305,6 +305,7 @@ function expectedPopupEvent(event: PopupFixtureEvent, type: 'html' | 'svg') {
 
 async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', valid: () => boolean) {
 	const deadline = Date.now() + 20_000;
+	let lastDocument: unknown;
 	do {
 		if (!valid()) throw new Error('Native popup target lost or ambiguous');
 		const result = await bridge.send('Runtime.evaluate', {
@@ -314,6 +315,7 @@ async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', vali
 		if (result.exceptionDetails || typeof result.result?.value !== 'string')
 			throw new Error('Native popup DOM evaluation failed');
 		const document = JSON.parse(result.result.value);
+		lastDocument = document;
 		if (
 			document.readyState === 'complete' &&
 			document.fixtureEvents.some((event: PopupFixtureEvent) => expectedPopupEvent(event, type))
@@ -321,7 +323,7 @@ async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', vali
 			return document;
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	} while (Date.now() < deadline);
-	throw new Error('Native popup fixture event missing');
+	throw new Error(`Native popup fixture event missing: ${JSON.stringify(lastDocument)}`);
 }
 
 async function capturePopupScreenshot(bridge: PopupBridge, path: string) {
