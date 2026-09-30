@@ -157,7 +157,6 @@ class BrowserHarness(Smoke):
         if not viewer.is_file():
             fail('Drawio preparation did not publish viewer materials in the served stage')
 
-
     def provision(self) -> tuple[dict[str, str], str, str]:
         backend = f'http://127.0.0.1:{self.backend_port}'
         identity = f'workspace-ui-{secrets.token_hex(8)}@harness.local'
