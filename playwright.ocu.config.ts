@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './e2e',
-	testMatch: '**/ocu-{workspace,controls,reconciliation}.e2e.ts',
+	testMatch: '**/ocu-{workspace,controls,reconciliation,drawio}.e2e.ts',
 	timeout: 60_000,
 	workers: 1,
 	expect: { timeout: 20_000 },

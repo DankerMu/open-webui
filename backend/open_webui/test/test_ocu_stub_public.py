@@ -10,6 +10,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,8 @@ def _get(url: str, headers: dict[str, str]) -> tuple[int, dict[str, str], bytes]
 def stub_server(tmp_path):
     port = _free_port()
     record = tmp_path / 'record.jsonl'
+    fixtures = tmp_path / 'fixtures.json'
+    fixtures.write_text(json.dumps({'drawio-owner': 'drawio'}), encoding='utf-8')
     env = os.environ.copy()
     env.update(
         {
@@ -44,6 +47,7 @@ def stub_server(tmp_path):
             'OCU_PUBLIC_PREFIX': '/ocu',
             'OCU_INTERNAL_TOKEN': 'synthetic-stub-token',
             'OCU_STUB_RECORD': str(record),
+            'OCU_STUB_FIXTURES': str(fixtures),
         }
     )
     proc = subprocess.Popen([os.environ.get('PYTHON', 'python3'), str(STUB)], env=env, start_new_session=True)
@@ -116,3 +120,29 @@ def test_late_ws_close_does_not_hide_denied_or_unknown_arrivals(tmp_path):
     record.write_text(json.dumps(invalid) + '\n')
     with pytest.raises(support['Fail']):
         observations(record)
+
+
+def test_drawio_fixture_lists_and_serves_renderer_document(stub_server):
+    base, _record = stub_server
+    status, _headers, body = _get(f'{base}/api/outputs/drawio-owner', {})
+    assert status == 200
+    files = json.loads(body)['files']
+    assert len(files) == 1
+    listed = files[0]
+    assert listed['file_id'] == 'fixture-diagram.drawio'
+    assert listed['path'] == 'diagram.drawio'
+    assert listed['url'] == '/ocu/files/drawio-owner/diagram.drawio'
+    assert listed['type'] == 'drawio'
+    assert listed['mime'] == 'application/xml'
+    status, headers, document = _get(f'{base}/files/drawio-owner/diagram.drawio', {})
+    assert status == 200
+    assert headers.get('content-type', '').split(';')[0].strip() == 'application/xml'
+    assert 'x-echo-authorization' not in headers
+    assert headers.get('content-security-policy') == "default-src 'self'"
+    root = ET.fromstring(document)
+    model = root.find('.//mxGraphModel')
+    assert model is not None
+    assert model.get('math') == '1'
+    cells = {cell.get('id'): cell.attrib.get('style', '') for cell in model.findall('root/mxCell')}
+    assert 'img/telecommunication/Cellphone_128x128.png' in cells['phone']
+    assert 'mxgraph.electrical.logic_gates.and' in cells['and']

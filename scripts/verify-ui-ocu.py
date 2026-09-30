@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -52,6 +53,8 @@ SCENARIOS = (
     'stopped',
     'link',
     'restart',
+    'drawio',
+    'drawio_embedded',
 )
 
 
@@ -116,6 +119,44 @@ class BrowserHarness(Smoke):
             return Path(os.environ['OCU_CHECKOUT']).resolve()
         sibling = self.root.parent / 'open-computer-use'
         return sibling.resolve() if sibling.is_dir() else (self.root / '.run/open-computer-use').resolve()
+
+    def prepare_drawio_assets(self) -> None:
+        preparer = self.stage / 'computer-use-server/drawio/prepare_drawio.py'
+        inventory = self.stage / 'computer-use-server/drawio/inventory.json'
+        if not preparer.is_file() or not inventory.is_file():
+            fail('pinned Drawio preparation tree is missing')
+        cache = self.root / '.run/drawio-cache'
+        cache.mkdir(parents=True, exist_ok=True)
+        log_path = self.scratch / 'drawio-prepare.log'
+        env = {
+            'PATH': os.environ.get('PATH', ''),
+            'HOME': os.environ.get('HOME', ''),
+            'TMPDIR': os.environ.get('TMPDIR', '/tmp'),
+            'OCU_DRAWIO_CACHE': str(cache),
+        }
+        pid = self.start_owned([self.python, str(preparer)], env, None, log_path)
+        deadline = time.time() + 120
+        status = None
+        while time.time() < deadline:
+            try:
+                waited, status = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                fail('Drawio preparation process disappeared before reporting a status')
+            if waited:
+                break
+            time.sleep(0.05)
+        else:
+            kill_tree(pid)
+            self.owned.remove(pid)
+            fail('Drawio preparation exceeded 120 seconds')
+        self.owned.remove(pid)
+        if not os.WIFEXITED(status) or os.WEXITSTATUS(status):
+            detail = log_path.read_text(encoding='utf-8', errors='replace')[-4000:]
+            fail(f'Drawio preparation failed: {detail}')
+        viewer = self.stage / 'computer-use-server/static/drawio/js/viewer-static.min.js'
+        if not viewer.is_file():
+            fail('Drawio preparation did not publish viewer materials in the served stage')
+
 
     def provision(self) -> tuple[dict[str, str], str, str]:
         backend = f'http://127.0.0.1:{self.backend_port}'
@@ -249,7 +290,7 @@ class BrowserHarness(Smoke):
             if self.scratch:
                 evidence = self.root / '.run/ui-evidence' / self.scratch.name
                 evidence.mkdir(parents=True, exist_ok=True)
-                for name in ('stub', 'backend', 'stub-restart', 'backend-restart', 'vite', 'proxy'):
+                for name in ('stub', 'backend', 'stub-restart', 'backend-restart', 'vite', 'proxy', 'drawio-prepare'):
                     source = self.scratch / f'{name}.log'
                     if source.is_file():
                         data = source.read_text(encoding='utf-8', errors='replace')
@@ -305,8 +346,18 @@ class BrowserHarness(Smoke):
         if not static_paths or 'computer-use-server/static/preview.js' not in static_paths:
             fail('pinned Office asset tree is missing')
         materialize_git_files(
-            checkout, self.pin_sha, self.stage, (*PINNED_FILES, 'computer-use-server/app.py', *static_paths)
+            checkout,
+            self.pin_sha,
+            self.stage,
+            (
+                *PINNED_FILES,
+                'computer-use-server/app.py',
+                'computer-use-server/drawio/prepare_drawio.py',
+                'computer-use-server/drawio/inventory.json',
+                *static_paths,
+            ),
         )
+        self.prepare_drawio_assets()
         docx = self.scratch / 'valid.docx'
         docx.write_bytes(office_document())
         self.render(require_tools())
