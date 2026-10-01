@@ -27,8 +27,8 @@ ARG GID=0
 FROM --platform=$BUILDPLATFORM node:22-alpine3.20 AS build
 ARG BUILD_HASH
 
-# Set Node.js options (heap limit Allocation failed - JavaScript heap out of memory)
-# ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Vite exceeds a 4 GiB heap while rendering the frontend chunks.
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 WORKDIR /app
 
