@@ -12,7 +12,7 @@
 
 ## 3. Source integration
 
-- [ ] 3.1 Complete independent cross-review, Docker-free counterexamples/restoration, affected native/proxy checks, matching source CI and decision/docs synchronization; merge source without claiming deferred release acceptance.
+- [x] 3.1 Complete independent cross-review, Docker-free counterexamples/restoration, affected native/proxy checks, matching source CI and decision/docs synchronization; merge source without claiming deferred release acceptance.
 
 ## 4. Deferred final engine acceptance
 

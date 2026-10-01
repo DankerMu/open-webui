@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-20
 supersedes: none
-references: docs/plans/2026-09-20-workspace-artifact-integration.md (A1); openspec/changes/ocu-workspace-integration design D1, D14; DankerMu/open-webui#3; DankerMu/open-webui#92
+references: docs/plans/2026-09-20-workspace-artifact-integration.md (A1); openspec/changes/ocu-workspace-integration design D1, D14; DankerMu/open-webui#3; DankerMu/open-webui#92; 2026-09-30-ocu-cold-backup-recovery
 ---
 
 # Per-chat workspace state lives in table ocu_chat_state
@@ -27,4 +27,4 @@ Authorized workspace describe responses expose nested `prefs` from this same row
 
 ## Consequences
 
-The migration sits on the Alembic Critical Path (`make db-verify`). Feature-flag rollback keeps the table and hides the UI. A deleted chat leaves an orphan row that owner-gated routes cannot read; backup prune of orphans is a later procedure. Prefs key whitelist and size cap are enforced on the prefs route, not in this table.
+The migration sits on the Alembic Critical Path (`make db-verify`). Feature-flag rollback keeps the table and hides the UI. A deleted chat leaves an orphan row that owner-gated routes cannot read. Recovery prunes orphan rows only in the restored target database, preserving every live row; see the cold-backup recovery decision. Prefs key whitelist and size cap are enforced on the prefs route, not in this table.
