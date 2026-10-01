@@ -59,6 +59,6 @@ Captured verbatim from grilling (Q6.6); agents check this before writing code th
 
 ## Open Terminology Questions
 
-| Question                                                                          | Why it matters                                                                                                                                | Candidate terms                                                    | Owner                 |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
-| WebUI's native "Artifacts" panel vs OCU 产物 — both are called "artifact" in code | agents conflate the sandboxed HTML panel with workspace files                                                                                 | 产物 (outputs) for OCU files; Artifact only for `Artifacts.svelte` | plan author           |
+| Question                                                                          | Why it matters                                                | Candidate terms                                                    | Owner       |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
+| WebUI's native "Artifacts" panel vs OCU 产物 — both are called "artifact" in code | agents conflate the sandboxed HTML panel with workspace files | 产物 (outputs) for OCU files; Artifact only for `Artifacts.svelte` | plan author |
