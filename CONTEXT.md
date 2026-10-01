@@ -29,6 +29,7 @@ Canonical terms and their prohibited aliases live in `openspec/glossary.md`. Rea
 - Workspace authorization is owner-only: `Chats.is_chat_owner(chat_id, user.id)`. Shared chats, shared folders, public links and admin access all read as 404 on the workspace surface.
 - `chat_id ∈ {"", "default"}` and `temporary:`/`local:`/`channel:` ids never reach OCU; the shared `default` container is never created or reused by the fork.
 - A stopped sandbox is restarted only by an explicit, authorized `launch`; no tool call (including read-only `view`) restarts it implicitly; retention stops at 168 h and never deletes data or volumes.
+- WebUI exposes `launch` as its authorized workspace-start action. OCU's proxied restart/resurrect routes are aliases of the same internal launch lifecycle; tool calls do not supply an implicit alternative.
 - Model-generated HTML/SVG never executes on the WebUI origin: sandboxed iframe (opaque origin) when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level.
 - Sandbox-originated IP traffic reaches only destinations listed in `OCU_SANDBOX_EGRESS_ALLOW`; the control-plane subnet and metadata address stay denied. The application-layer subnet check is defense in depth, never the only control. Inherited Docker host-namespace DNS remains open until issue 79.
 - `revision` is monotonic per content change and is the only version authority; mtime is display-only.
@@ -58,7 +59,6 @@ Captured verbatim from grilling (Q6.6); agents check this before writing code th
 
 ## Open Terminology Questions
 
-| Question                                                                          | Why it matters                                                                                                                                | Candidate terms                                                    | Owner                 |
-| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------- |
-| WebUI's native "Artifacts" panel vs OCU 产物 — both are called "artifact" in code | agents conflate the sandboxed HTML panel with workspace files                                                                                 | 产物 (outputs) for OCU files; Artifact only for `Artifacts.svelte` | plan author           |
-| "launch" vs "start" vs "resurrect" for bringing a stopped sandbox back            | three code paths in OCU (`launch` route, `_get_or_create_container`, `/terminal/*/resurrect-container`) must converge on one authorized entry | launch (authorized), start (internal), resurrect (retire)          | Plan 1 A1 implementer |
+| Question                                                                          | Why it matters                                                | Candidate terms                                                    | Owner       |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
+| WebUI's native "Artifacts" panel vs OCU 产物 — both are called "artifact" in code | agents conflate the sandboxed HTML panel with workspace files | 产物 (outputs) for OCU files; Artifact only for `Artifacts.svelte` | plan author |

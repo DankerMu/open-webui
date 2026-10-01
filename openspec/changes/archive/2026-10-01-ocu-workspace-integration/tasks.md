@@ -1,5 +1,15 @@
 # Tasks
 
+## Closure contract
+
+The user replaced the final acceptance scope on 2026-10-01: build real images, start healthy image-backed services, exercise the core workspace workflow, then remove this run's local and VPS resources while retaining evidence. Two-host recovery, air-gapped restart, packet-level firewall/DNS certification, a real-model pass and LAN capacity measurements are not completion gates and are not claimed as tested.
+
+Implementation completion is recorded in the individual child-issue fixtures and merged PRs. The original unchecked planning rows below are retained as historical scope, not a claim that their original acceptance procedures ran. In particular, 18.3, 19.0–19.1 and 21.3 are superseded by the revised acceptance contract.
+
+Final evidence: WebUI PR105 and OCU PR27; actual linux/amd64 images, healthy services, saved-chat workspace launch, MCP shell output, proxied inline HTML, rendered browser page, and zero browser console/page errors. Local/VPS test containers, images, volumes, networks, builders, caches and temporary credentials were removed; pre-existing local images/services and the VPS's original network were retained. Logs, source/image identities and screenshots are retained in `.run/final-acceptance/`; the acceptance close-out is posted on issues #34, #36 and epic #2.
+
+The umbrella is archived without reapplying its historical spec deltas; individual merged child changes own the current canonical specifications.
+
 Prefixes: `[webui]` = this repo; `[ocu]` = sibling checkout `open-computer-use` (branch `codex/plan1-<slug>` off `main` at `7318b2e`; tests in the OCU repo root `tests/`); `[deploy]` = OCU repo `deploy/` overlay. Every production file ships with its test file in the same task (AGENTS.md § TDD). The D19 proposed decision record (`docs/decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md`) ships with this change's own pipeline commit under `make decisions-verify`, not with an implementation PR; 2.3 covers the D1/D2 records only. Numbering follows dependency order; groups map to Plan 1 work packages A1 → A2 → A3 → A4 → A5. Fixture-level vocabulary: `.claude/skills/subagent-workflow/references/issue-risk-contract.md`.
 
 ## 1. [webui] Authorization endpoint and chat_id guard (spec: ocu-workspace-authorization)
