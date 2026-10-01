@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-33, issue-34, issue-36, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials
+references: issue-33, issue-34, issue-36, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery
 ---
 
 # Offline image archives with mandatory content verification
@@ -31,6 +31,6 @@ Online build-time materialization remains permitted. Local Pyodide and Draw.io c
 
 ## Consequences
 
-Operators must import and explicitly migrate to a verified release before startup; existing protected runtime files are not overwritten. Failed import may leave image-cache entries but never deletes unrelated images or publishes a partial installation. A cancellation at the temporary-directory ownership handoff can leave private staging data (issue102); publication reservations are released and retry remains possible. Trusted host administrators can still mutate daemon state; this is integrity checking, not protection against a hostile host.
+Operators must import and explicitly migrate to a verified release before startup; existing protected runtime files are not overwritten. Failed import may leave image-cache entries but never deletes unrelated images or publishes a partial installation. Handled cancellation records allocated temporary paths before signal delivery and removes only owned staging data and reservations. This does not establish SIGKILL or power-loss recovery. Trusted host administrators can still mutate daemon state; this is integrity checking, not protection against a hostile host.
 
 Source verification cannot attest engine export/import, platform compatibility or WAN-free operation. Those remain mandatory final acceptance after source development, including preserved database settings that can override environment defaults. Backup and one-version rollback use the same release inventory rather than introducing another image authority.
