@@ -18,3 +18,5 @@ uploads
 **/*.db
 _test
 backend/data/*
+# Generated during npm run build; lower-layer directories cannot be atomically renamed on overlayfs.
+/static/pyodide

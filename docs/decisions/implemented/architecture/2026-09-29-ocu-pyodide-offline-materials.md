@@ -20,6 +20,8 @@ Preparation resolves the installed, lockfile-pinned Pyodide distribution with th
 
 Cached and downloaded wheels require matching hashes before a local lock is published. The runtime is copied before lock generation. An exclusive destination lock serializes publication and rollback across processes; competing publishers fail before mutation. Publication uses owned staging and recovery directories: a failed final rename restores the prior bundle; if restoration itself is refused, the recovery copy is retained and the command reports its location. A later attempt cannot delete that recovery copy. The final rename commits publication; backup cleanup failure cannot roll back a complete new bundle using a partially removed backup.
 
+Docker build contexts exclude the generated `static/pyodide` directory. The image build materializes the complete closure from pinned inputs in its own writable layer; importing a prior directory through `COPY` makes the publication backup rename fail with `EXDEV` on overlayfs. The runtime bundle remains included in the built frontend.
+
 Runtime workers retain the standard `/pyodide/` index contract. The native browser verifier denies nonlocal requests and exercises all supported imports, numerical operations, exact plotted line data with rendered PNG output and spreadsheet round-trips. Its deadline closes the owned browser and HTTP server.
 
 ## Alternatives considered
