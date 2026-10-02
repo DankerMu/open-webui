@@ -34,7 +34,7 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - `ocu-reverse-proxy`: the route table gains Office broker rows and loses the two upload read rows; a second listener serves DocumentServer with session authentication.
 - `ocu-compose-port-matrix`: the proxy publishes exactly two ports; DocumentServer publishes none and joins only the control-plane network.
 - `ocu-overlay-smoke`: the smoke asserts two proxy publications, a running DocumentServer and no direct DocumentServer entry.
-- `ocu-offline-image-delivery`: a release identifies seven images; DocumentServer is a pulled role.
+- `ocu-offline-image-delivery`: a release identifies seven images; DocumentServer is a pulled role; the open-source CJK fonts travel as a font bundle recorded in the inventory, whose format version becomes 2; every start also verifies the installed font directory.
 - `ocu-backup-rollback`: backup stops the proxy, has DocumentServer save and close open documents, waits for open edit sessions to end, then stops the writers; its data volume is excluded; per-chat directories no longer contain an uploads tree; restore invalidates edit sessions; rollback verifies the images of the selected release's own inventory.
 - `ocu-outputs-broker`: the broker resolves a `file_id` to its path and registers a host-side write.
 - `ocu-file-headers`: file responses carry `Cache-Control: no-store`.

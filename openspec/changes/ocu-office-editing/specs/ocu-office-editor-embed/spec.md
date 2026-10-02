@@ -94,7 +94,7 @@ The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing
 
 `opening` SHALL be reported once the open is accepted. `refused` SHALL be reported in exactly two cases, both with no usable editor:
 
-- The broker refused session creation — 503 `connection_limit` at the connection cap, or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`.
+- The broker refused session creation — 503 `connection_limit` at the connection cap, 409 `unpublished_version` when the document's earlier session was found orphaned with unpublished content, or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`.
 - The editor itself refused the connection after the session was created or joined, signalled by the editor event that the B1 verification record names for the connection cap. The page SHALL report `reason: "connection_limit"` with the `session_id` of the create response, and SHALL release the editor instance. When that create response had `joined` false the page SHALL issue exactly one `POST /api/office/{chat}/sessions/{session}/close`, which ends the never-opened session; when it had `joined` true the page SHALL issue no close request, because the session belongs to another tab that is still editing.
 
 `refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the session status cannot be read).
@@ -164,6 +164,11 @@ In every other case `dirty` SHALL be `false`, whatever made `last_published_seq`
 
 - **WHEN** session creation is refused because the file is unsupported, too large, corrupt, deleted or storage is low
 - **THEN** the page reports `refused` with the broker's reason and `session_id: null`, and no editor instance exists
+
+#### Scenario: Refused because unpublished content must be offered first (B-T11)
+
+- **WHEN** session creation is refused with 409 and reason `unpublished_version`
+- **THEN** the page reports `refused` with `session_id: null` and `reason: "unpublished_version"`, creates no editor instance and issues no second create request
 
 #### Scenario: Workspace file changed during editing (B-T07)
 

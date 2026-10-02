@@ -35,9 +35,11 @@ The backend SHALL read `ENABLE_OCU_OFFICE_EDIT`, default false, and expose it as
 
 Activating 编辑 SHALL NOT create the editor frame at once. The parent SHALL first read the document's versions through `GET /ocu/api/office/{chat}/documents/{file}/versions` and SHALL decide from what the broker reports, never from state remembered in the browser, in this order:
 
-1. When the response's `open_session` is in `conflict` and its editor has ended — a session whose close-time publish met a conflict that is not yet resolved — the conflict dialog of the requirement "Conflict resolution and change notice" SHALL be presented first; the choice below SHALL NOT be offered before that conflict is resolved.
+1. When the response's `open_session` has `state` `conflict` and `editor_ended` true — a session whose close-time publish met a conflict that is not yet resolved — the conflict dialog of the requirement "Conflict resolution and change notice" SHALL be presented first; the choice below SHALL NOT be offered before that conflict is resolved.
 2. Otherwise, when `open_session` is null and the newest version is unpublished, the parent SHALL create no frame and SHALL offer two actions. "Restore the unpublished content" SHALL call `POST /ocu/api/office/{chat}/documents/{file}/restore` with the number of that newest version and, after it succeeded, SHALL open the editor. "Start from the current file" SHALL open the editor without a restore request and SHALL leave every version in history.
 3. Otherwise — the document has no version, its newest version is published, or a session is already open on it — the editor SHALL open without a prompt.
+
+The versions read can report a session as open that DocumentServer has already forgotten, because the read does not contact DocumentServer; the broker then refuses the session creation with `unpublished_version` when unpublished content exists. When the host page reports `refused` with reason `unpublished_version`, the parent SHALL retire the editor frame, SHALL show no refusal message, and SHALL run the decision above again from a fresh versions read, which then reports no open session and leads to the choice of step 2. It SHALL do so once per activation of 编辑: a second `unpublished_version` refusal in the same activation SHALL be shown as an error with a retry.
 
 Dismissing the choice SHALL open no editor and SHALL issue no request. A restore that the broker refuses SHALL be shown as an error with the choice still available, and SHALL open no editor. A versions read that fails SHALL be shown as an error with a retry and SHALL open no editor, so that unpublished content is never skipped silently.
 
@@ -61,6 +63,12 @@ Dismissing the choice SHALL open no editor and SHALL issue no request. A restore
 
 - **WHEN** the owner activates 编辑 on a file whose close-time publish met a conflict that is not yet resolved, so that its newest version is unpublished
 - **THEN** the conflict dialog is presented and the restore-or-start choice is not offered
+
+#### Scenario: Editor service restarted while a document was open (B-T11)
+
+- **WHEN** the versions read reports an open session in `editing` and an unpublished newest version, the editor frame is created, and the host page reports `refused` with reason `unpublished_version`
+- **THEN** the frame is retired, no refusal message is shown, the versions are read again and the restore-or-start choice is offered
+- **AND** choosing to start from the current file creates a new frame whose session creation succeeds
 
 #### Scenario: Refused restore opens nothing
 
@@ -165,7 +173,7 @@ While an editor frame exists the sidebar SHALL show a status bar with state text
 
 ### Requirement: Version history and restore
 
-For an editable Office entry the sidebar SHALL offer a history view that lists the document's versions from `GET /ocu/api/office/{chat}/documents/{file}/versions` through the client module `src/lib/apis/ocu/office.ts`. Each row SHALL show the version number, time, source (`workspace`, `save`, `autosave`, `close`, `restore` or `conflict`) and whether the version is published. The history view SHALL be reachable both from the status bar while editing and from the file entry when no editor is open. A restore action SHALL call `POST /ocu/api/office/{chat}/documents/{file}/restore` with `X-Requested-With: ocu-workspace`; it SHALL be disabled with an explanation while a session is open on the document, and a refusal returned by the broker SHALL be shown as an error without changing the list. After a successful restore the list SHALL be reloaded from the broker. The parent SHALL own the versions, restore and resolve calls; the editor frame SHALL NOT be asked to make them.
+For an editable Office entry the sidebar SHALL offer a history view that lists the document's versions from `GET /ocu/api/office/{chat}/documents/{file}/versions` through the client module `src/lib/apis/ocu/office.ts`. Each row SHALL show the version number, time, source (`workspace`, `save`, `autosave`, `close`, `restore` or `conflict`) and whether the version is published. The history view SHALL be reachable both from the status bar while editing and from the file entry when no editor is open. A restore action SHALL call `POST /ocu/api/office/{chat}/documents/{file}/restore` with `X-Requested-With: ocu-workspace`; it SHALL be disabled with an explanation while an editor frame is open on the document in this page. When the listing reports an open session and no editor frame is open here — the session belongs to another tab, or DocumentServer has forgotten it — the action SHALL stay available and the broker decides: it ends a forgotten session and restores, or refuses, and a refusal returned by the broker SHALL be shown as an error without changing the list. After a successful restore the list SHALL be reloaded from the broker. The parent SHALL own the versions, restore and resolve calls; the editor frame SHALL NOT be asked to make them.
 
 #### Scenario: List shows source and published flag (B-T14)
 
@@ -184,13 +192,13 @@ For an editable Office entry the sidebar SHALL offer a history view that lists t
 
 #### Scenario: Restore refused while editing
 
-- **WHEN** an editor session is open on the document
+- **WHEN** an editor frame is open on the document in this page
 - **THEN** the restore action is disabled with an explanation and no restore request is issued
-- **AND** a refusal returned by the broker for a session open elsewhere is displayed as an error
+- **AND** with no editor frame here and an open session reported by the listing, the action is available, and a `session_open` refusal returned by the broker is displayed as an error
 
 ### Requirement: Conflict resolution and change notice
 
-When the host page reports `conflict`, including when a file whose close-time publish conflicted is opened again, the sidebar SHALL present a conflict dialog. The dialog SHALL offer `save as new file` as the default action and `overwrite` as a second action that requires a second explicit confirmation before any request is sent. When the conflict reason is `path_missing`, that is, the original path no longer exists, only `save as new file` SHALL be offered. The chosen action SHALL be sent by the parent to `POST /ocu/api/office/{chat}/sessions/{session}/resolve` as `save_as` or `overwrite`. Dismissing the dialog SHALL resolve nothing and SHALL leave the conflict state visible with a way to reopen the dialog; the UI SHALL offer no action that discards the user's content. A successful `save_as` SHALL NOT recreate the editor frame. While the host page reports `workspace_changed: true` the sidebar SHALL show a non-blocking "workspace file changed" notice; editing and saving SHALL remain available.
+When the host page reports `conflict`, including when a file whose close-time publish conflicted is opened again, the sidebar SHALL present a conflict dialog. The dialog SHALL offer `save as new file` as the default action and `overwrite` as a second action that requires a second explicit confirmation before any request is sent. When the conflict reason is `path_missing`, that is, the original path no longer exists, only `save as new file` SHALL be offered. The chosen action SHALL be sent by the parent to `POST /ocu/api/office/{chat}/sessions/{session}/resolve` as `save_as` or `overwrite`. Dismissing the dialog SHALL resolve nothing and SHALL leave the conflict state visible with a way to reopen the dialog; the UI SHALL offer no action that discards the user's content. A successful `save_as` SHALL NOT recreate the editor frame. A resolve the broker refuses SHALL be shown as an error with the dialog still open, except for the reason `workspace_missing`: the session has then ended in `error`, no action remains, and the dialog SHALL close with a message that the chat's files are gone and the content is kept in the version store. While the host page reports `workspace_changed: true` the sidebar SHALL show a non-blocking "workspace file changed" notice; editing and saving SHALL remain available.
 
 #### Scenario: Default is save as new file (B-T06)
 
@@ -212,6 +220,11 @@ When the host page reports `conflict`, including when a file whose close-time pu
 
 - **WHEN** a session was closed unattended with a conflict and the owner later opens that file for editing
 - **THEN** the conflict dialog is presented before any further edit is published
+
+#### Scenario: Resolve refused because the chat's files are gone (B-T10)
+
+- **WHEN** the user confirms an action in the conflict dialog and the broker answers 409 with reason `workspace_missing`
+- **THEN** the dialog closes with a message that the files are gone and the content is kept, and no further resolve request is issued
 
 #### Scenario: Workspace file changed notice (B-T07)
 
@@ -286,9 +299,9 @@ The outcome SHALL be recorded against the chat that owned the session: a late re
 
 ### Requirement: Executable component and browser proof
 
-Vitest SHALL exercise the actual component and module behaviour: flag off; frame creation and identity across a publish-driven `revision` change; every rejected message class; each status-bar state including saved only after a confirmed publish; maximize keeping the frame; the history list, restore call and disabled state; each conflict-dialog branch; the pre-open choice with both actions, the no-prompt case and the pending-conflict case; each guard trigger, each of the five close outcomes and the late-result case. Playwright SHALL exercise the actual WebUI route through the existing proxy and the deterministic stub's Office fixtures and editor host page, covering open → editing → save → saved, a conflict driven by the stub, refusal at the connection cap by the broker and by the editor, the restore-or-start choice for an unpublished newest version, a close that ends saved as a new file, maximize in both layouts and the B-T12 walk, with screenshots under `.run/ui-evidence/` and zero unexpected console or page errors. Missing harness prerequisites SHALL fail visibly rather than skip, and owned services SHALL be stopped after the run. A pass of these tests SHALL NOT be reported as proof that a real DocumentServer save works.
+Vitest SHALL exercise the actual component and module behaviour: flag off; frame creation and identity across a publish-driven `revision` change; every rejected message class; each status-bar state including saved only after a confirmed publish; maximize keeping the frame; the history list, restore call and disabled state; each conflict-dialog branch; the pre-open choice with both actions, the no-prompt case, the pending-conflict case and the choice reached through an `unpublished_version` refusal; each guard trigger, each of the five close outcomes and the late-result case. Playwright SHALL exercise the actual WebUI route through the existing proxy and the deterministic stub's Office fixtures and editor host page, covering open → editing → save → saved, a conflict driven by the stub, refusal at the connection cap by the broker and by the editor, the restore-or-start choice for an unpublished newest version, reached directly and through the stub's stale-session fixture, a close that ends saved as a new file, maximize in both layouts and the B-T12 walk, with screenshots under `.run/ui-evidence/` and zero unexpected console or page errors. The maximize case SHALL capture one screenshot of each layout explicitly; the configuration's failure-only screenshots are not that evidence. Missing harness prerequisites SHALL fail visibly rather than skip, and owned services SHALL be stopped after the run. A pass of these tests SHALL NOT be reported as proof that a real DocumentServer save works.
 
-The Office browser cases SHALL be part of what `make verify-ui-ocu` runs, not a file beside it: the Playwright match pattern of that target's configuration (`playwright.ocu.config.ts`) SHALL include the Office spec file, and the scenario list of `scripts/verify-ui-ocu.py` SHALL include every stub Office scenario those cases select. The output of the run SHALL name each Office case that ran. The target SHALL exit non-zero when no Office case ran or when a required Office case is absent from the run; a `make verify-ui-ocu` that passes without running them SHALL NOT be accepted as evidence.
+The Office browser cases SHALL be part of what `make verify-ui-ocu` runs, not a file beside it: the Playwright match pattern of that target's configuration (`playwright.ocu.config.ts`) SHALL include the Office spec file, and the scenario list of `scripts/verify-ui-ocu.py` SHALL include every stub Office scenario those cases select. The output of the run SHALL name each Office case that ran. Before the run the script SHALL list the tests the configuration selects and SHALL exit non-zero, naming the file, when a required spec file — the Office spec file among them — contributes no test; a `make verify-ui-ocu` that passes without running the Office cases SHALL NOT be accepted as evidence.
 
 #### Scenario: Repeatable browser verification
 
@@ -302,8 +315,9 @@ The Office browser cases SHALL be part of what `make verify-ui-ocu` runs, not a 
 
 #### Scenario: A run without the Office cases fails
 
-- **WHEN** the Office spec file is removed from the match pattern, or the Office scenarios from the scenario list, and `make verify-ui-ocu` runs
-- **THEN** the command exits non-zero naming the missing Office cases, and prints no pass line
+- **WHEN** the Office spec file is removed from the match pattern and `make verify-ui-ocu` runs
+- **THEN** the command exits non-zero naming the Office spec file before any browser case runs, and prints no pass line
+- **AND** when the Office scenarios are removed from the scenario list instead, the Office cases fail for want of their chats and the command exits non-zero
 
 #### Scenario: Missing prerequisite is not a skip
 

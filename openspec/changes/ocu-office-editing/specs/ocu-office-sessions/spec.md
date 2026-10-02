@@ -54,7 +54,7 @@ When enabled, these routes SHALL require the internal token and a canonical chat
 
 ### Requirement: Session creation validates the document and capacity
 
-`POST /api/office/{chat}/documents/{file}/sessions` SHALL resolve `{file}` through the outputs broker, check the document under the per-chat lock (consulting DocumentServer is not required to happen while the lock is held) and refuse with an explicit error when: the `file_id` is unknown, malformed or tombstoned (404 `unknown_file`); the file name does not end in `.docx`, `.xlsx` or `.pptx`, compared case-insensitively (415 `unsupported_type`); the file is larger than the outputs broker's per-file limit (413 `file_too_large`); the workspace file fails the safe-read check of `ocu-office-store` (422 `unsafe_path`); the content is not a readable OOXML container of the type its extension names (422 `corrupt_document`); free space is below the storage floor (503 `storage_low`); or DocumentServer is at its connection cap (503 `connection_limit`).
+`POST /api/office/{chat}/documents/{file}/sessions` SHALL resolve `{file}` through the outputs broker, check the document under the per-chat lock (consulting DocumentServer is not required to happen while the lock is held) and refuse with an explicit error when: the `file_id` is unknown, malformed or tombstoned (404 `unknown_file`); the file name does not end in `.docx`, `.xlsx` or `.pptx`, compared case-insensitively (415 `unsupported_type`); the file is larger than the outputs broker's per-file limit (413 `file_too_large`); the workspace file fails the safe-read check of `ocu-office-store` (422 `unsafe_path`); the content is not a readable OOXML container of the type its extension names (422 `corrupt_document`); free space is below the storage floor (503 `storage_low`); or DocumentServer is at its connection cap (503 `connection_limit`). One further refusal, 409 `unpublished_version`, is specified by the requirement "Orphaned sessions".
 
 When the B1 verification record shows that DocumentServer's connection usage can be queried, the broker SHALL query it before it creates a session and before it joins a request to an existing session, and SHALL refuse with 503 `connection_limit` when the cap is reached. When the record shows that usage cannot be queried, the broker SHALL make no cap check; the refusal then comes from the editor itself, the host page reports it with the same reason (`ocu-office-editor-embed`), and its `close` ends the session that never opened (requirement "Close records intent only").
 
@@ -155,7 +155,7 @@ The create and join responses SHALL include `editor_config`, the DocumentServer 
 
 A session SHALL be in exactly one of `opening`, `editing`, `saving`, `closing`, `closed`, `conflict`, `error` or `orphaned`. Normal flow SHALL be `opening → editing`, `editing → saving → editing` for each save, and `closing → closed`; a `closing` session returns to `editing` when a participant is still connected (`ocu-office-callback`); `closed`, `error` and `orphaned` SHALL be final. `GET /api/office/{chat}/sessions/{session}` SHALL return 200 with the persisted `session_id`, `file_id`, `document_key`, `state`, `reason` (null when there is nothing to report), `save_seq`, `last_committed_seq`, `last_published_seq`, `workspace_changed` and `saved_as` (the `file_id` and `path` of the new document that a `save_as`, requested or automatic, created for this session, otherwise null), from any worker process, and 404 `unknown_session` for a session the chat does not have. The status request SHALL NOT contact DocumentServer and SHALL NOT change a version or a workspace file.
 
-`save_seq` SHALL be per session, start at 1 and be strictly increasing. A number SHALL be allocated only by a save request, by a close request, and by the first arrival of a final callback when no close allocation is pending (`ocu-office-callback`). `last_committed_seq` SHALL be the highest `save_seq` whose content is stored as a version, or that DocumentServer confirmed adds nothing to the latest stored version. `last_published_seq` SHALL be the highest `save_seq` after whose processing the workspace file equals the session's latest stored version. It SHALL advance in these four cases: when a publish completes; when a save with intent `publish` finds nothing new and the session's latest stored version is already published; when a resolve succeeds, after which it equals `last_committed_seq`; and when persisted content equals the already published version.
+`save_seq` SHALL be per session, start at 1 and be strictly increasing. A number SHALL be allocated only by a save request, by a close request, and by the first arrival of a final callback when no close allocation is pending (`ocu-office-callback`). `last_committed_seq` SHALL be the highest `save_seq` whose content is stored as a version, or that DocumentServer confirmed adds nothing to the latest stored version. `last_published_seq` SHALL be the highest `save_seq` after whose processing the workspace file equals the session's latest stored version. It SHALL advance in these four cases: when a publish completes; when a save of either intent finds nothing new and the session's latest stored version is already published; when a resolve succeeds, after which it equals `last_committed_seq`; and when persisted content equals the already published version.
 
 While the session is open the status request SHALL check only the workspace file being edited: read its size and mtime without following a symlink, hash it only when either differs from the previous check, and report `workspace_changed` true when the hash differs from the session baseline, when the file is missing, or when the file fails the safe-read check of `ocu-office-store`, in which case it is not read; false otherwise. The notice SHALL NOT change the session state and SHALL NOT block a save; the publish-time comparison specified by `ocu-office-publish` is the safety mechanism.
 
@@ -173,6 +173,16 @@ While the session is open the status request SHALL check only the workspace file
 
 - **WHEN** a save with intent `persist` is committed and its content's SHA-256 equals that of the document's latest version, which is published
 - **THEN** no version is added, and `last_committed_seq` and `last_published_seq` both equal that save's `save_seq`
+
+#### Scenario: Auto-save that finds nothing new after a publish
+
+- **WHEN** the session's latest stored version is published, a save with intent `persist` is accepted and DocumentServer reports nothing new to save
+- **THEN** no version is added, and `last_committed_seq` and `last_published_seq` both equal that save's `save_seq`
+
+#### Scenario: Auto-save that finds nothing new while a version is unpublished
+
+- **WHEN** the session's latest stored version is an unpublished `autosave` version, a save with intent `persist` is accepted and DocumentServer reports nothing new to save
+- **THEN** `last_committed_seq` equals that save's `save_seq`, `last_published_seq` is unchanged and nothing is published
 
 #### Scenario: Agent changes the edited file
 
@@ -222,7 +232,7 @@ The user SHALL see one save. The broker SHALL implement it with two internal sta
 
 The editor configuration SHALL leave DocumentServer's user-initiated force save off, so the editor's own save command produces no callback and is not a save in this model; the WebUI status bar button is the only user save. OCU SHALL NOT run an auto-save timer of its own. `POST /api/office/{chat}/sessions/{session}/save` SHALL take a body `{"intent": "publish" | "persist"}`; a missing or other value SHALL return 422 `invalid_request`. It SHALL be accepted only for a session in `editing` (409 `session_not_editing` otherwise), so at most one save of a session is outstanding at a time. On acceptance it SHALL allocate the next `save_seq`, record the intent with it, set the session to `saving`, ask DocumentServer to deliver the current content with that `save_seq` and intent as the command's user data, and return 202 with `session_id`, `save_seq` and `intent`. The 202 SHALL mean accepted only: no version exists because of it, and `last_committed_seq` and `last_published_seq` advance only when the callback for that `save_seq` is committed.
 
-When DocumentServer answers that there is nothing new to save, the request SHALL complete without a callback: the session returns to `editing`, `last_committed_seq` becomes that `save_seq`, and for intent `publish` the session's latest stored version SHALL be published if it is not already, as a publish requested by a save (`ocu-office-publish`). When DocumentServer cannot be reached or rejects the command, the response SHALL be 502 `documentserver_unavailable`, nothing SHALL be stored and the session SHALL be `editing`. When DocumentServer answers that it no longer knows the key, the session becomes `orphaned` (requirement "Orphaned sessions").
+When DocumentServer answers that there is nothing new to save, the request SHALL complete without a callback: the session returns to `editing`, `last_committed_seq` becomes that `save_seq`, and for intent `publish` the session's latest stored version SHALL be published if it is not already, as a publish requested by a save (`ocu-office-publish`). For either intent, when the session's latest stored version is already published, `last_published_seq` SHALL become that `save_seq` as well. When DocumentServer cannot be reached or rejects the command, the response SHALL be 502 `documentserver_unavailable`, nothing SHALL be stored and the session SHALL be `editing`. When DocumentServer answers that it no longer knows the key, the session becomes `orphaned` (requirement "Orphaned sessions").
 
 A session SHALL leave `saving` in one of these ways: the callback of the outstanding save is committed, or reports a forcesave failure, or is answered with an error (all three specified by `ocu-office-callback`); or the save timeout of the session sweep passes (requirement "Session sweep").
 
@@ -325,13 +335,22 @@ Two cases end the session at the close request itself. A close on a session that
 
 ### Requirement: Orphaned sessions
 
-A session SHALL become `orphaned` with reason `editor_state_lost` when DocumentServer answers a broker request for its `document_key` — on reopening the document, on a save, on a close, or in the session sweep — that it no longer knows the key. A session SHALL become `orphaned` with reason `restore_epoch_changed` when the restore epoch check of `ocu-office-store` (requirement "Restore epoch marker") finds a different epoch. On reopening, the key check SHALL be made for a session in `editing`, `saving` or `closing`; an `opening` session, whose key DocumentServer has not seen yet, and a session in `conflict` SHALL be joined without it. An orphaned session SHALL never store or publish anything again; versions stored before it was orphaned SHALL stay in history, and how unpublished ones are offered back is specified by `ocu-office-publish` (requirement "Version listing and restore"). A create request that finds the document's session orphaned SHALL return a new session with a new `document_key` (201). The documented loss bound SHALL be 5 minutes: after a DocumentServer crash or restart, input since the last committed auto-save may be lost. When DocumentServer cannot be reached for the key check, the create request SHALL return 502 `documentserver_unavailable` and change nothing.
+A session SHALL become `orphaned` with reason `editor_state_lost` when DocumentServer answers a broker request for its `document_key` — on reopening the document, on a save, on a close, or in the session sweep — that it no longer knows the key. A session SHALL become `orphaned` with reason `restore_epoch_changed` when the restore epoch check of `ocu-office-store` (requirement "Restore epoch marker") finds a different epoch. On reopening, the key check SHALL be made for a session in `editing`, `saving` or `closing`; an `opening` session, whose key DocumentServer has not seen yet, and a session in `conflict` SHALL be joined without it. An orphaned session SHALL never store or publish anything again; versions stored before it was orphaned SHALL stay in history, and how unpublished ones are offered back is specified by `ocu-office-publish` (requirement "Version listing and restore"). A journal entry of the session SHALL be driven to its outcome before the session is marked `orphaned` (`ocu-office-publish`, requirement "Publish journal and recovery"), so an orphaned session holds none.
+
+A create request whose own check makes the document's session `orphaned` SHALL then create a new session with a new `document_key` and return 201, with one exception. When the document's newest version is unpublished at that point, the request SHALL create no session and no version and SHALL return 409 `unpublished_version`: a new session would record the workspace content as the newest version and the unpublished content would no longer be offered (`ocu-office-workspace-ui`, requirement "Unpublished content is offered before the editor opens"). The old session stays `orphaned`, so the next create request finds no open session and creates one. A create request for a document that has no open session is never refused for this reason. The documented loss bound SHALL be 5 minutes: after a DocumentServer crash or restart, input since the last committed auto-save may be lost. When DocumentServer cannot be reached for the key check, the create request SHALL return 502 `documentserver_unavailable` and change nothing.
 
 #### Scenario: DocumentServer restarted (B-T11)
 
-- **WHEN** DocumentServer is restarted during a session that has an auto-saved version, and the document is opened again
+- **WHEN** DocumentServer is restarted during a session whose stored versions are all published, and the document is opened again
 - **THEN** the old session is `orphaned` with reason `editor_state_lost` and the response is 201 with a new `session_id` and a new `document_key`
-- **AND** the auto-saved version is still listed and no workspace file was changed by the orphaning
+- **AND** no workspace file was changed by the orphaning
+
+#### Scenario: DocumentServer restarted with an unpublished auto-save (B-T11)
+
+- **WHEN** DocumentServer is restarted during a session whose newest version is an unpublished `autosave` version, the session is still stored as `editing`, and a create request for the document arrives
+- **THEN** the old session is `orphaned` with reason `editor_state_lost`, the response is 409 with reason `unpublished_version`, and no session and no `workspace` version are created
+- **AND** the versions listing then reports `open_session` null with the `autosave` version as the newest, unpublished one
+- **AND** a second create request returns 201 with a new session and records the workspace content as a `workspace` version
 
 #### Scenario: Save on a session DocumentServer forgot
 
@@ -342,7 +361,7 @@ A session SHALL become `orphaned` with reason `editor_state_lost` when DocumentS
 
 - **WHEN** a recovery set is restored, which writes a new restore epoch, and the status of a session created before the restore is requested
 - **THEN** it reports `orphaned` with reason `restore_epoch_changed`
-- **AND** opening the document again returns a new session with a new `document_key`, while files, versions and broker state are those of the restored set
+- **AND** opening the document again, when its newest version is published, returns a new session with a new `document_key`, while files, versions and broker state are those of the restored set
 
 #### Scenario: Key check impossible
 
@@ -351,7 +370,7 @@ A session SHALL become `orphaned` with reason `editor_state_lost` when DocumentS
 
 ### Requirement: Session sweep
 
-OCU's idle-reclamation poll SHALL sweep the Office sessions of every chat, so that no state is left without an exit. For each chat it SHALL first drive any journal entry left by a crash (`ocu-office-publish`) and then check the sessions. A session that becomes `orphaned`, here or on a request, SHALL have its journal entries removed: its versions stay stored and unpublished, and are offered when the file is next opened.
+OCU's idle-reclamation poll SHALL sweep the Office sessions of every chat, so that no state is left without an exit. For each chat it SHALL first drive any journal entry left by a crash (`ocu-office-publish`) and then check the sessions, so a session the sweep makes `orphaned` holds no journal entry. Versions an orphaned session stored without publishing stay stored and are offered when the file is next opened.
 
 - A session in `opening`, `editing`, `saving` or `closing` that has had no callback and no request for longer than a configured liveness interval SHALL be checked against DocumentServer; when DocumentServer no longer knows its key the session SHALL become `orphaned` with reason `editor_state_lost`. The liveness interval SHALL be longer than the source ticket lifetime.
 - A session that has been `saving` for longer than a configured save timeout SHALL be checked against DocumentServer; when DocumentServer still knows its key the session SHALL return to `editing` with reason `save_timeout`, and when it no longer knows the key the session SHALL become `orphaned` as above. A callback for that save that arrives later is still committed (`ocu-office-callback`).
@@ -386,7 +405,7 @@ The sweep SHALL NOT change a session in `conflict` or in a final state, SHALL NO
 - **WHEN** a session is in `conflict`, its editor has already ended, and a close is requested
 - **THEN** the response is 202, the session is still `conflict` with the same reason, and the conflict is offered when the file is next opened
 
-#### Scenario: Orphaned session leaves no journal entry
+#### Scenario: Journal entry is driven before the sweep orphans its session
 
-- **WHEN** a session with a journal entry becomes `orphaned`
-- **THEN** the entry is removed, its version is still listed with `published` false, and no later sweep publishes it
+- **WHEN** the poll finds a chat with a journal entry left by a crash whose session DocumentServer no longer knows
+- **THEN** the entry is driven to its outcome first, the session is `orphaned` afterwards, and the journal holds no entry

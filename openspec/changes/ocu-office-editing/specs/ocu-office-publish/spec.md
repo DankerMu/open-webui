@@ -50,7 +50,7 @@ Every publish — after a save with intent `publish`, after the final callback, 
 
 Under the lock and before pausing, the broker SHALL resolve the document's current path from its `file_id` in the outputs broker's persisted index (`ocu-outputs-broker`, requirement "Resolve a file_id to its current path"). A publish SHALL NOT run a reconcile: a reconcile fails with an unstable read whenever a sandbox process is writing any file. A rename that a reconcile has already recorded is therefore followed; a rename that no listing has recorded yet is not, the file is missing at the indexed path, and the publish is a conflict. An id that does not resolve SHALL be a conflict with reason `path_missing`. An index that cannot be read SHALL fail the publish with reason `index_unavailable`, before any pause.
 
-Inside the fence the broker SHALL hash the workspace file at the resolved path on every publish, whatever size and mtime say, reading it as the safe-read rule of `ocu-office-store` prescribes. It SHALL replace the file only when that hash equals the session baseline. A different hash, or a file that fails the safe-read check and is therefore not read, SHALL be a conflict with reason `baseline_mismatch`; a resolved path at which no file exists SHALL be a conflict with reason `path_missing`, and the path SHALL NOT be recreated. On a conflict nothing SHALL be written to the workspace and the user's content SHALL already be stored as a version. The broker SHALL never apply last-writer-wins. After a completed publish the session baseline SHALL be the published version's hash.
+Inside the fence the broker SHALL hash the workspace file at the resolved path on every publish, whatever size and mtime say, reading it as the safe-read rule of `ocu-office-store` prescribes. It SHALL replace the file only when that hash equals the session baseline. A different hash, or a file that fails the safe-read check and is therefore not read — the file itself or any parent directory of it is a symlink, or it is not a regular file inside the chat's workspace files directory — SHALL be a conflict with reason `baseline_mismatch`; a resolved path at which no file exists SHALL be a conflict with reason `path_missing`, and the path SHALL NOT be recreated. Whatever this step observes decides the outcome: `unsafe_path` is never the outcome for a state of the path that the hash step saw. On a conflict nothing SHALL be written to the workspace and the user's content SHALL already be stored as a version. The broker SHALL never apply last-writer-wins. After a completed publish the session baseline SHALL be the published version's hash.
 
 #### Scenario: Agent wrote the file during the edit (B-T06)
 
@@ -84,6 +84,12 @@ Inside the fence the broker SHALL hash the workspace file at the resolved path o
 - **THEN** the session is `conflict` with reason `baseline_mismatch`, the link is still in place, the bytes of the link's target are unchanged and were not read
 - **AND** the user's content is listed as a version with `published` false
 
+#### Scenario: Symlinked parent directory (B-T13)
+
+- **WHEN** a sandbox process replaced a parent directory of the edited file with a symlink that points outside the chat's workspace files directory, and the user saves
+- **THEN** the session is `conflict` with reason `baseline_mismatch`, no file outside the chat's workspace files directory is read, created or changed, and the user's content is listed as a version with `published` false
+- **AND** a resolve with `save_as` places the new file in the workspace root, not in the linked directory
+
 #### Scenario: Index cannot be read
 
 - **WHEN** the outputs broker's persisted index of the chat cannot be read and a publish runs after a save
@@ -96,17 +102,17 @@ Inside the fence the broker SHALL hash the workspace file at the resolved path o
 
 ### Requirement: Atomic and symlink-safe replace
 
-The broker SHALL write the version to a temporary file in the target file's directory, created exclusively and without following a symlink, with a dot-prefixed name so that the workspace file listing never shows it, flush it to disk, and replace the target with it in one atomic step followed by a flush of the directory. Before the replace it SHALL inspect every parent component of the target without following links; when any component is a symlink, or the resolved target lies outside the chat's workspace files directory, the publish SHALL abort with reason `unsafe_path`, remove its temporary file and write nothing outside that directory. A reader SHALL observe either the previous content or the complete version, never a partial file.
+The broker SHALL write the version to a temporary file in the target file's directory, created exclusively and without following a symlink, with a dot-prefixed name so that the workspace file listing never shows it, flush it to disk, and replace the target with it in one atomic step followed by a flush of the directory. Immediately before the replace it SHALL inspect every parent component of the target again without following links; when any component is a symlink, or the resolved target lies outside the chat's workspace files directory, the publish SHALL abort with reason `unsafe_path`, remove its temporary file and write nothing outside that directory. This is the guard of the write itself. For a publish over an existing file it can only trip on a change made after the hash step accepted the path, which a paused or stopped sandbox cannot make; a path that was already unsafe at the hash step is a conflict, as the requirement "Baseline comparison and conflict" specifies. For a publish to a new file (`save_as`), which has no hash step, it is the only check. A reader SHALL observe either the previous content or the complete version, never a partial file.
 
 #### Scenario: Reader during a publish
 
 - **WHEN** the file is downloaded repeatedly through the gateway while a publish replaces it
 - **THEN** every response body equals either the previous content or the version in full
 
-#### Scenario: Symlinked parent directory (B-T13)
+#### Scenario: Parent becomes a symlink after the hash step
 
-- **WHEN** the Agent replaced a parent directory of the edited file with a symlink that points outside the chat's workspace files directory, and a publish runs
-- **THEN** the publish fails with reason `unsafe_path`, no file outside the chat's workspace files directory is created or changed, and the version stays stored
+- **WHEN** a test replaces a parent directory of the target with a symlink that points outside the chat's workspace files directory after the hash step accepted the path and before the replace
+- **THEN** the publish fails with reason `unsafe_path`, the temporary file is removed, no file outside the chat's workspace files directory is created or changed, and the version stays stored
 
 #### Scenario: Symlink at the temporary name
 
@@ -152,7 +158,7 @@ Every publish SHALL end in exactly one of three outcomes. Each outcome SHALL be 
 | conflict (`baseline_mismatch`, `path_missing`)                                 | `conflict` with the reason | `conflict` with reason `baseline_mismatch`; for `path_missing` the automatic copy of the requirement "Conflict resolution" | not applicable                              |
 | failed (`pause_failed`, `publish_timeout`, `unsafe_path`, `index_unavailable`) | `editing` with the reason  | `error` with the reason                                                                                                    | HTTP 503 with the reason, session unchanged |
 
-"After a save" covers the publish that follows a status 6 callback with intent `publish` and the publish of a save that found nothing new; "after the final callback" covers status 2 and status 4. The result of a status 6 callback never changes the state of a session that is `closing` or `conflict` (`ocu-office-callback`): the outcome is recorded and the state stays. For the published outcome the same state update SHALL mark the version `published` true, set the session baseline to the published hash and advance `last_published_seq` (`ocu-office-sessions`). After a conflict or a failure the version SHALL stay stored with `published` false.
+"After a save" covers the publish that follows a status 6 callback with intent `publish` and the publish of a save that found nothing new; "after the final callback" covers status 2 and status 4. The result of a status 6 callback never changes the state of a session that is `closing` or `conflict` (`ocu-office-callback`): the outcome is recorded and the state stays. The `editing` of the "after a save" column SHALL apply only when the publish belongs to the session's outstanding save. A published or failed outcome of an earlier `save_seq` — a callback that arrived after the save timeout had returned the session to `editing` and a newer save was accepted — SHALL be recorded, with the reason for a failure, and SHALL leave the session state as it is, so a session that is `saving` for the newer save stays `saving`. A conflict SHALL set `conflict` whichever save met it. For the published outcome the same state update SHALL mark the version `published` true, set the session baseline to the published hash and advance `last_published_seq` (`ocu-office-sessions`). After a conflict or a failure the version SHALL stay stored with `published` false.
 
 There SHALL be no retry route. After a failed publish that followed a save, the next save with intent `publish` publishes the session's latest stored version. After a failed publish that followed the final callback, the document's newest version stays unpublished and is offered back through the versions listing (requirement "Version listing and restore").
 
@@ -172,11 +178,17 @@ There SHALL be no retry route. After a failed publish that followed a save, the 
 - **WHEN** a publish that followed a save completes and the state is read afterwards
 - **THEN** the version is `published` true, the session baseline is its hash, `last_published_seq` is that save's `save_seq`, the session is `editing` and the journal holds no entry
 
+#### Scenario: Late result of an earlier save does not end a newer one
+
+- **WHEN** the save with `save_seq` 3 timed out, the session returned to `editing`, a save with `save_seq` 4 was accepted and is outstanding, and the status 6 callback of `save_seq` 3 with intent `publish` now arrives and its publish completes
+- **THEN** the version of `save_seq` 3 is `published` true and the journal holds no entry for it, and the session is still `saving`
+- **AND** the session returns to `editing` only when the callback of `save_seq` 4 is processed or its own timeout passes
+
 ### Requirement: Publish journal and recovery
 
 A publish SHALL start as a journal entry, the obligation to publish (`ocu-office-store`). For a publish that follows a callback the entry is written with the version and the receipt, as specified by `ocu-office-callback`; for a save that found nothing new, in the state update that completes that save; for resolve and restore, when the request is accepted. Before pausing, the broker SHALL record the target path and the temporary file name in the entry. The entry SHALL be removed only by the state update that records the publish's outcome. A publish SHALL count as published only when the file is replaced, the write is registered and that state update is durable.
 
-A journal entry that survives a crash SHALL be driven again under the per-chat lock: at OCU startup, by the idle-reclamation poll, when a duplicate of its callback arrives (before that callback is answered from its receipt), and before any other publish for the chat. Driving an entry SHALL remove the temporary file it names if that file still exists. When the workspace file already equals the version, the broker SHALL complete the publish — registration and the published state update — without writing the file again; otherwise it SHALL run the publish again from the path resolution. A driven publish SHALL end in one of the three outcomes and SHALL set the session as the requirement "Publish outcomes" gives for it; a driven resolve or restore that publishes SHALL leave the state the successful request would have left. A stored version with an obligation SHALL therefore always end published, reported as a conflict, or reported as failed. Recovery SHALL never report a publish that did not replace the file as published.
+A journal entry that survives a crash SHALL be driven again under the per-chat lock: at OCU startup, by the idle-reclamation poll, when a duplicate of its callback arrives (before that callback is answered from its receipt), before any other publish for the chat, and before its session is marked `orphaned` by a request or by the session sweep (`ocu-office-sessions`). An orphaned session SHALL therefore never hold a journal entry, and no entry is removed without an outcome. Driving an entry SHALL remove the temporary file it names if that file still exists. When the workspace file already equals the version, the broker SHALL complete the publish — registration and the published state update — without writing the file again; otherwise it SHALL run the publish again from the path resolution. A driven publish SHALL end in one of the three outcomes and SHALL set the session as the requirement "Publish outcomes" gives for it; a driven resolve or restore that publishes SHALL leave the state the successful request would have left. A stored version with an obligation SHALL therefore always end published, reported as a conflict, or reported as failed. Recovery SHALL never report a publish that did not replace the file as published.
 
 #### Scenario: Crash after the replace (B-T11)
 
@@ -198,6 +210,12 @@ A journal entry that survives a crash SHALL be driven again under the per-chat l
 
 - **WHEN** a chat has a journal entry left by a crash and a new publish is requested before any restart or poll has driven it
 - **THEN** the old entry is driven to its outcome first and the new publish compares against the resulting baseline
+
+#### Scenario: Entry is driven before its session is orphaned (B-T11)
+
+- **WHEN** a session has a journal entry left by a crash, DocumentServer has since forgotten the session's key, and a create request for the document makes the key check before any restart or poll has driven the entry
+- **THEN** the entry is driven to its outcome first — the version is `published` true, or the outcome is a conflict or a failure with the version stored — and only then is the session `orphaned`
+- **AND** the journal holds no entry
 
 ### Requirement: Stale-fence recovery never leaves a sandbox paused
 
@@ -234,10 +252,10 @@ OCU's startup sweep and its idle-reclamation poll SHALL, under the per-chat lock
 
 `POST /api/office/{chat}/sessions/{session}/resolve` SHALL be a mutating gateway row guarded like the other Office POST rows, SHALL accept a body `{"action": "save_as" | "overwrite"}` with `save_as` as the default when no action is given, and SHALL be accepted only for a session in `conflict` (409 `not_in_conflict` otherwise; 422 `invalid_request` for another action). Both actions SHALL publish, through the fence, the session's latest stored version, which may be newer than the version that first met the conflict:
 
-- `save_as` SHALL publish the version to a new file in the directory of the original, under a deduplicated name of the form `name (2).ext` that differs from the original name and from every existing name and is claimed without replacing an existing entry; when that directory no longer exists the new file SHALL be placed in the workspace root, and when the workspace files directory itself no longer exists `save_as` SHALL be refused with 409 `path_missing` and nothing SHALL be created. The new file SHALL get its own `file_id` and document, whose first version has `source` `conflict` and `published` true; the session SHALL continue on the new document with the same `document_key`. The original file SHALL NOT be changed.
+- `save_as` SHALL publish the version to a new file in the directory of the original, under a deduplicated name of the form `name (2).ext` that differs from the original name and from every existing name and is claimed without replacing an existing entry (the no-replace claim of `ocu-unified-files`); when that directory no longer exists, or it or one of its parents is a symlink, the new file SHALL be placed in the workspace root, so nothing is written through a link. The new file SHALL get its own `file_id` and document, whose first version has `source` `conflict` and `published` true; the session SHALL continue on the new document with the same `document_key`. The original file SHALL NOT be changed.
 - `overwrite` SHALL, inside the same fence, store the current workspace content as a version with `source` `workspace` unless that content is already a version, and then replace the file with the user's version. The capture follows the safe-read rule of `ocu-office-store`: when the file fails that check, `overwrite` SHALL be refused with 503 `unsafe_path`, nothing SHALL be stored or written and the session SHALL stay `conflict`.
 
-When the original path no longer exists, `overwrite` SHALL be refused with 409 `path_missing`; a deleted path SHALL never be recreated under its old name. A successful resolve SHALL return 200 with `session_id`, `state`, `file_id` and `path` of the file written; the session SHALL become `closed` when it holds the receipt of a final callback, which means its editor has ended, and SHALL return to `editing` otherwise. A resolve whose publish fails SHALL return 503 with the publish reason and leave the session in `conflict`.
+When the original path no longer exists, `overwrite` SHALL be refused with 409 `path_missing`; a deleted path SHALL never be recreated under its old name. When the chat's workspace files directory itself no longer exists, neither action can place a file: the resolve SHALL be refused with 409 `workspace_missing`, nothing SHALL be created, the version SHALL be kept and the session SHALL become `error` with reason `workspace_missing`, the same end an unattended close reaches, so that a `conflict` session is never left without an exit. A successful resolve SHALL return 200 with `session_id`, `state`, `file_id` and `path` of the file written; the session SHALL become `closed` when it holds the receipt of a final callback, which means its editor has ended, and SHALL return to `editing` otherwise. A resolve whose publish fails SHALL return 503 with the publish reason and leave the session in `conflict`.
 
 Nobody is present when the publish that follows the final callback meets a conflict, so the content SHALL come back to the user without a request at that moment:
 
@@ -283,6 +301,12 @@ Nobody is present when the publish that follows the final callback meets a confl
 - **THEN** a new file with a deduplicated name holds the callback's content, the listing shows it under a new `file_id`, and no file exists at the path `report.docx`
 - **AND** the new document's first version has `source` `conflict` and `published` true, and the session is `closed`
 
+#### Scenario: Resolve after the workspace files directory was removed (B-T10)
+
+- **WHEN** a session is in `conflict`, the chat's workspace files directory has since been removed, and resolve is requested with `save_as` or with `overwrite`
+- **THEN** the response is 409 with reason `workspace_missing`, no file or directory is created, the version is still listed
+- **AND** the session is `error` with reason `workspace_missing`, and a later create request for another file of the chat is not blocked by it
+
 #### Scenario: Resolve on a session without a conflict
 
 - **WHEN** resolve is requested for a session in `editing`
@@ -295,9 +319,11 @@ Nobody is present when the publish that follows the final callback meets a confl
 
 ### Requirement: Version listing and restore
 
-`GET /api/office/{chat}/documents/{file}/versions` SHALL return 200 with `file_id`, `published_version` (the number of the version that is the document's currently published content, or null), `open_session` (the `session_id`, `state` and `reason` of the document's open session and whether its editor has ended, or null when the document has none) and `versions`, ordered by `number` ascending, each with `number`, `parent`, `source`, `sha256`, `size`, `created_at` and `published`; a workspace file without Office history SHALL return an empty list, and an unknown, malformed or tombstoned `file_id` 404 `unknown_file`. `published_version` together with the `published` flag of each version SHALL let a client see, from this one response, that the document's newest version is unpublished: that is the case when the version with the highest `number` has `published` false. This is how content left by a failed publish at close, or by a session that was orphaned with auto-saved versions, is offered back; it reaches the workspace file through restore.
+`GET /api/office/{chat}/documents/{file}/versions` SHALL return 200 with `file_id`, `published_version` (the number of the version that is the document's currently published content, or null), `open_session` (an object with `session_id`, `state`, `reason` and `editor_ended` for the document's open session, or null when the document has none; `editor_ended` SHALL be true exactly when the session holds the receipt of a final callback) and `versions`, ordered by `number` ascending, each with `number`, `parent`, `source`, `sha256`, `size`, `created_at` and `published`; a workspace file without Office history SHALL return an empty list, and an unknown, malformed or tombstoned `file_id` 404 `unknown_file`. `published_version` together with the `published` flag of each version SHALL let a client see, from this one response, that the document's newest version is unpublished: that is the case when the version with the highest `number` has `published` false. This is how content left by a failed publish at close, or by a session that was orphaned with auto-saved versions, is offered back; it reaches the workspace file through restore.
 
-`POST /api/office/{chat}/documents/{file}/restore` SHALL be a mutating gateway row guarded like the other Office POST rows and SHALL take a body `{"number": n}`. It SHALL be refused with 409 `session_open` while the document has an open session, 404 `unknown_version` for a number the document does not have, 404 `unknown_file` for a tombstoned `file_id` and 409 `path_missing` when the workspace file is gone but its `file_id` is still active. Otherwise it SHALL, inside one fence: store the current workspace content as a `workspace` version unless it is already a version; add a new version with `source` `restore` and the content of version n; and publish that new version. The capture of the current content follows the safe-read rule of `ocu-office-store`: when the file fails that check, restore SHALL be refused with 503 `unsafe_path` and SHALL add no version and write nothing. A successful restore SHALL return 200 with `file_id`, `number` of the new version and `published` true. Restore SHALL NOT remove, renumber or rewrite any existing version. A restore whose publish fails SHALL return 503 with the publish reason and leave the new version stored with `published` false.
+The listing SHALL apply the restore-epoch check of `ocu-office-store` to the document's open session before it answers, so a session invalidated by a backup restore is reported as no open session. The listing SHALL NOT contact DocumentServer: a session whose key DocumentServer has forgotten is still reported as open until a create request, a restore request, a save, a close or the session sweep checks the key. The offer of unpublished content does not depend on the listing alone for that case; the create request refuses with `unpublished_version` (`ocu-office-sessions`, requirement "Orphaned sessions").
+
+`POST /api/office/{chat}/documents/{file}/restore` SHALL be a mutating gateway row guarded like the other Office POST rows and SHALL take a body `{"number": n}`. Before it decides whether the document has an open session it SHALL make the checks a create request makes on reopening — the restore-epoch check and, for a session in `editing`, `saving` or `closing`, the DocumentServer key check — so a session that DocumentServer has forgotten is `orphaned` and does not block the restore; when DocumentServer cannot be reached for that check the restore SHALL be refused with 502 `documentserver_unavailable` and change nothing. It SHALL be refused with 409 `session_open` while the document has an open session, 404 `unknown_version` for a number the document does not have, 404 `unknown_file` for a tombstoned `file_id` and 409 `path_missing` when the workspace file is gone but its `file_id` is still active. Otherwise it SHALL, inside one fence: store the current workspace content as a `workspace` version unless it is already a version; add a new version with `source` `restore` and the content of version n; and publish that new version. The capture of the current content follows the safe-read rule of `ocu-office-store`: when the file fails that check, restore SHALL be refused with 503 `unsafe_path` and SHALL add no version and write nothing. A successful restore SHALL return 200 with `file_id`, `number` of the new version and `published` true. Restore SHALL NOT remove, renumber or rewrite any existing version. A restore whose publish fails SHALL return 503 with the publish reason and leave the new version stored with `published` false.
 
 #### Scenario: Listing shows source and published flag
 
@@ -348,5 +374,21 @@ Nobody is present when the publish that follows the final callback meets a confl
 #### Scenario: Listing reports a pending conflict
 
 - **WHEN** the versions of a document are requested while its session is in `conflict` after an unattended close
-- **THEN** `open_session` carries that session's id, `state` `conflict`, its reason and that its editor has ended
+- **THEN** `open_session` carries that session's id, `state` `conflict`, its reason and `editor_ended` true
 - **AND** for a document without an open session `open_session` is null
+
+#### Scenario: Listing reports a joinable session
+
+- **WHEN** the versions of a document are requested while its session is `editing` in another tab
+- **THEN** `open_session` carries that session's id, `state` `editing` and `editor_ended` false
+
+#### Scenario: Listing after a backup restore (B-T14)
+
+- **WHEN** a session was created before a backup restore wrote a new restore epoch, and the versions listing is requested afterwards
+- **THEN** the session is `orphaned` with reason `restore_epoch_changed` and `open_session` is null
+
+#### Scenario: Restore after DocumentServer forgot the session (B-T11)
+
+- **WHEN** DocumentServer was restarted during a session that stored an unpublished `autosave` version, the session is still stored as `editing`, and a restore of that version is requested from history without opening the editor
+- **THEN** the key check makes the session `orphaned`, the restore returns 200 and the workspace file equals the restored content
+- **AND** when DocumentServer cannot be reached for the check, the response is 502 with reason `documentserver_unavailable`, the session is unchanged and nothing is restored

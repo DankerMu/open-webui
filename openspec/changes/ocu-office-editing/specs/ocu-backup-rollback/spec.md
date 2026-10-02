@@ -86,7 +86,7 @@ Backup SHALL quiesce Office editing before it stops the remaining writers, in fo
 
 ### Requirement: Compatible previous-release activation
 
-One-version rollback SHALL select an explicitly retained previous complete release, including its own source tree, inventory and every verified image that inventory records: six for a release that predates DocumentServer, seven afterwards. The retained release's inventory SHALL be loaded and verified by its own role set, six roles for a release that predates DocumentServer, even though a newly built release SHALL have seven; the current recovery tooling SHALL NOT reject a retained release because its inventory lacks the DocumentServer role. Compatibility SHALL be checked against the restored database's migration revisions and PostgreSQL tool/server constraints before activation; the release consumer-format marker alone SHALL NOT establish compatibility. The additive workspace schema SHALL remain present; no downgrade or data deletion SHALL implement rollback. Activation SHALL use the selected release's verified startup path with its port-matrix preflight, proxy-only publication, authentication, network policy and no-build/no-pull behavior. Existing sandbox containers SHALL NOT be deleted or resumed by recovery; restored workspaces SHALL require authorized explicit launch.
+One-version rollback SHALL select an explicitly retained previous complete release, including its own source tree, inventory and every verified image that inventory records: six for a release that predates DocumentServer, seven afterwards. The retained release's inventory SHALL be loaded and verified by its own format version: a version-1 inventory, which predates DocumentServer, has six roles and no font bundle, even though a newly built release SHALL be version 2 with seven roles and a font bundle (`ocu-offline-image-delivery`); the current recovery tooling SHALL NOT reject a retained release because its inventory lacks the DocumentServer role or the font bundle. This activation path SHALL be the only place where a version-1 inventory is accepted. Compatibility SHALL be checked against the restored database's migration revisions and PostgreSQL tool/server constraints before activation; the release consumer-format marker alone SHALL NOT establish compatibility. The additive workspace schema SHALL remain present; no downgrade or data deletion SHALL implement rollback. Activation SHALL use the selected release's verified startup path with its port-matrix preflight, proxy-only publication, authentication, network policy and no-build/no-pull behavior. Existing sandbox containers SHALL NOT be deleted or resumed by recovery; restored workspaces SHALL require authorized explicit launch.
 
 #### Scenario: Eligible previous release
 
@@ -96,9 +96,9 @@ One-version rollback SHALL select an explicitly retained previous complete relea
 
 #### Scenario: Previous release predates DocumentServer
 
-- **WHEN** the retained previous release has a six-role inventory without DocumentServer
+- **WHEN** the retained previous release has a version-1 inventory: six roles, no DocumentServer and no font bundle
 - **THEN** the current recovery tooling loads that inventory by its six roles, verifies its six images against it, and activation succeeds through that release's own startup path and port-matrix preflight
-- **AND** the absence of a DocumentServer role and image is not reported as an incompatibility, while a newly built release with six roles is still rejected as incomplete
+- **AND** the absence of a DocumentServer role, image and font bundle is not reported as an incompatibility, while a newly built or imported release with six roles or without a font bundle is still rejected as incomplete
 
 #### Scenario: Incompatible rollback candidate
 

@@ -22,21 +22,25 @@ B1 SHALL produce a dated Markdown record under `docs/` in this repository, writt
 - whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode;
 - whether the editor works when the proxy withholds the WebUI session cookie from DocumentServer;
 - whether a `forcesave` command echoes its `userdata` in the callback;
-- that the editor's own save command produces no callback with user-initiated force save off;
+- whether the editor's own save command produces a callback with user-initiated force save off;
 - the minimal iframe sandbox token list and permission-policy feature list the editor needs;
 - the fonts loaded, each with its source and its stated licence holder.
 
 The acceptance machine being below the official minimum SHALL be recorded as a deviation that states both figures and that the machine is an acceptance environment, not a capacity proof. The memory and swap present SHALL be recorded as found; whether swap is configured is the operator's choice, and no amount of swap SHALL be a condition of the verdict or of the acceptance run. Fonts supplied by the deploying organisation SHALL be recorded with the licence holder as stated by that organisation; the record and the repository SHALL contain no font file. Substituted fonts and the substitution effects observed SHALL be noted.
 
-Seven items are consumed by later tasks of this change. Each SHALL be present in the record as a concrete value, never "not measured", before a "go" verdict is given and before the task that consumes it starts:
+Nine items are consumed by later tasks of this change. Each SHALL be present in the record as a concrete value, never "not measured", before a "go" verdict is given and before the task that consumes it starts:
 
 - the iframe sandbox token list and the permission-policy feature list;
 - how the connection cap is detected, both parts: the broker-side usage query, or the statement that none exists, and the editor event;
 - the close-to-status-2 delay;
-- the shutdown-preparation command;
+- the shutdown-preparation command: its name and whether it saves and closes every open document;
+- whether a restart clears the shutdown-preparation mode;
 - whether `forcesave` echoes `userdata`;
+- whether the editor's own save command produces a callback with user-initiated force save off;
 - the origin of the download address in status-2 and status-6 callbacks;
 - whether the editor works without the WebUI session cookie.
+
+Five of these values are assumptions the design is built on: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears the shutdown-preparation mode; the editor's own save command produces no callback; the editor works without the WebUI session cookie. The record SHALL state for each whether the observation matches the assumption.
 
 #### Scenario: Record is complete
 
@@ -61,12 +65,12 @@ Seven items are consumed by later tasks of this change. Each SHALL be present in
 
 #### Scenario: Consumed values are concrete
 
-- **WHEN** a later task reads one of the seven consumed items — the editor frame task the sandbox and permission lists, the session and host-page tasks the cap query and the editor event, the guard task the close-to-status-2 delay, the backup task the shutdown-preparation command, the callback task the `userdata` echo and the download-address origin, the proxy listener task the cookie result
+- **WHEN** a later task reads one of the nine consumed items — the editor frame task the sandbox and permission lists, the session and host-page tasks the cap query and the editor event, the guard task the close-to-status-2 delay, the backup task the shutdown-preparation command and whether a restart clears its mode, the client and callback tasks the `userdata` echo and the download-address origin, the save task and the user notes the editor's own save command, the proxy listener task the cookie result
 - **THEN** the record holds a concrete value for it, not "not measured"
 
 ### Requirement: Go or no-go gates every later Office task
 
-The B1 result SHALL be stated as exactly one verdict, "go" or "no-go", in a decision record under `docs/decisions/` that links the B1 record with a relative link and passes `make decisions-verify` and `make doc-gate`. "go" SHALL require that the image identity is recorded, the licence terms fit, all three formats opened, were edited and were exported, and every one of the seven consumed items of the B1 record holds a concrete value; an item marked "not measured" among these SHALL prevent "go", and a "go" recorded while one of them is not measured SHALL be invalid and SHALL NOT release any later task. No B2, B3, B4 or B5 work SHALL start without a recorded "go". A "no-go" SHALL stop the Office work and return it to the plan for revision; it SHALL NOT switch to another editor automatically. B0 work SHALL NOT depend on the verdict.
+The B1 result SHALL be stated as exactly one verdict, "go" or "no-go", in a decision record under `docs/decisions/` that links the B1 record with a relative link and passes `make decisions-verify` and `make doc-gate`. "go" SHALL require that the image identity is recorded, the licence terms fit, all three formats opened, were edited and were exported, every one of the nine consumed items of the B1 record holds a concrete value, and each of the five design assumptions among them was observed to hold; an item marked "not measured" among the nine, or an assumption observed not to hold, SHALL prevent "go", and a "go" recorded in either case SHALL be invalid and SHALL NOT release any later task. No B2, B3, B4 or B5 work SHALL start without a recorded "go". A "no-go" SHALL stop the Office work and return it to the plan for revision; it SHALL NOT switch to another editor automatically. B0 work SHALL NOT depend on the verdict.
 
 #### Scenario: Work starts only after go
 
@@ -85,8 +89,13 @@ The B1 result SHALL be stated as exactly one verdict, "go" or "no-go", in a deci
 
 #### Scenario: Go with an unmeasured consumed item is invalid
 
-- **WHEN** the decision record states "go" while the B1 record marks one of the seven consumed items "not measured" — for example the origin of the download address, or the editor event that signals the connection cap
+- **WHEN** the decision record states "go" while the B1 record marks one of the nine consumed items "not measured" — for example the origin of the download address, or the editor event that signals the connection cap
 - **THEN** the verdict is invalid, no B2–B5 task may start on it, and the record is completed with the measured value before "go" is given again
+
+#### Scenario: A design assumption that does not hold is no-go
+
+- **WHEN** the B1 record shows that the editor's own save command produces a callback, that a restart does not clear the shutdown-preparation mode, that `forcesave` does not echo `userdata`, that no shutdown-preparation command saves and closes open documents, or that the editor fails without the WebUI session cookie
+- **THEN** the verdict is "no-go", the decision record names the assumption that failed, and the work returns to the design
 
 #### Scenario: Decision record is machine-checked
 

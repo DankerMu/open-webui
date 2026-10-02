@@ -109,7 +109,7 @@ DocumentServer's data SHALL live on a named volume that survives a restart or re
 
 ### Requirement: Shipped and operator-supplied fonts
 
-The release SHALL carry open-source CJK fonts in a directory mounted into DocumentServer. Those fonts SHALL enter the release as a release material, like the existing Draw.io and Pyodide materials: a pinned upstream archive identified by its SHA-256, prepared by the release build and recorded in the release inventory. Their font files SHALL NOT be committed to either repository. A second, operator-owned directory SHALL be mounted the same way for fonts supplied by the deploying organisation. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
+The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Serif CJK SC — as the font bundle that `ocu-offline-image-delivery` specifies: pinned by `deploy/fonts/fonts.json`, built into the release package, and installed by import as the directory `fonts/` in the install root. That release font directory SHALL be mounted read-only into DocumentServer from the path in `OCU_RELEASE_FONTS_DIR`. Their font files SHALL NOT be committed to either repository. A second, operator-owned directory, at the path in `OCU_OFFICE_FONTS_DIR`, SHALL be mounted read-only the same way for fonts supplied by the deploying organisation; bootstrap SHALL create it empty when it does not exist and SHALL never write a font into it or remove one from it. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
 
 #### Scenario: Fonts available after start
 
@@ -124,13 +124,23 @@ The release SHALL carry open-source CJK fonts in a directory mounted into Docume
 #### Scenario: Release package contents
 
 - **WHEN** both repositories and a built release package are inspected
-- **THEN** the release package contains the open-source CJK fonts, and their checksum matches the font material recorded in the release inventory
+- **THEN** the release package contains the open-source CJK fonts as its font bundle, and the bundle's SHA-256 matches the `font_bundle` entry of the release inventory
 - **AND** neither repository contains a font file for them
 - **AND** no operator-supplied font is in either repository or in the release package
 
+#### Scenario: Font mounts in the resolved configuration
+
+- **WHEN** the resolved compose configuration of the DocumentServer service is inspected
+- **THEN** it mounts the directory in `OCU_RELEASE_FONTS_DIR` and the directory in `OCU_OFFICE_FONTS_DIR`, both read-only, at two different font paths inside the container, and no other host path
+
+#### Scenario: Empty operator directory
+
+- **WHEN** the deployment is bootstrapped and started without any operator-supplied font
+- **THEN** the operator-owned directory exists and is empty, DocumentServer starts, and the editor offers the shipped CJK fonts
+
 ### Requirement: Always part of the deployment
 
-The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry's preflight SHALL check each of these settings before any service starts: the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, the second proxy port, the release font directory and the operator-owned font directory. When any one of them is missing, empty or invalid, the deployment entry SHALL fail naming that setting without printing any credential value.
+The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry's preflight SHALL check each of these settings before any service starts: the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, OCU's own control-plane address, the second proxy port, the release font directory and the operator-owned font directory, under the names the requirement "Setting names shared across components" fixes. When any one of them is missing, empty or invalid, the deployment entry SHALL fail naming that setting without printing any credential value.
 
 #### Scenario: Office editing flag off
 
@@ -139,8 +149,37 @@ The DocumentServer service, the proxy's second listener and its published port S
 
 #### Scenario: Missing required setting
 
-- **WHEN** any one of the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, the second proxy port, the release font directory or the operator-owned font directory is missing, empty or invalid, with the Office editing flag on or off
+- **WHEN** any one of the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, OCU's own control-plane address, the second proxy port, the release font directory or the operator-owned font directory is missing, empty or invalid, with the Office editing flag on or off
 - **THEN** the deployment entry's preflight exits nonzero naming that setting, before any service starts, and prints no credential value
+
+### Requirement: Setting names shared across components
+
+The settings that cross a component boundary SHALL have exactly these names in the bootstrap output, in the compose files, in the deployment entry's preflight and in the OCU server's configuration:
+
+| Name                          | Read by                                   | Meaning                                                                    |
+| ----------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `OCU_OFFICE_DOCSERVER_URL`    | OCU server                                | DocumentServer's control-plane address; setting it enables Office editing  |
+| `OCU_OFFICE_DOCSERVER_ORIGIN` | OCU server, proxy renderer                | DocumentServer's browser-facing origin                                     |
+| `OCU_OFFICE_SELF_URL`         | OCU server                                | OCU's own control-plane address, used in the source and callback addresses |
+| `OCU_OFFICE_JWT_SECRET`       | OCU server; DocumentServer's JWT settings | the JWT secret generated at bootstrap                                      |
+| `OCU_OFFICE_PROXY_PORT`       | proxy compose service, port guard, smoke  | the second published proxy port                                            |
+| `DOCUMENTSERVER_IMAGE`        | compose, release verification             | the DocumentServer image reference from the release inventory              |
+| `OCU_RELEASE_FONTS_DIR`       | compose                                   | the release font directory                                                 |
+| `OCU_OFFICE_FONTS_DIR`        | compose                                   | the operator-owned font directory                                          |
+| `ENABLE_OCU_OFFICE_EDIT`      | WebUI                                     | the Office editing flag                                                    |
+
+The OCU server's configuration module SHALL define the four names it reads as constants, and the deploy tests SHALL compare the environment of the OCU service in the resolved compose configuration against those constants, so that a renamed setting on either side fails a test instead of leaving Office editing silently disabled. The broker's tuning values (free-space floor, ticket lifetime, liveness interval, save timeout) SHALL have defaults in the OCU configuration module and are not part of this list.
+
+#### Scenario: Compose passes the names OCU reads
+
+- **WHEN** the resolved compose configuration of the OCU service is compared with the name constants of the OCU configuration module
+- **THEN** each of `OCU_OFFICE_DOCSERVER_URL`, `OCU_OFFICE_DOCSERVER_ORIGIN`, `OCU_OFFICE_SELF_URL` and `OCU_OFFICE_JWT_SECRET` is present in the service's environment with a non-empty value
+- **AND** renaming one of them in the compose file or in the configuration module makes the comparison fail
+
+#### Scenario: Bootstrap emits every name
+
+- **WHEN** bootstrap has written its outputs
+- **THEN** they hold a value for every name of the table, with the Office editing flag on or off
 
 ### Requirement: Acceptance-machine profile and recorded deviation
 

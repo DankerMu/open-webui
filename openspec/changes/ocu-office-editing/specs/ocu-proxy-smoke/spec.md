@@ -48,12 +48,18 @@ The smoke SHALL prove that the DocumentServer-facing control-plane routes are no
 
 ### Requirement: Smoke runs against the pinned table that carries the change
 
-The smoke SHALL run against the OCU commit pinned in `constraints.yaml` (`ocu_checkout.sha`). The pin SHALL be bumped in the same change that makes the smoke require a different route table: once to a commit whose reviewed table lacks the two upload read rows, and once to a commit whose table carries the seven Office rows. When the pinned checkout's table does not match what the matrix asserts, the command SHALL fail naming the mismatch; it SHALL NOT pass by skipping the Office, control-plane or removed-row assertions. CI layer3 SHALL consume the same pin.
+The smoke SHALL run against the OCU commit pinned in `constraints.yaml` (`ocu_checkout.sha`). The pin SHALL be bumped in the same change that makes the smoke require a different route table: once to a commit whose reviewed table lacks the two upload read rows, and once to a commit whose table carries the seven Office rows. When the pinned checkout's table does not match what the matrix asserts, the command SHALL fail naming the mismatch; it SHALL NOT pass by skipping the Office, control-plane or removed-row assertions. The Office assertions SHALL be in the explicit list of hurl files the command runs, and the command's output SHALL name every hurl file it ran, on success as well as on failure, so that a passing run shows that the Office file was among them. CI layer3 SHALL consume the same pin.
 
 #### Scenario: Pin and matrix move together
 
 - **WHEN** the change that adds the Office assertions is reviewed
 - **THEN** the same change sets `ocu_checkout.sha` to a full SHA of an OCU commit whose route table contains the seven Office rows and no upload read row, and `make smoke-proxy` exits 0 against it
+
+#### Scenario: A passing run names the Office file
+
+- **WHEN** `make smoke-proxy` exits 0
+- **THEN** its output lists each hurl file that ran, the Office file among them
+- **AND** when the Office file is removed from the list the command's output no longer names it, and a missing listed file makes the command exit non-zero
 
 #### Scenario: Stale pin fails instead of skipping
 
