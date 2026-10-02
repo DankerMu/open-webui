@@ -72,7 +72,7 @@ Every request whose path begins with `/api/office/` SHALL be treated as a chat-b
 
 ### Requirement: Office editing fails closed at startup without a DocumentServer secret
 
-When Office editing is enabled on the OCU server, that is, when the DocumentServer server-to-server address is configured, the server SHALL exit non-zero before serving if the DocumentServer JWT secret is absent or blank, including the packaged multi-worker entrypoint, and SHALL name the missing setting on standard error without printing any secret value. It SHALL NOT start with Office editing silently disabled and SHALL NOT fall back to unsigned DocumentServer requests or callbacks. When Office editing is not enabled, the absence of the secret SHALL NOT prevent startup.
+When Office editing is enabled on the OCU server, that is, when the DocumentServer server-to-server address is configured, the server SHALL exit non-zero before serving if the DocumentServer JWT secret is absent or blank, including the packaged multi-worker entrypoint, and SHALL name the missing setting on standard error without printing any secret value. The same SHALL hold for the two other settings Office editing cannot work without: DocumentServer's browser-facing origin and OCU's own control-plane address, under the names fixed by `ocu-documentserver-service` (requirement "Setting names shared across components"). The check SHALL run in the startup preflight that the packaged entrypoint already calls before it starts its workers. It SHALL NOT start with Office editing silently disabled and SHALL NOT fall back to unsigned DocumentServer requests or callbacks. When Office editing is not enabled, the absence of the secret SHALL NOT prevent startup.
 
 #### Scenario: Enabled without a secret
 
@@ -81,8 +81,13 @@ When Office editing is enabled on the OCU server, that is, when the DocumentServ
 
 #### Scenario: Enabled with a secret
 
-- **WHEN** the startup command runs with Office editing enabled and a non-blank DocumentServer JWT secret
+- **WHEN** the startup command runs with Office editing enabled, a non-blank DocumentServer JWT secret, a browser-facing DocumentServer origin and OCU's own control-plane address
 - **THEN** startup proceeds and the secret value appears in no log line
+
+#### Scenario: Enabled without the origin or the self address
+
+- **WHEN** the production startup command runs with Office editing enabled and a secret, and the browser-facing DocumentServer origin or OCU's own control-plane address is absent or blank
+- **THEN** the parent process exits non-zero without a serving listener, and standard error names the missing setting
 
 #### Scenario: Not enabled
 

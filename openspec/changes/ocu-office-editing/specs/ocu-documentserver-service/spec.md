@@ -109,7 +109,7 @@ DocumentServer's data SHALL live on a named volume that survives a restart or re
 
 ### Requirement: Shipped and operator-supplied fonts
 
-The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Serif CJK SC — as the font bundle that `ocu-offline-image-delivery` specifies: pinned by `deploy/fonts/fonts.json`, built into the release package, and installed by import as the directory `fonts/` in the install root. That release font directory SHALL be mounted read-only into DocumentServer from the path in `OCU_RELEASE_FONTS_DIR`. Their font files SHALL NOT be committed to either repository. A second, operator-owned directory, at the path in `OCU_OFFICE_FONTS_DIR`, SHALL be mounted read-only the same way for fonts supplied by the deploying organisation; bootstrap SHALL create it empty when it does not exist and SHALL never write a font into it or remove one from it. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
+The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Serif CJK SC — as the font bundle that `ocu-offline-image-delivery` specifies: pinned by `deploy/fonts/fonts.json`, built into the release package, and installed by import as the directory `fonts/` in the install root. The release font directory SHALL be the entry `fonts` beside the installed inventory that `OCU_RELEASE_MANIFEST` names; the deployment entry SHALL derive `OCU_RELEASE_FONTS_DIR` from it at every start and export it for compose, and it SHALL NOT be a stored setting, so that a restore or a rollback that selects another release root needs no remapping. That directory SHALL be mounted read-only into DocumentServer. Their font files SHALL NOT be committed to either repository. A second, operator-owned directory, at the path in `OCU_OFFICE_FONTS_DIR`, SHALL be mounted read-only the same way for fonts supplied by the deploying organisation; bootstrap SHALL create it empty when it does not exist and SHALL never write a font into it or remove one from it. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
 
 #### Scenario: Fonts available after start
 
@@ -133,6 +133,11 @@ The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Seri
 - **WHEN** the resolved compose configuration of the DocumentServer service is inspected
 - **THEN** it mounts the directory in `OCU_RELEASE_FONTS_DIR` and the directory in `OCU_OFFICE_FONTS_DIR`, both read-only, at two different font paths inside the container, and no other host path
 
+#### Scenario: Release font directory follows the installed inventory
+
+- **WHEN** the deployment is started after a restore that selected a release root other than the one the captured configuration named
+- **THEN** `OCU_RELEASE_FONTS_DIR` is the `fonts` entry beside the inventory `OCU_RELEASE_MANIFEST` names, DocumentServer mounts the fonts of the selected release, and no stored setting had to be rewritten for it
+
 #### Scenario: Empty operator directory
 
 - **WHEN** the deployment is bootstrapped and started without any operator-supplied font
@@ -154,21 +159,23 @@ The DocumentServer service, the proxy's second listener and its published port S
 
 ### Requirement: Setting names shared across components
 
-The settings that cross a component boundary SHALL have exactly these names in the bootstrap output, in the compose files, in the deployment entry's preflight and in the OCU server's configuration:
+The settings that cross a component boundary SHALL have exactly these names wherever they are set and read:
 
-| Name                          | Read by                                   | Meaning                                                                    |
-| ----------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
-| `OCU_OFFICE_DOCSERVER_URL`    | OCU server                                | DocumentServer's control-plane address; setting it enables Office editing  |
-| `OCU_OFFICE_DOCSERVER_ORIGIN` | OCU server, proxy renderer                | DocumentServer's browser-facing origin                                     |
-| `OCU_OFFICE_SELF_URL`         | OCU server                                | OCU's own control-plane address, used in the source and callback addresses |
-| `OCU_OFFICE_JWT_SECRET`       | OCU server; DocumentServer's JWT settings | the JWT secret generated at bootstrap                                      |
-| `OCU_OFFICE_PROXY_PORT`       | proxy compose service, port guard, smoke  | the second published proxy port                                            |
-| `DOCUMENTSERVER_IMAGE`        | compose, release verification             | the DocumentServer image reference from the release inventory              |
-| `OCU_RELEASE_FONTS_DIR`       | compose                                   | the release font directory                                                 |
-| `OCU_OFFICE_FONTS_DIR`        | compose                                   | the operator-owned font directory                                          |
-| `ENABLE_OCU_OFFICE_EDIT`      | WebUI                                     | the Office editing flag                                                    |
+| Name                          | Set by                                                   | Read by                                   | Meaning                                                                    |
+| ----------------------------- | -------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
+| `OCU_OFFICE_DOCSERVER_URL`    | bootstrap                                                | OCU server; the proxy compose service     | DocumentServer's control-plane address; setting it enables Office editing  |
+| `OCU_OFFICE_DOCSERVER_ORIGIN` | bootstrap                                                | OCU server                                | DocumentServer's browser-facing origin                                     |
+| `OCU_OFFICE_SELF_URL`         | bootstrap                                                | OCU server                                | OCU's own control-plane address, used in the source and callback addresses |
+| `OCU_OFFICE_JWT_SECRET`       | bootstrap                                                | OCU server; DocumentServer's JWT settings | the JWT secret generated at bootstrap                                      |
+| `OCU_OFFICE_PROXY_PORT`       | bootstrap                                                | proxy compose service, port guard, smoke  | the second published proxy port                                            |
+| `OCU_OFFICE_FONTS_DIR`        | bootstrap                                                | compose                                   | the operator-owned font directory                                          |
+| `ENABLE_OCU_OFFICE_EDIT`      | bootstrap                                                | WebUI, through its compose service        | the Office editing flag                                                    |
+| `DOCUMENTSERVER_IMAGE`        | the release assignments, from the release inventory      | compose, release verification             | the DocumentServer image reference                                         |
+| `OCU_RELEASE_FONTS_DIR`       | the deployment entry, derived at every start; not stored | compose                                   | the release font directory                                                 |
+| `OCU_OFFICE_PROXY_LISTEN`     | the proxy compose service; the WebUI smoke harness       | proxy renderer                            | the listen address of the DocumentServer listener                          |
+| `OCU_OFFICE_PROXY_UPSTREAM`   | the proxy compose service; the WebUI smoke harness       | proxy renderer                            | the DocumentServer upstream of that listener                               |
 
-The OCU server's configuration module SHALL define the four names it reads as constants, and the deploy tests SHALL compare the environment of the OCU service in the resolved compose configuration against those constants, so that a renamed setting on either side fails a test instead of leaving Office editing silently disabled. The broker's tuning values (free-space floor, ticket lifetime, liveness interval, save timeout) SHALL have defaults in the OCU configuration module and are not part of this list.
+The OCU server's configuration module SHALL define the four names it reads as constants, and the deploy tests SHALL compare the environment of the OCU service in the resolved compose configuration against those constants, so that a renamed setting on either side fails a test instead of leaving Office editing silently disabled. Once `OCU_OFFICE_DOCSERVER_URL` is set the other three SHALL be required by the OCU server (`ocu-auth-guard`). The broker's tuning values (free-space floor, ticket lifetime, liveness interval, save timeout) SHALL have defaults in the OCU configuration module and are not part of this list.
 
 #### Scenario: Compose passes the names OCU reads
 
@@ -179,7 +186,7 @@ The OCU server's configuration module SHALL define the four names it reads as co
 #### Scenario: Bootstrap emits every name
 
 - **WHEN** bootstrap has written its outputs
-- **THEN** they hold a value for every name of the table, with the Office editing flag on or off
+- **THEN** they hold a value for every name the table marks as set by bootstrap, with the Office editing flag on or off, and no value for `OCU_RELEASE_FONTS_DIR`
 
 ### Requirement: Acceptance-machine profile and recorded deviation
 
