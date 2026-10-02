@@ -63,3 +63,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public API; file IO; field names; concurrency; legacy compatibility; partial outputs; documentation.
 - Evidence floor: endpoint cases for free and occupied names, thread/process concurrency, an unlocked competing writer, symlinks, traversal, and temporary-file cleanup; OCU unit command and an HTTP upload smoke.
 - Scope: task 1.1 only. Tasks 1.2 onward remain separate dependency-gated work; this shared change is archived only when its complete task set is finished.
+
+## Import-receipt fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with the import-receipt slice's suggested level.
+- Blast radius: attachment identity, persisted receipts, concurrent imports and internal read authorization.
+- Selected risk packs: API; file IO; schema; auth; concurrency; legacy compatibility; partial outputs; documentation.
+- Evidence floor: repeated imports after edit/rename/delete, distinct-id deduplication, separate-worker same-id arbitration, headerless behavior, token/canonical-id matrix, absent-chat no-create and explicit receipt-write failure; OCU unit command plus real HTTP import smoke.
+- Scope: task 1.2 only; the tool, mount cut-over, removed read endpoints and gateway table remain later slices.
