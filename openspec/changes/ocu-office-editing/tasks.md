@@ -17,19 +17,17 @@ Minimal mergeable slice: 1.1 (no-replace claim and deduplication) - green alone 
 
 ### Name-claim slice risk coverage
 
-| Risk pack | Selection and evidence |
-| --- | --- |
-| Public API / CLI / script entry | Selected: POST upload returns the actual stored name in `UploadResponse.filename`; endpoint tests assert bytes and response. |
-| Config / project setup | Not selected: no configuration or setup change. |
-| File IO / path safety / overwrite | Selected: fresh name, occupied file and symlink, next numbered name, traversal and external directory symlink; assert existing entries untouched. |
-| Schema / columns / units / field names | Selected: preserve `status`, `filename`, `size`, `md5`; test their values against stored content. |
-| Auth / permissions / secrets | Not selected: guard and proxy unchanged; existing authorization tests remain in the unit run. |
-| Concurrency / shared state / ordering | Selected: concurrent threads and separate workers, plus an unlocked writer winning a candidate name; both successful responses identify complete files containing their own bytes. |
-| Resource limits / large input / discovery | Not selected: no new upload limits or discovery behavior. |
-| Legacy compatibility / examples | Selected: destination remains `uploads`; manifest/list and deployed tool remain unchanged. Endpoint tests and existing unit suite cover consumers. |
-| Error handling / rollback / partial outputs | Selected: no temporary entry after success or rejection; inject a write/claim failure and assert cleanup without modifying an existing entry. |
-| Release / packaging / dependency compatibility | Not selected: no image or dependency change. |
-| Documentation / migration notes | Selected: PR documents retained destination and transitional duplicate copies; no migration or mount changes. |
+- Public API / CLI / script entry — Selected: POST upload returns the actual stored name in `UploadResponse.filename`; endpoint tests assert bytes and response.
+- Config / project setup — Not selected: no configuration or setup change.
+- File IO / path safety / overwrite — Selected: fresh name, occupied file and symlink, next numbered name, traversal and external directory symlink; assert existing entries untouched.
+- Schema / columns / units / field names — Selected: preserve `status`, `filename`, `size`, `md5`; test their values against stored content.
+- Auth / permissions / secrets — Not selected: guard and proxy unchanged; existing authorization tests remain in the unit run.
+- Concurrency / shared state / ordering — Selected: concurrent threads and separate workers, plus an unlocked writer winning a candidate name; both successful responses identify complete files containing their own bytes.
+- Resource limits / large input / discovery — Not selected: no new upload limits or discovery behavior.
+- Legacy compatibility / examples — Selected: destination remains `uploads`; manifest/list and deployed tool remain unchanged. Endpoint tests and existing unit suite cover consumers.
+- Error handling / rollback / partial outputs — Selected: no temporary entry after success or rejection; inject a write/claim failure and assert cleanup without modifying an existing entry.
+- Release / packaging / dependency compatibility — Not selected: no image or dependency change.
+- Documentation / migration notes — Selected: PR documents retained destination and transitional duplicate copies; no migration or mount changes.
 
 Run the OCU unit command in its `AGENTS.md`, including the new endpoint tests and excluding integration tests. Record the new regression cases failing against the unchanged handler before implementation, then passing with the change. An HTTP smoke uploads distinct bytes twice under one name and reads both stored files; include response names and byte comparisons in the evidence.
 
