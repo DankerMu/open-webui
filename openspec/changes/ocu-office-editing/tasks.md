@@ -82,7 +82,7 @@ Minimal mergeable slice: atomic - with only the mount changed the Agent still wr
 
 ## 4. [ocu] Remove the upload read endpoints and the SPA upload list (spec: ocu-unified-files)
 
-- [ ] 4.1 Remove the upload list block from the standalone preview's status panel and its request for the list; the upload action stays and refreshes the Files listing. Verify: the preview tests are updated and pass; a screenshot of the standalone panel is attached.
+- [x] 4.1 Remove the upload list block from the standalone preview's status panel and its request for the list; the upload action stays and refreshes the Files listing. Verify: the preview tests are updated and pass; a screenshot of the standalone panel is attached.
 - [ ] 4.2 Delete `GET /api/uploads/{chat_id}/manifest` and `.../list`, their helpers and guard entries. Verify: the auth-guard matrix and path-traversal tests are updated, both paths return 404 or 405 without file names, and the remaining suite passes.
 
 Depends on: 2 (the tool no longer calls the manifest).
@@ -104,6 +104,22 @@ Minimal mergeable slice: 4.1 (the page stops requesting the list) - green alone 
 - Documentation / migration notes — Selected: attach a real standalone-panel screenshot to the PR, retaining the requested image under the existing screenshot convention if needed; state the accepted visibility gap until task 3.1.
 
 Run `tests/orchestrator/test_preview_prefix.py` and the full OCU unit suite. Separately run `tests/orchestrator/preview_embedding_browser.cjs` with Node 22, pinned Playwright 1.62.1 and Python 3.12 containing server requirements and pytest; it is a direct browser harness, not currently invoked by the Python module. Record an old-page failure before implementation, then a passing browser run with a standalone-panel PNG and zero unexpected console errors. The screenshot must be accessible from the PR, not only a local path.
+
+### Upload read-handler removal risk coverage
+
+- Public API / CLI / script entry — Selected: both retired GET paths return 404 or 405 with a valid internal token; no shim handler. Test populated storage so an accidental live handler discloses recognizable metadata and fails.
+- Config / project setup — Not selected: no settings or setup change.
+- File IO / path safety / overwrite — Not selected: remove readers, preserve all upload and MCP path logic. Existing traversal and upload tests stay in the full run.
+- Schema / columns / units / field names — Not selected: no persisted state or surviving response shape changes.
+- Auth / permissions / secrets — Selected: remove only the two handler-matrix rows; retain prefix authorization. Both retired paths still reject missing credentials with 401, and existing noncanonical-id cases remain 400 before routing.
+- Concurrency / shared state / ordering — Not selected: no write, lock or worker behavior change.
+- Resource limits / large input / discovery — Not selected: no resource policy changes; retired scans disappear with their handlers.
+- Legacy compatibility / examples — Selected: POST uploads, GET imports and MCP resources stay live; tool and preview no longer depend on the readers. Remove the preview harness's obsolete list-response stub, keep its zero-request assertions and run the browser harness.
+- Error handling / rollback / partial outputs — Selected: populated-chat GET bodies contain no names, hashes or sizes; unknown-chat reads do not create directories. Keep natural router errors and existing guard precedence.
+- Release / packaging / dependency compatibility — Not selected: no dependency or image changes.
+- Documentation / migration notes — Selected: narrow changelog and PR boundary note. API documentation, proxy rows and WebUI stub follow in their named tasks, not this slice.
+
+First run the new removed-path cases red against the live handlers. Then run `tests/test_auth_guard.py`, `tests/security/test_path_traversal_app.py`, the full OCU unit command and the direct preview browser harness. Runtime smoke uses real HTTP to upload a receipt-bearing file, verify imports, request each retired path with valid and missing credentials, and compare the stored bytes afterward. Record statuses and absence of metadata; no Docker or deployment claim.
 
 ## 5. [deploy] Proxy table without the upload read rows (spec: ocu-reverse-proxy)
 

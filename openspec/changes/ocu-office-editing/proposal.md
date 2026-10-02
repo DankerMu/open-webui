@@ -90,3 +90,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API; concurrency/ordering; legacy compatibility; error handling; documentation.
 - Evidence floor: preview Python tests, existing real Chromium harness across embed modes, no upload read requests, upload-triggered Files refresh independent of polling, standalone screenshot and zero unexpected console errors.
 - Scope: task 4.1 only; server handlers, proxy rows, mount cut-over and WebUI code remain unchanged.
+
+## Upload read-handler removal fixture
+
+- Issue type: feature.
+- Fixture level: expanded; removing protected-handler matrix rows must preserve prefix authorization before routing.
+- Blast radius: direct OCU upload-read availability and metadata containment, guard-first rejection and surviving upload/receipt consumers.
+- Selected risk packs: API; auth; legacy compatibility; error handling; documentation.
+- Evidence floor: authenticated removed-path requests against populated storage disclose no names, hashes or sizes; anonymous requests remain 401 and invalid chat ids remain 400. Focused/full OCU tests, real HTTP upload/import/removal smoke and direct preview browser harness.
+- Scope: task 4.2 only; remove the obsolete preview list-response fixture but retain zero-request assertions. MCP resources, upload POST, imports, proxy rows, WebUI stub and served API documentation remain owned by their existing or later slices.
