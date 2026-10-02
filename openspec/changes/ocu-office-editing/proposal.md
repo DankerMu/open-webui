@@ -54,3 +54,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - **Dependencies**: no new Python or npm dependency is planned. One new third-party image (ONLYOFFICE DocumentServer, AGPL v3, unmodified).
 - **Data**: no Alembic migration. Existing chat data on the acceptance machine is wiped; no migration tooling.
 - **Operations**: DocumentServer, the second proxy listener and its port are always part of the deployment; the flag only decides whether WebUI offers editing. The acceptance machine runs below DocumentServer's official minimum and its run keeps at most one sandbox running; recorded as a deviation.
+
+## Upload name-claim fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with the upload name-claim slice's suggested level.
+- Blast radius: upload bytes, existing directory entries, and concurrent workers sharing one chat.
+- Selected risk packs: public API; file IO; field names; concurrency; legacy compatibility; partial outputs; documentation.
+- Evidence floor: endpoint cases for free and occupied names, thread/process concurrency, an unlocked competing writer, symlinks, traversal, and temporary-file cleanup; OCU unit command and an HTTP upload smoke.
+- Scope: task 1.1 only. Tasks 1.2 onward remain separate dependency-gated work; this shared change is archived only when its complete task set is finished.

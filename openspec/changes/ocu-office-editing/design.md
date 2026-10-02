@@ -70,6 +70,14 @@ The MCP resource surface (`uploads.py`, `mcp_resources.py`, URI `file://uploads/
 
 Alternative rejected: skip when a same-named file exists. It re-imports a file the user deleted or renamed and silently ignores a different attachment with the same name.
 
+#### Name-claim slice boundary
+
+Task 1.1 changes the upload handler and one importable no-replace claim helper, with paired tests. It retains the chat's `uploads` destination, existing guard, traversal rejection, response fields and manifest/list consumers. The `filename` field reports the stored name; `size` and `md5` describe that file's bytes.
+
+Invariant: publishing an upload never replaces or writes through an existing final directory entry, including an entry created by a writer outside the lock. The existing per-chat thread/filesystem lock serializes server workers; hard-link creation arbitrates the final name against unlocked writers.
+
+Sibling surfaces are lifecycle operations sharing `_combined_lock`, manifest/list readers, the deployed attachment tool, and later `save_as` callers of the helper. No consumer is migrated in this slice. Tests cross the upload HTTP boundary and exercise separate processes as well as threads. Failure injection covers temporary-file cleanup; traversal rejection must leave external content unchanged. Receipts, mount changes, proxy routes and Office callers are non-goals.
+
 ### D4. ONLYOFFICE Docs Community v9.4.0, gated by B1
 
 Unmodified upstream image, AGPL v3, branding kept. B1 produces a dated record: image identity, licence terms read, official minimum vs measured headroom on the acceptance machine, open/edit/export of deterministic DOCX/XLSX/PPTX samples, behaviour at the 20-connection cap and whether usage is queryable, delay between last close and the status-2 callback, the origin of the download address in status-2 and status-6 callbacks, the editor event that signals the connection cap, the memory and swap present on the acceptance machine, whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode, whether the editor works when the proxy withholds the WebUI cookie, whether `forcesave` echoes `userdata`, whether the editor's own save command produces a callback with user-initiated force save off, the minimal iframe sandbox and permission set the editor needs, and the fonts loaded. Five observations are assumptions this design is built on, and each must hold for a go: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears that mode; the editor's own save produces no callback; the editor works without the WebUI cookie. If B1 fails, work stops and returns to the plan; there is no automatic switch to Collabora.
