@@ -86,7 +86,7 @@ Backup SHALL quiesce Office editing before it stops the remaining writers, in fo
 
 ### Requirement: Compatible previous-release activation
 
-One-version rollback SHALL select an explicitly retained previous complete release, including its own source tree, inventory and every verified image that inventory records: six for a release that predates DocumentServer, seven afterwards. The retained release's inventory SHALL be loaded and verified by its own format version: a version-1 inventory, which predates DocumentServer, has six roles and no font bundle, even though a newly built release SHALL be version 2 with seven roles and a font bundle (`ocu-offline-image-delivery`); the current recovery tooling SHALL NOT reject a retained release because its inventory lacks the DocumentServer role or the font bundle. A version-1 inventory SHALL be accepted in exactly one place: recovery, where it handles a retained previous release: the retained-delivery branch of restore, and activation with the load, verification and import it performs. A version-1 release is bound with the six image variables its inventory holds, has no font bundle, gets no `fonts` entry from recovery, and starts through its own deployment entry, which makes no font check. When recovery activates a version-2 release it SHALL place the `fonts` entry beside the published inventory as `ocu-offline-image-delivery` specifies. Compatibility SHALL be checked against the restored database's migration revisions and PostgreSQL tool/server constraints before activation; the release consumer-format marker alone SHALL NOT establish compatibility. The additive workspace schema SHALL remain present; no downgrade or data deletion SHALL implement rollback. Activation SHALL use the selected release's verified startup path with its port-matrix preflight, proxy-only publication, authentication, network policy and no-build/no-pull behavior. Existing sandbox containers SHALL NOT be deleted or resumed by recovery; restored workspaces SHALL require authorized explicit launch.
+One-version rollback SHALL select an explicitly retained previous complete release, including its own source tree, inventory and all seven verified images. The retained release's inventory SHALL be version 2, with seven roles and a font bundle (`ocu-offline-image-delivery`); restore and activation SHALL refuse a retained release whose inventory is version 1, naming the unsupported format version, before anything is imported, published or started. When recovery activates a release it SHALL place the `fonts` entry beside the published inventory as `ocu-offline-image-delivery` specifies. Compatibility SHALL be checked against the restored database's migration revisions and PostgreSQL tool/server constraints before activation; the release consumer-format marker alone SHALL NOT establish compatibility. The additive workspace schema SHALL remain present; no downgrade or data deletion SHALL implement rollback. Activation SHALL use the selected release's verified startup path with its port-matrix preflight, proxy-only publication, authentication, network policy and no-build/no-pull behavior. Existing sandbox containers SHALL NOT be deleted or resumed by recovery; restored workspaces SHALL require authorized explicit launch.
 
 #### Scenario: Eligible previous release
 
@@ -94,11 +94,11 @@ One-version rollback SHALL select an explicitly retained previous complete relea
 - **THEN** its own source and images run against the recovered state without rebuilding, pulling, dropping schema or exposing a direct OCU/WebUI entry
 - **AND** the operator performs the live port/authorization/readiness checklist before explicitly switching the public entry
 
-#### Scenario: Previous release predates DocumentServer
+#### Scenario: Retained release with a version-1 inventory
 
 - **WHEN** the retained previous release has a version-1 inventory: six roles, no DocumentServer and no font bundle
-- **THEN** the current recovery tooling loads that inventory by its six roles, verifies its six images against it, and activation succeeds through that release's own startup path and port-matrix preflight
-- **AND** the absence of a DocumentServer role, image and font bundle is not reported as an incompatibility, while a newly built or imported release with six roles or without a font bundle is still rejected as incomplete
+- **THEN** restore and activation refuse it naming the unsupported format version
+- **AND** nothing is imported, published or started, and the running deployment is unchanged
 
 #### Scenario: Incompatible rollback candidate
 

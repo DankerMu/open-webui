@@ -319,7 +319,7 @@ Alternatives rejected: a same-origin path prefix (the editor frontend, which ren
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
 
-The inventory's `format_version` rises to 2. A version-2 inventory has seven roles and the `font_bundle` field (D19); the release command line (build, import, verify) accepts version 2 only. A version-1 inventory (six roles, no font bundle) is accepted in one place only: recovery, where it handles a retained previous release: the retained-delivery branch of restore, and activation with the load, verification and import it performs.
+The inventory's `format_version` rises to 2. A version-2 inventory has seven roles and the `font_bundle` field (D19); every inventory load — the release command line (build, import, verify), the deployment entry, and recovery when it restores or activates a retained release — requires version 2 and refuses a version-1 inventory (six roles, no font bundle) by naming the format version. No second format is carried. The only release with a version-1 inventory is the Plan 1 release, which never went live (user decision, 2026-10-02), so no retained release and no recovery set of that format exists.
 
 Backup quiesces editing before it stops writers, in this order:
 
@@ -332,7 +332,7 @@ If step 2 fails or step 3 times out, backup names the sessions still open, stops
 
 Restore epoch: the file `{BASE_DATA_DIR}/.office-restore-epoch` holds one line, an opaque token. An absent file is the initial epoch. Restore writes a fresh random token after the chat-data tree is in place. A session stores the epoch read at its creation; the broker compares for equality on every session request and every callback and treats a session with a different epoch as `orphaned`, so no pre-restore callback is replayed. The broker owns the format; recovery only writes the file.
 
-One-version rollback verifies the images that the selected release's own inventory records: six for a release that predates DocumentServer, seven afterwards. A rollback across B0 also needs the sandbox containers created by the newer release removed by the operator (their mount set differs); the workspace volumes and chat data stay.
+One-version rollback verifies the seven images that the selected release's own inventory records. Recovery offers no rollback to a release that predates this change: such a release has a version-1 inventory, which recovery refuses.
 
 ### D19. Fonts
 
@@ -342,7 +342,7 @@ The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK S
 - **Build.** `release.py build` runs `deploy/fonts/prepare_fonts.py`, which downloads the pinned archives, checks every SHA-256 and writes `fonts.tar` holding exactly the listed files and the licence text. The inventory records it in the top-level field `font_bundle` (`path`, `sha256`), the shape `source_bundle` already has.
 - **Import.** `import_release` copies `fonts.tar` into the stage, checks its SHA-256 against the inventory, extracts regular files only into `fonts/` in the install root, checks each file against `fonts.json` of the release's source, and removes the archive.
 - **Start.** The release font directory is always `fonts` beside the installed inventory that `OCU_RELEASE_MANIFEST` names. The deployment entry derives `OCU_RELEASE_FONTS_DIR` from that at every start and exports it for compose, which mounts it read-only; it is not a stored setting, so nothing has to be remapped when a restore or a rollback selects another release root. The release check that `deploy/up.sh` already runs before any service starts (source, runtime binding, local images) also checks that this directory holds exactly the files of `fonts.json` with their SHA-256. A missing directory would otherwise be mounted empty and Chinese text would silently render in a fallback font.
-- **Restore and rollback.** At activation recovery imports the selected release into its own root and publishes the inventory into the deployment root, with `source` as a link into the selected root. It places `fonts` beside the published inventory the same way, as a link to the selected root's `fonts/`. A retained version-1 release has no font bundle and no link; it starts through its own deployment entry, which makes no font check.
+- **Restore and rollback.** At activation recovery imports the selected release into its own root and publishes the inventory into the deployment root, with `source` as a link into the selected root. It places `fonts` beside the published inventory the same way, as a link to the selected root's `fonts/`.
 
 A second, operator-owned directory (`OCU_OFFICE_FONTS_DIR`) holds fonts supplied by the deploying organisation (仿宋\_GB2312, 方正小标宋简体, 楷体\_GB2312; licences held by that organisation, recorded by B1 as stated) and is mounted the same way. Bootstrap creates it empty; the operator copies the supplied fonts into it. DocumentServer regenerates its font list at start. Neither repository nor the release package contains the supplied fonts. 宋体 and 黑体 are substituted by the two shipped families; substitution effects are recorded as fidelity notes.
 
@@ -385,7 +385,7 @@ The samples are deterministic and carry what the acceptance rows judge: the DOCX
 1. B0 ships with a rebuilt sandbox image and the updated OCU server and tool. On the acceptance machine existing chat data, containers and volumes are removed before the first start; no migration runs.
 2. B1 runs against an isolated DocumentServer and produces the verification record and a go/no-go.
 3. B2–B4 land behind `ENABLE_OCU_OFFICE_EDIT=false`. B5 adds DocumentServer to the overlay, the release inventory and backup, then enables the flag on the acceptance machine and runs the matrix.
-4. Rollback: turn the flag off; read-only preview and all stored versions remain; published files stay usable. Rolling back B0 means the previous sandbox image and server, and recreating sandbox containers.
+4. Rollback: turn the flag off; read-only preview and all stored versions remain; published files stay usable. Rolling back B0 means the previous sandbox image and server, and recreating sandbox containers; the recovery tooling does not do this, because a release that predates this change has a version-1 inventory (D18).
 
 ## Sketch seams under test
 
