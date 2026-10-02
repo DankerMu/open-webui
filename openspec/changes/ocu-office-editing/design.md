@@ -12,7 +12,7 @@ Constraints that shape every decision:
 - OCU has no SQL client. Backup is a cold backup of the chat-data tree plus one database.
 - The reverse-proxy route table, the port guard and the release inventory are pinned, reviewed artefacts; changing them is deliberate, tested work.
 - Both forks must stay rebase-able. WebUI spine files get a minimal diff; OCU accepts a permanent divergence on the files that name the sandbox paths (user decision).
-- Prefixes: `[webui]` = this repository; `[ocu]` = sibling checkout `open-computer-use` (branch `<tool>/plan2-<slug>` off its `main` at `9c35a8c`, tests in its `tests/`); `[deploy]` = OCU `deploy/`.
+- Prefixes: `[webui]` = this repository; `[ocu]` = sibling checkout `open-computer-use` (branch `<tool>/plan2-<slug>` off its `main`; the change was verified against `9c35a8c`; tests in its `tests/`); `[deploy]` = OCU `deploy/`.
 
 ## Goals / Non-Goals
 
