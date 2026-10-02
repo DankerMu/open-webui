@@ -1,6 +1,7 @@
 # ocu-backup-rollback Specification
 
 ## Purpose
+
 Recover a coherent workspace deployment from a full cold backup on an isolated empty target, including compatible previous-release activation without widening permissions or losing revision identity.
 
 ## Requirements

@@ -1,6 +1,7 @@
 # ocu-offline-image-delivery Specification
 
 ## Purpose
+
 Deliver the WebUI fork and OCU deployment as content-verified local images and required source assets, with fail-closed import and startup independent of WAN access.
 
 ## Requirements
