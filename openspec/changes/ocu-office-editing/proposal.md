@@ -72,3 +72,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API; file IO; schema; auth; concurrency; legacy compatibility; partial outputs; documentation.
 - Evidence floor: repeated imports after edit/rename/delete, distinct-id deduplication, separate-worker same-id arbitration, headerless behavior, token/canonical-id matrix, absent-chat no-create and explicit receipt-write failure; OCU unit command plus real HTTP import smoke.
 - Scope: task 1.2 only; the tool, mount cut-over, removed read endpoints and gateway table remain later slices.
+
+## Attachment-sync fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with task 2.1's suggested level.
+- Blast radius: attachment identity, credential transport, ordering before tool execution and preservation of user edits.
+- Selected risk packs: API; file IO; schema; auth; concurrency/ordering; legacy compatibility; error handling; documentation.
+- Evidence floor: all five tool methods, imported/new ids, consecutive calls, failed receipt reads, authenticated real transports, missing token, no manifest calls and reserved filename characters; focused/full OCU units and actual tool-to-HTTP smoke.
+- Scope: task 2.1 only; no server, proxy, mount, tool path-text, README, Valve or MCP transport changes.

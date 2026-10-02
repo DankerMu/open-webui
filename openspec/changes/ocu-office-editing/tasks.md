@@ -9,7 +9,7 @@ Dependency rule. A group that touches the shared directory, or that edits a list
 ## 1. [ocu] Upload endpoint never overwrites and keeps import receipts (spec: ocu-unified-files)
 
 - [x] 1.1 `POST /api/uploads/{chat_id}/{path}` writes under the per-chat lock through a dot-prefixed temporary file and a no-replace claim of the final name (hard link, not rename), stores a colliding name as `name (2).ext`, and returns the final name. The claim is one helper function, which groups 16 and 17 call for `save_as`. The destination directory is not changed in this group. Verify: new tests cover a fresh name, a collision, two concurrent uploads of one name, a same-named file created by a writer that holds no lock between the check and the claim, a symlink occupying the name, and traversal rejection.
-- [ ] 1.2 Import receipts: honour `X-OCU-Attachment-Id`, persist receipts in `{chat}/.ocu/imports.json` in the same locked section as the file, add `GET /api/uploads/{chat_id}/imports` behind the internal token, teach `auth_guard` the route shape, and never create a chat directory on a read. Verify: tests show a second upload with the same id writes nothing, an edited / renamed / deleted import is neither overwritten nor recreated, a different id with the same name is deduplicated, two concurrent uploads of one id store one file, the imports route rejects a missing token, and reading the imports of an unknown chat creates no directory.
+- [x] 1.2 Import receipts: honour `X-OCU-Attachment-Id`, persist receipts in `{chat}/.ocu/imports.json` in the same locked section as the file, add `GET /api/uploads/{chat_id}/imports` behind the internal token, teach `auth_guard` the route shape, and never create a chat directory on a read. Verify: tests show a second upload with the same id writes nothing, an edited / renamed / deleted import is neither overwritten nor recreated, a different id with the same name is deduplicated, two concurrent uploads of one id store one file, the imports route rejects a missing token, and reading the imports of an unknown chat creates no directory.
 
 Depends on: none.
 Suggested fixture level: expanded - file writes into shared state, overwrite safety, a new guarded route.
@@ -54,6 +54,22 @@ Run the existing OCU unit command, including the receipt endpoint cases and guar
 Depends on: 1.
 Suggested fixture level: expanded - shared tool entrypoint, credential carrier, overwrite behaviour.
 Minimal mergeable slice: atomic - reading receipts and sending the attachment id are one behaviour; either half alone re-uploads every attachment under a deduplicated name on each call.
+
+### Attachment-sync risk coverage
+
+- Public API / CLI / script entry — Selected: all five public tool methods sync attached files before MCP execution, independent of command/path text; verify request order and the absence of manifest calls.
+- Config / project setup — Not selected: Valves, probes and MCP transport settings remain unchanged.
+- File IO / path safety / overwrite — Selected: use the existing Storage source/download cleanup path; skip receipted ids before reading their original bytes; URL-encode the upload filename segment so `#`, `?` and `%` remain filename bytes.
+- Schema / columns / units / field names — Selected: consume `{"ids": [...]}`; send each attachment's top-level WebUI `id` as `X-OCU-Attachment-Id`. Never substitute a name, path or checksum for missing identity.
+- Auth / permissions / secrets — Selected: imports and upload Bearer headers, existing probe/MCP carriers, token rotation and missing-token no-network behavior remain covered by the real-guard tests; no token in Valves, results, events or logs.
+- Concurrency / shared state / ordering — Selected: two consecutive calls create one stored file; attachment upload completes before command execution. Server receipt arbitration owns cross-worker idempotence.
+- Resource limits / large input / discovery — Not selected: no new limit, discovery policy or retry loop.
+- Legacy compatibility / examples — Selected: preserve tool method APIs, MCP behavior, hint emission, source resolution and headerless server behavior; the tool no longer has a checksum/manifest identity path.
+- Error handling / rollback / partial outputs — Selected: failed imports read, malformed ids response and refused redirects trigger upload-all with original attachment ids; real server receipts prevent overwriting an edited file. Preserve download cleanup and redirect refusal.
+- Release / packaging / dependency compatibility — Not selected: no dependency/image change.
+- Documentation / migration notes — Selected: narrow existing changelog entry; path text and tool README updates remain later tasks.
+
+Capture a new attachment on a path-independent tool call red before implementation, then run `tests/test_tools.py` and the full OCU unit command. Use real guarded HTTP upload/receipt handlers for the failed-read no-write evidence rather than a mock echoing receipt logic. Runtime smoke invokes the actual tool sync against OCU HTTP twice, including a failed receipt read, and observes unchanged edited bytes and one stored file.
 
 ## 3. [ocu] Single workspace files mount: the cut-over (spec: ocu-unified-files)
 
