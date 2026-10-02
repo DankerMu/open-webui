@@ -23,6 +23,7 @@
 ## 5. Final engine acceptance
 
 - [ ] 5.1 After all source development, use a dedicated empty host/daemon to execute complete backup/restore and compatible previous-release startup; attach A-T14/A-T15 output/screenshots proving outputs, revisions, ownership, permissions, stopped-launch behavior, no WAN/build/pull and proxy-only exposure, then close issue34 and archive this fixture.
+  - Not executed as written. The umbrella closure contract (user decision, 2026-10-01, `openspec/changes/archive/2026-10-01-ocu-workspace-integration/tasks.md` § Closure contract) removed two-host backup/restore and previous-release startup on a real engine from the completion gates; issue 34 was closed on that basis. The task stays unchecked and is not claimed as tested.
 
 ## Risk and evidence mapping
 
