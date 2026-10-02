@@ -2,13 +2,13 @@
 
 ## 1. Restore faithful test dependencies
 
-- [ ] 1.1 Update the existing Docker fixtures in both environment-injection test modules to model start/reload state and consistent DNS attributes; preserve all original environment assertions. Verify both modules with `OCU_SANDBOX_DNS` absent and with the valid value `8.8.8.8`.
-- [ ] 1.2 Record the narrow test-fixture correction in the existing OCU changelog. Verify no production files or guard expectations change.
+- [x] 1.1 Update the existing Docker fixtures in both environment-injection test modules to model start/reload state and consistent DNS attributes; preserve all original environment assertions. Verify both modules with `OCU_SANDBOX_DNS` absent and with the valid value `8.8.8.8`.
+- [x] 1.2 Record the narrow test-fixture correction in the existing OCU changelog. Verify no production files or guard expectations change.
 
 ## 2. Verification and review
 
-- [ ] 2.1 Run `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/ -q --import-mode=importlib --ignore=tests/integration` in OCU; require exit 0 with no added skips. Existing failing-before evidence: 8 failed and 5 passed in the two isolated modules on both the working branch and pristine origin/main.
-- [ ] 2.2 Review the compact fixture and changed test dependencies against the lifecycle specification; require existing negative DNS/startup tests and credential assertions remain intact. No runtime smoke is required for a test-only change; the executed test modules are the changed surface.
+- [x] 2.1 Run `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/ -q --import-mode=importlib --ignore=tests/integration` in OCU; require exit 0 with no added skips. Existing failing-before evidence: 8 failed and 5 passed in the two isolated modules on both the working branch and pristine origin/main.
+- [x] 2.2 Review the compact fixture and changed test dependencies against the lifecycle specification; require existing negative DNS/startup tests and credential assertions remain intact. No runtime smoke is required for a test-only change; the executed test modules are the changed surface.
 
 ## Risk packs
 
