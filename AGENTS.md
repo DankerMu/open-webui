@@ -67,7 +67,7 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 backend/open_webui/     FastAPI app — routers/ models/ utils/ socket/ retrieval/ migrations/
 src/routes/             SvelteKit pages ((app)/, auth/, s/)
 src/lib/                components/ apis/ stores/ utils/ i18n/ (generated) pyodide/ (vendored)
-docs/plans/             Plan 1 / Plan 2 (source-verified, not yet implemented)
+docs/plans/             Plan 1 (implemented, epic #2) / Plan 2 (in progress, epic #107)
 docs/decisions/         decision records — proposed/ implemented/ rejected/ archived/
 docs/postmortem/        postmortem contract (write one when an incident meets the criteria)
 smoke/ e2e/             hurl API smoke, Playwright UI baseline
@@ -167,7 +167,7 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 
 - Files: `snake_case.py`, `kebab-case.ts`, `PascalCase.svelte` (upstream convention).
 - Identifiers: `snake_case` (Python), `camelCase` (TS), `PascalCase` (classes/components).
-- Tests: `backend/**/test_*.py`, `src/**/*.test.ts`, `e2e/*.spec.ts`.
+- Tests: `backend/**/test_*.py`, `src/**/*.test.ts`, `e2e/*.e2e.ts`.
 - Forbidden suffixes: see Code Canonicality.
 
 ### Debt markers and deviations
@@ -211,15 +211,15 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 
 Governance decision (verbatim): 「人工不审代码，只审最终功能呈现」. Humans gate on functional acceptance; code-level assurance on the paths below is **mechanical evidence plus reviewer-subagent cross-review** (`.claude/agents/reviewer.md`), not human white-box review. A diff touching a listed path must attach the listed evidence and a reviewer pass before it is called done.
 
-| Path                                                                             | Risk class                       | Requirement (every row also needs reviewer cross-review)      |
-| -------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------- |
-| `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/`  | auth, permissions                | tests for the 401/403/404 matrix + `make smoke`               |
-| `backend/open_webui/models/chats.py` (`is_chat_owner`)                           | authorization predicate          | unit tests for owner/shared/admin cases                       |
-| `backend/open_webui/routers/ocu_workspaces.py` (planned)                         | authorization, sandbox lifecycle | Plan 1 A-T08/A-T12 fixtures + `make smoke`                    |
-| `backend/open_webui/migrations/versions/`                                        | schema, irreversible             | `make db-verify` + migration named in a plan                  |
-| `backend/open_webui/socket/`                                                     | cross-user event leakage         | tests that events reach only `user:{id}` rooms                |
-| `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py`         | upstream spine                   | minimal diff + `make smoke`                                   |
-| `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte` (planned) | iframe sandbox / CSP             | Plan 1 A-T01 Playwright case (opaque origin, no token access) |
+| Path                                                                            | Risk class                       | Requirement (every row also needs reviewer cross-review)      |
+| ------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------- |
+| `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/` | auth, permissions                | tests for the 401/403/404 matrix + `make smoke`               |
+| `backend/open_webui/models/chats.py` (`is_chat_owner`)                          | authorization predicate          | unit tests for owner/shared/admin cases                       |
+| `backend/open_webui/routers/ocu_workspaces.py`                                  | authorization, sandbox lifecycle | Plan 1 A-T08/A-T12 fixtures + `make smoke`                    |
+| `backend/open_webui/migrations/versions/`                                       | schema, irreversible             | `make db-verify` + migration named in a plan                  |
+| `backend/open_webui/socket/`                                                    | cross-user event leakage         | tests that events reach only `user:{id}` rooms                |
+| `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py`        | upstream spine                   | minimal diff + `make smoke`                                   |
+| `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte`          | iframe sandbox / CSP             | Plan 1 A-T01 Playwright case (opaque origin, no token access) |
 
 ## Agent Operating Rules
 
