@@ -42,7 +42,17 @@ Browsers SHALL reach DocumentServer only through the reverse proxy's second list
 
 ### Requirement: JWT in every direction with a bootstrap-generated secret
 
-DocumentServer SHALL run with JWT validation enabled for browser requests, for inbound server requests (inbox) and for its own outbound requests (outbox), all using one secret generated at bootstrap. The secret SHALL NOT appear in logs, in the deployment version record, or in anything delivered to a browser; the editor configuration delivered to a browser SHALL carry only a signature made with the secret, never the secret itself.
+DocumentServer SHALL run with JWT validation enabled for browser requests, for inbound server requests (inbox) and for its own outbound requests (outbox), all using one secret generated at bootstrap. The resolved compose configuration of the DocumentServer service SHALL enable JWT for browser requests, for the inbox and for the outbox, each with the bootstrap-generated secret, the same value OCU receives. The deployment entry SHALL refuse to start when that resolved configuration disables JWT for any of the three or carries an empty secret. The secret SHALL NOT appear in logs, in the deployment version record, or in anything delivered to a browser; the editor configuration delivered to a browser SHALL carry only a signature made with the secret, never the secret itself.
+
+#### Scenario: Resolved configuration inspected
+
+- **WHEN** the resolved compose configuration of the DocumentServer service is inspected
+- **THEN** JWT is enabled for browser requests, for the inbox and for the outbox, and each of the three uses the secret generated at bootstrap, which is the value OCU is configured with
+
+#### Scenario: JWT disabled or secret empty
+
+- **WHEN** the resolved configuration disables JWT for browser requests, for the inbox or for the outbox, or its secret is empty
+- **THEN** the deployment entry exits nonzero naming the setting, starts no service and prints no credential value
 
 #### Scenario: Unsigned or wrongly signed request
 
@@ -99,7 +109,7 @@ DocumentServer's data SHALL live on a named volume that survives a restart or re
 
 ### Requirement: Shipped and operator-supplied fonts
 
-The release SHALL carry open-source CJK fonts in a directory mounted into DocumentServer. A second, operator-owned directory SHALL be mounted the same way for fonts supplied by the deploying organisation. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
+The release SHALL carry open-source CJK fonts in a directory mounted into DocumentServer. Those fonts SHALL enter the release as a release material, like the existing Draw.io and Pyodide materials: a pinned upstream archive identified by its SHA-256, prepared by the release build and recorded in the release inventory. Their font files SHALL NOT be committed to either repository. A second, operator-owned directory SHALL be mounted the same way for fonts supplied by the deploying organisation. DocumentServer SHALL load the fonts of both directories at start. Operator-supplied fonts SHALL NOT be contained in either repository or in the release package.
 
 #### Scenario: Fonts available after start
 
@@ -113,12 +123,14 @@ The release SHALL carry open-source CJK fonts in a directory mounted into Docume
 
 #### Scenario: Release package contents
 
-- **WHEN** the repositories and a built release package are inspected
-- **THEN** they contain the open-source CJK fonts and none of the operator-supplied fonts
+- **WHEN** both repositories and a built release package are inspected
+- **THEN** the release package contains the open-source CJK fonts, and their checksum matches the font material recorded in the release inventory
+- **AND** neither repository contains a font file for them
+- **AND** no operator-supplied font is in either repository or in the release package
 
 ### Requirement: Always part of the deployment
 
-The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry SHALL verify, before starting any service, that the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address and browser-facing origin, the second proxy port and both font directories are configured, and SHALL otherwise fail naming the missing or invalid setting without printing any credential value.
+The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry's preflight SHALL check each of these settings before any service starts: the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, the second proxy port, the release font directory and the operator-owned font directory. When any one of them is missing, empty or invalid, the deployment entry SHALL fail naming that setting without printing any credential value.
 
 #### Scenario: Office editing flag off
 
@@ -127,19 +139,20 @@ The DocumentServer service, the proxy's second listener and its published port S
 
 #### Scenario: Missing required setting
 
-- **WHEN** the JWT secret, the image reference, an address, the second proxy port or a font directory is missing or empty, with the Office editing flag on or off
-- **THEN** the deployment entry exits nonzero naming the setting, starts no service and prints no credential value
+- **WHEN** any one of the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, the second proxy port, the release font directory or the operator-owned font directory is missing, empty or invalid, with the Office editing flag on or off
+- **THEN** the deployment entry's preflight exits nonzero naming that setting, before any service starts, and prints no credential value
 
 ### Requirement: Acceptance-machine profile and recorded deviation
 
-The acceptance machine (4 vCPU, 7.4 GiB RAM, 33 GiB disk) SHALL run the deployment with 4 GB of swap active, and the acceptance run SHALL keep at most one sandbox running at a time. That limit is an operating constraint of the run: OCU has no setting that limits concurrent sandboxes and this change SHALL NOT add one. The machine is below DocumentServer's official minimum; the deviation SHALL be recorded with the official minimum, the measured headroom and the one-sandbox constraint side by side. The profile SHALL be described as an acceptance environment and SHALL NOT be presented as a capacity statement.
+On the acceptance machine (4 vCPU, 7.4 GiB RAM, 33 GiB disk) the acceptance run SHALL keep at most one sandbox running at a time. That limit is an operating constraint of the run: OCU has no setting that limits concurrent sandboxes and this change SHALL NOT add one. The machine is below DocumentServer's official minimum; the deviation SHALL be recorded with the official minimum, the measured headroom and the one-sandbox constraint side by side. Whether swap is configured is the operator's choice at deployment: the B1 verification record SHALL state the memory and swap actually present on the machine, and no amount of swap SHALL be a precondition of the run. The profile SHALL be described as an acceptance environment and SHALL NOT be presented as a capacity statement.
 
-#### Scenario: Acceptance profile inspected
+#### Scenario: Memory and swap are recorded, not gated
 
-- **WHEN** the acceptance machine's host memory configuration is inspected before the run
-- **THEN** 4 GB of swap is active
+- **WHEN** the B1 verification record is read
+- **THEN** it states the memory and the swap actually present on the acceptance machine, including the case of no swap
+- **AND** the acceptance run is neither refused nor marked failed because of the amount of swap
 
 #### Scenario: Deviation record
 
-- **WHEN** the release verification record is read
+- **WHEN** the B1 verification record is read
 - **THEN** it lists DocumentServer's official minimum next to the figures measured on the acceptance machine, marks the machine as below that minimum, and states that the run kept at most one sandbox running

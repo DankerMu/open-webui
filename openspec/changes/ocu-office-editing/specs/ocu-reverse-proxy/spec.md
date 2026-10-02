@@ -148,3 +148,30 @@ The two listeners SHALL NOT forward to each other's upstreams. The OCU gateway l
 
 - **WHEN** a client requests a DocumentServer path on the OCU gateway listener
 - **THEN** DocumentServer receives no request
+
+## MODIFIED Requirements
+
+### Requirement: Fail-loud private configuration rendering
+
+The gateway SHALL derive the routing of its OCU gateway listener from one reviewed method/path/auth/mutating table and SHALL reject missing credentials or invalid configuration without disclosing credential values or replacing a valid rendered configuration. The DocumentServer listener is a fixed single-upstream pass-through that is not derived from that table: its rendered form SHALL be part of the reviewed renderer, and rendering SHALL fail when its inputs are missing or invalid. Tokens SHALL use OCU's nonempty visible-ASCII domain (bytes0x21–0x7E); whitespace, control characters and non-ASCII SHALL be rejected, while accepted punctuation SHALL be preserved byte-for-byte. The rendered secret-bearing configuration SHALL be untracked and owner-readable only, and SHALL launch through the existing proxy-dev entrypoint after rendering.
+
+#### Scenario: Missing token or configuration injection
+
+- **WHEN** rendering receives an empty, whitespace-containing or non-ASCII token, or invalid control characters in a configuration input
+- **THEN** it fails naming the variable, does not disclose its value and leaves any previous valid config unchanged
+
+#### Scenario: Accepted token punctuation
+
+- **WHEN** a visible-ASCII token contains accepted punctuation
+- **THEN** native nginx validation succeeds and the OCU-bound Bearer credential preserves its exact bytes without disclosing them in configuration errors
+
+#### Scenario: Native launcher compatibility
+
+- **WHEN** valid configuration is rendered for the local WebUI harness and OCU stub
+- **THEN** nginx configuration validation passes and the existing launcher starts the gateway without Docker
+
+#### Scenario: DocumentServer listener is rendered outside the table
+
+- **WHEN** valid configuration is rendered with the DocumentServer upstream and the second listen address supplied
+- **THEN** every route of the OCU gateway listener comes from the reviewed table, and the DocumentServer listener is rendered by the reviewed renderer as a pass-through to exactly one upstream, with no route taken from the table
+- **AND** when the DocumentServer upstream or the second listen address is missing or invalid, rendering fails naming the variable and leaves any previous valid configuration unchanged

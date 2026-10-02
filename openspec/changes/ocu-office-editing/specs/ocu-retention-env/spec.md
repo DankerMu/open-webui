@@ -15,7 +15,9 @@ Bootstrap SHALL always provision the settings that the DocumentServer service an
 #### Scenario: Bootstrap with the Office editing flag off
 
 - **WHEN** the operator supplies valid inputs with the Office editing flag off
-- **THEN** the generated configuration differs from the flag-on configuration only in `ENABLE_OCU_OFFICE_EDIT`, and satisfies deployment preflight
+- **THEN** the generated configuration has exactly the same set of keys as the flag-on configuration, and every value that bootstrap does not generate per run is identical in both except `ENABLE_OCU_OFFICE_EDIT`
+- **AND** the values generated per run, the secrets, are present and non-empty in both and are not compared, because two bootstrap runs generate different secrets
+- **AND** the configuration satisfies deployment preflight
 
 #### Scenario: Existing outputs keep their secret
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The OCU-served editor host page: a framed `embed=office` mode of the preview page that hosts the DocumentServer editor for one workspace file and talks to its WebUI parent through a closed four-message protocol. Source: Plan 2 § 关键设计 3 and 5; design D8, D15.
+The OCU-served editor host page: a framed `embed=office` mode of the preview page that hosts the DocumentServer editor for one workspace file and talks to its WebUI parent through a closed four-message protocol. Source: Plan 2 § 关键设计 3 and 5; design D8, D9, D15.
 
 ## ADDED Requirements
 
@@ -90,11 +90,21 @@ The page SHALL act on an incoming message only when its source is the page's par
 
 ### Requirement: State reporting
 
-The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing`, `closed`, `conflict`, `error`, `orphaned` or `refused`, and SHALL post an `ocu:office-state` whenever any reported value changes. All nine keys SHALL always be present: `session_id` is `null` until a session exists; `dirty` and `workspace_changed` are booleans; `reason` is a non-empty string for `refused`, `error` and `conflict`, and in every other state is either `null` or the failure that is still to be surfaced (the reason of the latest session status, or of a rejected save or close request while the session stays usable).
+The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing`, `closed`, `conflict`, `error`, `orphaned` or `refused`, and SHALL post an `ocu:office-state` whenever any reported value changes. All nine keys SHALL always be present: `session_id` is `null` until the create response returned a session and is that session's id afterwards, in every state including `refused`; `dirty` and `workspace_changed` are booleans; `reason` is a non-empty string for `refused`, `error` and `conflict`, and in every other state is either `null` or the failure that is still to be surfaced (the reason of the latest session status, or of a rejected save or close request while the session stays usable).
 
-`opening` SHALL be reported once the open is accepted. `refused` SHALL be reported only when no session was created because the broker refused creation — the connection cap or a validation failure — with the broker's reason and `session_id: null`. `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the session status cannot be read).
+`opening` SHALL be reported once the open is accepted. `refused` SHALL be reported in exactly two cases, both with no usable editor:
 
-`dirty` SHALL be `true` whenever content exists that has not been published to the workspace file: the editor has reported a modification since the last confirmed publish, or the session's `last_committed_seq` is above its `last_published_seq`. It SHALL become `false` only when the session status reports `last_published_seq` at or above the `save_seq` returned for the publishing save, and the editor has reported no modification since that save was requested. The page SHALL NOT report a save as finished from a click or from an accepted request alone, and a persist-only auto-save SHALL NOT clear `dirty`. `workspace_changed` SHALL be `true` exactly while the latest session status reports `workspace_changed`.
+- The broker refused session creation — 503 `connection_limit` at the connection cap, or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`.
+- The editor itself refused the connection after the session was created or joined, signalled by the editor event that the B1 verification record names for the connection cap. The page SHALL report `reason: "connection_limit"` with the `session_id` of the create response, and SHALL release the editor instance. When that create response had `joined` false the page SHALL issue exactly one `POST /api/office/{chat}/sessions/{session}/close`, which ends the never-opened session; when it had `joined` true the page SHALL issue no close request, because the session belongs to another tab that is still editing.
+
+`refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the session status cannot be read).
+
+`dirty` SHALL be `true` exactly while content exists that has not been published to the workspace file, that is, while either holds:
+
+- the editor has reported a modification that no committed save covers. A save covers a modification when the save was requested after the modification was reported and the session status reports `last_committed_seq` at or above that save's `save_seq`; a save that is outstanding, refused or failed covers nothing, and the editor's own save command is not a save;
+- the latest session status reports `last_committed_seq` above `last_published_seq`.
+
+In every other case `dirty` SHALL be `false`, whatever made `last_published_seq` reach `last_committed_seq`: a completed publish, a publishing save that found nothing new while the latest version was already published, a resolved conflict, or an auto-save whose content equals the already published version. A session reported `closed` SHALL be reported with `dirty: false`. The page SHALL NOT report a save as finished from a click or from an accepted request alone, and a persist-only auto-save that leaves `last_committed_seq` above `last_published_seq` SHALL NOT clear `dirty`. `workspace_changed` SHALL be `true` exactly while the latest session status reports `workspace_changed`.
 
 #### Scenario: Save is reported finished only after publish (B-T04)
 
@@ -107,10 +117,48 @@ The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing
 - **WHEN** a persist-only auto-save is committed, so `last_committed_seq` is above `last_published_seq`, and the user makes no further change
 - **THEN** the reported `dirty` stays `true`
 
+#### Scenario: Second save with no change ends not dirty (B-T04)
+
+- **WHEN** a publishing save was confirmed with `dirty: false`, the editor reports no further modification, a second `save` command is accepted with `save_seq` N, and the session status then reports `editing` with `last_committed_seq` and `last_published_seq` both N
+- **THEN** the page reports `editing` with `dirty: false`
+- **AND** no state posted for that second save carries `dirty: true`
+
+#### Scenario: Save after an auto-save with nothing new ends not dirty (B-T04)
+
+- **WHEN** an auto-save left `last_committed_seq` above `last_published_seq`, the editor reports no further modification, a `save` command is accepted with `save_seq` N, and the session status then reports `editing` with `last_committed_seq` and `last_published_seq` both N
+- **THEN** the page reports `editing` with `dirty: false`
+
+#### Scenario: Auto-save equal to the published content ends not dirty (B-T04)
+
+- **WHEN** the editor reports a modification, a persist-only auto-save requested afterwards is committed, and the session status reports `last_published_seq` equal to `last_committed_seq` because the persisted content equals the already published version
+- **THEN** the page reports `dirty: false`
+
+#### Scenario: Resolved conflict ends not dirty (B-T06)
+
+- **WHEN** the page reports `conflict` with `dirty: true`, the editor reports no further modification, and a later session status reports `editing` with `last_published_seq` equal to `last_committed_seq`
+- **THEN** the page reports `editing` with `dirty: false`
+
+#### Scenario: Outstanding or failed save does not clear dirty (B-T11)
+
+- **WHEN** the editor reports a modification, a save is accepted with `save_seq` N, and the session status reports `last_committed_seq` below N — while the save is outstanding, or after the session returned to `editing` with a non-null `reason`
+- **THEN** every state the page posts carries `dirty: true`
+
 #### Scenario: Refused at the connection cap (B-T15)
 
 - **WHEN** session creation is refused with reason `connection_limit`
 - **THEN** the page reports `state: "refused"` with `session_id: null` and `reason: "connection_limit"`, shows a visible message and creates no editor instance
+
+#### Scenario: Editor refuses a new session at the cap (B-T15)
+
+- **WHEN** session creation returns a session with `joined` false and the editor then raises the connection-cap event named by the B1 verification record
+- **THEN** the page reports `state: "refused"` with that session's id and `reason: "connection_limit"`, shows a visible message and releases the editor instance
+- **AND** exactly one close request is issued for that session, and afterwards no status poll or auto-save timer is running and no other state is reported
+
+#### Scenario: Editor refuses a joined session at the cap (B-T15)
+
+- **WHEN** session creation returns an existing session with `joined` true and the editor then raises the connection-cap event
+- **THEN** the page reports `state: "refused"` with that session's id and `reason: "connection_limit"` and releases the editor instance
+- **AND** no close request is issued, also when a `close` command arrives afterwards, so the session of the other tab is unaffected
 
 #### Scenario: Refused by validation (B-T13)
 
@@ -125,7 +173,7 @@ The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing
 #### Scenario: Session orphaned (B-T11)
 
 - **WHEN** a session status reports `orphaned`
-- **THEN** the page reports `orphaned` with the session's id, stops its auto-save timer and issues no further save request
+- **THEN** the page reports `orphaned` with the session's id, stops its auto-save timer and its status poll and issues no further save request
 
 #### Scenario: Conflict carries its reason (B-T06)
 
@@ -136,9 +184,13 @@ The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing
 
 The host page SHALL own session creation, the session status poll, the auto-save timer and the save and close requests; it SHALL NOT call the versions, restore or resolve routes. Every request SHALL go through the existing request wrapper, which applies the configured public prefix once and sends `X-Requested-With: ocu-workspace`. After an accepted open the page SHALL issue one `POST /api/office/{chat}/documents/{file}/sessions`, with `{file}` taken from the open's `file_id`. While a session exists and the page is alive it SHALL poll `GET /api/office/{chat}/sessions/{session}` with at most one poll loop.
 
-While the session is `editing` the page SHALL keep exactly one 5-minute auto-save timer; on each tick it SHALL request a save with intent `persist` through `POST /api/office/{chat}/sessions/{session}/save` when the editor has reported a modification since the last save request, and SHALL do nothing otherwise. A `save` command SHALL issue one save with intent `publish` through the same route. The editor's own save command is not a save in this model: the page SHALL NOT treat it as one, and `dirty` SHALL stay `true` after it. A save that the broker refuses with `session_not_editing` because an auto-save is still outstanding SHALL be retried once the session is `editing` again, not reported as an error. A `close` command SHALL issue `POST /api/office/{chat}/sessions/{session}/close`, stop the auto-save timer, release the editor instance only after that request was accepted so that DocumentServer sees the participant leave after the close is recorded, and keep reporting the persisted session state until it is `closed`, `conflict`, `error` or `orphaned` or the page is torn down.
+While the session is `editing` the page SHALL keep exactly one 5-minute auto-save timer; on each tick it SHALL request a save with intent `persist` through `POST /api/office/{chat}/sessions/{session}/save` while the editor holds a modification that no committed save covers, and SHALL do nothing otherwise, so an auto-save that failed is requested again at the next tick. A `save` command SHALL issue one save with intent `publish` through the same route. The editor's own save command is not a save in this model: the page SHALL NOT treat it as one, and `dirty` SHALL stay `true` after it. A save that the broker refuses with `session_not_editing` because an auto-save is still outstanding SHALL be retried once the session is `editing` again, not reported as an error. A `close` command SHALL issue `POST /api/office/{chat}/sessions/{session}/close`, stop the auto-save timer, release the editor instance only after that request was accepted so that DocumentServer sees the participant leave after the close is recorded, and keep reporting the persisted session state until it is `closed`, `error` or `orphaned` or the page is torn down.
 
 A rejected or failed save or close request SHALL never be reported as success: the page SHALL keep `dirty` unchanged and SHALL report the failure as a non-null `reason` — with the session state the broker still holds, or with `error` when the session status cannot be read — until a later save or close request is accepted.
+
+A save that was accepted and then failed SHALL be reported the same way. When the session status reports `editing` with a non-null `reason` — `save_timeout`, or the reason with which the broker refused the save's callback (storage floor, invalid content, size limit, failed download) — the page SHALL report `editing` with that `reason` and with `dirty` unchanged, SHALL keep the editor, the status poll and the auto-save timer, and SHALL issue a new save request for a later `save` command, so the failed save can be retried.
+
+When the session status reports `orphaned`, `closed` or `error` the page SHALL stop its status poll and its auto-save timer and SHALL issue no further save or close request.
 
 #### Scenario: Prefixed requests with the workspace header
 
@@ -148,7 +200,8 @@ A rejected or failed save or close request SHALL never be reported as success: t
 #### Scenario: Auto-save every 5 minutes while modified (B-T04)
 
 - **WHEN** the editor reports a modification and 5 minutes pass without a save, and then a further 5 minutes pass without any modification
-- **THEN** exactly one persist-only save request is issued at the first tick and none at the second
+- **THEN** exactly one persist-only save request is issued at the first tick and, when that save was committed, none at the second
+- **AND** when the first request failed or was refused, the second tick issues it again
 - **AND** only one auto-save timer exists for the session
 
 #### Scenario: Close command (B-T12)
@@ -171,6 +224,23 @@ A rejected or failed save or close request SHALL never be reported as success: t
 
 - **WHEN** a `save` command arrives while the session is `saving` because of an auto-save, and the save request is refused with `session_not_editing`
 - **THEN** the page reports no error, and issues the publishing save once the session status is `editing` again
+
+#### Scenario: Save timed out and is retried (B-T11)
+
+- **WHEN** a save was accepted for a modified document and the session status later reports `editing` with reason `save_timeout`
+- **THEN** the page reports `editing` with `dirty: true` and `reason: "save_timeout"`, and its poll and auto-save timer keep running
+- **AND** a following `save` command issues one new save request
+
+#### Scenario: Callback refusal is a failed save that can be retried (B-T11)
+
+- **WHEN** a save was accepted and the session status later reports `editing` with the reason of a refused callback, such as the storage floor
+- **THEN** the page reports `editing` with `dirty: true` and that reason, never `dirty: false` for that save
+- **AND** a following `save` command issues one new save request
+
+#### Scenario: Timers stop on a final session status
+
+- **WHEN** the session status reports `orphaned`, `closed` or `error`
+- **THEN** the page reports that state, and afterwards no status poll and no auto-save timer is running and no save or close request is issued
 
 ### Requirement: Teardown releases owned resources
 

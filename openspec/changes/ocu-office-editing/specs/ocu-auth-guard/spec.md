@@ -88,3 +88,35 @@ When Office editing is enabled on the OCU server, that is, when the DocumentServ
 
 - **WHEN** the startup command runs with Office editing not enabled and no DocumentServer JWT secret
 - **THEN** startup proceeds and both DocumentServer-facing routes respond 404
+
+## MODIFIED Requirements
+
+### Requirement: Service authorization before protected work
+
+Every chat-bound HTTP route, upload, preview and CDP/ttyd handshake, and the identity endpoints /system-prompt, /skill-list and /skill-mounts SHALL require the internal token before protected work, except the two DocumentServer-facing control-plane routes `GET /office/source/{ticket}` and `POST /office/callback/{chat}/{session}`, which are excepted from the internal-token rules of this requirement and SHALL authenticate as specified by the requirement "DocumentServer-facing routes authenticate without the internal token". REST and WebSocket upstream handshakes SHALL accept only Authorization Bearer with the internal token. Credentials SHALL NOT appear in URLs, responses or logs or be propagated to sandboxes. A source ticket is not such a credential: it is a short-lived capability bound to one version of one document, it MAY appear in the path of the source route and inside the signed editor configuration, and it SHALL NOT be written to logs.
+
+#### Scenario: Missing or wrong service token
+
+- **WHEN** any protected route is requested without the correct token
+- **THEN** HTTP returns 401 or the WebSocket is rejected before upgrade, without filesystem, container or identity work
+
+#### Scenario: Authorized requests remain useful
+
+- **WHEN** a valid upstream service token and valid chat ID are supplied
+- **THEN** route processing preserves its existing successful payload and traversal protections
+
+#### Scenario: Public health and unrelated runtime API
+
+- **WHEN** a non-sandbox peer requests health or the unrelated runtime-cli endpoint without a token
+- **THEN** their existing public behavior remains available
+
+#### Scenario: Source ticket is not logged
+
+- **WHEN** DocumentServer fetches `GET /office/source/{ticket}` and the request is logged
+- **THEN** the log line does not contain the ticket
+
+#### Scenario: DocumentServer-facing routes are excepted
+
+- **WHEN** `GET /office/source/{ticket}` is requested with a valid ticket, or `POST /office/callback/{chat}/{session}` with a valid DocumentServer JWT, and neither request carries the internal token
+- **THEN** neither request is rejected for the missing internal token, and each is authenticated only as the requirement "DocumentServer-facing routes authenticate without the internal token" specifies
+- **AND** every other chat-bound route, `/api/office/` included, still returns 401 without the internal token

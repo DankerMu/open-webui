@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The DocumentServer-facing control-plane routes of the Office broker in OCU: the source ticket, callback authentication, status handling, ordering and idempotence by `save_seq`, and the persist pipeline that turns a callback into a durable version before it is acknowledged. Source: Plan 2 § 关键设计 2 接口, § 3 保存模型与状态机; design D7 (control-plane routes), D9, D10, D14.
+The DocumentServer-facing control-plane routes of the Office broker in OCU: the source ticket, callback authentication, status handling, the handling order with receipts and `save_seq`, and the persist pipeline that turns a callback into a durable version, with its publish obligation, before it is acknowledged. Source: Plan 2 § 关键设计 2 接口, § 3 保存模型与状态机; design D7 (control-plane routes), D9, D10, D14.
 
 ## ADDED Requirements
 
@@ -70,19 +70,19 @@ A callback SHALL be accepted only when its DocumentServer JWT verifies against t
 
 ### Requirement: Callback status handling
 
-For an authenticated callback of an open session the broker SHALL act on the DocumentServer status as follows and SHALL acknowledge only after the resulting state is durable:
+An authenticated callback of an open session that the handling order (requirement "Ordering and idempotence by save_seq") admits for processing SHALL be handled by its DocumentServer status as follows, and SHALL be acknowledged only after the resulting state is durable:
 
-| Status    | Handling                                                                                                                                                                                             |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1         | record the participants; a session in `opening`, or in `closing` while a participant remains connected, becomes `editing`; no version, no file change                                                |
-| 2         | final close with changes: persist with `source` `close`, then publish; the session becomes `closed`, or `conflict` when the publish meets a conflict                                                 |
-| 3         | record the final-save failure; the session becomes `error` with reason `final_save_failed`                                                                                                           |
-| 4         | closed without changes: no version is added; when the session's latest stored version is unpublished it is published; the session becomes `closed`, or `conflict` when that publish meets a conflict |
-| 6         | forcesave result: persist with `source` `save` or `autosave` according to the recorded intent; publish when that intent is `publish`; the session returns to `editing`, or becomes `conflict`        |
-| 7         | record the forcesave failure; the session is `editing` with reason `forcesave_failed`                                                                                                                |
-| any other | change nothing; record a diagnosable error; answer 422 with reason `unknown_status`                                                                                                                  |
+| Status    | Handling                                                                                                                                                                                                                    |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1         | record the participants; a session in `opening` becomes `editing`; a session in `closing` with a participant still connected returns to `editing` and its close allocation is void; no version, no file change              |
+| 2         | final close with changes: persist with `source` `close`, then publish; the session becomes `closed`, `conflict` or `error`                                                                                                  |
+| 3         | record the final-save failure; the session becomes `error` with reason `final_save_failed`                                                                                                                                  |
+| 4         | closed without changes: no version is added; when the session's latest stored version is unpublished it is published; the session becomes `closed`, `conflict` or `error`                                                   |
+| 6         | forcesave result: persist with `source` `save` or `autosave` according to the recorded intent; publish when that intent is `publish`; a session in `saving` for this `save_seq` returns to `editing`, or becomes `conflict` |
+| 7         | record the forcesave failure; a session in `saving` for this `save_seq` returns to `editing` with reason `forcesave_failed`                                                                                                 |
+| any other | change nothing; record a diagnosable error; answer 422 with reason `unknown_status`                                                                                                                                         |
 
-A status 2 or 4 callback SHALL end the session whether or not a close was requested. When a publish that follows a persist fails for a reason other than a conflict (reasons specified by `ocu-office-publish`), the version SHALL stay stored and unpublished, and the session SHALL be `editing` with that reason after status 6 and `error` with that reason after status 2 or 4.
+A status 2 or 4 callback SHALL end the session whether or not a close was requested. A status 6 or 7 callback SHALL never change the state of a session that is `closing` or `conflict`: its result — the version, the receipt and, for intent `publish`, the publish — is applied and the state stays. Which state a publish leaves for each of its outcomes (published, conflict, failed), including the automatic copy when an unattended final publish finds the file gone, is specified by `ocu-office-publish` (requirement "Publish outcomes"). Every status 2, 3, 4, 6 or 7 callback that this table processes to an outcome SHALL be answered `{"error": 0}` and SHALL leave a save receipt (`ocu-office-store`); one whose persist stage is refused is answered with an error and leaves none (requirement "Acknowledge only after the version is durable"). A status 1 callback is answered `{"error": 0}` and leaves no receipt.
 
 #### Scenario: Status 1 opens the session (B-T04)
 
@@ -96,7 +96,7 @@ A status 2 or 4 callback SHALL end the session whether or not a close was reques
 
 #### Scenario: Status 2 meets a conflict
 
-- **WHEN** a status 2 callback delivers content and the workspace file no longer matches the baseline
+- **WHEN** a status 2 callback delivers content and the workspace file exists but no longer matches the baseline
 - **THEN** the version is stored with `published` false, the workspace file keeps its bytes, the session is `conflict` and the acknowledgement is `{"error": 0}`
 
 #### Scenario: Status 3 (B-T04)
@@ -134,19 +134,54 @@ A status 2 or 4 callback SHALL end the session whether or not a close was reques
 - **WHEN** a session is `closing` and a status 1 callback reports that a participant is still connected
 - **THEN** the session is `editing` with the same `document_key`, and no version is stored or published because of the departed tab
 
+#### Scenario: Remaining tab closes without a close request (B-T05)
+
+- **WHEN** a close allocated `save_seq` 3, a status 1 callback with a remaining participant returned the session to `editing`, an auto-save was committed with `save_seq` 4, and DocumentServer then reports status 2 with changes although no further close was requested
+- **THEN** the acknowledgement is `{"error": 0}` and not `stale_save_seq`, the content is stored as a version with `source` `close` and published, and the session is `closed`
+- **AND** the receipt of that callback holds a `save_seq` higher than 4
+
+#### Scenario: Forcesave result arrives while the session is closing
+
+- **WHEN** a close is requested while a save with intent `publish` is outstanding, and the status 6 callback of that save then arrives
+- **THEN** the content is stored as a `save` version and published, and the session is still `closing`
+
+#### Scenario: Forcesave failure arrives while the session is closing
+
+- **WHEN** a close is requested while a save is outstanding, and a status 7 callback for that save then arrives
+- **THEN** the failure is recorded with a receipt, no version is added and the session is still `closing`
+
 #### Scenario: Unknown status
 
 - **WHEN** a callback reports a status outside 1, 2, 3, 4, 6 and 7
 - **THEN** the response is 422 with reason `unknown_status`, no session, version or file changes and the event is recorded with chat, session and status
 
+#### Scenario: Late result of a timed-out save does not end a newer save
+
+- **WHEN** the save with `save_seq` 3 timed out, the user started a save with `save_seq` 4, and the status 6 callback for 3 arrives while 4 is outstanding
+- **THEN** the content of 3 is stored as its intent says and the session stays `saving` until the callback for 4 is handled
+
 ### Requirement: Ordering and idempotence by save_seq
 
-A status 6 or 7 callback SHALL be matched to its save by the `save_seq` and intent echoed in its user data; one without a `save_seq` that the broker issued for that session SHALL be answered 422 with reason `invalid_userdata` and change nothing. The final callback (status 2 or 4) SHALL take the `save_seq` allocated by the close request, or the next unallocated one when no close was requested. A callback whose `save_seq` is lower than the session's `last_committed_seq` SHALL be answered 409 with reason `stale_save_seq` and SHALL never store a version, publish or change which version is published. A callback that repeats an already committed `save_seq` with the same content SHA-256 SHALL return the first result — `{"error": 0}` — without adding a version, publishing again or changing the listing `revision`; this SHALL also hold when the session has since become `closed`. A callback that repeats a committed `save_seq` with different content SHALL be answered 409 with reason `stale_save_seq` and change nothing.
+A status 6 or 7 callback SHALL be matched to its save by the `save_seq` and intent echoed in its user data. A final callback (status 2, 3 or 4) SHALL take the session's pending close allocation as its `save_seq`, or the next unallocated number when none is pending — no close was requested, or the allocation is void because a status 1 returned the session from `closing` to `editing` (`ocu-office-sessions`) — so that the number of a final callback is never lower than a committed save. That number SHALL be stored with the callback's receipt the first time the callback is processed to an outcome, so a retry never takes another number.
+
+An authenticated callback SHALL be handled in this order, and the first rule that applies decides:
+
+1. A status 2, 3 or 4 callback for a session that already has the receipt of a final callback SHALL return that receipt's answer without downloading anything. A session ends once, so any later final callback for its key is a retry.
+2. A status 6 or 7 callback whose `save_seq` has a receipt SHALL return the receipt's answer when its status and content SHA-256 equal those of the receipt, and SHALL otherwise be answered 409 with reason `stale_save_seq`.
+3. A status 6 or 7 callback without a `save_seq` that the broker issued for that session SHALL be answered 422 with reason `invalid_userdata`; one whose `save_seq` is lower than the session's `last_committed_seq` and has no receipt SHALL be answered 409 with reason `stale_save_seq`.
+4. Otherwise the callback SHALL be processed as the requirement "Callback status handling" specifies.
+
+Rules 1 and 2 SHALL apply in every session state, also after the session became `closed`, `conflict` or `error`. Rules 3 and 4 SHALL apply to an open session only: a callback that rules 1 and 2 do not decide and whose session is `closed`, `error` or `orphaned` is answered as the requirement "Callbacks that cannot apply change no file" specifies. A callback answered from a receipt SHALL add no version, no receipt and no `save_seq`. It SHALL NOT publish or change the listing `revision`, with one exception: when the journal still holds the publish obligation that callback left, that entry SHALL be driven to an outcome (`ocu-office-publish`) before the answer is returned. A callback rejected by rule 2 or 3 SHALL never store a version, publish or change which version is published.
 
 #### Scenario: Out-of-order save_seq (B-T08)
 
-- **WHEN** the callback for `save_seq` 4 has been committed and the callback for `save_seq` 3 arrives afterwards
+- **WHEN** the callback for `save_seq` 4 has been committed and a callback for `save_seq` 3, which has no receipt, arrives afterwards
 - **THEN** the response is 409 with reason `stale_save_seq`, the number of versions is unchanged and the workspace file keeps the content of `save_seq` 4
+
+#### Scenario: Retry of an earlier committed save after a later one (B-T08)
+
+- **WHEN** the status 6 callback for `save_seq` 3 was committed and its acknowledgement was lost, the callback for `save_seq` 4 was then committed, and DocumentServer delivers the callback for `save_seq` 3 again with the same content
+- **THEN** the response is `{"error": 0}`, no version is added and the workspace file keeps the content of `save_seq` 4
 
 #### Scenario: Duplicate callback (B-T08)
 
@@ -156,7 +191,17 @@ A status 6 or 7 callback SHALL be matched to its save by the `save_seq` and inte
 #### Scenario: Retry after a lost acknowledgement (B-T08)
 
 - **WHEN** the acknowledgement of a committed status 2 callback is lost and DocumentServer delivers it again after the session became `closed`
-- **THEN** the response is `{"error": 0}` and no version is added and no file is written
+- **THEN** the response is `{"error": 0}`, nothing is downloaded, no version is added and no file is written
+
+#### Scenario: Final callback without a close request is retried (B-T08)
+
+- **WHEN** a status 2 callback arrives for a session for which no close was requested, is committed with a newly allocated `save_seq`, its acknowledgement is lost and DocumentServer delivers it again
+- **THEN** the response is `{"error": 0}`, no download is made, no second version exists and the session's `save_seq` is the one allocated on the first arrival
+
+#### Scenario: Retry of a status 4 or status 3 after the session ended
+
+- **WHEN** a status 4 callback ended a session as `closed`, or a status 3 callback ended it as `error`, and DocumentServer delivers the same callback again
+- **THEN** the response is the recorded answer `{"error": 0}`, the session keeps its state and reason, and no version, receipt or `save_seq` is added
 
 #### Scenario: Same save_seq with different content
 
@@ -170,16 +215,21 @@ A status 6 or 7 callback SHALL be matched to its save by the `save_seq` and inte
 
 ### Requirement: Confined download and content validation
 
-The broker SHALL download callback content only from the configured DocumentServer server-to-server origin. A download address with another scheme, host or port SHALL be rejected with 422 and reason `download_url_rejected` without any outbound request. Every redirect hop SHALL be validated against the same origin; a redirect elsewhere, a timeout or a failed transfer SHALL be answered 502 with reason `download_failed`. A body larger than the outputs broker's per-file limit SHALL stop the download and be answered 413 with reason `file_too_large`. Before storing, the content SHALL be checked for size, for a type equal to the document's type and for a readable OOXML container of that type; a failure SHALL be answered 422 with reason `invalid_content`. In every one of these cases no version and no receipt SHALL be recorded, nothing SHALL remain under `staging/`, and no workspace file SHALL change.
+The broker SHALL accept a callback's download address only when its origin — scheme, host and port — is exactly the configured browser-facing DocumentServer origin or the configured DocumentServer server-to-server origin. From an accepted address it SHALL use only the path and query, and it SHALL fetch that path and query from the server-to-server origin; it SHALL never send a request to the browser-facing origin or to a host named by the callback. An address with any other origin SHALL be rejected with 422 and reason `download_url_rejected` without any outbound request. Every redirect hop SHALL be validated against the server-to-server origin; a redirect elsewhere, a timeout or a failed transfer SHALL be answered 502 with reason `download_failed`. A body larger than the outputs broker's per-file limit SHALL stop the download and be answered 413 with reason `file_too_large`. Before storing, the content SHALL be checked for size, for a type equal to the document's type and for a readable OOXML container of that type; a failure SHALL be answered 422 with reason `invalid_content`. In every one of these cases no version and no receipt SHALL be recorded, nothing SHALL remain under `staging/`, and no workspace file SHALL change.
+
+#### Scenario: Download address on the browser-facing origin
+
+- **WHEN** a validly signed callback names a download address whose origin is the configured browser-facing DocumentServer origin
+- **THEN** the broker requests the address's path and query from the server-to-server origin, sends no request to the browser-facing origin, and the content is committed as a version
 
 #### Scenario: Arbitrary download address (B-T08)
 
-- **WHEN** a validly signed callback names a download address on a host other than the configured DocumentServer server-to-server origin, including a loopback, metadata or sandbox address
-- **THEN** the response is 422 with reason `download_url_rejected` and no request is sent to that address
+- **WHEN** a validly signed callback names a download address whose origin is neither of the two configured DocumentServer origins, including a loopback, metadata or sandbox address
+- **THEN** the response is 422 with reason `download_url_rejected` and no request is sent to that address or to DocumentServer
 
 #### Scenario: Redirect leaves the origin
 
-- **WHEN** the download address is on the configured origin and answers with a redirect to another host
+- **WHEN** the fetch from the server-to-server origin is answered with a redirect to another origin
 - **THEN** the redirect is not followed and the response is 502 with reason `download_failed`
 
 #### Scenario: Download times out (B-T08)
@@ -199,7 +249,9 @@ The broker SHALL download callback content only from the configured DocumentServ
 
 ### Requirement: Acknowledge only after the version is durable
 
-For a callback that delivers content the broker SHALL, in this order, validate the callback, download, validate the content, stage it and flush it to disk, and then store the version content, the version record and the save receipt under the per-chat lock. It SHALL answer `{"error": 0}` only after the version and the receipt are durable. Any failure before that point SHALL be answered with a non-200 status so that DocumentServer retries, and SHALL leave no version record without its content and no receipt without its version. The acknowledgement SHALL depend on the persist stage only: when the publish that follows meets a conflict or fails, the callback SHALL still be acknowledged and the outcome SHALL be reported through the session state.
+For a callback that delivers content the broker SHALL, in this order, validate the callback, download, validate the content, stage it and flush it to disk, and then store the version content, the version record and the save receipt under the per-chat lock. For a callback with publish intent — status 6 whose recorded intent is `publish`, status 2, and status 4 when the session's latest stored version is unpublished — the publish obligation SHALL be part of that state update, as `ocu-office-store` requires of the commit journal, so that a crash after the acknowledgement cannot leave a stored version that nothing will publish. The broker SHALL answer `{"error": 0}` only after that state update is durable. The acknowledgement SHALL depend on the persist stage only: when the publish that follows meets a conflict or fails, the callback SHALL still be acknowledged and the outcome SHALL be reported through the session state.
+
+Any failure before that point SHALL be answered with a non-200 status so that DocumentServer retries, and SHALL leave no version record without its content, no receipt without its version and no journal entry. When the callback answered with such an error — `storage_low`, `invalid_content`, `file_too_large`, `download_failed` or `download_url_rejected` — is the callback of the outstanding save of a session in `saving`, the session SHALL return to `editing` with that reason, and a later delivery of the same callback that succeeds SHALL still be committed.
 
 #### Scenario: Durable before acknowledged (B-T11)
 
@@ -211,10 +263,22 @@ For a callback that delivers content the broker SHALL, in this order, validate t
 - **WHEN** OCU is killed after the download and before the version is stored
 - **THEN** no acknowledgement was sent, no version or receipt exists after the restart, and the retried callback is committed once
 
+#### Scenario: Crash after the commit and before the publish starts (B-T11)
+
+- **WHEN** OCU is killed after the version, the receipt and the journal entry of a status 2 callback are durable and before its publish starts, and OCU starts again
+- **THEN** once the startup sweep has run, or DocumentServer has delivered the callback again and received `{"error": 0}` without a second version or a download, the session is `closed` with the version `published` true and the workspace file equal to it, or `conflict` when the workspace file no longer matches the baseline
+- **AND** the journal holds no entry for that publish
+
 #### Scenario: Storage refusal is not a success (B-T11)
 
 - **WHEN** free space is below the storage floor when the content is to be stored
 - **THEN** the response is 503 with reason `storage_low` and the session does not report the `save_seq` as committed
+
+#### Scenario: Failed callback of the outstanding save returns the session to editing
+
+- **WHEN** the status 6 callback of a session's outstanding save is answered 502 with reason `download_failed`
+- **THEN** the status reports `editing` with reason `download_failed`, `last_committed_seq` is unchanged and no receipt exists for that `save_seq`
+- **AND** when DocumentServer delivers the same callback again and the download succeeds, the content is committed as a version and the answer is `{"error": 0}`
 
 #### Scenario: Conflict after persist is acknowledged
 
@@ -223,7 +287,9 @@ For a callback that delivers content the broker SHALL, in this order, validate t
 
 ### Requirement: Callbacks that cannot apply change no file
 
-A callback for a session the chat does not have SHALL be answered 404 with reason `unknown_session`. A callback for a session in `closed`, `error` or `orphaned` that does not repeat a committed receipt SHALL be answered 409 with reason `session_not_open`. Neither SHALL download content, store a version or change a file. A session whose restore epoch differs from the current one SHALL be treated as `orphaned` when its callback arrives. The final callback of a session that is still open SHALL be processed even when the user has since lost access to the chat. When the workspace files directory of the chat no longer exists, the content SHALL be stored as a version and SHALL NOT be published, and no directory or file SHALL be created in its place; when the chat's data directory no longer exists at all, the session is unknown and the callback SHALL create no file and SHALL NOT recreate that directory, which means its existence is checked before the per-chat lock is taken.
+A callback for a session the chat does not have SHALL be answered 404 with reason `unknown_session`. A callback for a session in `closed`, `error` or `orphaned` that rules 1 and 2 of the handling order (requirement "Ordering and idempotence by save_seq") do not decide SHALL be answered 409 with reason `session_not_open`. Neither SHALL download content, store a version or change a file. The restore epoch check of `ocu-office-store` (requirement "Restore epoch marker") SHALL run before a callback is handled, and a session it makes `orphaned` SHALL be treated as such for that callback.
+
+The final callback of a session that is still open SHALL be processed even when the user has since lost access to the chat, and also when the chat was deleted in WebUI: deleting a chat in WebUI does not remove its OCU data directory, so the callback SHALL be stored and published into that directory like any other, and OCU SHALL need no deletion notice. When the chat's workspace files directory no longer exists while its Office state remains, the final callback's content SHALL still be stored as a version and no directory or file SHALL be created in its place; the session then ends as `error` with reason `workspace_missing`, as specified by `ocu-office-publish` (requirement "Conflict resolution"). When the chat's data directory no longer exists at all, the session is unknown and the callback SHALL create no file and SHALL NOT recreate that directory, which means its existence is checked before the per-chat lock is taken.
 
 #### Scenario: Unknown session
 
@@ -232,12 +298,12 @@ A callback for a session the chat does not have SHALL be answered 404 with reaso
 
 #### Scenario: Late callback for a closed session
 
-- **WHEN** a status 6 callback arrives after the session became `closed` and matches no committed receipt
+- **WHEN** a status 6 callback arrives after the session became `closed` and its `save_seq` has no receipt
 - **THEN** the response is 409 with reason `session_not_open`, no version is added and the workspace file keeps its bytes
 
 #### Scenario: Callback from before a backup restore (B-T14)
 
-- **WHEN** a callback arrives for a session created under an older restore epoch
+- **WHEN** a callback arrives for an open session created under an older restore epoch
 - **THEN** the session is `orphaned`, the response is 409 with reason `session_not_open` and no version is stored or published
 
 #### Scenario: Final callback after access was revoked (B-T10)
@@ -245,10 +311,15 @@ A callback for a session the chat does not have SHALL be answered 404 with reaso
 - **WHEN** the user's account is deactivated while a session is open and DocumentServer later sends the final callback with changes
 - **THEN** the content is stored as a version and published to the same chat's workspace file
 
+#### Scenario: Chat deleted in WebUI while a session is open (B-T10)
+
+- **WHEN** the chat is deleted in WebUI while an edit session is open, its OCU data directory still exists, and DocumentServer later sends the final callback with changes
+- **THEN** the content is stored as a version and published to the workspace file in that directory, and the session is `closed`
+
 #### Scenario: Workspace directory is gone (B-T10)
 
 - **WHEN** the final callback arrives after the chat's workspace files directory was removed while its Office state remains
-- **THEN** the version is stored with `published` false, the session is `conflict` with reason `path_missing`, and neither the directory nor the file is recreated
+- **THEN** the version is stored with `published` false, the session is `error` with reason `workspace_missing`, and neither the directory nor any file in it is created
 
 #### Scenario: Chat data is gone (B-T10)
 

@@ -151,7 +151,7 @@ An upload that carries the header `X-OCU-Attachment-Id` SHALL be treated as the 
 
 ### Requirement: Import receipts are readable only with the internal token
 
-`GET /api/uploads/{chat_id}/imports` SHALL return the attachment ids that have an import receipt for the chat. It SHALL require the internal token and a canonical chat id like every other chat-bound OCU route, SHALL return an empty set for a chat without receipts, and SHALL NOT create, start or unpause a sandbox. The route SHALL NOT be present in the reverse-proxy route table, so a browser request for it through the gateway receives 404 without contacting OCU.
+`GET /api/uploads/{chat_id}/imports` SHALL return the attachment ids that have an import receipt for the chat. It SHALL require the internal token and a canonical chat id like every other chat-bound OCU route, SHALL return an empty set for a chat without receipts or without a data directory, and SHALL NOT create, start or unpause a sandbox. A read SHALL NOT create the chat's data directory: when that directory does not exist the handler SHALL answer before taking the per-chat lock, because taking the lock would create it. The route SHALL NOT be present in the reverse-proxy route table, so a browser request for it through the gateway receives 404 without contacting OCU.
 
 #### Scenario: Authorized read
 
@@ -162,6 +162,7 @@ An upload that carries the header `X-OCU-Attachment-Id` SHALL be treated as the 
 
 - **WHEN** a request with the internal token reads the imports of a chat that has no receipts or no data directory yet
 - **THEN** the response is 200 with an empty set and no sandbox is created
+- **AND** no chat directory is created: a chat whose data directory did not exist before the request still has none after it
 
 #### Scenario: Missing token
 
