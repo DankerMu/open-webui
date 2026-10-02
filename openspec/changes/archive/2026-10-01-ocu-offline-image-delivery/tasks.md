@@ -17,6 +17,7 @@
 ## 4. Deferred final engine acceptance
 
 - [ ] 4.1 After all development, execute real build/export/clean-store import on linux/amd64, verify all six identities and sandbox entrypoint/user/workdir, reject missing/replaced images, and prove required surfaces restart without WAN/build/pull on fresh and preserved configuration; record A-T14 in issue36, then close issue33 and archive this fixture.
+  - Not executed as written. The umbrella closure contract (user decision, 2026-10-01, `openspec/changes/archive/2026-10-01-ocu-workspace-integration/tasks.md` § Closure contract) removed clean-store import and WAN-free restart on a real engine from the completion gates; issue 33 was closed on that basis. The task stays unchecked and is not claimed as tested.
 
 ## Risk mapping and protected evidence
 

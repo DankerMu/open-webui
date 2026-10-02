@@ -23,3 +23,7 @@ References and executable evidence mapping are in design.md and tasks.md. No sou
 OCU [PR26](https://github.com/DankerMu/open-computer-use/pull/26) merged as `7d6e06ff6f603cff704d1455c995ab9acf46acbb`; reviewed candidate `5941dad09a3a15b5ae97e228e80dc524921cf462`. Five recorded review rounds preserve four rejected candidates and a clean fifth round. The candidate passed 311 deployment tests, source lint, exact-head identity CI and parent CLI counterexamples with real Git/files/archive/process execution and a stateful fake engine/database.
 
 The parent additionally exercised handled mid-import failure after partial image-cache mutation, preserved target identity and unrelated data, then activated the same delivery successfully. This is not SIGKILL, power-loss or real-engine proof. [Source merge evidence](https://github.com/DankerMu/open-computer-use/pull/26#issuecomment-5924209968) records limitations and negative controls. Task 5.1 stays unchecked; do not archive this fixture or close issue34 before final engine acceptance.
+
+## Closure
+
+Archived on 2026-10-01 by user decision (Plan 2 Stage 1) with task 5.1 still open: two-host backup/restore and previous-release startup on a real engine was never run and is not claimed as tested. The sentences above that tie archiving to that evidence are superseded by the umbrella closure contract of 2026-10-01. The capability spec is published so that later changes can modify it.
