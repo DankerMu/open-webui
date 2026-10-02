@@ -49,7 +49,7 @@ Run the existing OCU unit command, including the receipt endpoint cases and guar
 
 ## 2. [ocu] Tool attachment sync imports once (spec: ocu-unified-files, ocu-tool-auth)
 
-- [ ] 2.1 `openwebui/tools/computer_use_tools.py`: read the imported ids, upload only attachments without a receipt and send their WebUI file id, upload everything when the read fails, and sync whenever the tool call carries attachments instead of matching path text. Verify: `tests/test_tools.py` proves an already imported attachment is not uploaded again after the stored file changed, a new attachment is uploaded once with its id, two consecutive tool calls leave one stored file, every request carries the internal token, and the manifest endpoint is no longer called.
+- [x] 2.1 `openwebui/tools/computer_use_tools.py`: read the imported ids, upload only attachments without a receipt and send their WebUI file id, upload everything when the read fails, and sync whenever the tool call carries attachments instead of matching path text. Verify: `tests/test_tools.py` proves an already imported attachment is not uploaded again after the stored file changed, a new attachment is uploaded once with its id, two consecutive tool calls leave one stored file, every request carries the internal token, and the manifest endpoint is no longer called.
 
 Depends on: 1.
 Suggested fixture level: expanded - shared tool entrypoint, credential carrier, overwrite behaviour.
@@ -88,6 +88,22 @@ Minimal mergeable slice: atomic - with only the mount changed the Agent still wr
 Depends on: 2 (the tool no longer calls the manifest).
 Suggested fixture level: expanded - entries of the authentication guard matrix are removed.
 Minimal mergeable slice: 4.1 (the page stops requesting the list) - green alone because the endpoint still answers; 4.2 then removes handlers that have no caller. Between this group and group 3 a file uploaded from the standalone page is stored but shown nowhere on that page, because uploads still land in the old directory; that gap is accepted over the alternative order, in which the page would show a stale list of the old directory, and it affects only the standalone page, not the WebUI sidebar.
+
+### Preview upload-list removal risk coverage
+
+- Public API / CLI / script entry — Selected: standalone and terminal embed issue no upload list/manifest requests; status, sessions, processes and upload POST remain. Browser requests and visible controls provide evidence.
+- Config / project setup — Not selected: request wrapper, embedding modes and dependency versions remain unchanged.
+- File IO / path safety / overwrite — Not selected: server storage and upload naming remain unchanged.
+- Schema / columns / units / field names — Not selected: no server response contract changes.
+- Auth / permissions / secrets — Not selected: guard, proxy, CSP and request-wrapper behavior remain unchanged; existing browser isolation cases still pass.
+- Concurrency / shared state / ordering — Selected: after upload completion, standalone invokes the existing Files refresh directly. Freeze the polling clock in the browser case so a periodic poll cannot satisfy the refresh assertion. Terminal embed must not fetch Files.
+- Resource limits / large input / discovery — Not selected: no resource policy change.
+- Legacy compatibility / examples — Selected: preserve upload button, terminal controls, sessions/processes, Browser/Files embed behavior and server read handlers. The shared dashboard removal applies in both standalone and terminal embed.
+- Error handling / rollback / partial outputs — Selected: a removed list endpoint cannot empty the dashboard; preserve existing status/session/process error behavior and request aborts. Existing browser harness asserts no unexpected console errors.
+- Release / packaging / dependency compatibility — Not selected: no image or dependency changes.
+- Documentation / migration notes — Selected: attach a real standalone-panel screenshot to the PR, retaining the requested image under the existing screenshot convention if needed; state the accepted visibility gap until task 3.1.
+
+Run `tests/orchestrator/test_preview_prefix.py` and the full OCU unit suite. Separately run `tests/orchestrator/preview_embedding_browser.cjs` with Node 22, pinned Playwright 1.62.1 and Python 3.12 containing server requirements and pytest; it is a direct browser harness, not currently invoked by the Python module. Record an old-page failure before implementation, then a passing browser run with a standalone-panel PNG and zero unexpected console errors. The screenshot must be accessible from the PR, not only a local path.
 
 ## 5. [deploy] Proxy table without the upload read rows (spec: ocu-reverse-proxy)
 

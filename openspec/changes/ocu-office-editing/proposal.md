@@ -81,3 +81,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API; file IO; schema; auth; concurrency/ordering; legacy compatibility; error handling; documentation.
 - Evidence floor: all five tool methods, imported/new ids, consecutive calls, failed receipt reads, authenticated real transports, missing token, no manifest calls and reserved filename characters; focused/full OCU units and actual tool-to-HTTP smoke.
 - Scope: task 2.1 only; no server, proxy, mount, tool path-text, README, Valve or MCP transport changes.
+
+## Preview upload-list removal fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with the slice's suggested level because the dashboard is shared by standalone and terminal embed, with asynchronous upload/refresh ordering. This slice does not remove auth-matrix entries.
+- Blast radius: terminal dashboard availability, retained upload action and standalone Files refresh.
+- Selected risk packs: API; concurrency/ordering; legacy compatibility; error handling; documentation.
+- Evidence floor: preview Python tests, existing real Chromium harness across embed modes, no upload read requests, upload-triggered Files refresh independent of polling, standalone screenshot and zero unexpected console errors.
+- Scope: task 4.1 only; server handlers, proxy rows, mount cut-over and WebUI code remain unchanged.
