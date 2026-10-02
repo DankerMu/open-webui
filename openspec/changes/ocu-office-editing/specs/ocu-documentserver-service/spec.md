@@ -135,7 +135,7 @@ The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Seri
 
 #### Scenario: Release font directory follows the installed inventory
 
-- **WHEN** the deployment is started after a restore that selected a release root other than the one the captured configuration named
+- **WHEN** the deployment is started after a restore and activation that selected a release root other than the one the captured configuration named
 - **THEN** `OCU_RELEASE_FONTS_DIR` is the `fonts` entry beside the inventory `OCU_RELEASE_MANIFEST` names, DocumentServer mounts the fonts of the selected release, and no stored setting had to be rewritten for it
 
 #### Scenario: Empty operator directory
@@ -145,7 +145,7 @@ The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Seri
 
 ### Requirement: Always part of the deployment
 
-The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry's preflight SHALL check each of these settings before any service starts: the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, OCU's own control-plane address, the second proxy port, the release font directory and the operator-owned font directory, under the names the requirement "Setting names shared across components" fixes. When any one of them is missing, empty or invalid, the deployment entry SHALL fail naming that setting without printing any credential value.
+The DocumentServer service, the proxy's second listener and its published port SHALL be part of every deployment of this overlay, whether the Office editing flag is on or off, so that the deployment has one shape: one set of compose services, two proxy listeners and seven images. The Office editing flag SHALL only decide whether WebUI offers editing; it SHALL NOT add or remove the service, the listener or the port. The deployment entry's preflight SHALL check each of these settings before any service starts: the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, OCU's own control-plane address, the second proxy port and the operator-owned font directory, under the names the requirement "Setting names shared across components" fixes, and the release font directory, which is not a stored setting and is checked through the font check of `ocu-offline-image-delivery`. When any one of them is missing, empty or invalid, the deployment entry SHALL fail naming that setting without printing any credential value.
 
 #### Scenario: Office editing flag off
 
