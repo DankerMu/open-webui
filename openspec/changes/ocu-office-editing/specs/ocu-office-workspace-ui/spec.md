@@ -121,7 +121,7 @@ For an editable Office entry the sidebar SHALL offer a history view that lists t
 
 ### Requirement: Conflict resolution and change notice
 
-When the host page reports `conflict`, including when a file whose close-time publish conflicted is opened again, the sidebar SHALL present a conflict dialog. The dialog SHALL offer `save as new file` as the default action and `overwrite` as a second action that requires a second explicit confirmation before any request is sent. When the conflict reason reports that the original path no longer exists, only `save as new file` SHALL be offered. The chosen action SHALL be sent by the parent to `POST /ocu/api/office/{chat}/sessions/{session}/resolve` as `save_as` or `overwrite`. Dismissing the dialog SHALL resolve nothing and SHALL leave the conflict state visible with a way to reopen the dialog; the UI SHALL offer no action that discards the user's content. A successful `save_as` SHALL NOT recreate the editor frame. While the host page reports `workspace_changed: true` the sidebar SHALL show a non-blocking "workspace file changed" notice; editing and saving SHALL remain available.
+When the host page reports `conflict`, including when a file whose close-time publish conflicted is opened again, the sidebar SHALL present a conflict dialog. The dialog SHALL offer `save as new file` as the default action and `overwrite` as a second action that requires a second explicit confirmation before any request is sent. When the conflict reason is `path_missing`, that is, the original path no longer exists, only `save as new file` SHALL be offered. The chosen action SHALL be sent by the parent to `POST /ocu/api/office/{chat}/sessions/{session}/resolve` as `save_as` or `overwrite`. Dismissing the dialog SHALL resolve nothing and SHALL leave the conflict state visible with a way to reopen the dialog; the UI SHALL offer no action that discards the user's content. A successful `save_as` SHALL NOT recreate the editor frame. While the host page reports `workspace_changed: true` the sidebar SHALL show a non-blocking "workspace file changed" notice; editing and saving SHALL remain available.
 
 #### Scenario: Default is save as new file (B-T06)
 
@@ -136,7 +136,7 @@ When the host page reports `conflict`, including when a file whose close-time pu
 
 #### Scenario: Path is gone (B-T13)
 
-- **WHEN** the conflict reason reports that the original path no longer exists
+- **WHEN** the host page reports `conflict` with reason `path_missing`
 - **THEN** the dialog offers only `save as new file`
 
 #### Scenario: Pending conflict on reopen (B-T06)

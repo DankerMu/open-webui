@@ -13,7 +13,7 @@ Minimal mergeable slice: 1.1 (server mount and recovery map with their tests) - 
 
 ## 2. [ocu] Path references in prompt, tools, skills and docs (spec: ocu-unified-files)
 
-- [ ] 2.1 Replace the legacy sandbox paths with `/mnt/user-data/files` in `system_prompt.py`, the `mcp_tools.py` tool text, the agent configuration and README embedded in the sandbox `Dockerfile`, and the public skills that name them (`file-reading`, `sub-agent`, `webapp-testing`, the example skill); state once that uploaded and generated files share this directory. Verify: the existing prompt and tool tests are updated to the new path and pass.
+- [ ] 2.1 Replace the legacy sandbox paths with `/mnt/user-data/files` in `system_prompt.py`, the `mcp_tools.py` tool text, the browser download directory in `static/browser-viewer.js`, the agent configuration and README embedded in the sandbox `Dockerfile`, and the public skills that name them (`file-reading`, `sub-agent`, `webapp-testing`, the example skill); state once that uploaded and generated files share this directory. Verify: the existing prompt and tool tests are updated to the new path and pass.
 - [ ] 2.2 Update the OCU docs and diagrams that name the legacy paths, and add a repository test that fails on any tracked reference to `/mnt/user-data/uploads` or `/mnt/user-data/outputs` outside a short explicit allowlist. Verify: the guard test passes and fails when a legacy reference is reintroduced (shown once in the PR).
 
 Suggested fixture level: compact - text and documentation only; the behaviour they describe is owned by group 1.

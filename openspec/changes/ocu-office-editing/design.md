@@ -122,12 +122,12 @@ Alternative rejected: routes keyed by `file_id` without a chat segment. They nee
 
 ### D8. One user-visible save; publish on save and on close
 
-| Trigger                                                                     | Effect                                                                        |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Save (the WebUI status bar button)                                          | persist, then publish                                                         |
-| Every 5 minutes while the document is dirty, driven by the editor host page | persist only; shown in history as auto-saved, not published                   |
-| Leaving the editor (chat switch, sidebar close, editor close)               | session close; when the final callback reports changes: persist, then publish |
-| Page refresh or tab close with unpublished changes                          | browser-native `beforeunload` prompt                                          |
+| Trigger                                                                                                             | Effect                                                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Save (the WebUI status bar button)                                                                                  | persist, then publish                                                         |
+| Every 5 minutes when the editor reported a modification since the last save request, driven by the editor host page | persist only; shown in history as auto-saved, not published                   |
+| Leaving the editor (chat switch, sidebar close, editor close)                                                       | session close; when the final callback reports changes: persist, then publish |
+| Page refresh or tab close with unpublished changes                                                                  | browser-native `beforeunload` prompt                                          |
 
 The WebUI status bar button is the only save. The editor's own save command (Ctrl+S) is left as DocumentServer ships it with user-initiated force save off: it flushes the edit to DocumentServer and produces no callback, so it neither persists nor publishes. The host page cannot intercept it, because the editor runs in DocumentServer's own cross-origin frame, and a callback the broker did not request would have no `save_seq` and no way for the host page to know what it covered. The status bar therefore keeps showing unsaved after Ctrl+S, which is true; the content is published by the next save, or when the user leaves the editor. Known limitation, recorded in the user documentation.
 
@@ -165,15 +165,15 @@ Validate the callback (JWT, session, `save_seq`) → download only from the conf
 
 Always under `_combined_lock(chat)`:
 
-1. Run the outputs broker's reconcile (the lock is re-entrant), so a rename made since the last listing is in the index, and write the journal intent (document, version, expected baseline hash, temporary file name).
+1. Run the outputs broker's reconcile (the lock is re-entrant), so a rename made since the last listing is in the index, and resolve the document's path from its `file_id`. An id that no longer resolves is a conflict (D13) and the publish ends here. Otherwise write the journal intent (document, version, target path, temporary file name, expected baseline hash).
 2. If the sandbox is running: write `fence.json`, `pause`, reload and verify `State.Paused`. A pause failure is a publish failure; the version stays stored and the publish can be retried.
-3. Resolve the document's path from its `file_id` in the outputs broker's index; hash the current workspace file at that path.
-4. If the path is missing or the hash differs from the session baseline: conflict (D13), nothing is written.
+3. Hash the current workspace file at the resolved path.
+4. If the file is missing there or the hash differs from the session baseline: conflict (D13), nothing is written.
 5. Otherwise write the blob to a dot-prefixed temporary file in the target directory opened with `O_CREAT|O_EXCL|O_NOFOLLOW`, fsync, `lstat` every parent component (a symlink or a resolved path outside the chat's directory aborts), `os.replace`, fsync the directory.
 6. Register the write with the outputs broker so the entry's hash and `revision` are updated in the same locked transaction.
 7. `unpause`, remove `fence.json`, write the journal completion, set the session baseline to the published hash.
 
-The reconcile runs before the pause so that directory scanning and hashing of unrelated files do not count against the pause window. A rename in the gap between reconcile and pause is seen as a missing path and becomes a conflict, which is safe.
+Reconcile and resolve run before the pause so that directory scanning and hashing of unrelated files do not count against the pause window. A rename in the gap between resolve and pause leaves no file at the resolved path and becomes a conflict, which is safe.
 
 Target window under pause: below 1 second. Past 5 seconds the publish is failed and the sandbox is unpaused. When the sandbox is not running the same steps run without pause; `launch` takes the same lock and therefore waits.
 
