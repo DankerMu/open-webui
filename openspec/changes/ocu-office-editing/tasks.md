@@ -8,7 +8,7 @@ Dependency rule. A group that touches the shared directory, or that edits a list
 
 ## 1. [ocu] Upload endpoint never overwrites and keeps import receipts (spec: ocu-unified-files)
 
-- [ ] 1.1 `POST /api/uploads/{chat_id}/{path}` writes under the per-chat lock through a dot-prefixed temporary file and a no-replace claim of the final name (hard link, not rename), stores a colliding name as `name (2).ext`, and returns the final name. The claim is one helper function, which groups 16 and 17 call for `save_as`. The destination directory is not changed in this group. Verify: new tests cover a fresh name, a collision, two concurrent uploads of one name, a same-named file created by a writer that holds no lock between the check and the claim, a symlink occupying the name, and traversal rejection.
+- [x] 1.1 `POST /api/uploads/{chat_id}/{path}` writes under the per-chat lock through a dot-prefixed temporary file and a no-replace claim of the final name (hard link, not rename), stores a colliding name as `name (2).ext`, and returns the final name. The claim is one helper function, which groups 16 and 17 call for `save_as`. The destination directory is not changed in this group. Verify: new tests cover a fresh name, a collision, two concurrent uploads of one name, a same-named file created by a writer that holds no lock between the check and the claim, a symlink occupying the name, and traversal rejection.
 - [ ] 1.2 Import receipts: honour `X-OCU-Attachment-Id`, persist receipts in `{chat}/.ocu/imports.json` in the same locked section as the file, add `GET /api/uploads/{chat_id}/imports` behind the internal token, teach `auth_guard` the route shape, and never create a chat directory on a read. Verify: tests show a second upload with the same id writes nothing, an edited / renamed / deleted import is neither overwritten nor recreated, a different id with the same name is deduplicated, two concurrent uploads of one id store one file, the imports route rejects a missing token, and reading the imports of an unknown chat creates no directory.
 
 Depends on: none.
@@ -30,6 +30,22 @@ Minimal mergeable slice: 1.1 (no-replace claim and deduplication) - green alone 
 - Documentation / migration notes — Selected: PR documents retained destination and transitional duplicate copies; no migration or mount changes.
 
 Run the OCU unit command in its `AGENTS.md`, including the new endpoint tests and excluding integration tests. Record the new regression cases failing against the unchanged handler before implementation, then passing with the change. An HTTP smoke uploads distinct bytes twice under one name and reads both stored files; include response names and byte comparisons in the evidence.
+
+### Import-receipt slice risk coverage
+
+- Public API / CLI / script entry — Selected: upload header identifies an attachment; authenticated GET imports returns `{"ids": [...]}`. Endpoint tests cover exact ids and repeated stored names.
+- Config / project setup — Not selected: no settings or dependencies change.
+- File IO / path safety / overwrite — Selected: receipts live under the chat's `.ocu`, outside uploads; edited, renamed and deleted imports stay unchanged; a different id deduplicates through the existing helper.
+- Schema / columns / units / field names — Selected: persist attachment id, stored name and import time; preserve the upload response fields, with original import metadata on acknowledgement. Corrupt receipts fail explicitly without re-import.
+- Auth / permissions / secrets — Selected: add imports to the internal-token matrix; missing token is 401 before reads and noncanonical chat ids follow the existing guard. No proxy row; gateway denial belongs to task 21.1.
+- Concurrency / shared state / ordering — Selected: check, upload claim and receipt publication share one canonical lock; two separate workers importing one id produce one receipt and one file, while distinct ids are not lost.
+- Resource limits / large input / discovery — Not selected: no new quotas or discovery policy.
+- Legacy compatibility / examples — Selected: headerless uploads create new deduplicated files without receipt changes; uploads destination, no-replace helper and sandbox-readable permissions remain intact.
+- Error handling / rollback / partial outputs — Selected: receipt-write failure is explicit, leaves prior receipts intact and may leave one complete unreceipted file; retry deduplicates, never deletes an existing upload. GET of an absent chat creates no directory, lock file or sandbox.
+- Release / packaging / dependency compatibility — Not selected: no image/dependency changes.
+- Documentation / migration notes — Selected: record response and receipt shape for the attachment-sync consumer; no migration or receipt pruning.
+
+Run the existing OCU unit command, including the receipt endpoint cases and guard matrix. Capture an import-twice test red before production changes; verify all acceptance paths after implementation. Runtime evidence: real HTTP imports one id, modifies or removes its file, repeats the upload, and observes the original receipt name without resurrection; an authenticated absent-chat imports read returns an empty ids array and leaves the chat absent.
 
 ## 2. [ocu] Tool attachment sync imports once (spec: ocu-unified-files, ocu-tool-auth)
 
