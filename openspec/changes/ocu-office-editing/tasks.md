@@ -15,6 +15,22 @@ Depends on: none.
 Suggested fixture level: expanded - file writes into shared state, overwrite safety, a new guarded route.
 Minimal mergeable slice: 1.1 (no-replace claim and deduplication) - green alone and safe at runtime because the deployed tool compares checksums with the manifest and the uploads directory is read-only in the sandbox, so it does not re-upload an unchanged attachment whose checksum the manifest returned. Two cases re-upload until 2.1 lands, and each then stores a copy as `name (n).ext`: two different attachments with the same name, of which the manifest can describe only one; and a manifest read that fails or times out, after which the old tool uploads every attachment. Files accumulate in both cases; nothing is lost or overwritten, where the old endpoint overwrote in place. 1.2 adds receipts on top.
 
+### Name-claim slice risk coverage
+
+- Public API / CLI / script entry — Selected: POST upload returns the actual stored name in `UploadResponse.filename`; endpoint tests assert bytes and response.
+- Config / project setup — Not selected: no configuration or setup change.
+- File IO / path safety / overwrite — Selected: fresh name, occupied file and symlink, next numbered name, traversal and external directory symlink; assert existing entries untouched.
+- Schema / columns / units / field names — Selected: preserve `status`, `filename`, `size`, `md5`; test their values against stored content.
+- Auth / permissions / secrets — Not selected: guard and proxy unchanged; existing authorization tests remain in the unit run.
+- Concurrency / shared state / ordering — Selected: concurrent threads and separate workers, plus an unlocked writer winning a candidate name; both successful responses identify complete files containing their own bytes.
+- Resource limits / large input / discovery — Not selected: no new upload limits or discovery behavior.
+- Legacy compatibility / examples — Selected: destination remains `uploads`; manifest/list and deployed tool remain unchanged. Endpoint tests and existing unit suite cover consumers.
+- Error handling / rollback / partial outputs — Selected: no temporary entry after success or rejection; inject a write/claim failure and assert cleanup without modifying an existing entry.
+- Release / packaging / dependency compatibility — Not selected: no image or dependency change.
+- Documentation / migration notes — Selected: PR documents retained destination and transitional duplicate copies; no migration or mount changes.
+
+Run the OCU unit command in its `AGENTS.md`, including the new endpoint tests and excluding integration tests. Record the new regression cases failing against the unchanged handler before implementation, then passing with the change. An HTTP smoke uploads distinct bytes twice under one name and reads both stored files; include response names and byte comparisons in the evidence.
+
 ## 2. [ocu] Tool attachment sync imports once (spec: ocu-unified-files, ocu-tool-auth)
 
 - [ ] 2.1 `openwebui/tools/computer_use_tools.py`: read the imported ids, upload only attachments without a receipt and send their WebUI file id, upload everything when the read fails, and sync whenever the tool call carries attachments instead of matching path text. Verify: `tests/test_tools.py` proves an already imported attachment is not uploaded again after the stored file changed, a new attachment is uploaded once with its id, two consecutive tool calls leave one stored file, every request carries the internal token, and the manifest endpoint is no longer called.
