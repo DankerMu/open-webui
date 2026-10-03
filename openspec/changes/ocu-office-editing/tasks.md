@@ -6,6 +6,8 @@ Work packages: B0 = groups 1–7, B1 = group 8, B2 = groups 9–14, B3 = groups 
 
 Dependency rule. A group that touches the shared directory, or that edits a list another group also edits as a whole — the guard's prefix list and its test matrix, the route table and its pin, the release role list, the deploy test fixtures, the stub scenario list — has a `Depends on:` path to the group that edits it before, so no two groups can merge in either order. Every Office group in the OCU server reaches the B0 cut-over (group 3) through group 11. Groups 9, 10, 18 and 23 touch neither the shared directory nor such a list and carry no B0 edge. Separate hunks in `app.py` (a new route registration, one response header) are not treated as a shared edit.
 
+Source execution exception (user ruling, 2026-10-03): “119那边我在测试，你不用管。可以落地，先推进吧。” The requested groups may implement and merge source while the user owns B1 testing. This overrides the B1 start gate for that source queue only; it supplies no measured values, go verdict, licence judgement or release acceptance. Other DAG edges remain in force. Any implementation requiring an unavailable B1 value must name that missing input rather than invent one.
+
 ## 1. [ocu] Upload endpoint never overwrites and keeps import receipts (spec: ocu-unified-files)
 
 - [x] 1.1 `POST /api/uploads/{chat_id}/{path}` writes under the per-chat lock through a dot-prefixed temporary file and a no-replace claim of the final name (hard link, not rename), stores a colliding name as `name (2).ext`, and returns the final name. The claim is one helper function, which groups 16 and 17 call for `save_as`. The destination directory is not changed in this group. Verify: new tests cover a fresh name, a collision, two concurrent uploads of one name, a same-named file created by a writer that holds no lock between the check and the claim, a symlink occupying the name, and traversal rejection.
@@ -248,12 +250,28 @@ Minimal mergeable slice: atomic - the go/no-go decision is the gate and is only 
 
 ## 9. [ocu] Outputs broker: resolve and register (spec: ocu-outputs-broker)
 
-- [ ] 9.1 Resolve a `file_id` to its current relative path from persisted state, failing explicitly for unknown and tombstoned ids, without scanning, hashing or starting a sandbox. Verify: broker tests for an active id, a renamed file recorded by a reconcile, a tombstone, an unknown id and a corrupt index.
+- [x] 9.1 Resolve a `file_id` to its current relative path from persisted state, failing explicitly for unknown and tombstoned ids, without scanning, hashing or starting a sandbox. Verify: broker tests for an active id, a renamed file recorded by a reconcile, a tombstone, an unknown id and a corrupt index.
 - [ ] 9.2 Register a host-side write for a path inside the caller's locked transaction: refresh the hash from content, increment the counter once, stamp the entry, also when the size is unchanged; create an entry with a new `file_id` for an unindexed path; reject paths outside the root, symlinks and hidden names. Verify: broker tests for a same-size write, a size change, an unindexed path, and each rejection; a concurrent reconcile does not lose the revision.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - persisted shared index with a monotonic counter relied on by WebUI.
 Minimal mergeable slice: 9.1 (read-only resolution) - green alone because it adds a read over existing state; 9.2 adds the write path.
+
+### Read-only resolution risk coverage
+
+- Public API / CLI / script entry — Selected: `OutputsBroker.resolve_file_id(chat_id, file_id)` returns the indexed relative path; a dedicated `FileIdNotFoundError` distinguishes absence from `CorruptIndexError`.
+- Config / project setup — Not selected: no settings or setup changes.
+- File IO / path safety / overwrite — Selected: reuse the validated, confined index reader; preserve index bytes on success and error, never open workspace content or follow workspace symlinks.
+- Schema / columns / units / field names — Selected: preserve the existing index schema, active identities, tombstones and counter. Test reconciled rename, deletion followed by path reuse, and unchanged bytes/counter.
+- Auth / permissions / secrets — Not selected: no HTTP route, credential or authorization change; canonical chat handling stays with the broker.
+- Concurrency / shared state / ordering — Selected: canonical RLock plus flock surrounds the read; test same-thread nesting and a separate writer holding the lock while resolution waits for its committed successor.
+- Resource limits / large input / discovery — Selected: retain existing bounded index validation; resolve without scanning or hashing workspace content, including when the indexed path is absent.
+- Legacy compatibility / examples — Selected: run the existing broker test module; reconciliation, paging and `current_revision` are unchanged.
+- Error handling / rollback / partial outputs — Selected: unknown, malformed, tombstoned and absent-index ids produce not-found; malformed/unreadable persisted state retains its existing error and bytes. No index is created on absence. A lock may create the chat directory; preventing that belongs to the Office route.
+- Release / packaging / dependency compatibility — Not selected: no image, dependency or packaging change.
+- Documentation / migration notes — Selected: this fixture records the public operation and source-only evidence boundary; no migration.
+
+Run the OCU unit command from its `AGENTS.md`, narrowed to `tests/orchestrator/test_outputs_broker.py`, with red-before/green-after evidence for the new behavior. A throwaway real-filesystem smoke indexes a file, renames and reconciles it, resolves inside an already-held lock, removes and reconciles it, then observes not-found with unchanged index bytes. Docker access must fail if attempted. Do not claim DocumentServer or deployment acceptance.
 
 ## 10. [ocu] Office broker store (spec: ocu-office-store)
 

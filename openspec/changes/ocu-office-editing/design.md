@@ -314,6 +314,16 @@ Restore runs the same fence. It first stores the current workspace content as a 
 
 The outputs broker gains two operations used here: resolve a `file_id` to its current path (a read of the persisted index; no scan, no hashing), and register a host-side write for a path. Registering a path that has no active entry creates one with a new `file_id`; this is how a `save_as` copy (D13) gets its identity.
 
+#### Read-only resolution boundary
+
+Task 9.1 adds `OutputsBroker.resolve_file_id(chat_id, file_id) -> str` and `FileIdNotFoundError`, using the canonical chat normalization, root-safety checks, `_combined_lock` and validated `_read_index` already used by `current_revision`. It searches only active persisted entries, never the workspace. Exact stored UUID identity is used; malformed or unmatched ids fail as not-found. Corrupt-index errors remain distinguishable and are not reset or translated into absence.
+
+Governing invariant: resolution observes one locked index snapshot without changing its bytes, counter or identities and without contacting Docker. A filesystem rename is followed only after reconciliation records it. The operation does not assert that the indexed file still exists; downstream safe reads own that check.
+
+Sibling surfaces: `reconcile` produces active entries and tombstones; `_read_index` validates them; `current_revision` shares the read and lock pattern; later session creation maps not-found to `unknown_file`, and publish maps it to `path_missing` while corruption becomes `index_unavailable`. These consumers are not implemented in task 9.1.
+
+Evidence targets the public broker seam over real temporary storage: active/nested paths, recorded and unrecorded rename, deletion followed by path reuse, absent/malformed ids, absent/corrupt index, nested same-thread locking and cross-process exclusion. Index bytes and counters stay unchanged across resolution. Existing broker tests retain path confinement, paging and revision behavior. No new route, state format, sandbox lifecycle behavior or registration path is introduced.
+
 ### D12. Stale-fence recovery, the session sweep, and why nothing else needs to yield
 
 `fence.json` records when the pause began. OCU's startup sweep and the existing idle-reclamation poll take the chat lock, and if they find a marker older than the 5-second limit they unpause the sandbox and remove the marker once it is observed not paused. A broker crash or a failed unpause therefore cannot leave a sandbox frozen for longer than one poll interval. A paused sandbox without a marker was not paused by a publish and is left alone.
