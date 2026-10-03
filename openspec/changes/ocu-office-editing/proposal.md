@@ -138,3 +138,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Scope: task 7.1 only, in WebUI harness scripts, proxy Hurl files and the OCU SHA pin. No backend, frontend, e2e, CI or OCU source edits.
 - Selected risk packs: script/API entry, configuration, file-name/overwrite semantics, response fields, auth containment, shared-state ordering, compatibility, errors and documentation. Memory-only fixture state is not a production storage implementation.
 - Evidence floor: semantic red then green for stub upload/list/dedup; native nginx and real WebUI ownership smoke with no-contact retired GETs and upload byte fidelity; existing workspace browser cases against the pinned assets. No image work or Office acceptance.
+
+## Uploaded-file browser evidence fixture
+
+- Issue type: test; fixture level: compact, matching the suggested level. One browser case consumes existing upload, auth and listing contracts; it changes none of those mechanisms.
+- Scope: task 7.2, the workspace e2e spec and an existing fixture helper only if needed. User-approved evidence exception: commit one compressed screenshot under `docs/evidence/issue-118/` and link it in the PR, without changing CI.
+- Blast radius: test isolation and the reliability of upload-to-visible-Files evidence; production behavior remains unchanged.
+- Selected risk packs: test entry, auth provenance, browser reconciliation ordering, error observation and evidence documentation. No new design decision; the shared design remains unchanged.
+- Evidence floor: a negative control without the upload fails the visible-filename assertion; the real owner multipart POST makes its returned filename visible in the saved chat's Files panel. The complete `make verify-ui-ocu` run passes with zero unexpected console/page errors and an inspected screenshot.

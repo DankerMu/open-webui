@@ -1,6 +1,7 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 import {
+	createScenarioChat,
 	observeNativeOcuPopup,
 	recordAnchorClicks,
 	watchContextLifecycle,
@@ -762,5 +763,32 @@ test('A-T10 real Office renderer succeeds and corrupt Office preserves parent do
 	for await (const chunk of stream) bytes.push(Buffer.from(chunk));
 	expect(Buffer.concat(bytes)).toEqual(Buffer.from('not a ZIP document'));
 	await page.screenshot({ path: `${evidence}/workspace-corrupt-office.png`, fullPage: true });
+	expect(seen.errors).toEqual([]);
+});
+
+test('B0 owner upload through the gateway appears in Files', async ({ page }) => {
+	const seen = observe(page);
+	const chatId = await createScenarioChat(page, 'empty');
+	context.chats.upload = chatId;
+	const panel = await openWorkspace(page, 'upload');
+	const name = 'gateway-upload.html';
+	await expect(panel.getByRole('button', { name, exact: true })).toHaveCount(0);
+	const uploaded = await page.evaluate(
+		async ({ chatId, name }) => {
+			const body = new FormData();
+			body.append('file', new File(['Gateway upload'], name));
+			const response = await fetch(`/ocu/api/uploads/${chatId}/${encodeURIComponent(name)}`, {
+				method: 'POST',
+				headers: { 'X-Requested-With': 'ocu-workspace' },
+				body
+			});
+			return { status: response.status, filename: (await response.json()).filename };
+		},
+		{ chatId, name }
+	);
+	expect(uploaded.status).toBe(200);
+	expect(uploaded.filename).toBe(name);
+	await expect(panel.getByRole('button', { name: uploaded.filename, exact: true })).toBeVisible();
+	await page.screenshot({ path: `${evidence}/workspace-upload.png`, fullPage: true });
 	expect(seen.errors).toEqual([]);
 });

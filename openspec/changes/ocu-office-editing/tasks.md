@@ -208,8 +208,8 @@ Run the module on the real branch. In a disposable Git fixture with the unchange
 
 ## 7. [webui] Stub, pin and smoke for the unified directory (spec: ocu-stub, ocu-proxy-smoke)
 
-- [ ] 7.1 `scripts/ocu-stub.py`: drop the manifest and list routes and make uploads appear in the outputs listing under a deduplicated name; bump the OCU pin in `constraints.yaml` to a commit that holds groups 3 and 5 and does not yet hold group 31 (the pin is a commit SHA, not a branch head; from group 31 on the pinned renderer needs listener inputs that this harness passes only from 34.1 on); update `scripts/smoke-proxy.py` and `smoke/proxy/*.hurl` so the upload chain no longer reads the manifest or list and the removed rows are asserted as 404 without upstream contact. Verify: `make smoke-stub` and `make smoke-proxy` pass.
-- [ ] 7.2 Extend `e2e/ocu-workspace.e2e.ts`: a file uploaded through the proxied upload row appears in the Files panel. Verify: `make verify-ui-ocu` passes with a screenshot.
+- [x] 7.1 `scripts/ocu-stub.py`: drop the manifest and list routes and make uploads appear in the outputs listing under a deduplicated name; bump the OCU pin in `constraints.yaml` to a commit that holds groups 3 and 5 and does not yet hold group 31 (the pin is a commit SHA, not a branch head; from group 31 on the pinned renderer needs listener inputs that this harness passes only from 34.1 on); update `scripts/smoke-proxy.py` and `smoke/proxy/*.hurl` so the upload chain no longer reads the manifest or list and the removed rows are asserted as 404 without upstream contact. Verify: `make smoke-stub` and `make smoke-proxy` pass.
+- [x] 7.2 Extend `e2e/ocu-workspace.e2e.ts`: a file uploaded through the proxied upload row appears in the Files panel. Verify: `make verify-ui-ocu` passes with a screenshot.
 
 Depends on: 3, 5.
 Suggested fixture level: compact - deterministic test infrastructure following an already reviewed table.
@@ -227,6 +227,15 @@ Minimal mergeable slice: 7.1 (stub, pin, smoke) - green alone because the pinned
 Extend `make smoke-stub` before the stub implementation and retain its semantic failure. Its green run must show retired GET 404s, multipart upload/list/retrieval, duplicate-name preservation, chat isolation and invalidated listing ETag. `make smoke-proxy` must assert owner retired GET 404s with no observation delta and upload POST body fidelity followed by the stored filename in the outputs listing. Run the existing stub-public pytest module read-only and `make verify-ui-ocu` for pinned-asset regressions; the new browser upload case belongs to task 7.2. Record exact command output, strict OpenSpec and doc/decision checks. All image execution remains deferred.
 
 The stub smoke also submits a malformed multipart envelope and requires an explicit non-2xx response with the listing and its revision unchanged. The real OCU response shape replaces the unused `{stored, chat}` stub shape; no aliases are retained. The gateway upload probe uses multipart too, with its observation digest still covering the entire HTTP body rather than just the extracted file bytes.
+
+### Uploaded-file browser evidence
+
+- Test entry / auth provenance — Selected: a saved owner chat with Files open sends a real multipart upload through the pinned nginx gateway, using its authenticated browser session and the required mutation header/origin. No sidebar upload control, mocked route or direct store mutation.
+- Ordering / errors — Selected: assert the filename is absent before POST, require HTTP 200 and the returned stored filename, then wait for normal workspace reconciliation to render that name inside the Files panel. Reuse existing console/page-error observation and preserve all current cases.
+- Evidence documentation — Selected: retain a screenshot under `.run/ui-evidence/`, inspect it, commit one compressed copy under `docs/evidence/issue-118/` (user-approved scope exception), and embed the immutable commit URL in the PR.
+- Config, file storage/path validation, schema, quotas, packaging and migration — Not selected: the case consumes the merged harness without changing it. No production, stub, smoke, CI or OCU edits.
+
+Qualify the visible-file oracle with an omitted-POST negative control, then restore the real upload and run the full `make verify-ui-ocu` suite. Report this as test-oracle qualification, not a production regression fixed by this test-only issue. Run strict OpenSpec, doc and decision checks; do not claim real sandbox or DocumentServer acceptance.
 
 ## 8. [webui] B1 release verification of DocumentServer (spec: ocu-office-verification)
 
