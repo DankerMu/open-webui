@@ -442,11 +442,21 @@ class Smoke:
     def extra_matrix(self) -> None:
         self._encoded_file()
         assert_download_variants(self.proxy_port, self.chat_id, self.owner_cookie)
+        for name in ('manifest', 'list'):
+            before = len(observations(self.record))
+            path = f'/ocu/api/uploads/{self.chat_id}/{name}'
+            status, _, _ = http_raw(
+                '127.0.0.1', self.proxy_port, 'GET', path, headers={'Cookie': self.owner_cookie}
+            )
+            if status != 404:
+                fail(f'pinned table mismatch: retired GET {path} expected 404, got {status}')
+            if observations(self.record)[before:]:
+                fail(f'retired GET {path} contacted OCU')
         mutation = {
             'Cookie': self.owner_cookie,
             'Origin': self.origin,
             'X-Requested-With': 'ocu-workspace',
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': 'multipart/form-data; boundary=proxy-upload-boundary',
         }
         json_headers = {
             'Cookie': self.owner_cookie,
@@ -454,27 +464,17 @@ class Smoke:
             'X-Requested-With': 'ocu-workspace',
             'Content-Type': 'application/json',
         }
-        payload = b'proxy-upload-bytes'
+        payload = (
+            b'--proxy-upload-boundary\r\nContent-Disposition: form-data; name="file"; '
+            b'filename="owner.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
+            b'proxy-upload-bytes\r\n--proxy-upload-boundary--\r\n'
+        )
         chains = (
-            (
-                f'/ocu/api/uploads/{self.chat_id}/manifest',
-                mutation,
-                payload,
-                f'/ocu/api/uploads/{self.chat_id}/manifest',
-                {'Cookie': self.owner_cookie},
-            ),
-            (
-                f'/ocu/api/uploads/{self.chat_id}/list',
-                mutation,
-                payload,
-                f'/ocu/api/uploads/{self.chat_id}/list',
-                {'Cookie': self.owner_cookie},
-            ),
             (
                 f'/ocu/api/uploads/{self.chat_id}/owner.bin',
                 mutation,
                 payload,
-                f'/ocu/preview/{self.chat_id}',
+                f'/ocu/api/outputs/{self.chat_id}',
                 {'Cookie': self.owner_cookie},
             ),
             (
@@ -549,6 +549,10 @@ class Smoke:
             fail(f'POST {path} then GET {follow} expected 200, got {status}')
         if self.token.encode() in follow_raw or any(self.token in f'{n}:{v}' for n, v in follow_headers_out):
             fail(f'follow-up {follow} leaked internal token')
+        if path.startswith('/ocu/api/uploads/'):
+            stored = json.loads(raw)['filename']
+            if not any(entry['path'] == stored for entry in json.loads(follow_raw)['files']):
+                fail(f'uploaded {stored} missing from proxied outputs listing')
 
     def _denied_uploads(self, mutation: dict[str, str], payload: bytes) -> None:
         before = len(observations(self.record))
@@ -556,7 +560,7 @@ class Smoke:
             '127.0.0.1',
             self.proxy_port,
             'POST',
-            f'/ocu/api/uploads/{self.chat_id}/manifest',
+            f'/ocu/api/uploads/{self.chat_id}/owner.bin',
             headers={**mutation, 'Origin': 'null'},
             body=payload,
         )

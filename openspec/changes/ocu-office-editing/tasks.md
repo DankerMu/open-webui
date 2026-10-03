@@ -176,7 +176,7 @@ Run `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v` 
 ## 6. [ocu] Docs and the repository guard for the legacy paths (spec: ocu-unified-files)
 
 - [x] 6.1 Update the OCU docs and diagrams that name the legacy paths or the removed upload read endpoints, `static/docs.html` and `computer-use-server/README.md` among them. Verify: the documents render and their links resolve.
-- [ ] 6.2 Add a repository test that fails on any tracked reference to `/mnt/user-data/uploads` or `/mnt/user-data/outputs` outside a short explicit allowlist. Verify: the guard test passes and fails when a legacy reference is reintroduced (shown once in the PR).
+- [x] 6.2 Add a repository test that fails on any tracked reference to `/mnt/user-data/uploads` or `/mnt/user-data/outputs` outside a short explicit allowlist. Verify: the guard test passes and fails when a legacy reference is reintroduced (shown once in the PR).
 
 Depends on: 3, 4 (the guard can pass only when the mount, the tool text and the list handler no longer name the paths).
 Suggested fixture level: compact - documentation and a text guard; the behaviour is owned by group 3.
@@ -214,6 +214,19 @@ Run the module on the real branch. In a disposable Git fixture with the unchange
 Depends on: 3, 5.
 Suggested fixture level: compact - deterministic test infrastructure following an already reviewed table.
 Minimal mergeable slice: 7.1 (stub, pin, smoke) - green alone because the pinned table and the stub change together; 7.2 adds one browser case.
+
+### Unified-directory harness risk coverage
+
+- Public API / script entry and schema — Selected: stub upload responses use the pinned OCU `filename`, `status`, `size` and `md5` fields; multipart file bytes become a listed and retrievable file. Retire GET manifest/list only, preserving uploads with those literal names.
+- Configuration / compatibility — Selected: pin one full remote OCU SHA containing the mount and 20-row gateway cuts, before the second listener. Keep the private body-digest observation contract and existing fixture scenarios, pagination, conditional reads and generated-content headers.
+- File names / overwrite and shared state — Selected: serialize name claiming and state publication in the threaded stub, deduplicate against existing fixture and uploaded names, isolate chats, and leave the first file's bytes, id and revision unchanged. Listing revision advances on each successful upload; conditional requests cannot return stale 304 after it.
+- Auth / secrets — Selected: real nginx plus WebUI owner/nonowner cookies prove retired GETs return 404 without an upstream arrival; accepted upload body digests match, foreign and opaque-origin writes remain denied before OCU, and no credential leaks.
+- Errors — Selected: malformed multipart input fails without publishing a file. The pinned-table mismatch remains a named hard failure, never a skipped matrix assertion.
+- Documentation — Selected: this fixture records the harness contract and evidence boundary. Resource quotas, durable storage, production parser hardening, packaging and dependency updates are not selected; no disk-backed upload service is introduced.
+
+Extend `make smoke-stub` before the stub implementation and retain its semantic failure. Its green run must show retired GET 404s, multipart upload/list/retrieval, duplicate-name preservation, chat isolation and invalidated listing ETag. `make smoke-proxy` must assert owner retired GET 404s with no observation delta and upload POST body fidelity followed by the stored filename in the outputs listing. Run the existing stub-public pytest module read-only and `make verify-ui-ocu` for pinned-asset regressions; the new browser upload case belongs to task 7.2. Record exact command output, strict OpenSpec and doc/decision checks. All image execution remains deferred.
+
+The stub smoke also submits a malformed multipart envelope and requires an explicit non-2xx response with the listing and its revision unchanged. The real OCU response shape replaces the unused `{stored, chat}` stub shape; no aliases are retained. The gateway upload probe uses multipart too, with its observation digest still covering the entire HTTP body rather than just the extracted file bytes.
 
 ## 8. [webui] B1 release verification of DocumentServer (spec: ocu-office-verification)
 

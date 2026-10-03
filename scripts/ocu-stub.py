@@ -13,11 +13,13 @@ import os
 import re
 import secrets
 import threading
+from email import policy
+from email.parser import BytesParser
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 log = logging.getLogger('ocu-stub')
 
@@ -125,6 +127,7 @@ _states: dict[str, str] = {
     'stopped': 'stopped',
     'never_created': 'never_created',
 }
+_uploads: dict[str, dict[str, tuple[bytes, dict]]] = {}
 
 DESCRIBE_RE = re.compile(r'^/internal/describe/([^/]+)$')
 LAUNCH_RE = re.compile(r'^/internal/launch/([^/]+)$')
@@ -132,7 +135,6 @@ OUTPUTS_RE = re.compile(r'^/api/outputs/([^/]+)$')
 ARCHIVE_RE = re.compile(r'^/files/([^/]+)/archive$')
 FILES_RE = re.compile(r'^/files/([^/]+)/(.+)$')
 PREVIEW_RE = re.compile(r'^/preview/([^/]+)$')
-UPLOAD_GET_RE = re.compile(r'^/api/uploads/([^/]+)/(manifest|list)$')
 UPLOAD_POST_RE = re.compile(r'^/api/uploads/([^/]+)/(.+)$')
 BROWSER_STATUS_RE = re.compile(r'^/browser/([^/]+)/status$')
 BROWSER_JSON_VERSION_RE = re.compile(r'^/browser/([^/]+)/json/version$')
@@ -205,7 +207,7 @@ def _launch(chat_id: str) -> tuple[int, dict]:
     return 200, {'state': 'running'}
 
 
-def _outputs(chat_id: str, query: dict | None = None) -> dict:
+def _fixture_outputs(chat_id: str) -> dict:
     scenario = _scenario(chat_id)
     if scenario is None:
         names = ('page.html', 'diagram.svg', 'data.xml', 'blob.bin')
@@ -230,19 +232,52 @@ def _outputs(chat_id: str, query: dict | None = None) -> dict:
         'drawio': ['diagram.drawio'],
         'drawio_embedded': ['diagram.drawio'],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
-    offset = int((query or {}).get('cursor', ['0'])[0])
-    if scenario == 'partial_after' and offset > 0:
-        raise ValueError('fixture later page is inaccessible')
-    window = names[offset : offset + 100]
-    next_cursor = str(offset + 100) if offset + 100 < len(names) else None
     return {
         'chat_id': chat_id,
         'revision': revision,
-        'files': [_fixture_file(chat_id, name, revision) for name in window],
+        'files': [_fixture_file(chat_id, name, revision) for name in names],
         'total': len(names),
         'timestamp': 1,
-        'next_cursor': next_cursor,
+        'next_cursor': None,
     }
+
+
+def _outputs(chat_id: str, query: dict | None = None) -> dict:
+    body = _fixture_outputs(chat_id)
+    with _LOCK:
+        uploaded = _uploads.get(chat_id, {})
+        body['files'].extend(entry for _, entry in uploaded.values())
+        body['revision'] += len(uploaded)
+    if 'total' in body:
+        offset = int((query or {}).get('cursor', ['0'])[0])
+        if _scenario(chat_id) == 'partial_after' and offset > 0:
+            raise ValueError('fixture later page is inaccessible')
+        body['total'] = len(body['files'])
+        body['next_cursor'] = str(offset + 100) if offset + 100 < body['total'] else None
+        body['files'] = body['files'][offset : offset + 100]
+    return body
+
+
+def _store_upload(chat_id: str, name: str, payload: bytes) -> dict:
+    with _LOCK:
+        fixture = _fixture_outputs(chat_id)
+        uploaded = _uploads.setdefault(chat_id, {})
+        occupied = set(FILES) | {entry['path'] for entry in fixture['files']} | uploaded.keys()
+        path = PurePosixPath(name)
+        stored = name
+        counter = 2
+        while stored in occupied:
+            stored = str(path.with_name(f'{path.stem} ({counter}){path.suffix}'))
+            counter += 1
+        entry = _fixture_file(chat_id, stored, fixture['revision'] + len(uploaded) + 1)
+        entry.update(
+            file_id=f'upload-{hashlib.sha256(stored.encode()).hexdigest()}',
+            url=f'{PREFIX}/files/{chat_id}/{quote(stored)}',
+            size=len(payload),
+            hash=hashlib.sha256(payload).hexdigest(),
+        )
+        uploaded[stored] = (payload, entry)
+    return {'status': 'success', 'filename': stored, 'size': len(payload), 'md5': hashlib.md5(payload).hexdigest()}
 
 
 def _listing_etag(body: dict, query: dict) -> str:
@@ -432,11 +467,14 @@ class StubHandler(BaseHTTPRequestHandler):
     def _archive(self, match: re.Match[str], _query: dict) -> None:
         self._json(200, {'chat': match.group(1), 'archive': True})
 
-    def _uploads_list(self, match: re.Match[str], _query: dict) -> None:
-        self._json(200, {'chat': match.group(1), 'kind': match.group(2), 'files': []})
-
     def _serve_file(self, match: re.Match[str], query: dict) -> None:
         name = unquote(match.group(2))
+        with _LOCK:
+            uploaded = _uploads.get(match.group(1), {}).get(name)
+        if uploaded is not None:
+            body, entry = uploaded
+            self._write(200, body, entry['mime'], _file_headers(name, query))
+            return
         if name == 'backend403':
             self._write(403, b'backend 403', 'text/plain; charset=utf-8')
             return
@@ -529,7 +567,30 @@ class StubHandler(BaseHTTPRequestHandler):
         self._json(200, {'success': True, 'chat': match.group(1)})
 
     def _upload_post(self, match: re.Match[str], _query: dict) -> None:
-        self._json(200, {'stored': unquote(match.group(2)), 'chat': match.group(1)})
+        name = unquote(match.group(2))
+        if name.startswith('/') or any(part in ('', '.', '..') for part in name.split('/')):
+            self._json(400, {'detail': 'Invalid filename'})
+            return
+        content_type = self.headers.get('Content-Type', '')
+        message = BytesParser(policy=policy.default).parsebytes(
+            f'Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n'.encode() + self._request_body
+        )
+        parts = [
+            part
+            for part in message.iter_parts()
+            if part.get_content_disposition() == 'form-data'
+            and part.get_param('name', header='content-disposition') == 'file'
+            and part.get_filename() is not None
+            and not part.is_multipart()
+        ]
+        if (
+            message.get_content_type() != 'multipart/form-data'
+            or any(part.defects for part in message.walk())
+            or len(parts) != 1
+        ):
+            self._json(422, {'detail': 'Expected multipart file field'})
+            return
+        self._json(200, _store_upload(match.group(1), name, parts[0].get_payload(decode=True)))
 
     def _serve_static(self, match: re.Match[str], _query: dict) -> None:
         if ASSET_ROOT.is_dir() and FIXTURE_PATH:
@@ -620,8 +681,10 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def _dispatch(self, method: str) -> None:
         extra: dict = {}
+        self._request_body = b''
         if method == 'POST':
             payload = self._read_body()
+            self._request_body = payload
             extra['body_sha256'] = hashlib.sha256(payload).hexdigest()
             extra['body_length'] = len(payload)
         _observe(self, extra or None)
@@ -661,7 +724,6 @@ _ROUTES = (
     ('GET', ARCHIVE_RE, StubHandler._archive),
     ('GET', FILES_RE, StubHandler._serve_file),
     ('GET', PREVIEW_RE, StubHandler._preview),
-    ('GET', UPLOAD_GET_RE, StubHandler._uploads_list),
     ('POST', UPLOAD_POST_RE, StubHandler._upload_post),
     ('GET', BROWSER_JSON_VERSION_RE, StubHandler._ok),
     ('GET', BROWSER_JSON_RE, StubHandler._browser_pages),

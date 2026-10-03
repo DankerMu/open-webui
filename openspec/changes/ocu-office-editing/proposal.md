@@ -130,3 +130,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Scope: task 6.2, one pytest guard module under OCU `tests/`; no CI/hook changes or cleanup of missed production references.
 - Selected risk packs: test entry point, Git setup, file discovery, legacy compatibility, fail-loud errors and documentation. The Git index defines membership; working-tree bytes supply content, without an extension filter that would omit SVGs.
 - Evidence floor: pass on the branch, reject both legacy literals in non-allowlisted tracked files with filenames reported, and ignore untracked files. Mutation proof uses a disposable Git fixture containing the real guard and branch document bytes, so repository production files are not altered to seed faults.
+
+## Unified-directory harness fixture
+
+- Issue type: test infrastructure; fixture level: expanded. Override the suggested compact level because the shared threaded stub gains mutable upload state and parses the browser's multipart input; its pinned gateway and consumers change atomically.
+- Blast radius: uploaded fixture bytes/names, per-chat listing revisions and ETags, the pinned gateway matrix, and existing browser scenarios sharing the threaded stub.
+- Scope: task 7.1 only, in WebUI harness scripts, proxy Hurl files and the OCU SHA pin. No backend, frontend, e2e, CI or OCU source edits.
+- Selected risk packs: script/API entry, configuration, file-name/overwrite semantics, response fields, auth containment, shared-state ordering, compatibility, errors and documentation. Memory-only fixture state is not a production storage implementation.
+- Evidence floor: semantic red then green for stub upload/list/dedup; native nginx and real WebUI ownership smoke with no-contact retired GETs and upload byte fidelity; existing workspace browser cases against the pinned assets. No image work or Office acceptance.
