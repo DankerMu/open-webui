@@ -324,6 +324,20 @@ Sibling surfaces: `reconcile` produces active entries and tombstones; `_read_ind
 
 Evidence targets the public broker seam over real temporary storage: active/nested paths, recorded and unrecorded rename, deletion followed by path reuse, absent/malformed ids, absent/corrupt index, nested same-thread locking and cross-process exclusion. Index bytes and counters stay unchanged across resolution. Existing broker tests retain path confinement, paging and revision behavior. No new route, state format, sandbox lifecycle behavior or registration path is introduced.
 
+#### Host-write registration boundary
+
+Task 9.2 adds `register_host_write(chat_id, path) -> dict`, returning the registered entry with `file_id` and `revision`. Its caller owns `_combined_lock(chat)` from before the workspace write until registration returns; the operation reenters the same lock rather than creating another transaction mechanism. Do not infer ownership from the process-wide flock-depth map.
+
+Governing invariant: one valid host write becomes one durable index successor, advancing the chat counter exactly once, retaining the active identity or assigning a fresh UUID, with no unrelated entry change. A subsequent unchanged reconcile must not count that write again.
+
+Read the existing validated index (or an empty index when absent), safely observe only the requested relative path, and reuse `_hash_observation` for a fresh hash even when size is unchanged. Use the existing relative-path validation and no-follow directory/regular-file primitives; no second hashing implementation, whole-tree scan or path-resolution shortcut. All validation and limits precede `_write_index`, which owns temp-file fsync, replace and directory fsync.
+
+Replace the selected active entry with refreshed metadata/hash/revision, regenerate consistent fingerprints through the existing helper, and preserve tombstones and sibling entries. A new entry never borrows a tombstone identity. A rejected path cannot create an index; a valid first registration may create it. Return only after the existing durable publication finishes.
+
+Errors use existing broker classes: unrepresentable/hidden paths fail name validation; unsafe paths, missing/unstable/non-regular targets and exceeded limits retain the safe-reader taxonomy. No consumer may assume every filesystem rejection has one exact subclass. A failure before replacement leaves the predecessor intact; a directory-fsync error after replacement keeps the existing explicit commit-durability failure semantics.
+
+Sibling surfaces: `reconcile` and `current_revision` observe the same index; `resolve_file_id` must resolve a newly assigned id; publish and save-as later consume the returned id/revision. Uploads remain reconcile-driven. Tests cover these read-side seams, real cross-process lock exclusion, fresh-process durability, path confinement and resource-limit rejection; none requires Office or Docker.
+
 ### D12. Stale-fence recovery, the session sweep, and why nothing else needs to yield
 
 `fence.json` records when the pause began. OCU's startup sweep and the existing idle-reclamation poll take the chat lock, and if they find a marker older than the 5-second limit they unpause the sandbox and remove the marker once it is observed not paused. A broker crash or a failed unpause therefore cannot leave a sandbox frozen for longer than one poll interval. A paused sandbox without a marker was not paused by a publish and is left alone.

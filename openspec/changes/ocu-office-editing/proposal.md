@@ -155,3 +155,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, persisted schema compatibility, file IO/path safety, concurrency, bounded index reads, errors and documentation.
 - Evidence floor: broker regressions plus a real-filesystem smoke proving indexed rename resolution, tombstone rejection, unchanged index bytes/counter and nested lock use, with Docker unavailable.
 - Source execution is authorized before B1 completion by the user's 2026-10-03 ruling. B1 remains user-owned; source merge is not a measured go or release acceptance.
+
+## Host-write registration fixture
+
+- Issue type: feature; fixture level: expanded, matching task 9.2's suggested level.
+- Scope: the OCU outputs broker and its existing tests; no route, upload, lifecycle or schema change.
+- Blast radius: durable file identity, exactly-once revision increment per registration, path confinement and inter-process write ordering.
+- Selected risk packs: API, file IO/path safety, schema, concurrency, resource limits, compatibility, errors and documentation.
+- Evidence floor: same-size and size-changing registration, fresh-process durability, concurrent reconcile exclusion, no-double-count reconcile, rejection-byte preservation and a real-filesystem write/register/read smoke.

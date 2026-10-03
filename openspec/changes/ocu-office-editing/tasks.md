@@ -251,7 +251,7 @@ Minimal mergeable slice: atomic - the go/no-go decision is the gate and is only 
 ## 9. [ocu] Outputs broker: resolve and register (spec: ocu-outputs-broker)
 
 - [x] 9.1 Resolve a `file_id` to its current relative path from persisted state, failing explicitly for unknown and tombstoned ids, without scanning, hashing or starting a sandbox. Verify: broker tests for an active id, a renamed file recorded by a reconcile, a tombstone, an unknown id and a corrupt index.
-- [ ] 9.2 Register a host-side write for a path inside the caller's locked transaction: refresh the hash from content, increment the counter once, stamp the entry, also when the size is unchanged; create an entry with a new `file_id` for an unindexed path; reject paths outside the root, symlinks and hidden names. Verify: broker tests for a same-size write, a size change, an unindexed path, and each rejection; a concurrent reconcile does not lose the revision.
+- [x] 9.2 Register a host-side write for a path inside the caller's locked transaction: refresh the hash from content, increment the counter once, stamp the entry, also when the size is unchanged; create an entry with a new `file_id` for an unindexed path; reject paths outside the root, symlinks and hidden names. Verify: broker tests for a same-size write, a size change, an unindexed path, and each rejection; a concurrent reconcile does not lose the revision.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - persisted shared index with a monotonic counter relied on by WebUI.
@@ -272,6 +272,22 @@ Minimal mergeable slice: 9.1 (read-only resolution) - green alone because it add
 - Documentation / migration notes — Selected: this fixture records the public operation and source-only evidence boundary; no migration.
 
 Run the OCU unit command from its `AGENTS.md`, narrowed to `tests/orchestrator/test_outputs_broker.py`, with red-before/green-after evidence for the new behavior. A throwaway real-filesystem smoke indexes a file, renames and reconciles it, resolves inside an already-held lock, removes and reconciles it, then observes not-found with unchanged index bytes. Docker access must fail if attempted. Do not claim DocumentServer or deployment acceptance.
+
+### Host-write registration risk coverage
+
+- Public API / CLI / script entry — Selected: `register_host_write(chat_id, path)` returns the registered entry, including `file_id` and `revision`; consumers are later publish/save-as tasks.
+- Config / project setup — Not selected: no settings or setup changes.
+- File IO / path safety / overwrite — Selected: traverse only the requested relative path with no-follow directory descriptors, reuse safe hashing and durable index publication. Reject traversal, absolute paths, foreign-chat escapes, hidden segments, target/parent symlinks, missing/non-regular targets without changing index bytes/counter or opening external content.
+- Schema / columns / units / field names — Selected: update hash, size, mtime_ns and fingerprints consistently; retain active id, allocate a fresh UUID for additions, preserve tombstones and all other entries. The same-size fixture has file revision 7 and counter 9; registration yields revision/counter 10.
+- Auth / permissions / secrets — Not selected: no HTTP authorization or credential change. Root confinement is covered by path safety.
+- Concurrency / shared state / ordering — Selected: caller retains the canonical lock across its file write and registration; registration may reenter that lock. A real flock-contention handshake proves a second-process reconcile waits and observes the committed id/revision.
+- Resource limits / large input / discovery — Selected: file size, active count and encoded index size enforce existing configured bounds before publication; failures preserve predecessor bytes. Register only the requested path, never scan unrelated files.
+- Legacy compatibility / examples — Selected: broker module regression suite; unchanged reconcile detection rules and schema. A reconcile after registered size change reports unchanged and retains counter/id/revision.
+- Error handling / rollback / partial outputs — Selected: existing broker error classes, corrupt-index behavior and `_write_index` durability semantics retained. Rejections and pre-replace write failures leave predecessor intact; after-replace directory-fsync failure remains explicit `CommitDurabilityError`, not a false rollback claim.
+- Release / packaging / dependency compatibility — Not selected: no images or dependencies.
+- Documentation / migration notes — Selected: this fixture documents the registration boundary; no migration or new durable format.
+
+Tests cover missing-index creation only after valid registration, a new path with tombstones present, unchanged sibling entries, and a fresh process reading id/revision/hash. Run the existing OCU unit command narrowed to the broker module; qualify same-size and lock-order assertions with disposable negative controls. A real-filesystem smoke writes different equal-length bytes inside the caller lock, registers, then observes the new hash/revision from a fresh broker and an unchanged subsequent reconcile. No DocumentServer or image evidence is claimed.
 
 ## 10. [ocu] Office broker store (spec: ocu-office-store)
 
