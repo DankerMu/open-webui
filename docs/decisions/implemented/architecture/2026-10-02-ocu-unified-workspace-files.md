@@ -38,6 +38,10 @@ The Agent can edit or delete uploaded originals in the workspace. WebUI's attach
 
 Shared files use mode 0666 before no-replace publication; newly created workspace directories use 0777. This permits edits across differing server/sandbox UIDs and follows the existing writable-directory model. Staging remains private during writes, existing directory modes are preserved, and receipt metadata is outside the bind. Isolation relies on per-chat mounts and service authorization, not on a shared host UID.
 
+Sandbox code may rename workspace entries while server IO is in progress. Upload publication and MCP reads/discovery therefore use no-follow, descriptor-relative traversal; upload staging stays in the server-private `.ocu` control directory outside the bind. A pathname checked before reopening is not a containment boundary.
+
 Release the server, tool guidance and rebuilt sandbox image together. Acceptance assumes an empty operator-prepared environment; this decision adds no data migration and does not rewrite running old sandboxes. Rollback requires a matching server/image pair and sandbox recreation, not compatibility mounts. Rebase conflicts in path consumers are an accepted maintenance cost.
 
 Real linux/amd64 container evidence remains required for writable files, private-home isolation and failed legacy-path writes; fake-engine mount assertions cannot prove the image half. By user direction, compatible image checks are batched under [#197](https://github.com/DankerMu/open-webui/issues/197) after the non-image source checks and review. Source closure is not deployment acceptance or proof that pending image checks passed. Operator documentation, proxy/stub synchronization and archive staging-file filtering retain their separately scheduled owners.
+
+The user's execution boundary is completion of all Epic #107 source tasks: no image builds or image-dependent acceptance runs occur before then. Missing B1 measurements remain unresolved, not an inferred go decision.

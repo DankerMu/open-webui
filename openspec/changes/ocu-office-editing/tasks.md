@@ -82,6 +82,8 @@ Minimal mergeable slice: atomic - with only the mount changed the Agent still wr
 
 User-directed acceptance split: source implementation, non-image tests/runtime checks, reviewer closure and CI remain the source-issue merge gate. The image-dependent clauses of task 3.1 and the risk packs below are executed together under [B0 batched image acceptance #197](https://github.com/DankerMu/open-webui/issues/197). Closing the source issue does not mark those checks passed. Compatible checks reuse one built image; after the batch runs, record its evidence and clean its Docker resources. B1's measurements and go/no-go gate are unchanged.
 
+Execution timing: no image builds or image-dependent acceptance runs during source implementation. By the user's latest direction, #197 runs only after all Epic #107 source tasks are complete; any gate lacking required measurements remains unresolved rather than receiving an inferred pass.
+
 ### Unified mount cutover risk coverage
 
 - Public API / CLI / script entry — Selected: HTTP names and MCP URI shape stay fixed while uploads become listed workspace files. Upload `brief.docx`, assert stored bytes and listing `file_id`; serve uploaded HTML with sandbox CSP and nosniff; read the same bytes through an MCP resource.
