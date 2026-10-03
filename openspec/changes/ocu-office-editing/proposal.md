@@ -123,3 +123,10 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Scope: task 6.1, OCU operator Markdown, four handwritten SVGs, tool/server READMEs and the served API documentation page. Preserve the MCP `file://uploads/{chat_id}/...` URI; no code, tests, deploy overlay or guard implementation.
 - Selected risk packs: documentation, legacy examples and public documentation entry. Required evidence is a clean scoped legacy/retired-endpoint scan, rendered Markdown/SVG/served-page inspection, valid SVG XML and resolved changed-document links.
 - User-approved link gate: use existing `lychee.toml` locally on all changed documents with the workflow's offline internal-link policy and attach results to the PR. The existing workflow neither triggers on nor scans these files; do not claim CI coverage or change CI here.
+
+## Tracked sandbox-path guard fixture
+
+- Issue type: test infrastructure; fixture level: compact. The guard observes repository content without changing runtime behavior.
+- Scope: task 6.2, one pytest guard module under OCU `tests/`; no CI/hook changes or cleanup of missed production references.
+- Selected risk packs: test entry point, Git setup, file discovery, legacy compatibility, fail-loud errors and documentation. The Git index defines membership; working-tree bytes supply content, without an extension filter that would omit SVGs.
+- Evidence floor: pass on the branch, reject both legacy literals in non-allowlisted tracked files with filenames reported, and ignore untracked files. Mutation proof uses a disposable Git fixture containing the real guard and branch document bytes, so repository production files are not altered to seed faults.
