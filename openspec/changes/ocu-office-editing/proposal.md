@@ -108,3 +108,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: created/recreated mount sets, no host uploads directory, uploaded file identity and HTML isolation, MCP visible-file reads with hidden names excluded, recovery accepting only the new layout and rendered guidance. Upload tests run under restrictive umask, observe mode 0666 at the no-replace claim and preserve existing directory modes. Real linux/amd64 sandbox proof of in-place edit, rename/delete, nested creation, private home and failed legacy-path writes remains required under [batched acceptance #197](https://github.com/DankerMu/open-webui/issues/197), not the source-issue closure gate, by user direction.
 - Image execution timing: defer all builds and image-dependent acceptance until Epic #107's source tasks are complete; track pending evidence in #197 without inferring a B1 go decision.
 - Scope: tasks 3.1 and 3.2 are atomic. No old-data migration, compatibility aliases, Office code, proxy/stub cutover, archive-reader redesign or unrelated follow-up fixes.
+
+## Proxy upload-read removal fixture
+
+- Issue type: feature; fixture level: expanded for a pinned default-deny gateway allowlist.
+- Blast radius: route inventory, renderer validation and native method/auth dispatch.
+- Selected risk packs: public API; configuration; file IO; auth/secrets; legacy compatibility; error handling; documentation. No storage schema, concurrency, resource-limit or packaging change.
+- Evidence floor: native nginx returns 404 for both retired GET paths without OCU contact for owner, foreign and anonymous callers; guarded POST uploads, including literal and encoded retired names, preserve body bytes and server-derived identity. Renderer accepts the 20-row inventory and rejects mismatches without replacing the previous private config.
+- Scope: task 5.1 only. No Office rows/placeholders, imports assertions, DocumentServer listener, compose/port guard or WebUI stub/pin. Native nginx proof does not require an image build.
