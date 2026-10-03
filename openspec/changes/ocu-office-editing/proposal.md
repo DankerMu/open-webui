@@ -163,3 +163,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: durable file identity, exactly-once revision increment per registration, path confinement and inter-process write ordering.
 - Selected risk packs: API, file IO/path safety, schema, concurrency, resource limits, compatibility, errors and documentation.
 - Evidence floor: same-size and size-changing registration, fresh-process durability, concurrent reconcile exclusion, no-double-count reconcile, rejection-byte preservation and a real-filesystem write/register/read smoke.
+
+## Office state-store fixture
+
+- Issue type: feature; fixture level: expanded, matching tasks 10.1 and 10.4.
+- Scope: OCU `office/` state store, paired tests, server Dockerfile and COPY-inventory test; WebUI architecture decision record. No routes, version blobs, receipts semantics, epoch or configuration.
+- Blast radius: per-chat durable state, cross-worker lost updates, corruption preservation and packaged module availability.
+- Selected risk packs: API, file IO/path safety, schema, concurrency, compatibility, errors, packaging and documentation.
+- Evidence floor: both process update orders, actual lock contention, killed-before-replace predecessor, fresh-process persistence, corrupt/unreadable-state byte retention, and a missing-office-COPY negative control. Decision and doc gates cover the companion record.

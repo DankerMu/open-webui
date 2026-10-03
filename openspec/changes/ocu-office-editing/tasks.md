@@ -291,14 +291,30 @@ Tests cover missing-index creation only after valid registration, a new path wit
 
 ## 10. [ocu] Office broker store (spec: ocu-office-store)
 
-- [ ] 10.1 `office/` package with the per-chat state file: schema version, locked read-modify-write through the shared per-chat lock, atomic durable replace, explicit failure on corruption that preserves the prior state. The server image's `computer-use-server/Dockerfile` copies the new package (it copies modules one by one). Verify: tests cover two processes updating one chat without loss in either order, a corrupt file, a failure before replace, and restart persistence; a test asserts that every top-level `.py` module of `computer-use-server/` and every directory there that holds an `__init__.py` is named by a `COPY` line of that Dockerfile (directories without Python packages, such as `bin/` and `cli-defaults/`, are outside the check).
+- [x] 10.1 `office/` package with the per-chat state file: schema version, locked read-modify-write through the shared per-chat lock, atomic durable replace, explicit failure on corruption that preserves the prior state. The server image's `computer-use-server/Dockerfile` copies the new package (it copies modules one by one). Verify: tests cover two processes updating one chat without loss in either order, a corrupt file, a failure before replace, and restart persistence; a test asserts that every top-level `.py` module of `computer-use-server/` and every directory there that holds an `__init__.py` is named by a `COPY` line of that Dockerfile (directories without Python packages, such as `bin/` and `cli-defaults/`, are outside the check).
 - [ ] 10.2 Versions and receipts: content-addressed immutable blobs, per-document numbering, sources and the published flag, no new record when content equals the latest version, the free-space floor, receipts for every processed callback, and the safe read of a workspace file (no-follow, regular file, inside the chat's directory, no symlinked parent). Verify: tests cover identical content stored once, numbering, refusal below the floor without partial blobs, receipt lookup by sequence and hash, and a symlinked file and a symlinked parent directory each refused without being read.
 - [ ] 10.3 The restore-epoch marker: read `{BASE_DATA_DIR}/.office-restore-epoch`, an absent file being the initial epoch, and compare for equality. Verify: tests for an absent file, a token, and a changed token.
-- [ ] 10.4 Decision record `ocu-office-file-store` (design D5: per-chat files instead of a database). Verify: `make decisions-verify` passes.
+- [x] 10.4 Decision record `ocu-office-file-store` (design D5: per-chat files instead of a database). Verify: `make decisions-verify` passes.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - persisted shared state, file format, concurrency across worker processes.
 Minimal mergeable slice: 10.1 (state file and locking) - green alone because nothing reads it yet; 10.2 and 10.3 build on its API; 10.4 is documentation.
+
+### State-file slice risk coverage
+
+- Public API / CLI / script entry — Selected: `OfficeStore.read(chat_id)` and `OfficeStore.update(chat_id, mutate)` return independent state snapshots; mutator executes under the canonical chat lock.
+- Config / project setup — Not selected: use existing `BASE_DATA_DIR`; no Office settings yet.
+- File IO / path safety / overwrite — Selected: state is confined to `.ocu/office/state.json`, never follows state/control-directory symlinks and is invisible to workspace listings. First update creates only its chat's state. Real temporary storage and external-sentinel tests prove confinement.
+- Schema / columns / units / field names — Selected: exact top-level keys `schema_version`, `documents`, `sessions`, `receipts`, `journal`; version integer 1, four mapping collections. Invalid JSON/top-level shape/unknown version and unreadable state raise `StateCorruptError` without rewriting; record-specific validation belongs to later slices.
+- Auth / permissions / secrets — Not selected: no route, auth or secrets; filesystem confidentiality boundary belongs to path safety.
+- Concurrency / shared state / ordering — Selected: two separate workers commit independent mutations in both forced orders, retaining both changes. Real nonblocking flock denial proves a mutator cannot run until the holder releases the canonical lock; same-thread nesting remains valid.
+- Resource limits / large input / discovery — Not selected: no quota or discovery policy introduced; free-space admission belongs to task 10.2. Existing state is never pruned.
+- Legacy compatibility / examples — Selected: existing broker/lifecycle unchanged; missing state returns the empty schema without a state file; fresh-process read equals the committed state, no in-memory cache.
+- Error handling / rollback / partial outputs — Selected: invalid mutator output or callback failure preserves predecessor. Kill a writer after its temp successor is fsynced but before replace; next read is the complete predecessor. Pre-replace write errors preserve it; post-replace directory-fsync failure raises explicit `StateDurabilityError` and does not claim rollback.
+- Release / packaging / dependency compatibility — Selected: every server top-level `.py` and directory containing `__init__.py` has a Dockerfile COPY source. Omit the `office/` COPY in a disposable fixture and prove test rejection; no image build.
+- Documentation / migration notes — Selected: companion `ocu-office-file-store` decision, implemented/architecture, names PostgreSQL and SQLite alternatives, shared lock and no cross-chat query cost. `make doc-gate` and `make decisions-verify`.
+
+Run the OCU unit command narrowed to the new state-store and COPY-inventory test modules. Independent real-filesystem smoke updates a chat in a subprocess, reads it in another, and proves unrelated chat/workspace bytes unchanged. HTTP `state_corrupt`, record shapes, versions, receipts behavior, epoch and real sandbox isolation are later tasks; no B1 or image acceptance claim.
 
 ## 11. [ocu] DocumentServer configuration and client (spec: ocu-office-sessions, ocu-office-callback, ocu-auth-guard, ocu-documentserver-service)
 

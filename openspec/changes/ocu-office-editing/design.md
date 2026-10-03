@@ -182,6 +182,20 @@ Unmodified upstream image, AGPL v3, branding kept. B1 produces a dated record: i
 
 Alternatives rejected: PostgreSQL (new dependency, migration job, backup extension, two-store crash consistency); SQLite (still two stores, new failure modes under two workers). Cost accepted: no cross-chat query.
 
+#### State-file transaction boundary
+
+Tasks 10.1 and 10.4 expose `office.store.OfficeStore.read(chat_id)` and `update(chat_id, mutate)`. The mutator receives a fresh decoded state, modifies it in place and returns no value; update validates and durably publishes that successor, returning its snapshot. No live cache is retained. Both entrypoints use the canonical `_combined_lock`, including nested same-thread calls.
+
+The initial schema is exactly `schema_version: 1` and mapping collections `documents`, `sessions`, `receipts`, `journal`. Validate the top-level types and ordinary JSON encoding; later owners extend record validation without inventing record semantics here. Missing state reads as an empty schema without creating a state file. An unreadable, malformed or unsupported state raises `StateCorruptError` and retains its bytes; unlike the outputs index's richer taxonomy, this error grouping is the explicit Office contract.
+
+Governing invariant: each successful update is one complete durable per-chat successor derived under the same lock from the latest predecessor; neither another worker nor an exception may erase a prior committed mutation. A failed mutator or invalid successor never publishes. A killed pre-replace writer leaves the predecessor; post-replace directory-fsync failure reports `StateDurabilityError` without promising rollback.
+
+Use no-follow control-directory/file access and the established temp/fsync/replace/directory-fsync pattern. The outputs broker's private writer is index-specific; importing it or extracting it would violate this slice's no-broker-edit boundary. The Office store owns its state-schema transaction and does not add a second generic persistence abstraction. Do not create versions/staging/fence files in this slice.
+
+Sibling surfaces: lifecycle and outputs broker share the lock but retain their APIs/state; later Office routes and callbacks translate `StateCorruptError` to `state_corrupt`; version/session/journal owners add record rules. Dockerfile COPY coverage discovers actual top-level modules and package directories (`__init__.py`), excluding non-packages such as static/bin/cli-defaults. Storage outside the workspace mount is structural; source verification is not real-image isolation certification.
+
+Evidence uses real processes and descriptors, forced update orders, actual flock contention, portable open-error injection, crash-before-replace, post-replace fsync failure and fresh-process reads. The WebUI companion decision references the existing lifecycle-lock decision without superseding it; PostgreSQL/SQLite add a second storage/backup boundary while per-chat files accept no cross-chat query.
+
 ### D6. Versions and terminology
 
 `revision` keeps its Plan 1 meaning: the per-chat change counter of the outputs broker. The broker's immutable snapshots are **versions**. A document is keyed by the Plan 1 `file_id`. A version has a per-document monotonic number, parent, SHA-256, size, source (`workspace`, `save`, `autosave`, `close`, `restore`, `conflict`), time and a published flag. `conflict` is the source of the first version of the new document that a `save_as` creates.
