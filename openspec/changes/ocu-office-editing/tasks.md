@@ -175,7 +175,7 @@ Run `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v` 
 
 ## 6. [ocu] Docs and the repository guard for the legacy paths (spec: ocu-unified-files)
 
-- [ ] 6.1 Update the OCU docs and diagrams that name the legacy paths or the removed upload read endpoints, `static/docs.html` and `computer-use-server/README.md` among them. Verify: the documents render and their links resolve.
+- [x] 6.1 Update the OCU docs and diagrams that name the legacy paths or the removed upload read endpoints, `static/docs.html` and `computer-use-server/README.md` among them. Verify: the documents render and their links resolve.
 - [ ] 6.2 Add a repository test that fails on any tracked reference to `/mnt/user-data/uploads` or `/mnt/user-data/outputs` outside a short explicit allowlist. Verify: the guard test passes and fails when a legacy reference is reintroduced (shown once in the PR).
 
 Depends on: 3, 4 (the guard can pass only when the mount, the tool text and the list handler no longer name the paths).
@@ -194,6 +194,17 @@ Before editing, inventory stale references in `docs/`, `openwebui/tools/README.m
 Parse each changed SVG as XML and display it in Chromium, retaining screenshots and inspecting labels for clipping/overlap. Render each changed Markdown page and open its local links. Start the existing server with a temporary data root and synthetic credentials; request `/`, verify the upload POST remains described and retired read paths are absent, and inspect the rendered page with no unexpected browser errors. Stop owned processes and remove only owned runtime scaffolding.
 
 User-approved link acceptance: run local lychee with `lychee.toml`, `--no-progress --offline`, and the explicit changed-document set; record tool version, command, counts and exit code in the PR. Follow changed-document links during the rendering pass and report external checks separately from offline internal-link validation. The existing docs-lint workflow covers `docs/architecture/**`, not this slice, so neither its execution nor coverage is claimed. CI files and configuration remain unchanged. No new permanent test is needed for this prose-only slice; the tracked-reference guard belongs to task 6.2.
+
+### Tracked sandbox-path guard evidence
+
+- Public API / CLI / script entry — Selected: a normal `tests/test_*.py` module runs under the existing OCU pytest command and reports every offending tracked filename.
+- Config / project setup — Selected: resolve the repository from the test file, enumerate the Git index with NUL-safe filenames, and fail if Git enumeration fails; no fallback that scans untracked files.
+- File IO / discovery — Selected: inspect tracked working-tree bytes without decoding or an extension allowlist, so SVGs and unusual file suffixes are covered. Do not follow tracked symlinks into external content; inspect their link text. Missing tracked working-tree files cannot silently count as a clean scan.
+- Legacy compatibility — Selected: a short exact-file allowlist names the guard itself and the four existing negative-contract files: recovery, workspace integration, sub-agent dispatch and system-prompt endpoint tests. Each entry carries its purpose; no directory-wide exception or automatic allowlisting.
+- Error handling — Selected: Git/read failures fail visibly rather than being treated as no matches; violations identify filenames without dumping file contents.
+- Documentation — Selected: the guard's module docstring states tracked-only scope, intentional exceptions and how to run it. Other schema, auth, concurrency and packaging mechanisms are unchanged; no resource quota is added.
+
+Run the module on the real branch. In a disposable Git fixture with the unchanged guard and branch document bytes, prove a clean tracked document passes, add each legacy literal to that tracked non-allowlisted document and require a nonzero result naming it, then restore the document and require a pass. Also prove an untracked file containing a literal is ignored and a tracked SVG or unusual suffix is not skipped. Retain the exact negative output in the PR; discard the fixture afterward. If the real branch exposes a missed reference, report it to task 3.1 or 6.1 rather than expanding the allowlist.
 
 ## 7. [webui] Stub, pin and smoke for the unified directory (spec: ocu-stub, ocu-proxy-smoke)
 
