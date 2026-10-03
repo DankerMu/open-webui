@@ -60,7 +60,7 @@ Alternatives rejected: mounting one directory at both old paths (no prompt chang
 
 ### D3. Uploads land in the same directory; attachments are imported once
 
-`POST /api/uploads/{chat_id}/{path}` writes into the shared directory under the per-chat lock. The bytes go to a dot-prefixed temporary file in the target directory; the final name is then claimed with a no-replace operation (a hard link to the final name, which fails when any entry already exists there, followed by removal of the temporary name). A plain rename is not used: sandbox writers do not take the lock, and a rename would replace a file the Agent created in between. If the name is taken the next deduplicated name (`name (2).ext`) is tried and the response returns the final name. The outputs broker detects the addition on its next reconcile; no explicit registration is needed.
+`POST /api/uploads/{chat_id}/{path}` writes into the shared directory under the per-chat lock. Bytes are staged in the server-private `{chat}/.ocu` directory outside the sandbox bind, then published by a no-replace hard link through pinned source and destination directory descriptors. The final name is never reopened for chmod. A plain rename is not used: sandbox writers do not take the lock, and a rename would replace a file the Agent created in between. If the name is taken the next deduplicated name (`name (2).ext`) is tried and the response returns the final name. The outputs broker detects the addition on its next reconcile; no explicit registration is needed.
 
 Attachment sync: the tool sends the WebUI file id with each upload (`X-OCU-Attachment-Id`). OCU keeps import receipts in `{chat}/.ocu/imports.json` (attachment id → stored name, time). An id with a receipt is acknowledged without writing. `GET /api/uploads/{chat_id}/imports` (internal token, not proxied) returns the imported ids so the tool uploads only attachments that have none. The tool syncs whenever the tool call carries attachments, not only when the command text mentions an uploads path. If the read of the imported ids fails the tool uploads every attachment; the server-side receipt check keeps that safe. The file is placed and its receipt written inside one locked section; a crash between the two leaves a file without a receipt, and the next sync imports the attachment again under a deduplicated name. That is accepted: the failure produces a duplicate, never a loss.
 
@@ -69,6 +69,12 @@ Attachment sync: the tool sends the WebUI file id with each upload (`X-OCU-Attac
 The MCP resource surface (`uploads.py`, `mcp_resources.py`, URI `file://uploads/{chat_id}/…`) keeps its URI shape and reads the shared directory instead of the removed host `uploads` directory, skipping hidden names. Without this it would silently become empty.
 
 Alternative rejected: skip when a same-named file exists. It re-imports a file the user deleted or renamed and silently ignores a different attachment with the same name.
+
+#### Proxy upload-read removal boundary
+
+Task 5.1 removes exactly the two GET upload-read rows. The route schema stays version 1; the reviewed inventory has 20 rows and the renderer pins its exact bytes. Invariant: an unlisted method/path never reaches OCU, even when nginx's normalized URI matches the remaining POST upload location. No compatibility handler or redirect replaces the retired reads.
+
+Must preserve guarded POST uploads whose filename is `manifest` or `list`, including encoded spellings, raw-path/body forwarding, owner-derived chat identity, mutation-origin denials and all unrelated HTTP/WebSocket/file policies. Sibling surfaces are the route table, count/hash validation, location method dispatch, native recording fixture and bad-table atomic-render tests. Read-row overlap handling with no remaining consumer is removed rather than retained as an unused transition mechanism. Office placeholders/rows, imports assertions and the second listener belong to later slices.
 
 #### Name-claim slice boundary
 

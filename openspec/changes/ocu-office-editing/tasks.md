@@ -74,7 +74,7 @@ Capture a new attachment on a path-independent tool call red before implementati
 ## 3. [ocu] Single workspace files mount: the cut-over (spec: ocu-unified-files)
 
 - [ ] 3.1 One cut that switches every runtime consumer of the sandbox paths together: `docker_manager.py` binds the chat's host `outputs` directory read-write at `/mnt/user-data/files` and stops mounting the two legacy paths; the upload endpoint, `uploads.py` and `mcp_resources.py` use that directory (URI shape `file://uploads/{chat_id}/…` unchanged, hidden names skipped); `deploy/recovery_resources.py` maps the new mount set; `system_prompt.py`, the `mcp_tools.py` tool text, the tool's text and `static/browser-viewer.js` name the new path; the sandbox `Dockerfile` creates `/mnt/user-data/files` owned by the sandbox user, leaves `/mnt/user-data` root-owned and not writable, stops creating the legacy directories, moves the skill-usage log, and updates the embedded agent configuration and permission rules; the public skills (`file-reading`, `sub-agent`, `webapp-testing`, the example skill) name the new path. The tests that assert the old shape change in the same cut: `tests/orchestrator/test_sandbox_addressing.py` (the `uploads` directory is no longer created), `tests/orchestrator/test_mcp_resources.py` (resources come from the shared directory), and the `uploads`-directory fixtures in `tests/test_auth_guard.py` and `tests/security/test_path_traversal_app.py`. Verify: `tests/orchestrator/test_lifecycle.py` asserts the mount set (one user-data bind, read-write, no legacy binds); `tests/deploy/test_recovery.py` asserts the map; the prompt, tool, upload and the four named tests are updated and pass; an MCP resource listing test reads the shared directory; `tests/integration/test_workspace_lifecycle.py` cases run against a locally built `linux/amd64` image show the new path writable, the legacy paths absent and a write to a legacy path failing, with their output attached to the PR.
-- [ ] 3.2 Decision record `ocu-unified-workspace-files` (design D2, D3: one directory, no legacy paths, accepted upstream divergence). Verify: `make decisions-verify` and `make doc-gate` pass.
+- [x] 3.2 Decision record `ocu-unified-workspace-files` (design D2, D3: one directory, no legacy paths, accepted upstream divergence). Verify: `make decisions-verify` and `make doc-gate` pass.
 
 Depends on: 2, 4 (the manifest and list handlers, which read the old `uploads` directory, are gone before the upload destination moves).
 Suggested fixture level: expanded - file IO and path layout of a shared mount, sub-agent permission rules, legacy compatibility deliberately broken.
@@ -154,6 +154,24 @@ First run the new removed-path cases red against the live handlers. Then run `te
 Depends on: 4 (the standalone page must have stopped requesting the list, or its status panel breaks on the gateway's 404).
 Suggested fixture level: expanded - reviewed default-deny gateway table and its pin.
 Minimal mergeable slice: atomic - the table, its row count and its pin are validated together by the renderer; a partial change does not render.
+
+### Proxy upload-read removal risk coverage
+
+- Public API / CLI / script entry — Selected: GET manifest/list, including encoded literal names, returns 404 without OCU contact. POST of those filenames and ordinary nested uploads preserves method, raw path, body bytes and route-derived chat identity.
+- Config / project setup — Selected: the reviewed inventory becomes 20 rows. Its byte-level SHA-256 pin and count change atomically; no new render input or placeholder.
+- File IO / path safety / overwrite — Selected: renderer bad-table/native-validation cases retain the previous valid configuration byte-for-byte and preserve private output/runtime modes. Only synthetic-token configs under a private temporary directory are exercised.
+- Schema / columns / units / field names — Not selected: route-table schema/version and response shapes remain unchanged.
+- Auth / permissions / secrets — Selected: removed GETs deny owner, foreign and anonymous callers without contacting OCU. Upload POST retains owner authentication and mutation-origin proof; null origin and foreign ownership remain denied. Token forwarding/containment cases remain.
+- Concurrency / shared state / ordering — Not selected: no new shared state; renderer atomic replacement is covered by the file IO/error packs.
+- Resource limits / large input / discovery — Not selected: existing larger-than-1-MiB upload body proof remains; no size policy change.
+- Legacy compatibility / examples — Selected: retiring GET never reserves the filename for POST. Preserve literal and percent-encoded manifest/list uploads, all unrelated rows and default-deny methods.
+- Error handling / rollback / partial outputs — Selected: invalid inventory/count/pin fails before replacing a usable config; GET method mismatch cannot fall through to the upstream upload route.
+- Release / packaging / dependency compatibility — Not selected: native nginx only; no image/dependency/compose changes.
+- Documentation / migration notes — Selected: describe the retired read paths in the existing proxy README; do not read or commit generated `nginx.conf` or private request recordings.
+
+Red first: add a native removed-GET case, start the existing recording fixture and a privately rendered nginx, and observe the old table forwarding instead of returning 404. Then remove the rows and update count/pin together. Preserve the existing guarded POST, origin/ownership denial and invalid-table assertions; select a POST mutation fixture by route identity rather than a shifting array index.
+
+Run `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v` with native `nginx -t`. Start `tests/fixture.py` and nginx on isolated loopback ports using synthetic credentials, then run `test_native.py` via unittest with `OCU_TEST_RECORD` naming the private observation file. Record statuses and zero OCU observations, not the credential-bearing records/config. Stop both processes and remove only this run's temporary directory. Run the existing project-structure check and WebUI strict OpenSpec/doc/decision gates. All image work remains deferred to #197 at the user-directed Epic boundary.
 
 ## 6. [ocu] Docs and the repository guard for the legacy paths (spec: ocu-unified-files)
 
