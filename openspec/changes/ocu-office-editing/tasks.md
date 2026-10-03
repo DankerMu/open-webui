@@ -149,7 +149,7 @@ First run the new removed-path cases red against the live handlers. Then run `te
 
 ## 5. [deploy] Proxy table without the upload read rows (spec: ocu-reverse-proxy)
 
-- [ ] 5.1 Remove the manifest and list rows from `deploy/proxy/routes.json` and update the renderer's reviewed row count and table pin. Verify: `deploy/proxy/tests/` pass, including a case that the two paths return 404 without an upstream request and that the upload POST row still forwards.
+- [x] 5.1 Remove the manifest and list rows from `deploy/proxy/routes.json` and update the renderer's reviewed row count and table pin. Verify: `deploy/proxy/tests/` pass, including a case that the two paths return 404 without an upstream request and that the upload POST row still forwards.
 
 Depends on: 4 (the standalone page must have stopped requesting the list, or its status panel breaks on the gateway's 404).
 Suggested fixture level: expanded - reviewed default-deny gateway table and its pin.
@@ -181,6 +181,19 @@ Run `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v` 
 Depends on: 3, 4 (the guard can pass only when the mount, the tool text and the list handler no longer name the paths).
 Suggested fixture level: compact - documentation and a text guard; the behaviour is owned by group 3.
 Minimal mergeable slice: 6.1 (documents) - green alone because it changes prose only; 6.2's guard passes only after 6.1.
+
+### Operator documentation refresh evidence
+
+- Documentation / migration notes — Selected: update every in-scope stale path and retired upload-read description without restyling unrelated content. Merge the two Docker mount descriptions into one writable workspace; keep `/home/assistant` private and preserve unique examples and links.
+- Legacy compatibility / examples — Selected: uploaded and generated files share `/mnt/user-data/files`; examples must not copy a file onto itself after the path change. Tool documentation describes receipt-based attachment sync on every tool invocation, not a legacy-path trigger. MCP resource URIs remain unchanged.
+- Public API / CLI / script entry — Selected for documentation only: remove the served manifest/list descriptions, retain the upload POST, and load the real server's root documentation page with synthetic local configuration. No route behavior changes.
+- Config, file IO, schema, auth, concurrency, resource limits and packaging — Not selected: prose/diagram edits do not change these mechanisms. Deployment backup docs and Office notes remain their named later tasks; image execution stays pending #197.
+
+Before editing, inventory stale references in `docs/`, `openwebui/tools/README.md`, `computer-use-server/README.md` and `computer-use-server/static/docs.html`. After editing, the two legacy path strings and retired manifest/list endpoint strings must have zero hits in that scope, or an explicit historical exception handed to task 6.2.
+
+Parse each changed SVG as XML and display it in Chromium, retaining screenshots and inspecting labels for clipping/overlap. Render each changed Markdown page and open its local links. Start the existing server with a temporary data root and synthetic credentials; request `/`, verify the upload POST remains described and retired read paths are absent, and inspect the rendered page with no unexpected browser errors. Stop owned processes and remove only owned runtime scaffolding.
+
+User-approved link acceptance: run local lychee with `lychee.toml`, `--no-progress --offline`, and the explicit changed-document set; record tool version, command, counts and exit code in the PR. Follow changed-document links during the rendering pass and report external checks separately from offline internal-link validation. The existing docs-lint workflow covers `docs/architecture/**`, not this slice, so neither its execution nor coverage is claimed. CI files and configuration remain unchanged. No new permanent test is needed for this prose-only slice; the tracked-reference guard belongs to task 6.2.
 
 ## 7. [webui] Stub, pin and smoke for the unified directory (spec: ocu-stub, ocu-proxy-smoke)
 

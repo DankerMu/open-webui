@@ -116,3 +116,10 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public API; configuration; file IO; auth/secrets; legacy compatibility; error handling; documentation. No storage schema, concurrency, resource-limit or packaging change.
 - Evidence floor: native nginx returns 404 for both retired GET paths without OCU contact for owner, foreign and anonymous callers; guarded POST uploads, including literal and encoded retired names, preserve body bytes and server-derived identity. Renderer accepts the 20-row inventory and rejects mismatches without replacing the previous private config.
 - Scope: task 5.1 only. No Office rows/placeholders, imports assertions, DocumentServer listener, compose/port guard or WebUI stub/pin. Native nginx proof does not require an image build.
+
+## Operator workspace documentation fixture
+
+- Issue type: documentation; fixture level: compact. Runtime behavior is owned by the completed mount and route cuts.
+- Scope: task 6.1, OCU operator Markdown, four handwritten SVGs, tool/server READMEs and the served API documentation page. Preserve the MCP `file://uploads/{chat_id}/...` URI; no code, tests, deploy overlay or guard implementation.
+- Selected risk packs: documentation, legacy examples and public documentation entry. Required evidence is a clean scoped legacy/retired-endpoint scan, rendered Markdown/SVG/served-page inspection, valid SVG XML and resolved changed-document links.
+- User-approved link gate: use existing `lychee.toml` locally on all changed documents with the workflow's offline internal-link policy and attach results to the PR. The existing workflow neither triggers on nor scans these files; do not claim CI coverage or change CI here.
