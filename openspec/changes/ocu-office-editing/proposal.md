@@ -146,3 +146,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: test isolation and the reliability of upload-to-visible-Files evidence; production behavior remains unchanged.
 - Selected risk packs: test entry, auth provenance, browser reconciliation ordering, error observation and evidence documentation. No new design decision; the shared design remains unchanged.
 - Evidence floor: a negative control without the upload fails the visible-filename assertion; the real owner multipart POST makes its returned filename visible in the saved chat's Files panel. The complete `make verify-ui-ocu` run passes with zero unexpected console/page errors and an inspected screenshot.
+
+## Persisted file-id resolution fixture
+
+- Issue type: feature; fixture level: expanded, matching task 9.1's suggested level.
+- Scope: task 9.1 in the OCU outputs broker and its existing test module. Registration, routes and Office callers remain separate tasks.
+- Blast radius: stable identity after reconciliation, missing-versus-corrupt errors, and the shared lifecycle lock.
+- Selected risk packs: API, persisted schema compatibility, file IO/path safety, concurrency, bounded index reads, errors and documentation.
+- Evidence floor: broker regressions plus a real-filesystem smoke proving indexed rename resolution, tombstone rejection, unchanged index bytes/counter and nested lock use, with Docker unavailable.
+- Source execution is authorized before B1 completion by the user's 2026-10-03 ruling. B1 remains user-owned; source merge is not a measured go or release acceptance.
