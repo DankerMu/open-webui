@@ -1,4 +1,4 @@
-# Listed chat/static/preview/browser/terminal routes and upload GET collisions.
+# Listed chat/static/preview/browser/terminal routes and retired upload GETs.
 
 GET {{proxy_url}}/ocu/preview/{{chat_id}}
 Cookie: {{owner_cookie}}
@@ -14,16 +14,12 @@ header "X-Echo-Authorization" not exists
 GET {{proxy_url}}/ocu/api/uploads/{{chat_id}}/manifest
 Cookie: {{owner_cookie}}
 
-HTTP 200
-[Asserts]
-jsonpath "$.kind" == "manifest"
+HTTP 404
 
 GET {{proxy_url}}/ocu/api/uploads/{{chat_id}}/list
 Cookie: {{owner_cookie}}
 
-HTTP 200
-[Asserts]
-jsonpath "$.kind" == "list"
+HTTP 404
 
 GET {{proxy_url}}/ocu/files/{{chat_id}}/archive
 Cookie: {{owner_cookie}}

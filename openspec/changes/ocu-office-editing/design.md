@@ -42,6 +42,33 @@ Constraints that shape every decision:
 - Telling OCU when a chat is deleted in WebUI.
 - A setting that limits the number of concurrent sandboxes.
 
+### Unified-directory harness seam
+
+Task 7.1 changes only the deterministic WebUI stub, its two smoke entrypoints,
+the gateway Hurl assertions and the pinned OCU revision.
+The governing invariant is that an accepted upload belongs to exactly one chat's
+Files fixture under a non-replacing name, and the next listing exposes that
+same file while retired GET routes never reach the upstream through nginx.
+
+Use the pinned OCU upload response shape and multipart file input. Harness
+storage is process-local and synchronized; it does not model production disk
+durability or two-worker locking. Existing fixture entries keep their identities
+and revisions when an unrelated upload increments the listing revision.
+Serving uploaded bytes is part of this seam so a listed file is selectable by
+the existing workspace consumer, rather than a listing-only fake.
+
+Sibling surfaces are fixture listing/pagination/ETag, fixture file serving,
+private request observations, real nginx route selection, WebUI ownership,
+and the browser harness that materializes assets from the same pin.
+Preserve scenario behavior and generated-file containment. The pin must contain
+the unified mount and retired-read route table but not the second listener.
+No Office route, image execution, backend route or new browser case is included.
+
+Evidence crosses both public HTTP seams: stub upload-to-list-to-bytes and
+gateway upload-to-list with body digest; retired gateway GETs must return 404
+with no upstream record. Review focuses on non-overwrite, chat isolation,
+revision/ETag consistency, multipart byte fidelity and unchanged auth denials.
+
 ## Decisions
 
 ### D1. One change, one epic, in the WebUI repository
