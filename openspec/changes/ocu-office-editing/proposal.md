@@ -99,3 +99,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API; auth; legacy compatibility; error handling; documentation.
 - Evidence floor: authenticated removed-path requests against populated storage disclose no names, hashes or sizes; anonymous requests remain 401 and invalid chat ids remain 400. Focused/full OCU tests, real HTTP upload/import/removal smoke and direct preview browser harness.
 - Scope: task 4.2 only; remove the obsolete preview list-response fixture but retain zero-request assertions. MCP resources, upload POST, imports, proxy rows, WebUI stub and served API documentation remain owned by their existing or later slices.
+
+## Unified workspace mount fixture
+
+- Issue type: feature; fixture level: expanded.
+- Blast radius: sandbox mount identity and permissions, upload publication visibility, MCP resource roots, recovery attribution, executable guidance and shipped image configuration.
+- Selected risk packs: API; configuration; file IO; auth/isolation; concurrency/ordering; discovery; legacy compatibility; error handling; packaging; documentation. Persisted schemas and HTTP/URI names do not change.
+- Evidence floor: created/recreated mount sets, no host uploads directory, uploaded file identity and HTML isolation, MCP visible-file reads with hidden names excluded, recovery accepting only the new layout and rendered guidance. Upload tests run under restrictive umask, observe mode 0666 at the no-replace claim and preserve existing directory modes. A locally built linux/amd64 sandbox proves in-place edit, rename/delete, nested creation, private home and failed legacy-path writes.
+- Scope: tasks 3.1 and 3.2 are atomic. No old-data migration, compatibility aliases, Office code, proxy/stub cutover, archive-reader redesign or unrelated follow-up fixes.
