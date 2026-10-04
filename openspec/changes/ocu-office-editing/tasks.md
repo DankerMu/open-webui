@@ -350,12 +350,30 @@ Run the epoch test module and package-inventory test with the OCU unit command. 
 
 ## 11. [ocu] DocumentServer configuration and client (spec: ocu-office-sessions, ocu-office-callback, ocu-auth-guard, ocu-documentserver-service)
 
-- [ ] 11.1 Office configuration module in the `office/` package: the four setting names of design D17 that OCU reads (`OCU_OFFICE_DOCSERVER_URL`, `OCU_OFFICE_DOCSERVER_ORIGIN`, `OCU_OFFICE_SELF_URL`, `OCU_OFFICE_JWT_SECRET`) defined as constants, plus the tuning values with defaults (free-space floor, ticket lifetime, liveness interval, save timeout), validated in `auth_guard.startup_preflight`, the function the packaged multi-worker entrypoint already calls — Office editing is enabled when the address is configured, there is no separate switch; an address with a missing or blank secret, origin or self address exits non-zero, and no address needs none of the others. Verify: startup tests for each combination through `startup_preflight`, including the packaged multi-worker entrypoint.
+- [x] 11.1 Office configuration module in the `office/` package: the four setting names of design D17 that OCU reads (`OCU_OFFICE_DOCSERVER_URL`, `OCU_OFFICE_DOCSERVER_ORIGIN`, `OCU_OFFICE_SELF_URL`, `OCU_OFFICE_JWT_SECRET`) defined as constants, plus the tuning values with defaults (free-space floor, ticket lifetime, liveness interval, save timeout), validated in `auth_guard.startup_preflight`, the function the packaged multi-worker entrypoint already calls — Office editing is enabled when the address is configured, there is no separate switch; an address with a missing or blank secret, origin or self address exits non-zero, and no address needs none of the others. Verify: startup tests for each combination through `startup_preflight`, including the packaged multi-worker entrypoint.
 - [ ] 11.2 JWT signing and verification, source-ticket signing and verification with expiry and binding, and a command-service client (`forcesave` with `userdata`, key lookup). Uses the B1 item "`forcesave` echoes `userdata`". Verify: tests against a fake DocumentServer HTTP endpoint cover a valid round trip, a tampered token, an expired ticket, a ticket for another document, an unknown key, and command error codes.
 
 Depends on: 3 (`auth_guard.py` and its test matrix are edited by groups 1 and 4, and every Office group that follows works on the single shared directory), 10 (the package).
 Suggested fixture level: expanded - secrets, authentication tokens and production configuration.
 Minimal mergeable slice: 11.1 (configuration and fail-loud validation) - green alone because no route uses it yet; 11.2 adds the token and client helpers.
+
+### Configuration slice risk coverage
+
+| Risk pack | Selection and evidence |
+| --- | --- |
+| Public API / CLI / script entry | Selected: real `startup_preflight` result/stderr and packaged parent exits before serving. |
+| Config / project setup | Selected: absent/empty/whitespace address disables; nonblank address requires secret, origin and self URL. No extra switch. |
+| File IO / path safety / overwrite | Not selected: no file reads/writes or persisted settings. |
+| Schema / columns / units / field names | Selected: four importable name constants match D17; positive integer tuning values carry units, liveness exceeds ticket lifetime. |
+| Auth / permissions / secrets | Selected: unique secret canary absent from both output streams on success and missing-origin/self failure; no value interpolation in Office diagnostics. |
+| Concurrency / shared state / ordering | Not selected: call-time environment reads, no shared mutable state or cache; existing preflight failure precedence preserved. |
+| Resource limits / large input / discovery | Selected: defaults exist and liveness/ticket relation holds; consumers remain tasks 11.2, 12.2 and 13.3. |
+| Legacy compatibility / examples | Selected: unset Office address requires nothing else; existing auth/startup matrix unchanged. |
+| Error handling / rollback / partial outputs | Selected: each dependent setting absent, empty or whitespace produces nonzero plus its name; blank-address disabled cases pass. |
+| Release / packaging / dependency compatibility | Selected: exercise packaged multi-worker command, no listener/respawn; package-inventory regression. No image certification. |
+| Documentation / migration notes | Selected: D17 defines defaults and environment boundary; no deploy setting additions. |
+
+Run config, auth-guard and package-inventory tests with the OCU unit command. Runtime smoke runs actual preflight in fresh processes for configured success and missing-setting refusal, including the packaged parent command. A whitespace-as-valid mutant must fail the new startup matrix. Defaults are local choices, not B1 measurements; task 11.1 does not wire their consumers.
 
 ## 12. [ocu] Office routes guard and session creation (spec: ocu-office-sessions, ocu-auth-guard, ocu-office-store)
 

@@ -187,3 +187,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: distinguishing absent initial epoch from every opaque token, including an empty token, across requests/workers.
 - Selected risk packs: API, file IO/path safety, schema/value representation, ordering/fresh reads, compatibility, errors and documentation.
 - Evidence floor: absent → A → B same-process reads, whitespace and empty-token equality, unreadable/nonregular/symlink rejection without writes, and a fresh-process marker smoke.
+
+## Office configuration fixture
+
+- Issue type: feature; fixture level: expanded, matching task 11.1.
+- Scope: `office/config.py`, the Office check in `auth_guard.startup_preflight`, and paired/startup tests. No route, deploy or store-consumer changes.
+- Blast radius: parent-process fail-closed startup, secret disclosure, shared setting names and tuning units.
+- Selected risk packs: API/entrypoint, config, schema/names, auth/secrets, resource defaults, compatibility, errors, packaging and documentation.
+- Evidence floor: disabled/enabled and missing/blank matrix, secret canaries, packaged-parent exit without listening/respawn, existing guard regressions and whitespace-bypass negative control.

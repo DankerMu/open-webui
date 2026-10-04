@@ -462,6 +462,10 @@ The settings that cross a component boundary have fixed names, so that OCU's con
 
 The broker's tuning values (free-space floor, ticket lifetime, liveness interval, save timeout) have defaults in the OCU configuration module and are not part of the deployment contract.
 
+Task 11.1 uses `office/config.py`. Its four environment-name constants have the identifiers and values shown in the first four rows above. `enabled()` reads the address at call time and treats absent, empty or whitespace-only as unconfigured. `validation_error()` returns the first missing/blank setting name (secret, origin, self address), or `None`; the existing parent-process preflight owns the diagnostic and exit status and invokes this check after its existing checks. Office diagnostics name settings, never their values. Blank detection does not normalize secret bytes; URL-format and secret-strength validation are outside this slice.
+
+The module's positive integer defaults are `MIN_FREE_BYTES = 1024**3`, `SOURCE_TICKET_TTL_SECONDS = 300`, `SESSION_LIVENESS_INTERVAL_SECONDS = 600`, and `SAVE_CALLBACK_TIMEOUT_SECONDS = 30`. The floor reserves storage headroom; source tickets allow a bounded loading window; the liveness idle threshold outlives those tickets as D12 requires; the save timeout bounds waiting while late callbacks retain the existing commit rules. These are not environment settings or deployment measurements. No tuning overrides or import-time environment snapshot are added. The store continues accepting a caller-supplied floor.
+
 Alternatives rejected: a same-origin path prefix (the editor frontend, which renders documents an injected Agent can craft, would share WebUI's origin); a subdomain (needs LAN DNS, which the deployment does not have).
 
 ### D18. Release and backup
