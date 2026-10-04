@@ -24,7 +24,7 @@ The Chat-owned workspace-reconciliation controller is provided through Svelte co
 
 WorkspaceArtifact selects Files or a capability-gated Browser/Terminal mode on the validated current-chat preview URL. Runtime frames use the fixed trusted-application sandbox; generated document isolation remains separate. Switching away destroys the selected runtime frame, while ordinary same-chat updates preserve its element. Manual and capability-forced returns to Files re-arm the selected Office handshake. Frame teardown retires client transports, not the sandbox process. Selected file identity survives runtime views and preference writes remain serialized per chat.
 
-Panel chrome consumes the same authoritative state: the header summarizes loaded files and marks a remaining page with `+`; named decorative icon controls, segmented views and state blocks provide theme-aware feedback. The rounded runtime container owns only layout. File rows, selected-file presentation, action conditions, preference ordering, frame authority and preview messages remain separate from this presentation boundary.
+Panel chrome consumes the same authoritative state: the header summarizes loaded files and marks a remaining page with `+`; named decorative icon controls, segmented views and state blocks provide theme-aware feedback. The rounded runtime container owns only layout. File-tree presentation, selected-file presentation, action conditions, preference ordering, frame authority and preview messages remain separate from this chrome boundary.
 
 ## Alternatives considered
 

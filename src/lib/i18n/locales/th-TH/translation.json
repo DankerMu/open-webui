@@ -1274,6 +1274,7 @@
 	"Floating Quick Actions": "การดำเนินการด่วนแบบลอยตัว",
 	"Focus Chat Input": "โฟกัสช่องป้อนแชท",
 	"Folder": "โฟลเดอร์",
+	"Folder {{path}}": "",
 	"Folder Background Image": "รูปภาพพื้นหลังโฟลเดอร์",
 	"Folder created successfully": "",
 	"Folder deleted successfully": "ลบโฟลเดอร์สำเร็จแล้ว",

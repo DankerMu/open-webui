@@ -21,7 +21,8 @@ from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from ocu_stub_office import OfficeStore
+from ocu_stub_nested import nested_listing_entry, nested_names, nested_payload
+from ocu_stub_office import OFFICE_SCENARIOS, OfficeStore
 from ocu_stub_office_page import office_host_page
 
 log = logging.getLogger('ocu-stub')
@@ -195,6 +196,9 @@ def _scenario_file(chat_id: str, name: str, query: dict) -> tuple[int, bytes, st
         return 200, VALID_OFFICE.read_bytes(), mime, _file_headers(name, query)
     if scenario is not None and re.fullmatch(r'item-[0-9]{3}\.txt', name):
         return 200, name.encode(), 'text/plain; charset=utf-8', _file_headers(name, query)
+    nested = nested_payload(name) if scenario == 'nested' else None
+    if nested is not None:
+        return 200, nested[0], nested[1], _file_headers(name, query)
     return None
 
 
@@ -272,23 +276,19 @@ def _fixture_outputs(chat_id: str) -> dict:
         'large': ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)],
         'drawio': ['diagram.drawio'],
         'drawio_embedded': ['diagram.drawio'],
-        **{
-            name: ['report.docx']
-            for name in (
-                'office',
-                'office_conflict',
-                'office_unsupported',
-                'office_orphaned',
-                'office_unpublished',
-                'office_stale',
-            )
-        },
+        **{name: ['report.docx'] for name in OFFICE_SCENARIOS - {'office_save_as'}},
         'office_save_as': [],
+        'nested': nested_names(),
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
+    files = (
+        [nested_listing_entry(chat_id, name, PREFIX, revision, _fixture_file) for name in names]
+        if scenario == 'nested'
+        else [_fixture_file(chat_id, name, revision) for name in names]
+    )
     return {
         'chat_id': chat_id,
         'revision': revision,
-        'files': [_fixture_file(chat_id, name, revision) for name in names],
+        'files': files,
         'total': len(names),
         'timestamp': 1,
         'next_cursor': None,

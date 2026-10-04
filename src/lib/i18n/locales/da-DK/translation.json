@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Flydende hurtig-handlinger",
 	"Focus Chat Input": "Fokus chat-input",
 	"Folder": "Mappe",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Mappe baggrundsbillede",
 	"Folder created successfully": "",
 	"Folder deleted successfully": "Mappe fjernet.",

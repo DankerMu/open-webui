@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Yüzen Hızlı Eylemler",
 	"Focus Chat Input": "Sohbet Girişine Odaklan",
 	"Folder": "Klasör",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Klasör Arka Plan Resmi",
 	"Folder created successfully": "Klasör başarıyla oluşturuldu",
 	"Folder deleted successfully": "Klasör başarıyla silindi",

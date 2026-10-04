@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Lebegő gyorsműveletek",
 	"Focus Chat Input": "Fókusz a beszélgetés beviteli mezőjén",
 	"Folder": "Mappa",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Mappa háttérképe",
 	"Folder created successfully": "Mappa sikeresen létrehozva",
 	"Folder deleted successfully": "Mappa sikeresen törölve",

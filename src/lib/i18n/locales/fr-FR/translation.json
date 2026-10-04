@@ -1296,6 +1296,7 @@
 	"Floating Quick Actions": "Actions rapides flottantes",
 	"Focus Chat Input": "Activer la zone de saisie",
 	"Folder": "Dossier",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Image d'arrière-plan du dossier",
 	"Folder created successfully": "Dossier créé avec succès",
 	"Folder deleted successfully": "Dossier supprimé avec succès",

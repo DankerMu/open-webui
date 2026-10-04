@@ -1307,6 +1307,7 @@
 	"Floating Quick Actions": "Podręczne szybkie akcje",
 	"Focus Chat Input": "Skupienie na polu czatu",
 	"Folder": "Folder",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Tło folderu",
 	"Folder created successfully": "Folder utworzony pomyślnie",
 	"Folder deleted successfully": "Folder usunięty pomyślnie",

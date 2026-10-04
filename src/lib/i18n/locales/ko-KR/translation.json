@@ -1275,6 +1275,7 @@
 	"Floating Quick Actions": "플로팅 퀵 액션",
 	"Focus Chat Input": "채팅 입력창에 포커스",
 	"Folder": "폴더",
+	"Folder {{path}}": "",
 	"Folder Background Image": "폴더 배경 이미지",
 	"Folder created successfully": "폴더가 성공적으로 생성되었습니다",
 	"Folder deleted successfully": "성공적으로 폴더가 삭제되었습니다",
