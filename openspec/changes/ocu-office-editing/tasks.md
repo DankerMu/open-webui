@@ -405,13 +405,31 @@ Run token, command, configuration and package tests with the OCU unit command. T
 
 ## 12. [ocu] Office routes guard and session creation (spec: ocu-office-sessions, ocu-auth-guard, ocu-office-store)
 
-- [ ] 12.1 `auth_guard` coverage of `/api/office/` (internal token, canonical chat id, sandbox peers refused), an Office router module included by one line in `app.py`, 404 for every Office route when Office editing is not enabled, and no chat directory created by a request for an unknown chat. The module reload lists of the app tests (`_APP_MODULES` in `tests/orchestrator/test_outputs_endpoint.py` and `test_preview_prefix.py`) gain the new modules. Verify: `tests/test_auth_guard.py` gains the Office rows of the matrix; tests for the not-enabled case and the unknown chat.
+- [x] 12.1 `auth_guard` coverage of `/api/office/` (internal token, canonical chat id, sandbox peers refused), an Office router module included by one line in `app.py`, 404 for every Office route when Office editing is not enabled, and no chat directory created by a request for an unknown chat. The module reload lists of the app tests (`_APP_MODULES` in `tests/orchestrator/test_outputs_endpoint.py` and `test_preview_prefix.py`) gain the new modules. Verify: `tests/test_auth_guard.py` gains the Office rows of the matrix; tests for the not-enabled case and the unknown chat.
 - [ ] 12.2 `POST /api/office/{chat}/documents/{file}/sessions`, creation: resolve the file, validate type, size and container through the safe read, capture the workspace content as a version when it is not one, record the restore epoch, return the signed editor configuration with server-to-server addresses and no secret. Verify: `TestClient` tests for each refusal (B-T13), a symlinked file refused with `unsafe_path`, the stored `workspace` version, and the configuration's contents.
 - [ ] 12.3 Join, the reopen check and status: one open session per document with a stable key, a join returning a freshly signed configuration with a new ticket; on reopening a session whose editor is still expected (`editing`, `saving`, `closing`, or `conflict` without the receipt of a final callback) the DocumentServer key check, which makes a forgotten session `orphaned` and then creates a new session, or refuses with 409 `unpublished_version` and creates nothing when the document's newest version is unpublished, and answers 502 when DocumentServer cannot be reached; `GET /api/office/{chat}/sessions/{session}` returning the persisted state from any worker with the epoch check. Verify: tests for a join from a second request and from a second worker (B-T05), a join of an `opening` session getting a usable ticket, the status fields, a session orphaned by a changed epoch, a forgotten session replaced when everything is published, the `unpublished_version` refusal followed by a successful second create, a `conflict` session without a final receipt orphaned the same way while one with a final receipt is returned without contacting DocumentServer, and the unreachable case.
 
 Depends on: 9 (9.1 resolves the file), 11.
 Suggested fixture level: expanded - new public API on a guarded shared entrypoint, persisted session state, auth.
 Minimal mergeable slice: 12.1 (guard coverage and the not-enabled answer) - green alone because it adds no session behaviour; 12.2 and 12.3 add the routes behind it.
+
+### Route availability slice risk coverage
+
+- Public API / CLI / script entry — selected: all seven planned Office browser paths and unknown paths through the actual app, including unsupported methods and OPTIONS/preflight.
+- Config / project setup — selected: call-time configured/unconfigured behavior; separate enabled/disabled app loads in one run.
+- File IO / path safety / overwrite — selected: canonical path identity, no disabled-path filesystem inspection, missing chat rejected without a lock or directory creation; directory existence uses non-creating operations.
+- Schema / columns / units / field names — selected: Office errors carry the D7 reason strings; existing non-Office errors are unchanged.
+- Auth / permissions / secrets — selected: missing/wrong bearer 401, invalid literal/encoded chat 400, sandbox peer 403, including unknown Office paths; no header/query identity substitution.
+- Concurrency / shared state / ordering — selected: auth precedes availability, disabled precedes stat, existence precedes any lock; fresh app module reloads prevent stale module/environment references.
+- Resource limits / large input / discovery — not selected: no body parsing, document discovery, state loading or new resource allocator.
+- Legacy compatibility / examples — selected: all existing guard rows and CORS behavior outside Office remain unchanged; outputs/preview app fixtures still load.
+- Error handling / rollback / partial outputs — selected: Office-owned 404 reasons distinguish disabled, missing chat and unknown route; denied requests leave directory inventories and recording-endpoint counts unchanged.
+- Release / packaging / dependency compatibility — selected: the existing Office package COPY covers the router; package-inventory test and both `_APP_MODULES` lists include the relevant imports.
+- Documentation / migration notes — selected: D7 records middleware ordering and the permanent unknown-route fallback; no session stub is added.
+
+Run the guard matrix, paired router, outputs/preview fixture regressions and package-inventory tests with the OCU unit command. Runtime smoke launches the actual packaged app for disabled/enabled configurations and observes HTTP authorization/availability plus unchanged chat directories. The original app's unauthenticated Office 404 must become 401. Negative controls removing the prefix guard or moving availability ahead of authorization must fail the matrix.
+
+The method-independent contract covers requests delivered to ASGI. The existing packaged httptools parser rejects the nonstandard `CUSTOM` method with HTTP 400 before ASGI; retain that transport observation separately. ASGI tests still require `CUSTOM` to reach the guarded fallback, while packaged smoke exercises recognized GET/POST/OPTIONS/PATCH/DELETE methods. No transport configuration changes are part of this slice.
 
 ## 13. [ocu] Save, close, change notice and the session sweep (spec: ocu-office-sessions)
 
