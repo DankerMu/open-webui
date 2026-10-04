@@ -221,3 +221,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: a wrong row, identity capture or raw-path match can forward an unauthorized Office/control-plane request.
 - Selected risk packs: public HTTP API, production configuration, auth/permissions, path safety, schema/pin compatibility, error handling, atomic file replacement and documentation.
 - Evidence floor: a real-nginx Office forwarding case red against the unchanged table, then green; all seven owner rows and denial matrices; renderer pin/count/placeholder rejection preserving the previous private config; all existing proxy tests and the structure check.
+
+## Office route availability fixture
+
+- Issue type: feature; fixture level: expanded, matching task 12.1.
+- Scope: OCU guard, `office/router.py`, minimal app registration and paired/auth/import-isolation tests; no sessions, state writes, DocumentServer calls or deployment changes.
+- Blast radius: authentication precedence, canonical path identity, disabled-route containment and accidental chat-directory creation.
+- Selected risk packs: API, config, file/path safety, response schema, auth, ordering, compatibility, errors, packaging and documentation.
+- Evidence floor: real app authorization matrix, literal empty-segment rejection, Office preflight/method coverage, zero state/network work on denials, enabled/disabled import isolation and packaged HTTP smoke.
