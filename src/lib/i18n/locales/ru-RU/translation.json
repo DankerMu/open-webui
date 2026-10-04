@@ -1307,6 +1307,7 @@
 	"Floating Quick Actions": "Плавающие быстрые действия",
 	"Focus Chat Input": "Фокус на поле ввода",
 	"Folder": "Папка",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Фоновое изображение папки",
 	"Folder created successfully": "Папка успешно создана",
 	"Folder deleted successfully": "Папка успешно удалена",

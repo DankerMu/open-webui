@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Flótandi skjótgerðir",
 	"Focus Chat Input": "Set fokus á kjattinnsláttin",
 	"Folder": "Mappa",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Bakgrundsmynd í mappu",
 	"Folder created successfully": "Mappan varð stovnað",
 	"Folder deleted successfully": "Mappan varð strikað",

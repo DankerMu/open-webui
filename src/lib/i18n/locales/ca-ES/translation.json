@@ -1296,6 +1296,7 @@
 	"Floating Quick Actions": "Accions ràpides flotants",
 	"Focus Chat Input": "Posa el focus en l'entrada del xat",
 	"Folder": "Carpeta",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Imatge del fons de la carpeta",
 	"Folder created successfully": "Carpeta creada correctament",
 	"Folder deleted successfully": "Carpeta eliminada correctament",

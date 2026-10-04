@@ -1296,6 +1296,7 @@
 	"Floating Quick Actions": "Ações rápidas flutuantes",
 	"Focus Chat Input": "Foco na janela do Chat",
 	"Folder": "Pasta",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Imagem de fundo da pasta",
 	"Folder created successfully": "Pasta criada com sucesso",
 	"Folder deleted successfully": "Pasta excluída com sucesso",

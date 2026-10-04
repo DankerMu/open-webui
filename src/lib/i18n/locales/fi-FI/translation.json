@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Kelluvat pikakomennot",
 	"Focus Chat Input": "Kohdista keskustelu tekstikenttään",
 	"Folder": "Kansio",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Kansion taustakuva",
 	"Folder created successfully": "Kansio luotu onnistuneesti",
 	"Folder deleted successfully": "Kansio poistettu onnistuneesti",

@@ -55,6 +55,7 @@ SCENARIOS = (
     'restart',
     'drawio',
     'drawio_embedded',
+    'nested',
 )
 
 

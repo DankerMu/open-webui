@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Schwebende Schnellaktionen",
 	"Focus Chat Input": "Chat-Eingabe fokussieren",
 	"Folder": "Ordner",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Ordner-Hintergrundbild",
 	"Folder created successfully": "Ordner erfolgreich erstellt",
 	"Folder deleted successfully": "Ordner erfolgreich gelöscht",

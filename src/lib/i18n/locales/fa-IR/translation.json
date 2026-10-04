@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "اقدامات سریع شناور",
 	"Focus Chat Input": "فوکوس روی ورودی چت",
 	"Folder": "پوشه",
+	"Folder {{path}}": "",
 	"Folder Background Image": "تصویر پس\u200cزمینه پوشه",
 	"Folder created successfully": "",
 	"Folder deleted successfully": "پوشه با موفقیت حذف شد",

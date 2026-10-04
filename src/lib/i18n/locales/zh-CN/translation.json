@@ -1284,6 +1284,7 @@
 	"Floating Quick Actions": "快捷操作浮窗",
 	"Focus Chat Input": "聚焦对话框",
 	"Folder": "分组",
+	"Folder {{path}}": "",
 	"Folder Background Image": "分组背景图",
 	"Folder created successfully": "分组创建成功",
 	"Folder deleted successfully": "分组删除成功",
