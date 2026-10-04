@@ -1296,6 +1296,7 @@
 	"Floating Quick Actions": "Acciones Rápidas Flotantes",
 	"Focus Chat Input": "Enfocar a la Entrada del Chat",
 	"Folder": "Carpeta",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Imagen de Fondo de la Carpeta",
 	"Folder created successfully": "Carpeta creada correctamente",
 	"Folder deleted successfully": "Carpeta eliminada correctamente",

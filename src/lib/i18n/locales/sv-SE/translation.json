@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Flytande snabbåtgärder",
 	"Focus Chat Input": "Fokusera på chattinmatning",
 	"Folder": "Mapp",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Bakgrundsbild till mappen",
 	"Folder created successfully": "Mapp skapad framgångsrikt",
 	"Folder deleted successfully": "Mappen har tagits bort",

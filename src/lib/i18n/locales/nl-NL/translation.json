@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Zwevende snelle acties",
 	"Focus Chat Input": "Focus op chatinvoer",
 	"Folder": "Map",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Achtergrondafbeelding map",
 	"Folder created successfully": "Map succesvol aangemaakt",
 	"Folder deleted successfully": "Map succesvol verwijderd",

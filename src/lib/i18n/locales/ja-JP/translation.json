@@ -1274,6 +1274,7 @@
 	"Floating Quick Actions": "フローティング クイックアクション",
 	"Focus Chat Input": "チャット入力欄にフォーカス",
 	"Folder": "フォルダー",
+	"Folder {{path}}": "",
 	"Folder Background Image": "フォルダーの背景画像",
 	"Folder created successfully": "フォルダーが正常に作成されました。",
 	"Folder deleted successfully": "フォルダー削除が成功しました。",

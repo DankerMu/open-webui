@@ -16,7 +16,7 @@ The Files sidebar must preserve selected identity across broker pagination and a
 
 ## Decision
 
-The authenticated feature flag gates Files mounting on a saved chat. Unsaved activation obtains that identity through the workspace-controls persistence contract. The Chat-owned reconciliation controller supplies data through the chat-keyed OCU store; the Files component owns only its preview surface and delegates data commands. The shared preference queue preserves write order across component mounts. Request generations retire obsolete completions. Only complete coherent enumeration can clear missing selection; failures retain known data and expose retryable state.
+The authenticated feature flag gates Files mounting on a saved chat. Unsaved activation obtains that identity through the workspace-controls persistence contract. The Chat-owned reconciliation controller supplies data through the chat-keyed OCU store; the Files component owns preview surfaces and the local file-tree presentation, and delegates data commands. The shared preference queue preserves write order across component mounts. Request generations retire obsolete completions. Only complete coherent enumeration can clear missing selection; failures retain known data and expose retryable state.
 
 Generated HTML/SVG/XML uses cookie-path iframe navigation with fixed `allow-scripts allow-forms`. User sandbox preferences cannot widen it. Office uses the existing restricted parent-selection protocol with exact source/origin/chat/file/generation checks and bounded ready/result deadlines. The parent owns download and explicit retry; it never duplicates Office rendering.
 

@@ -5,17 +5,28 @@
 	import { get } from 'svelte/store';
 	import { workspaceFileUrl, workspaceRuntimeUrl, type WorkspaceFile } from '$lib/apis/ocu';
 	import { ocuWorkspaces, selectWorkspaceView, type OcuWorkspaceState } from '$lib/stores/ocu';
+	import { formatFileSize } from '$lib/utils';
 	import {
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
+	import { buildWorkspaceFileRows, workspaceFileKind } from './workspace-file-rows';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Folder from '$lib/components/icons/Folder.svelte';
+	import FolderOpen from '$lib/components/icons/FolderOpen.svelte';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
 	import Terminal from '$lib/components/icons/Terminal.svelte';
 	import Info from '$lib/components/icons/Info.svelte';
+	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
+	import Photo from '$lib/components/icons/Photo.svelte';
+	import Document from '$lib/components/icons/Document.svelte';
+	import DocumentChartBar from '$lib/components/icons/DocumentChartBar.svelte';
+	import ChartBar from '$lib/components/icons/ChartBar.svelte';
+	import Code from '$lib/components/icons/Code.svelte';
+	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
 
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
@@ -41,6 +52,7 @@
 	$: busy = workspace?.busy ?? false;
 	$: workspace = $ocuWorkspaces[chatId];
 	$: fileCount = workspace?.files.length ?? 0;
+	$: fileRows = buildWorkspaceFileRows(workspace?.files ?? []);
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
@@ -235,6 +247,36 @@
 		void controller.more();
 	}
 
+	let collapsedFolders = new Set<string>();
+	function toggleFolder(path: string) {
+		const next = new Set(collapsedFolders);
+		if (next.has(path)) next.delete(path);
+		else next.add(path);
+		collapsedFolders = next;
+	}
+	$: fileFolder = (() => {
+		const membership: string[] = [];
+		let current = '';
+		for (const row of fileRows) {
+			if (row.kind === 'folder') {
+				current = row.path;
+				membership.push('');
+				continue;
+			}
+			membership.push(row.nested ? current : '');
+			if (!row.nested) current = '';
+		}
+		return membership;
+	})();
+	const FILE_KIND_ICONS = {
+		web: GlobeAlt,
+		image: Photo,
+		document: Document,
+		sheet: DocumentChartBar,
+		slides: ChartBar,
+		code: Code,
+		other: DocumentPage
+	} as const;
 	onMount(() => {
 		if (!enabled || !isSavedChatId(chatId) || chatId === 'default') return;
 		live = true;
@@ -416,19 +458,68 @@
 				{$i18n.t('No workspace files yet.')}
 			</p>{/if}
 		{#if workspace?.files.length}
-			<ul aria-label={$i18n.t('Workspace file list')} class="overflow-y-auto shrink-0 max-h-48">
-				{#each workspace.files as file (file.file_id)}
-					<li>
-						<button
-							type="button"
-							on:click={() => selectFile(file)}
-							aria-pressed={selected?.file_id === file.file_id}>{file.name || file.path}</button
-						>
-					</li>
+			<ul
+				aria-label={$i18n.t('Workspace file list')}
+				class="min-h-0 overflow-y-auto {selected ? 'max-h-[40%] shrink-0' : 'flex-1'}"
+			>
+				{#each fileRows as row, index (row.kind === 'folder' ? `folder:${row.path}` : `file:${row.file.file_id}`)}
+					{#if row.kind === 'folder'}
+						<li>
+							<button
+								type="button"
+								class="flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-left text-xs text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-white/4"
+								aria-label={$i18n.t('Folder {{path}}', { path: row.path })}
+								aria-expanded={!collapsedFolders.has(row.path)}
+								on:click={() => toggleFolder(row.path)}
+							>
+								{#if collapsedFolders.has(row.path)}
+									<ChevronRight className="size-4 shrink-0" />
+									<Folder className="size-4 shrink-0" />
+								{:else}
+									<ChevronDown className="size-4 shrink-0" />
+									<FolderOpen className="size-4 shrink-0" />
+								{/if}
+								<span class="min-w-0 flex-1 truncate">{row.path}</span>
+								<span class="shrink-0">{row.count}</span>
+							</button>
+						</li>
+					{:else}
+						{@const fileKind = workspaceFileKind(row.file)}
+						{@const KindIcon = FILE_KIND_ICONS[fileKind]}
+						{@const accessibleName = row.file.name || row.file.path}
+						{@const folder = fileFolder[index] ?? ''}
+						<li hidden={row.nested && collapsedFolders.has(folder)}>
+							<Tooltip content={row.name} className="block w-full" as="div">
+								<button
+									type="button"
+									class="flex h-8 w-full items-center gap-1.5 rounded-lg pr-2 text-left hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 dark:hover:bg-white/4 {row.nested
+										? 'pl-7'
+										: 'pl-2'} {selected?.file_id === row.file.file_id
+										? 'bg-gray-100 font-medium text-gray-900 dark:bg-gray-800 dark:text-gray-100'
+										: 'text-gray-700 dark:text-gray-200'}"
+									title={row.name}
+									on:click={() => selectFile(row.file)}
+									aria-label={accessibleName}
+									aria-pressed={selected?.file_id === row.file.file_id}
+								>
+									<span data-file-kind={fileKind} class="contents">
+										<KindIcon className="size-4 shrink-0" />
+									</span>
+									<span class="min-w-0 flex-1 truncate text-sm">{row.name}</span>
+									<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
+										>{formatFileSize(row.file.size)}</span
+									>
+								</button>
+							</Tooltip>
+						</li>
+					{/if}
 				{/each}
 			</ul>
-			{#if workspace.nextCursor}<button type="button" on:click={loadMore} disabled={busy}
-					>{$i18n.t('More files')}</button
+			{#if workspace.nextCursor}<button
+					type="button"
+					class="h-8 w-full rounded-lg px-2 text-left text-xs text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/4"
+					on:click={loadMore}
+					disabled={busy}>{$i18n.t('More files')}</button
 				>{/if}
 		{/if}
 		{#if selected && downloadUrl}

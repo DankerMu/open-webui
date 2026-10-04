@@ -1285,6 +1285,7 @@
 	"Floating Quick Actions": "Hõljuvad kiirtoimingud",
 	"Focus Chat Input": "Fokuseeri vestluse sisend",
 	"Folder": "Kaust",
+	"Folder {{path}}": "",
 	"Folder Background Image": "Kausta taustpilt",
 	"Folder created successfully": "Kaust edukalt loodud",
 	"Folder deleted successfully": "Kaust edukalt kustutatud",
