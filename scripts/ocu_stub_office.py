@@ -683,4 +683,3 @@ class OfficeStore:
         restored = self._append_version(document, 'restore', source['bytes'], True)
         self._publish_bytes(chat_id, document, restored['bytes'])
         return 200, {'file_id': document['file_id'], 'number': restored['number'], 'published': True}
-
