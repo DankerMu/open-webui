@@ -359,19 +359,19 @@ Minimal mergeable slice: 11.1 (configuration and fail-loud validation) - green a
 
 ### Configuration slice risk coverage
 
-| Risk pack | Selection and evidence |
-| --- | --- |
-| Public API / CLI / script entry | Selected: real `startup_preflight` result/stderr and packaged parent exits before serving. |
-| Config / project setup | Selected: absent/empty/whitespace address disables; nonblank address requires secret, origin and self URL. No extra switch. |
-| File IO / path safety / overwrite | Not selected: no file reads/writes or persisted settings. |
-| Schema / columns / units / field names | Selected: four importable name constants match D17; positive integer tuning values carry units, liveness exceeds ticket lifetime. |
-| Auth / permissions / secrets | Selected: unique secret canary absent from both output streams on success and missing-origin/self failure; no value interpolation in Office diagnostics. |
-| Concurrency / shared state / ordering | Not selected: call-time environment reads, no shared mutable state or cache; existing preflight failure precedence preserved. |
-| Resource limits / large input / discovery | Selected: defaults exist and liveness/ticket relation holds; consumers remain tasks 11.2, 12.2 and 13.3. |
-| Legacy compatibility / examples | Selected: unset Office address requires nothing else; existing auth/startup matrix unchanged. |
-| Error handling / rollback / partial outputs | Selected: each dependent setting absent, empty or whitespace produces nonzero plus its name; blank-address disabled cases pass. |
-| Release / packaging / dependency compatibility | Selected: exercise packaged multi-worker command, no listener/respawn; package-inventory regression. No image certification. |
-| Documentation / migration notes | Selected: D17 defines defaults and environment boundary; no deploy setting additions. |
+| Risk pack                                      | Selection and evidence                                                                                                                                   |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API / CLI / script entry                | Selected: real `startup_preflight` result/stderr and packaged parent exits before serving.                                                               |
+| Config / project setup                         | Selected: absent/empty/whitespace address disables; nonblank address requires secret, origin and self URL. No extra switch.                              |
+| File IO / path safety / overwrite              | Not selected: no file reads/writes or persisted settings.                                                                                                |
+| Schema / columns / units / field names         | Selected: four importable name constants match D17; positive integer tuning values carry units, liveness exceeds ticket lifetime.                        |
+| Auth / permissions / secrets                   | Selected: unique secret canary absent from both output streams on success and missing-origin/self failure; no value interpolation in Office diagnostics. |
+| Concurrency / shared state / ordering          | Not selected: call-time environment reads, no shared mutable state or cache; existing preflight failure precedence preserved.                            |
+| Resource limits / large input / discovery      | Selected: defaults exist and liveness/ticket relation holds; consumers remain tasks 11.2, 12.2 and 13.3.                                                 |
+| Legacy compatibility / examples                | Selected: unset Office address requires nothing else; existing auth/startup matrix unchanged.                                                            |
+| Error handling / rollback / partial outputs    | Selected: each dependent setting absent, empty or whitespace produces nonzero plus its name; blank-address disabled cases pass.                          |
+| Release / packaging / dependency compatibility | Selected: exercise packaged multi-worker command, no listener/respawn; package-inventory regression. No image certification.                             |
+| Documentation / migration notes                | Selected: D17 defines defaults and environment boundary; no deploy setting additions.                                                                    |
 
 Run config, auth-guard and package-inventory tests with the OCU unit command. Runtime smoke runs actual preflight in fresh processes for configured success and missing-setting refusal, including the packaged parent command. A whitespace-as-valid mutant must fail the new startup matrix. Defaults are local choices, not B1 measurements; task 11.1 does not wire their consumers.
 
