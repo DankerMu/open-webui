@@ -170,7 +170,7 @@ Office broker 是 OCU 服务的进程内模块 `office/`。它的全部状态存
 - 父页面与宿主页之间新增一组消息类型（就绪、状态、保存与关闭指令），与 Plan 1 的只读预览协议并列；只读预览的契约不变。
 - **放大**是 WebUI 内的覆盖层，不使用浏览器全屏 API。
 - **未保存守卫**涉及上游的 `ChatControls` 与 `Chat.svelte`，按关键路径处理：最小差异，新逻辑放在新模块。
-- 编辑入口由新的功能开关控制，默认关闭。
+- 编辑入口由 `ENABLE_OCU_OFFICE_EDIT` 控制，默认关闭；只接受大小写无关的 `true`/`false`，其它值启动失败并点名该变量；已认证 `/api/config` 的 `features.enable_ocu_office_edit` 与 `enable_ocu_workspace` 并列，匿名响应不含该键。
 - `/files/*` 增加 `Cache-Control: no-store`，使「改后预览不返回旧缓存」不依赖 mtime 巧合。
 
 ### 6. 部署

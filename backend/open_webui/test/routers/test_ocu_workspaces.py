@@ -46,6 +46,43 @@ def test_authenticated_config_exposes_router_flag_only_to_owner_session(monkeypa
         asyncio.run(_cleanup_owner(owner.id, chat.id))
 
 
+@pytest.mark.parametrize(
+    'office,workspace,expected_office,expected_workspace',
+    [
+        ('true', 'true', True, True),
+        ('TRUE', 'true', True, True),
+        ('false', 'true', False, True),
+        ('FaLsE', 'true', False, True),
+        (None, 'true', False, True),
+        ('true', 'false', True, False),
+    ],
+)
+def test_office_flag_authenticated_config_follows_strict_env(office, workspace, expected_office, expected_workspace):
+
+    from open_webui.test.ocu_office_flag_process import run_office_flag_process
+
+    result = run_office_flag_process(office=office, workspace=workspace)
+    assert result['exit'] == 0, result['stderr']
+    payload = result['payload']
+    assert payload['auth_office'] is expected_office
+    assert payload['auth_workspace'] is expected_workspace
+    assert payload['anon_office'] is False
+    assert payload['anon_workspace'] is False
+
+
+@pytest.mark.parametrize('office', ['maybe', '', ' true', 'true ', '1', '0', 'office-secret-canary-151'])
+def test_invalid_office_flag_fails_startup_even_when_workspace_is_off(office):
+    from open_webui.test.ocu_office_flag_process import run_office_flag_process
+
+    result = run_office_flag_process(office=office, workspace='false')
+    combined = f'{result["stdout"]}\n{result["stderr"]}'
+    errors = '\n'.join(line for line in combined.splitlines() if line.startswith('RuntimeError:'))
+    assert result['exit'] != 0
+    assert 'ENABLE_OCU_OFFICE_EDIT' in errors
+    if office == 'office-secret-canary-151':
+        assert office not in errors
+
+
 STOPPED_STATES = ('paused', 'exited', 'created', 'restarting', 'dead', 'stopped')
 
 

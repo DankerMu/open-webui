@@ -520,8 +520,10 @@ def _finish_owned_cleanup(smoke, logger, code: int) -> int:
 
 def setup_office_fixture(smoke) -> dict[str, str]:
     status, chat, _, _ = http_json(
-        'POST', f'{smoke.webui}/api/v1/chats/new',
-        cookie=smoke.owner_cookie, headers={'Content-Type': 'application/json'},
+        'POST',
+        f'{smoke.webui}/api/v1/chats/new',
+        cookie=smoke.owner_cookie,
+        headers={'Content-Type': 'application/json'},
         body=json.dumps({'chat': {'title': 'proxy-office-conflict'}}).encode(),
     )
     if status != 200 or not chat.get('id'):
@@ -543,10 +545,23 @@ def run_hurl_files(smoke, files: list[str], report: Path, logger, options=()) ->
         destination.mkdir(mode=0o700, parents=True, exist_ok=True)
         logger.info('hurl: %s', path.relative_to(smoke.root))
         result = subprocess.run(
-            ['hurl', '--test', '--max-time', '30', '--connect-timeout', '5',
-             '--variables-file', str(smoke.hurl_vars), '--report-json', str(destination),
-             *options, filename],
-            cwd=smoke.root, text=True, capture_output=True,
+            [
+                'hurl',
+                '--test',
+                '--max-time',
+                '30',
+                '--connect-timeout',
+                '5',
+                '--variables-file',
+                str(smoke.hurl_vars),
+                '--report-json',
+                str(destination),
+                *options,
+                filename,
+            ],
+            cwd=smoke.root,
+            text=True,
+            capture_output=True,
             env={'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''), 'TERM': 'dumb'},
         )
         scan_hurl_report(destination, smoke.token)

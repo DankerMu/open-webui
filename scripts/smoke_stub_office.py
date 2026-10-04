@@ -100,7 +100,7 @@ def assert_create_schema(body: dict) -> None:
 
 
 def assert_history_restored(before: list, after: list, selected: dict) -> None:
-    if after[:len(before)] != before:
+    if after[: len(before)] != before:
         fail('restore mutated earlier versions')
     restored = after[-1]
     if restored['source'] != 'restore' or restored['published'] is not True:
@@ -342,9 +342,7 @@ def _assert_persist_and_publish(
     persisted_status = _status(base, chat, session_id)[2]
     if persisted_status['last_committed_seq'] != persist[2]['save_seq'] or persisted_status['last_published_seq'] != 0:
         fail(f'persist cursors {persisted_status}')
-    return _assert_publish(
-        base, chat, file_id, session_id, listing_before, original_path, persist[2]['save_seq']
-    )
+    return _assert_publish(base, chat, file_id, session_id, listing_before, original_path, persist[2]['save_seq'])
 
 
 def _assert_publish(
@@ -360,9 +358,12 @@ def _assert_publish(
     if publish[0] != 202:
         fail(f'publish {publish[0]} {publish[2]}')
     status = _status(base, chat, session_id)[2]
-    if (status['state'] != 'editing' or status['last_published_seq'] != publish[2]['save_seq']
-            or status['last_committed_seq'] != publish[2]['save_seq']
-            or publish[2]['save_seq'] <= persisted_seq):
+    if (
+        status['state'] != 'editing'
+        or status['last_published_seq'] != publish[2]['save_seq']
+        or status['last_committed_seq'] != publish[2]['save_seq']
+        or publish[2]['save_seq'] <= persisted_seq
+    ):
         fail(f'publish status {status}')
     listing_after, _ = _outputs(base, chat)
     if listing_after['revision'] <= listing_before['revision']:
@@ -408,9 +409,7 @@ def _assert_close_and_restore(
 def _assert_default_round_trip(base: str, chat: str, file_id: str) -> dict:
     listing_before, etag_before = _outputs(base, chat)
     created = _assert_create_and_join(base, chat, file_id)
-    _assert_persist_and_publish(
-        base, chat, file_id, created['session_id'], listing_before, etag_before
-    )
+    _assert_persist_and_publish(base, chat, file_id, created['session_id'], listing_before, etag_before)
     _assert_close_and_restore(base, chat, file_id, created['session_id'])
     return created
 
@@ -445,7 +444,6 @@ def assert_office_conflict(base: str, chat: str) -> None:
     log.info('office_conflict')
     _assert_conflict_overwrite(base, chat)
     log.info('office_conflict overwrite')
-
 
 
 def _assert_conflict_overwrite(base: str, chat: str) -> None:
@@ -630,6 +628,7 @@ def assert_named_office(script: Path) -> None:
 
 def _snapshot_replay(base: str) -> list:
     from smoke_stub_office_regressions import replay_transcript
+
     return replay_transcript(base)
 
 
@@ -660,8 +659,11 @@ def _assert_foreign_resources(base: str, alpha_session: str, beta_session: str) 
     for file_id in ('missing', foreign_id):
         if _versions(base, 'alpha', file_id)[0] != 404 or _restore(base, 'alpha', file_id, 1)[0] != 404:
             fail('unknown or foreign file history/restore was accepted')
-    for response in (_save(base, 'alpha', beta_session, 'publish'),
-                     _close(base, 'alpha', beta_session), _resolve(base, 'alpha', beta_session, 'save_as')):
+    for response in (
+        _save(base, 'alpha', beta_session, 'publish'),
+        _close(base, 'alpha', beta_session),
+        _resolve(base, 'alpha', beta_session, 'save_as'),
+    ):
         if response[0] != 404:
             fail('foreign session mutation was accepted')
 
@@ -736,6 +738,7 @@ def run_office_smoke(base: str, *, script: Path, record: Path | None = None) -> 
     assert_non_office_preserved(base)
     assert_isolation_and_replay(script)
     from smoke_stub_office_regressions import run_regressions
+
     run_regressions(script)
     log.info('smoke-stub: office fixtures verified')
 
