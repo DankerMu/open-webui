@@ -139,7 +139,64 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 		await page.reload();
 		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
 		const themed = await openWorkspace(page);
-		await expect(themed.getByRole('button', { name: 'Folder packages/core/src' })).toBeVisible();
+		const packagesHeader = themed.getByRole('button', { name: 'Folder packages/core/src' });
+		const reportsHeader = themed.getByRole('button', { name: 'Folder reports' });
+		const selectedRow = themed.getByRole('button', { name: 'page.html', exact: true });
+		await expect(packagesHeader).toHaveAttribute('aria-expanded', 'true');
+		await expect(reportsHeader).toHaveAttribute('aria-expanded', 'true');
+		await selectedRow.click();
+		await expect(selectedRow).toHaveAttribute('aria-pressed', 'true');
+		await packagesHeader.click();
+		await expect(packagesHeader).toHaveAttribute('aria-expanded', 'false');
+		const framed = themed.locator('ul[aria-label="Workspace file list"]');
+		const rootRows = [
+			themed.getByRole('button', { name: 'notes.bin', exact: true }),
+			themed.getByRole('button', { name: 'page.html', exact: true }),
+			themed.getByRole('button', { name: 'photo.png', exact: true })
+		];
+		const targets = [packagesHeader, reportsHeader, ...rootRows];
+		for (const target of targets) {
+			await expect(target).toBeVisible();
+		}
+		const inView = await framed.evaluate(
+			(list, names) => {
+				const listBox = list.getBoundingClientRect();
+				const viewport = { width: window.innerWidth, height: window.innerHeight };
+				return names.map((name) => {
+					const button = [...list.querySelectorAll('button')].find(
+						(node) => node.getAttribute('aria-label') === name
+					);
+					if (!button) return { name, present: false };
+					const box = button.getBoundingClientRect();
+					return {
+						name,
+						present: true,
+						inList:
+							box.top >= listBox.top - 0.5 &&
+							box.bottom <= listBox.bottom + 0.5 &&
+							box.left >= listBox.left - 0.5 &&
+							box.right <= listBox.right + 0.5,
+						inViewport:
+							box.top >= 0 &&
+							box.left >= 0 &&
+							box.bottom <= viewport.height &&
+							box.right <= viewport.width
+					};
+				});
+			},
+			['Folder packages/core/src', 'Folder reports', 'notes.bin', 'page.html', 'photo.png']
+		);
+		for (const row of inView) {
+			expect(row.present, row.name).toBe(true);
+			expect(row.inList, row.name).toBe(true);
+			expect(row.inViewport, row.name).toBe(true);
+		}
+		const selectedProof = await selectedRow.evaluate((node) => {
+			const style = getComputedStyle(node);
+			return { weight: style.fontWeight, background: style.backgroundColor };
+		});
+		expect(Number(selectedProof.weight)).toBeGreaterThanOrEqual(500);
+		expect(selectedProof.background).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
 		await themed.screenshot({
 			path: `${evidence}/workspace-tree-${theme}.png`,
 			animations: 'disabled'

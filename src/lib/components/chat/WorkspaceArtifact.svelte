@@ -247,19 +247,27 @@
 		void controller.more();
 	}
 
-	let collapsedFolders: Record<string, true> = {};
+	let collapsedFolders = new Set<string>();
 	function toggleFolder(path: string) {
-		collapsedFolders = collapsedFolders[path]
-			? Object.fromEntries(Object.entries(collapsedFolders).filter(([key]) => key !== path))
-			: { ...collapsedFolders, [path]: true };
+		const next = new Set(collapsedFolders);
+		if (next.has(path)) next.delete(path);
+		else next.add(path);
+		collapsedFolders = next;
 	}
-	function folderOf(index: number) {
-		for (let cursor = index - 1; cursor >= 0; cursor--) {
-			const prior = fileRows[cursor];
-			if (prior.kind === 'folder') return prior.path;
+	$: fileFolder = (() => {
+		const membership: string[] = [];
+		let current = '';
+		for (const row of fileRows) {
+			if (row.kind === 'folder') {
+				current = row.path;
+				membership.push('');
+				continue;
+			}
+			membership.push(row.nested ? current : '');
+			if (!row.nested) current = '';
 		}
-		return '';
-	}
+		return membership;
+	})();
 	const FILE_KIND_ICONS = {
 		web: GlobeAlt,
 		image: Photo,
@@ -454,17 +462,17 @@
 				aria-label={$i18n.t('Workspace file list')}
 				class="min-h-0 overflow-y-auto {selected ? 'max-h-[40%] shrink-0' : 'flex-1'}"
 			>
-				{#each fileRows as row, index (row.kind === 'folder' ? row.path : row.file.file_id)}
+				{#each fileRows as row, index (row.kind === 'folder' ? `folder:${row.path}` : `file:${row.file.file_id}`)}
 					{#if row.kind === 'folder'}
 						<li>
 							<button
 								type="button"
 								class="flex h-8 w-full items-center gap-1.5 rounded-lg px-2 text-left text-xs text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-white/4"
 								aria-label={$i18n.t('Folder {{path}}', { path: row.path })}
-								aria-expanded={!collapsedFolders[row.path]}
+								aria-expanded={!collapsedFolders.has(row.path)}
 								on:click={() => toggleFolder(row.path)}
 							>
-								{#if collapsedFolders[row.path]}
+								{#if collapsedFolders.has(row.path)}
 									<ChevronRight className="size-4 shrink-0" />
 									<Folder className="size-4 shrink-0" />
 								{:else}
@@ -479,8 +487,8 @@
 						{@const fileKind = workspaceFileKind(row.file)}
 						{@const KindIcon = FILE_KIND_ICONS[fileKind]}
 						{@const accessibleName = row.file.name || row.file.path}
-						{@const folder = row.nested ? folderOf(index) : ''}
-						<li hidden={row.nested && !!collapsedFolders[folder]}>
+						{@const folder = fileFolder[index] ?? ''}
+						<li hidden={row.nested && collapsedFolders.has(folder)}>
 							<Tooltip content={row.name} className="block w-full" as="div">
 								<button
 									type="button"

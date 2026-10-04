@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, tick, unmount } from 'svelte';
 import { get } from 'svelte/store';
 import { ocuWorkspaces } from '$lib/stores/ocu';
-import { formatFileSize } from '$lib/utils';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 import {
 	chat,
@@ -18,7 +17,6 @@ import {
 	WORKSPACE_RECONCILIATION,
 	type WorkspaceReconciliation
 } from './workspace-reconciliation';
-import { workspaceFileKind } from './workspace-file-rows';
 import type { WorkspaceFile } from '$lib/apis/ocu';
 
 let component: Record<string, unknown> | undefined;
@@ -207,25 +205,188 @@ describe('workspace file tree presentation', () => {
 	it('maps every display kind to a decorative icon and canonical size text', async () => {
 		await open();
 		await ready('index.py');
-		const expected = {
-			'packages/core/src/index.py': { kind: 'code', size: 2048 },
-			'photo.png': { kind: 'image', size: 1024 },
-			'reports/summary.docx': { kind: 'document', size: 4096 },
-			'reports/budget.xlsx': { kind: 'sheet', size: 512 },
-			'deck.pptx': { kind: 'slides', size: 8192 },
-			'page.html': { kind: 'web', size: 256 },
-			'notes.bin': { kind: 'other', size: 64 }
+		const expected: Record<string, { kind: string; size: string }> = {
+			'packages/core/src/index.py': { kind: 'code', size: '2.0 KB' },
+			'photo.png': { kind: 'image', size: '1.0 KB' },
+			'reports/summary.docx': { kind: 'document', size: '4.0 KB' },
+			'reports/budget.xlsx': { kind: 'sheet', size: '512.0 B' },
+			'deck.pptx': { kind: 'slides', size: '8.0 KB' },
+			'page.html': { kind: 'web', size: '256.0 B' },
+			'notes.bin': { kind: 'other', size: '64.0 B' }
 		};
 		for (const [name, { kind, size }] of Object.entries(expected)) {
-			const row = nestedFiles().find((entry) => (entry.name || entry.path) === name)!;
-			expect(workspaceFileKind(row)).toBe(kind);
 			const button = fileButton(name);
 			expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
 			expect(button.querySelector(`[data-file-kind="${kind}"]`)).not.toBeNull();
-			expect(button.textContent).toContain(formatFileSize(size));
+			expect(button.querySelector('[data-file-size]')?.textContent).toBe(size);
 			expect(button.getAttribute('aria-label')).toBe(name);
 			expect(button.querySelector('[data-file-size]')?.getAttribute('aria-hidden')).toBe('true');
+			expect(button.textContent).toContain(name.split('/').pop());
 		}
+	});
+
+	it.each(['constructor', 'toString', '__proto__'] as const)(
+		'starts %s folders expanded and toggles them without hiding other rows',
+		async (folder) => {
+			const prototypeFile = file(`${folder}/readme.txt`, `${folder}-readme.txt`);
+			const reportsFile = file('reports/summary.docx', 'reports-summary.docx');
+			const packagesFile = file('packages/core/src/index.py', 'packages-core-src-index.py');
+			const rootFile = file('page.html', 'page.html');
+			scenario = (input, init) =>
+				input.endsWith('/prefs') && init?.method === 'PUT'
+					? json({ prefs: JSON.parse(String(init.body)) })
+					: input.includes('/workspaces/')
+						? json(describeBody)
+						: json(listing([prototypeFile, reportsFile, packagesFile, rootFile]));
+			await open();
+			await ready('readme.txt');
+			const header = folderButton(folder);
+			expect(header.getAttribute('aria-expanded')).toBe('true');
+			expect(fileButton(`${folder}/readme.txt`).closest('li')?.hidden).toBe(false);
+			expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(false);
+			expect(fileButton('packages/core/src/index.py').closest('li')?.hidden).toBe(false);
+			expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+			await namedButton('page.html').click();
+			await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('page.html'));
+			await vi.waitFor(() =>
+				expect(
+					calls.some((call) => call.url.endsWith('/prefs') && call.init?.method === 'PUT')
+				).toBe(true)
+			);
+			const before = calls.map((call) => `${call.init?.method ?? 'GET'} ${call.url}`);
+			header.click();
+			await tick();
+			expect(header.getAttribute('aria-expanded')).toBe('false');
+			expect(fileButton(`${folder}/readme.txt`).closest('li')?.hidden).toBe(true);
+			expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(false);
+			expect(fileButton('packages/core/src/index.py').closest('li')?.hidden).toBe(false);
+			expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+			expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('page.html');
+			header.click();
+			await tick();
+			expect(header.getAttribute('aria-expanded')).toBe('true');
+			expect(fileButton(`${folder}/readme.txt`).closest('li')?.hidden).toBe(false);
+			expect(calls.map((call) => `${call.init?.method ?? 'GET'} ${call.url}`)).toEqual(before);
+			expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('page.html');
+			expect(fileButton('page.html').getAttribute('aria-pressed')).toBe('true');
+		}
+	);
+
+	it('collapses only the owning multipart folder and leaves later roots visible', async () => {
+		const nested = file('packages/core/src/index.py', 'packages-core-src-index.py');
+		const reports = file('reports/summary.docx', 'reports-summary.docx');
+		const root = file('page.html', 'page.html');
+		scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json(describeBody)
+					: json(listing([nested, reports, root]));
+		await open();
+		await ready('index.py');
+		folderButton('packages/core/src').click();
+		await tick();
+		expect(folderButton('packages/core/src').getAttribute('aria-expanded')).toBe('false');
+		expect(fileButton('packages/core/src/index.py').closest('li')?.hidden).toBe(true);
+		expect(folderButton('reports').getAttribute('aria-expanded')).toBe('true');
+		expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(false);
+		expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+		folderButton('reports').click();
+		await tick();
+		expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(true);
+		expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+	});
+
+	const collidingFileId = 'd4104ce0-5467-4e12-a39b-6066c929ae76';
+	const nestedCollisionId = 'e8b1a2c4-7d6f-4a91-9c20-1f3b5d7e9a01';
+
+	function collisionFiles(id = chat): {
+		root: WorkspaceFile;
+		nested: WorkspaceFile;
+		other: WorkspaceFile;
+	} {
+		return {
+			root: {
+				...file('page.html', collidingFileId),
+				url: `/ocu/files/${id}/page.html`
+			},
+			nested: {
+				...file(`${collidingFileId}/notes.txt`, nestedCollisionId),
+				url: `/ocu/files/${id}/${collidingFileId}/notes.txt`
+			},
+			other: {
+				...file('reports/summary.docx', 'reports-summary.docx'),
+				url: `/ocu/files/${id}/reports/summary.docx`
+			}
+		};
+	}
+
+	async function assertCollisionRows() {
+		const { root, nested } = collisionFiles();
+		const folder = folderButton(collidingFileId);
+		expect(folder.getAttribute('aria-expanded')).toBe('true');
+		expect(fileButton(`${collidingFileId}/notes.txt`)).toBeDefined();
+		expect(fileButton('page.html')).toBeDefined();
+		expect(fileButton('reports/summary.docx')).toBeDefined();
+		await namedButton(`${collidingFileId}/notes.txt`).click();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].selectedFileId).toBe(nested.file_id));
+		expect(fileButton(`${collidingFileId}/notes.txt`).getAttribute('aria-pressed')).toBe('true');
+		expect(fileButton('page.html').getAttribute('aria-pressed')).toBe('false');
+		await namedButton('page.html').click();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].selectedFileId).toBe(root.file_id));
+		expect(fileButton('page.html').getAttribute('aria-pressed')).toBe('true');
+		expect(fileButton(`${collidingFileId}/notes.txt`).getAttribute('aria-pressed')).toBe('false');
+		await vi.waitFor(() =>
+			expect(calls.some((call) => call.url.endsWith('/prefs') && call.init?.method === 'PUT')).toBe(
+				true
+			)
+		);
+		const before = calls.map((call) => `${call.init?.method ?? 'GET'} ${call.url}`);
+		folder.click();
+		await tick();
+		expect(folder.getAttribute('aria-expanded')).toBe('false');
+		expect(fileButton(`${collidingFileId}/notes.txt`).closest('li')?.hidden).toBe(true);
+		expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+		expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(false);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe(root.file_id);
+		folder.click();
+		await tick();
+		expect(folder.getAttribute('aria-expanded')).toBe('true');
+		expect(fileButton(`${collidingFileId}/notes.txt`).closest('li')?.hidden).toBe(false);
+		expect(calls.map((call) => `${call.init?.method ?? 'GET'} ${call.url}`)).toEqual(before);
+	}
+
+	it('renders a UUID folder independently of a root file that already uses that file_id', async () => {
+		const { root, nested, other } = collisionFiles();
+		scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json(describeBody)
+					: json(listing([root, nested, other]));
+		await open();
+		await ready('notes.txt');
+		await assertCollisionRows();
+	});
+
+	it('keeps UUID folder and file rows distinct when pagination introduces the collision', async () => {
+		const { root, nested, other } = collisionFiles();
+		scenario = (input, init) => {
+			if (input.endsWith('/prefs') && init?.method === 'PUT')
+				return json({ prefs: JSON.parse(String(init.body)) });
+			if (input.includes('/workspaces/')) return json(describeBody);
+			if (input.includes('cursor=second')) return json(listing([nested, other], null, 1, 3));
+			return json(listing([root], 'second', 1, 3));
+		};
+		await open();
+		await ready('page.html');
+		expect([
+			...document.querySelectorAll('ul[aria-label="Workspace file list"] [aria-label^="Folder "]')
+		]).toHaveLength(0);
+		expect(fileButton('page.html')).toBeDefined();
+		namedButton('More files').click();
+		await ready('notes.txt');
+		await assertCollisionRows();
 	});
 
 	it('collapses and expands locally without requesting or changing selection', async () => {
