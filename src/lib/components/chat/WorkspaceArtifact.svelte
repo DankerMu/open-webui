@@ -11,6 +11,7 @@
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
 	import { buildWorkspaceFileRows, workspaceFileKind } from './workspace-file-rows';
+	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -27,6 +28,7 @@
 	import ChartBar from '$lib/components/icons/ChartBar.svelte';
 	import Code from '$lib/components/icons/Code.svelte';
 	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
+	import Download from '$lib/components/icons/Download.svelte';
 
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
@@ -63,7 +65,25 @@
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
 			selected.mime.split(';')[0].trim().toLowerCase()
 		);
+	const FILE_KIND_ICONS = {
+		web: GlobeAlt,
+		image: Photo,
+		document: Document,
+		sheet: DocumentChartBar,
+		slides: ChartBar,
+		code: Code,
+		other: DocumentPage
+	} as const;
 	$: downloadUrl = selectedUrl ? `${selectedUrl}?download=1` : '';
+	$: selectedRow = selected
+		? fileRows.find((row) => row.kind === 'file' && row.file.file_id === selected.file_id)
+		: undefined;
+	$: selectedKind = selected ? workspaceFileKind(selected) : 'other';
+	$: SelectedKindIcon = FILE_KIND_ICONS[selectedKind];
+	$: selectedDirectory =
+		selectedRow?.kind === 'file' && selectedRow.nested
+			? (fileFolder[fileRows.indexOf(selectedRow)] ?? '')
+			: '';
 	$: runtimeView =
 		workspace?.view === 'browser' || workspace?.view === 'terminal' ? workspace.view : null;
 	$: runtimeUrl =
@@ -268,15 +288,6 @@
 		}
 		return membership;
 	})();
-	const FILE_KIND_ICONS = {
-		web: GlobeAlt,
-		image: Photo,
-		document: Document,
-		sheet: DocumentChartBar,
-		slides: ChartBar,
-		code: Code,
-		other: DocumentPage
-	} as const;
 	onMount(() => {
 		if (!enabled || !isSavedChatId(chatId) || chatId === 'default') return;
 		live = true;
@@ -523,31 +534,110 @@
 				>{/if}
 		{/if}
 		{#if selected && downloadUrl}
-			<div class="flex flex-col min-h-0 flex-1" aria-label={$i18n.t('Selected workspace file')}>
-				<a href={downloadUrl} download={selected.name}>{$i18n.t('Download')} {selected.name}</a>
-				{#if generated}
-					<iframe
-						title={selected.name}
-						src={`${selectedUrl}?revision=${selected.revision}`}
-						sandbox="allow-scripts allow-forms"
-						class="w-full flex-1"
-					></iframe>
-				{:else if office}
-					{#if previewState}<p role="status">{previewState}</p>{/if}
-					{#if previewError}
-						<button type="button" on:click={startOffice}>{$i18n.t('Retry Office preview')}</button>
-					{:else}
-						{#key frameKey}<iframe
-								bind:this={officeFrame}
-								title={`${$i18n.t('Office preview')}: ${selected.name}`}
-								src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
-								sandbox="allow-scripts allow-same-origin allow-forms"
-								class="w-full flex-1"
-							></iframe>{/key}
+			<div
+				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible"
+				aria-label={$i18n.t('Selected workspace file')}
+			>
+				<div
+					data-selected-bar
+					class="flex h-8 shrink-0 items-center gap-1.5 overflow-visible border-b border-gray-100 pr-1 dark:border-gray-800"
+				>
+					<span data-file-kind={selectedKind} class="contents">
+						<svelte:component this={SelectedKindIcon} className="size-4 shrink-0" />
+					</span>
+					<Tooltip
+						content={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
+						className="min-w-0 flex-1"
+						as="div"
+					>
+						<span
+							data-selected-name
+							class="block min-w-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100"
+							>{selectedRow?.kind === 'file' ? selectedRow.name : selected.name}</span
+						>
+					</Tooltip>
+					{#if selectedDirectory}
+						<span class="min-w-0 max-w-[30%] truncate text-xs text-gray-400"
+							>{selectedDirectory}</span
+						>
 					{/if}
-				{:else}<p role="status">
-						{$i18n.t('Preview not supported for this file type. Download the file to open it.')}
-					</p>{/if}
+					<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
+						>{formatFileSize(selected.size)}</span
+					>
+					<div class="ml-auto flex shrink-0 items-center gap-1">
+						<Tooltip content={$i18n.t('Download')} className="flex">
+							<a
+								class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
+								href={downloadUrl}
+								download={selected.name}
+								><span class="sr-only">{$i18n.t('Download')} {selected.name}</span><Download
+									className="size-4"
+								/></a
+							>
+						</Tooltip>
+					</div>
+				</div>
+				<div
+					data-selected-preview
+					class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+				>
+					{#if generated}
+						<iframe
+							title={selected.name}
+							src={`${selectedUrl}?revision=${selected.revision}`}
+							sandbox="allow-scripts allow-forms"
+							class="min-h-0 w-full flex-1 border-0"
+						></iframe>
+					{:else if office}
+						{#if previewError}
+							<div
+								class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+							>
+								{#if previewState}<p role="status">{previewState}</p>{/if}
+								<button
+									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+									type="button"
+									on:click={startOffice}>{$i18n.t('Retry Office preview')}</button
+								>
+							</div>
+						{:else}
+							{#if previewState}
+								<p
+									class="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+									role="status"
+								>
+									<Spinner className="size-4" />{previewState}
+								</p>
+							{/if}
+							{#key frameKey}<iframe
+									bind:this={officeFrame}
+									title={`${$i18n.t('Office preview')}: ${selected.name}`}
+									src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
+									sandbox="allow-scripts allow-same-origin allow-forms"
+									class="min-h-0 w-full flex-1 border-0"
+								></iframe>{/key}
+						{/if}
+					{:else}
+						<div
+							class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center"
+						>
+							<span data-file-kind={selectedKind} class="contents">
+								<svelte:component
+									this={SelectedKindIcon}
+									className="size-8 shrink-0 text-gray-400"
+								/>
+							</span>
+							<p class="text-sm text-gray-500 dark:text-gray-400" role="status">
+								{$i18n.t('Preview not supported for this file type. Download the file to open it.')}
+							</p>
+							<a
+								class="h-8 rounded-md border border-gray-200 px-3 text-xs font-medium leading-8 text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+								href={downloadUrl}
+								download={selected.name}>{$i18n.t('Download')}</a
+							>
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	{/if}

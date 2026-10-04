@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
 import { context, evidence } from './ocu-fixtures';
 
@@ -55,6 +55,29 @@ async function openWorkspace(page: Page) {
 	}
 	await expect(panel).toBeVisible();
 	return panel;
+}
+
+async function selectedPreviewFit(panel: Locator) {
+	return panel.evaluate(() => {
+		const selected = document.querySelector(
+			'[aria-label="Selected workspace file"]'
+		) as HTMLElement | null;
+		const bar = selected?.querySelector('[data-selected-bar]') as HTMLElement | null;
+		const surface = selected?.querySelector('[data-selected-preview]') as HTMLElement | null;
+		const section = selected?.closest('section') as HTMLElement | null;
+		if (!selected || !bar || !surface || !section) return null;
+		const selectedBox = selected.getBoundingClientRect();
+		const barBox = bar.getBoundingClientRect();
+		const surfaceBox = surface.getBoundingClientRect();
+		const panelBox = section.getBoundingClientRect();
+		return {
+			barVisible: barBox.height > 0 && barBox.width > 0,
+			fits: selectedBox.right <= panelBox.right + 1 && selectedBox.left >= panelBox.left - 1,
+			overflow: selected.scrollWidth > selected.clientWidth + 1,
+			remaining: surfaceBox.height,
+			belowBar: surfaceBox.top >= barBox.bottom - 1
+		};
+	});
 }
 
 test('nested Files tree shows headers, indentation, collapse and selection geometry', async ({
@@ -197,8 +220,36 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 		});
 		expect(Number(selectedProof.weight)).toBeGreaterThanOrEqual(500);
 		expect(selectedProof.background).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+		const htmlFit = await selectedPreviewFit(themed);
+		expect(htmlFit).not.toBeNull();
+		expect(htmlFit!.barVisible).toBe(true);
+		expect(htmlFit!.fits).toBe(true);
+		expect(htmlFit!.overflow).toBe(false);
+		expect(htmlFit!.remaining).toBeGreaterThan(40);
+		expect(htmlFit!.belowBar).toBe(true);
 		await themed.screenshot({
 			path: `${evidence}/workspace-tree-${theme}.png`,
+			animations: 'disabled'
+		});
+		await themed.screenshot({
+			path: `${evidence}/workspace-selected-html-${theme}.png`,
+			animations: 'disabled'
+		});
+		await themed.getByRole('button', { name: 'notes.bin', exact: true }).click();
+		await expect(themed.getByRole('button', { name: 'notes.bin', exact: true })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		await expect(themed.getByText('Preview not supported for this file type')).toBeVisible();
+		const unsupportedFit = await selectedPreviewFit(themed);
+		expect(unsupportedFit).not.toBeNull();
+		expect(unsupportedFit!.barVisible).toBe(true);
+		expect(unsupportedFit!.fits).toBe(true);
+		expect(unsupportedFit!.overflow).toBe(false);
+		expect(unsupportedFit!.remaining).toBeGreaterThan(40);
+		expect(unsupportedFit!.belowBar).toBe(true);
+		await themed.screenshot({
+			path: `${evidence}/workspace-selected-unsupported-${theme}.png`,
 			animations: 'disabled'
 		});
 	}
