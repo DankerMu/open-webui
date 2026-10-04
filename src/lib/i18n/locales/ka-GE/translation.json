@@ -31,6 +31,8 @@
 	"{{count}} users_one": "",
 	"{{count}} users_other": "",
 	"{{COUNT}} words": "{{COUNT}} სიტყვა",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "",
 	"{{COUNT}}h_time_ago": "",
 	"{{COUNT}}m_time_ago": "",

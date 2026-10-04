@@ -31,6 +31,7 @@
 	"{{count}} users_one": "{{count}} 个用户",
 	"{{count}} users_other": "{{count}} 个用户",
 	"{{COUNT}} words": "{{COUNT}} 个字",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}}天前",
 	"{{COUNT}}h_time_ago": "{{COUNT}}小时前",
 	"{{COUNT}}m_time_ago": "{{COUNT}}分钟前",

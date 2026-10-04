@@ -98,6 +98,7 @@ WebUI 拟新增 `src/lib/components/chat/WorkspaceArtifact.svelte`、`src/lib/ap
 - 状态：unavailable → loading → ready/empty/error；运行状态另有 stopped/disconnected，不以白屏替代错误。工作区状态以 chat_id 为键，保存打开偏好、选中 Files/Browser/Terminal、选中文件和 revision；持久化 UI 偏好不保存凭据。
 - 显式"工作区"按钮随能力可用而出现；无产物也能进入终端/浏览器。首次有工作区/新产物时自动打开一次；用户关闭后，普通轮询不得强制打开。
 - 历史聊天加载从后端描述恢复，不依赖旧 SSE 事件或再次执行 outlet。沙箱停止后仍可读持久化文件；不因查看旧聊天自动开机（见 §1 停止语义）。
+- 侧栏外观由 `WorkspaceArtifact.svelte:250-417` 的 header、分段视图按钮、状态块和 runtime 边框容器承担；已加载文件计数仅由文件数组长度和分页游标派生。文件列表与选中文件区、请求和偏好、iframe 权限与消息协议不属于外观变更。浅色/深色 Files 截图保存在 `docs/evidence/issue-179/`；真实沙箱和部署验收仍按下表执行。
 
 ### 4. 产物触发
 

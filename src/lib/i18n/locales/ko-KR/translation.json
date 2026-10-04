@@ -25,6 +25,7 @@
 	"{{COUNT}} Sources": "{{COUNT}}개의 소스",
 	"{{count}} users_other": "",
 	"{{COUNT}} words": "{{COUNT}} 단어",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}}일 전",
 	"{{COUNT}}h_time_ago": "{{COUNT}}시간 전",
 	"{{COUNT}}m_time_ago": "{{COUNT}}분 전",

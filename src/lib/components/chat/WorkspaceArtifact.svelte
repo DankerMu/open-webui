@@ -9,6 +9,13 @@
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
+	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import Refresh from '$lib/components/icons/Refresh.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
+	import Folder from '$lib/components/icons/Folder.svelte';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import Terminal from '$lib/components/icons/Terminal.svelte';
+	import Info from '$lib/components/icons/Info.svelte';
 
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
@@ -33,6 +40,7 @@
 	$: notice = localNotice || workspace?.notice || '';
 	$: busy = workspace?.busy ?? false;
 	$: workspace = $ocuWorkspaces[chatId];
+	$: fileCount = workspace?.files.length ?? 0;
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
@@ -239,77 +247,172 @@
 	});
 </script>
 
-<section class="flex h-full flex-col gap-2 p-3" aria-label={$i18n.t('Workspace Files')}>
-	<header class="flex items-center justify-between">
-		<h2>{$i18n.t('Workspace Files')}</h2>
-		<div class="flex items-center gap-2">
-			<button
-				type="button"
-				on:click={refresh}
-				disabled={busy}
-				aria-label={$i18n.t('Refresh workspace files')}>{$i18n.t('Refresh')}</button
-			>
-			{#if onClose}<button type="button" on:click={onClose} aria-label={$i18n.t('Close workspace')}
-					>{$i18n.t('Close')}</button
-				>{/if}
+<section class="flex h-full min-h-0 flex-col gap-2 p-3" aria-label={$i18n.t('Workspace Files')}>
+	<header
+		class="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-gray-800"
+	>
+		<div class="flex min-w-0 items-center gap-2">
+			<h2 class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+				{$i18n.t('Workspace Files')}
+			</h2>
+			{#if fileCount}
+				<span class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
+					{#if workspace?.nextCursor}
+						{$i18n.t('{{count}}+ files', { count: fileCount })}
+					{:else}
+						{$i18n.t('{{count}} files', { count: fileCount })}
+					{/if}
+				</span>
+			{/if}
+		</div>
+		<div class="flex items-center gap-1">
+			<Tooltip content={$i18n.t('Refresh')}>
+				<button
+					class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
+					type="button"
+					on:click={refresh}
+					disabled={busy}
+					aria-label={$i18n.t('Refresh workspace files')}
+					><Refresh className={`size-4 ${busy ? 'animate-spin' : ''}`} /></button
+				>
+			</Tooltip>
+			{#if onClose}
+				<Tooltip content={$i18n.t('Close')}>
+					<button
+						class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
+						type="button"
+						on:click={onClose}
+						aria-label={$i18n.t('Close workspace')}><XMark className="size-4" /></button
+					>
+				</Tooltip>
+			{/if}
 		</div>
 	</header>
-	<nav class="flex gap-2" aria-label={$i18n.t('Workspace views')}>
+	<nav
+		class="flex shrink-0 gap-1 rounded-lg border border-gray-100 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-850"
+		aria-label={$i18n.t('Workspace views')}
+	>
 		<button
+			class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 {workspace?.view ===
+			'files'
+				? 'bg-white font-medium shadow-sm dark:bg-gray-700'
+				: 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'}"
 			type="button"
 			on:click={() => selectView('files')}
-			aria-pressed={workspace?.view === 'files'}>{$i18n.t('Files')}</button
+			aria-pressed={workspace?.view === 'files'}
+			><Folder className="size-4" />{$i18n.t('Files')}</button
 		>
 		{#if workspace?.views.includes('browser')}
 			<button
+				class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-40 {workspace.view ===
+				'browser'
+					? 'bg-white font-medium shadow-sm dark:bg-gray-700'
+					: 'text-gray-500 enabled:hover:bg-gray-100 dark:text-gray-400 dark:enabled:hover:bg-gray-800'}"
 				type="button"
 				on:click={() => selectView('browser')}
 				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
-				aria-pressed={workspace.view === 'browser'}>{$i18n.t('Browser')}</button
+				aria-pressed={workspace.view === 'browser'}
+				><GlobeAlt className="size-4" />{$i18n.t('Browser')}</button
 			>
 		{/if}
 		{#if workspace?.views.includes('terminal')}
 			<button
+				class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-40 {workspace.view ===
+				'terminal'
+					? 'bg-white font-medium shadow-sm dark:bg-gray-700'
+					: 'text-gray-500 enabled:hover:bg-gray-100 dark:text-gray-400 dark:enabled:hover:bg-gray-800'}"
 				type="button"
 				on:click={() => selectView('terminal')}
 				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
-				aria-pressed={workspace.view === 'terminal'}>{$i18n.t('Terminal')}</button
+				aria-pressed={workspace.view === 'terminal'}
+				><Terminal className="size-4" />{$i18n.t('Terminal')}</button
 			>
 		{/if}
 	</nav>
-	{#if notice}<p role="alert">{notice}</p>{/if}
+	{#if notice}<p
+			class="flex shrink-0 items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+			role="alert"
+		>
+			<Info className="size-4 shrink-0" />{notice}
+		</p>{/if}
 	{#if runtimeUrl}
-		{#key `${chatId}:${runtimeView}`}
-			<iframe
-				title={$i18n.t('Workspace {{view}}', {
-					view: $i18n.t(runtimeView === 'browser' ? 'Browser' : 'Terminal')
-				})}
-				src={runtimeUrl}
-				sandbox="allow-scripts allow-same-origin allow-forms"
-				class="min-h-0 w-full flex-1"
-			></iframe>
-		{/key}
+		<div
+			class="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+		>
+			{#key `${chatId}:${runtimeView}`}
+				<iframe
+					title={$i18n.t('Workspace {{view}}', {
+						view: $i18n.t(runtimeView === 'browser' ? 'Browser' : 'Terminal')
+					})}
+					src={runtimeUrl}
+					sandbox="allow-scripts allow-same-origin allow-forms"
+					class="min-h-0 w-full flex-1"
+				></iframe>
+			{/key}
+		</div>
 	{:else}
-		{#if phase === 'loading'}<p role="status">{$i18n.t('Loading workspace files')}</p>{/if}
-		{#if phase === 'unavailable'}<p role="status">
+		{#if phase === 'loading'}
+			<p class="sr-only" role="status">{$i18n.t('Loading workspace files')}</p>
+			<div class="space-y-2" aria-hidden="true">
+				{#each [0, 1, 2] as row}
+					<div class="flex h-8 items-center gap-2 rounded-lg bg-gray-50 px-2 dark:bg-gray-850">
+						<div class="size-4 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+						<div
+							class="h-2 animate-pulse rounded bg-gray-200 dark:bg-gray-700"
+							style:width={`${70 - row * 15}%`}
+						></div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+		{#if phase === 'unavailable'}<p
+				class="flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-850 dark:text-gray-400"
+				role="status"
+			>
+				<Info className="mt-0.5 size-4 shrink-0" />
 				{$i18n.t('This workspace is created by the first tool call.')}
 			</p>{/if}
-		{#if phase === 'disconnected'}<p role="alert">
+		{#if phase === 'disconnected'}<p
+				class="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+				role="alert"
+			>
+				<Info className="size-4 shrink-0" />
 				{$i18n.t('Workspace service is unreachable.')}
-				<button type="button" on:click={() => load()}>{$i18n.t('Reconnect')}</button>
+				<button
+					class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+					type="button"
+					on:click={() => load()}>{$i18n.t('Reconnect')}</button
+				>
 			</p>{/if}
-		{#if phase === 'error'}<p role="alert">
+		{#if phase === 'error'}<p
+				class="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+				role="alert"
+			>
+				<Info className="size-4 shrink-0" />
 				{$i18n.t('Workspace files could not be loaded.')}
-				<button type="button" on:click={() => load()}>{$i18n.t('Retry')}</button>
+				<button
+					class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+					type="button"
+					on:click={() => load()}>{$i18n.t('Retry')}</button
+				>
 			</p>{/if}
-		{#if workspace?.status === 'stopped'}<p role="status">
+		{#if workspace?.status === 'stopped'}<p
+				class="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-850 dark:text-gray-400"
+				role="status"
+			>
+				<Info className="size-4 shrink-0" />
 				{$i18n.t('Workspace is stopped; saved files remain available.')}
 				{#if workspace?.capabilities.includes('launch')}<button
+						class="h-7 rounded-md border border-gray-200 px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
 						type="button"
 						on:click={() => load(true)}>{$i18n.t('Launch')}</button
 					>{/if}
 			</p>{/if}
-		{#if phase === 'empty' || (phase === 'stopped' && !workspace?.files.length)}<p role="status">
+		{#if phase === 'empty' || (phase === 'stopped' && !workspace?.files.length)}<p
+				class="flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-gray-850 dark:text-gray-400"
+				role="status"
+			>
+				<Folder className="size-4 shrink-0" />
 				{$i18n.t('No workspace files yet.')}
 			</p>{/if}
 		{#if workspace?.files.length}

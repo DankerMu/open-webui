@@ -607,3 +607,89 @@ test('A-T01 positive control confirms credentials are observable on owner docume
 	await expect(page.locator('#chat-pane')).toBeVisible();
 	await expect.poll(() => documents).toContain(true);
 });
+
+test('workspace chrome fits Files themes and remaining-height runtime views', async ({ page }) => {
+	const id = await createScenarioChat(page, 'normal');
+	let releaseDescribe = () => {};
+	const describing = new Promise<void>((resolve) => {
+		releaseDescribe = resolve;
+	});
+	await page.route(`**/api/v1/ocu/workspaces/${id}`, async (route) => {
+		await describing;
+		await route.continue();
+	});
+	const panel = await openWorkspace(page, id);
+	try {
+		await expect(panel.getByRole('status')).toHaveText('Loading workspace files');
+		await panel.screenshot({ path: `${evidence}/workspace-chrome-loading.png` });
+	} finally {
+		releaseDescribe();
+	}
+	await expect(panel.getByRole('button', { name: 'page.html', exact: true })).toBeVisible();
+	for (const theme of ['light', 'dark']) {
+		await page.evaluate((value) => localStorage.setItem('theme', value), theme);
+		await page.reload();
+		await expect(panel).toBeVisible();
+		await expect(panel.getByRole('button', { name: 'page.html', exact: true })).toBeVisible();
+		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+		await panel.screenshot({
+			path: `${evidence}/workspace-files-${theme}.png`,
+			animations: 'disabled'
+		});
+	}
+	let release = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route(`**/api/v1/ocu/workspaces/${id}/refresh`, async (route) => {
+		await held;
+		await route.continue();
+	});
+	const refresh = panel.getByRole('button', { name: 'Refresh workspace files' });
+	try {
+		await refresh.click();
+		await expect(refresh).toBeDisabled();
+		const motion = await refresh.locator('svg').evaluate((node) => {
+			const style = getComputedStyle(node);
+			return {
+				name: style.animationName,
+				duration: style.animationDuration,
+				iterations: style.animationIterationCount
+			};
+		});
+		expect(motion.name).not.toBe('none');
+		expect(parseFloat(motion.duration)).toBeGreaterThan(0);
+		expect(motion.iterations).toBe('infinite');
+	} finally {
+		release();
+	}
+	await expect(refresh).toBeEnabled();
+	for (const view of ['Browser', 'Terminal']) {
+		await panel.getByRole('button', { name: view, exact: true }).click();
+		const frame = panel.locator(`iframe[title="Workspace ${view}"]`);
+		await expect(frame).toBeVisible();
+		const geometry = await frame.evaluate((node) => {
+			const frame = node.getBoundingClientRect();
+			const container = node.parentElement!;
+			const bounds = container.getBoundingClientRect();
+			const panel = node.closest('section')!.getBoundingClientRect();
+			return {
+				height: frame.height,
+				gap: bounds.height - frame.height,
+				fits:
+					bounds.top >= panel.top &&
+					bounds.bottom <= panel.bottom &&
+					bounds.left >= panel.left &&
+					bounds.right <= panel.right,
+				overflow:
+					container.scrollHeight > container.clientHeight ||
+					container.scrollWidth > container.clientWidth
+			};
+		});
+		expect(geometry.height).toBeGreaterThan(100);
+		expect(geometry.gap).toBeLessThanOrEqual(2);
+		expect(geometry.fits).toBe(true);
+		expect(geometry.overflow).toBe(false);
+		await panel.screenshot({ path: `${evidence}/workspace-chrome-${view.toLowerCase()}.png` });
+	}
+});

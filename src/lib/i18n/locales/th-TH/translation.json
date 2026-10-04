@@ -24,6 +24,7 @@
 	"{{COUNT}} Sources": "{{COUNT}} แหล่งที่มา",
 	"{{count}} users_other": "{{count}} ผู้ใช้",
 	"{{COUNT}} words": "{{COUNT}} คำ",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}} วันที่แล้ว",
 	"{{COUNT}}h_time_ago": "{{COUNT}} ชั่วโมงที่แล้ว",
 	"{{COUNT}}m_time_ago": "{{COUNT}} นาทีที่แล้ว",

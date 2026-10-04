@@ -31,6 +31,8 @@
 	"{{count}} users_one": "{{count}} brúkari",
 	"{{count}} users_other": "{{count}} brúkarar",
 	"{{COUNT}} words": "{{COUNT}} orð",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "fyri {{COUNT}} døgum síðan",
 	"{{COUNT}}h_time_ago": "fyri {{COUNT}} tímum síðan",
 	"{{COUNT}}m_time_ago": "fyri {{COUNT}} minuttum síðan",

@@ -31,6 +31,8 @@
 	"{{count}} users_one": "",
 	"{{count}} users_other": "",
 	"{{COUNT}} words": "{{COUNT}} ord",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}}d sedan",
 	"{{COUNT}}h_time_ago": "{{COUNT}}h sedan",
 	"{{COUNT}}m_time_ago": "{{COUNT}}m sedan",
