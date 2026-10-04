@@ -204,3 +204,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Scope: task 8 records and fixture only; disposable measurement helpers are not production code or the later `verify-office` target. No LAN access, deployment, Office implementation or dependency upgrade.
 - Selected risks: protocol/API fields, image/config identity, auth/cookie containment, concurrent editor state and shutdown ordering, environment limits, licence/font provenance and evidence documentation.
 - Evidence floor: actual editor input and exported bytes for three formats; observed callbacks, command responses and browser events for the nine consumed values; explicit missing/operator-only items; owned-resource cleanup; independent evidence review before a verdict.
+
+## Office gateway rows fixture
+
+- Issue type: feature; fixture level: expanded, matching task 21.1: reviewed production routing and owner authorization share a fail-closed boundary.
+- Scope: OCU `deploy/proxy/` table, renderer, existing tests and README; the WebUI companion records this fixture and task completion. No broker, listener, compose, deployment, image operation or WebUI pin change.
+- Blast radius: a wrong row, identity capture or raw-path match can forward an unauthorized Office/control-plane request.
+- Selected risk packs: public HTTP API, production configuration, auth/permissions, path safety, schema/pin compatibility, error handling, atomic file replacement and documentation.
+- Evidence floor: a real-nginx Office forwarding case red against the unchanged table, then green; all seven owner rows and denial matrices; renderer pin/count/placeholder rejection preserving the previous private config; all existing proxy tests and the structure check.

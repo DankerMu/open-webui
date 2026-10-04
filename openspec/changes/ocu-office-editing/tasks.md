@@ -476,11 +476,27 @@ Minimal mergeable slice: 20.1 (protocol and state) - green alone because the pag
 
 ## 21. [deploy] Proxy table: Office rows (spec: ocu-reverse-proxy)
 
-- [ ] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.
+- [x] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.
 
 Depends on: 5 (both edit the route table and its pin).
 Suggested fixture level: expanded - reviewed default-deny gateway table, authentication mapping and its pin.
 Minimal mergeable slice: atomic - rows, placeholder validation and pin are checked together by the renderer; a table that does not match its pin does not render.
+
+### Office gateway evidence
+
+- API / auth — Selected: each of seven rows forwards the owner request to its unprefixed path with the internal credential and path-derived chat identity. Anonymous gets 401, foreign chat gets 404, neither contacts OCU. Each of five POST rows denies null origin or missing mutation header with 403; both GET rows work without that header.
+- Path safety / compatibility — Selected: both new placeholders reject empty/extra segments, encoded slash/backslash, dot segments and double-encoded forms with 404 before OCU. Unlisted methods and shapes, prefixed/unprefixed source/callback paths and the imports GET never reach OCU. Retain existing upload, file and WebSocket cases.
+- Configuration / schema / file IO — Selected: twenty existing row objects remain unchanged; exactly seven Office rows produce a 27-row pin. Gained/lost/altered tables and either placeholder without `{chat}` fail before replacing a valid private configuration. Placeholder validation must not pass solely because a stale pin happens to reject the fixture.
+- Errors / documentation — Selected: preserve fail-loud rendering and private output modes; README describes the new routes and their limits. No rendered deployment config, credential or observation header is printed or committed.
+- Storage, migrations, broker behavior and image topology — Not selected: no source/store/listener/compose change, no new decision, no Docker build or DocumentServer run.
+
+Run the existing renderer unittest command and the full native proxy suite against
+the existing recording fixture with owned loopback processes, plus
+`tests/test-project-structure.sh`. Preserve a real Office forwarding failure
+against the old table and the passing result after the atomic change. Stop owned
+processes and remove private temporary files after retaining sanitized evidence.
+The WebUI companion runs strict OpenSpec, doc and decision checks; production
+broker/editor acceptance is not claimed by this routing proof.
 
 ## 22. [webui] Stub Office fixtures and gateway smoke (spec: ocu-stub, ocu-proxy-smoke)
 
