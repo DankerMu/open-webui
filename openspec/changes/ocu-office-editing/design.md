@@ -275,6 +275,16 @@ OCU has no separate Office switch. Office editing is enabled on the OCU server w
 
 Alternative rejected: routes keyed by `file_id` without a chat segment. They need a second authorization path in which OCU resolves ownership it does not hold.
 
+#### Token and command-client boundary
+
+Task 11.2 adds `office/tokens.py` and `office/commands.py`, with no route or state-machine consumers. `sign_jwt(payload)` and `verify_jwt(token)` use the configured DocumentServer secret and standard-library HS256 only. A shared private encoder/verifier uses constant-time signature comparison, rejects malformed or non-object input and unsupported algorithms, and returns nothing from an unverified payload. An `exp` claim, when present, must be a finite numeric date other than a boolean and is expired at `now >= exp`; a present `nbf` is honored. Invalid tokens raise a value-free `InvalidTokenError`; absent signing keys fail explicitly without disclosing values.
+
+`sign_source_ticket(chat_id, file_id, version, session_id)` uses the configured source-ticket lifetime. Its key is HMAC-SHA256 keyed by the internal token over the purpose label `ocu-office-source-ticket`, not the DocumentServer secret or the raw internal token. The unpadded base64url token binds those four fields and a required expiry. `verify_source_ticket(token)` returns exactly the four bindings after signature, expiry and field-shape verification: nonempty string identities and a positive integer version, excluding booleans. The helpers keep no cache and never log credentials or tickets.
+
+Async `forcesave(document_key, save_seq, intent)` sends a signed command with `c`, `key` and `userdata`; `userdata` is a compact JSON string containing positive integer `save_seq` and `intent` (`publish` or `persist`). Async `lookup_key(document_key)` sends `c: info`. Requests use the configured control-plane address plus `/command`, with a body token signing the command fields directly, not the header-token `payload` wrapper. The [command service](https://api.onlyoffice.com/docs/docs-api/additional-api/command-service/) and [body-token signature format](https://api.onlyoffice.com/docs/docs-api/additional-api/signature/request/token-in-body/) own this wire contract. The [B1 record](../../../docs/evidence/issue-119/2026-10-03-b1.md) supplies the exact-string echo observation, not a new capacity-query contract.
+
+Force-save returns a typed outcome: integer code 0 is `accepted`, 1 `key_unknown`, 4 `nothing_to_save`, and every other code or malformed/non-success response `rejected`; connection refusal or timeout is `unreachable`. Key lookup reports `known` for code 0, `key_unknown` for 1 and `unreachable` for every other result, so a failed check never orphans a session as though the key were absent. Boolean and non-integer codes are invalid. HTTP uses existing aiohttp, a bounded timeout and response read, no redirects, environment proxy or retries; cancellation is not converted into a result. No request goes to the browser origin. Response bodies and exception messages are not logged.
+
 #### Office gateway row boundary
 
 Task 21.1 adds exactly the seven browser rows above to the existing twenty-row
