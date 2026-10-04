@@ -287,3 +287,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: broker refusal visibility, mutation request shape and late results reaching the wrong chat.
 - Selected risk packs: API, schema, auth transport, concurrency/ordering, compatibility, errors and documentation.
 - Evidence floor: four request shapes, unchanged broker reasons, transport/JSON failures, current/retired generations and two-chat isolation; per-file coverage, scoped lint/typecheck, actual HTTP client/store smoke and clean-runner full frontend checks.
+
+## Office workspace-change notice fixture
+
+- Issue type: feature; fixture level: expanded for descriptor-safe file observation and shared persisted bookkeeping.
+- Scope: task 13.2's status notice and two cache fields; reuse the unchanged safe-reader primitives and persisted index resolver. No reader/store API extension, reconcile, publish, sweep or UI change.
+- Blast radius: reads through unsafe paths, stale cache hints, an adopted or overwritten baseline, lost callback metadata and accidental save refusal.
+- Selected risk packs: API, file IO/path safety, schema, auth containment, concurrency, resource bounds, compatibility, errors, packaging and documentation. No configuration or dependency change.
+- Evidence floor: no-read cache hits, size/mtime and deliberate forged-metadata behavior, unsafe/missing recovery, no foreign/other-file IO, save acceptance, two-worker state conservation and packaged status HTTP smoke.
+- Existing creation already persists the comparison baseline. Missing baseline is corruption, not a migration that adopts current content; absent cache fields are initialized by the first status observation.

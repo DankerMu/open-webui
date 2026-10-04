@@ -26,12 +26,15 @@ Join/reopen and close decisions keep this lock across the bounded, read-only Doc
 
 Force-save uses a different boundary because the command can induce a callback. The request durably allocates its sequence and intent under the lock, releases it for the command, then reconciles the result under the lock against the latest session key and pending allocation. Completed, superseded and final operations remain unchanged. Ordinary failures preserve a concurrent close/conflict; an unknown-key answer orphans a still-owned open session because liveness, not the close allocation, decides whether the editor exists.
 
+The status notice holds the same lock while resolving the edited `file_id`, observing one safely opened descriptor and updating only its boolean and size/mtime hints. It reuses the reader's canonical opening/hash primitives without changing creation or adding a second reader. A first observation hashes; equal hints reuse the prior result. Unsafe observations invalidate hints so recovery is sampled again. The session's creation baseline remains authoritative: missing baseline is corruption, not permission to adopt workspace bytes. This advisory cache can miss forged metadata; publish-time hashing owns safety.
+
 ## Alternatives considered
 
 - **PostgreSQL** — new dependency, a migration job, a backup extension, and two-store crash consistency between chat files and rows.
 - **SQLite** — still a second store beside the chat-data tree, with extra failure modes under two workers sharing one file.
 - **Capture, then commit the session separately** — an ENOSPC failure on the second commit leaves a document/version/blob without the refused session. One state publication keeps creation atomic without a second store or compensation journal.
 - **Hold the chat lock across force-save** — a callback induced by the command may need the same lock before the command returns. Durable preparation and ownership-checked reconciliation avoid this callback deadlock without rolling back or reusing an allocated sequence.
+- **Stat a path, then reopen it for hashing** — a sandbox writer can replace the path between observations. One validated descriptor and metadata checks around the existing stable-read primitive bind the cached hints to the hashed sample.
 
 ## Consequences
 
