@@ -229,3 +229,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: deterministic browser/gateway fixtures, file identity and revisions, existing preview modes and credential containment.
 - Selected risk packs: API, configuration, schema, auth, concurrency, compatibility, errors and documentation.
 - Evidence floor: `make smoke-stub` exercises every named scenario, default behavior, forbidden methods/paths, isolation and deterministic replay; lint and documentation gates pass. Host-page JavaScript is review-only in this slice; browser execution belongs to tasks 24.1 and 24.4.
+
+## Office route availability fixture
+
+- Issue type: feature; fixture level: expanded, matching task 12.1.
+- Scope: OCU guard, `office/router.py`, minimal app registration and paired/auth/import-isolation tests; no sessions, state writes, DocumentServer calls or deployment changes.
+- Blast radius: authentication precedence, canonical path identity, disabled-route containment and accidental chat-directory creation.
+- Selected risk packs: API, config, file/path safety, response schema, auth, ordering, compatibility, errors, packaging and documentation.
+- Evidence floor: real app authorization matrix, literal empty-segment rejection, Office preflight/method coverage, zero state/network work on denials, enabled/disabled import isolation and packaged HTTP smoke.

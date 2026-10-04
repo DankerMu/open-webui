@@ -306,6 +306,16 @@ temporary configs are exercised. A failed render preserves the previous config;
 rollback restores the matching table/renderer pair. The later WebUI pin/smoke
 consumer owns its update separately, and the second listener is out of scope.
 
+#### Office route availability boundary
+
+Task 12.1 adds `office/router.py`. The service guard owns the `/api/office/` prefix and takes the literal immediately following path segment, without collapsing empty segments or substituting header/query identity. After bearer and canonical validation it places the canonical value in the existing ASGI `ocu_chat_id` field. Office HTTP preflights do not use the guard's unauthenticated CORS shortcut; CORS behavior outside Office is unchanged.
+
+A small ASGI availability middleware in the Office module runs inside the service guard and before route dispatch. Disabled Office returns 404 without filesystem or DocumentServer work. Enabled Office checks the canonical chat directory with a non-creating operation and returns 404 when absent, before any chat lock. Existing chat requests pass to the router. This prefix-wide boundary also covers unknown paths and methods, which route dependencies alone cannot cover. App wiring is one `include_router` line plus one explicit middleware registration before `AuthGuardMiddleware`, keeping authentication outermost; imports have no registration side effects.
+
+The router contains a permanent unknown-path 404 fallback, not placeholder session handlers. `create_office_router()` registers an Office-only suffix converter matching all characters, including decoded newlines, then constructs a method-independent ASGI route through the existing `APIRouter.add_route` / `include_router` APIs. The built-in path converter is unchanged. Register the fallback after concrete Office routes so later session handlers win. Availability remains enforced before either path. Office-owned 404 reasons are `office_disabled`, `unknown_chat` and `unknown_route`; Office guard errors add `unauthorized`, `forbidden` or `invalid_chat_id` while retaining `detail`. Other guard responses remain unchanged.
+
+The two app-fixture module inventories and the auth fixture reload the Office package, configuration and router imports they exercise. Later tasks extend those inventories when they add imports, as the task-12.1 ruling requires. This slice changes no store/config/client logic and takes no lifecycle lock.
+
 ### D8. One user-visible save; publish on save and on close
 
 | Trigger                                                                                                             | Effect                                                                        |
