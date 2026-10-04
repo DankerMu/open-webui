@@ -254,3 +254,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: false-positive gateway acceptance, leaked credentials and lost denial provenance.
 - Selected risk packs: API, config, file IO, schema, auth, ordering, compatibility, errors, packaging and documentation.
 - Evidence floor: real WebUI owner/non-owner cookies through native nginx to the deterministic stub; each denied request causes zero upstream arrivals; every executed Hurl file is named; stale-table, omitted-file and missing-file negative controls.
+
+## Office join and status fixture
+
+- Issue type: feature; fixture level: expanded, matching task 12.3.
+- Scope: replace repeated-create refusal with join/reopen handling, add persisted status with epoch comparison, and make freshly minted source tickets distinct even within one clock tick without changing helper signatures or verifier bindings.
+- Blast radius: duplicate sessions across workers, stale-key admission, loss of unpublished history, incorrect epoch transitions and replayed editor configuration.
+- Selected risk packs: API, configuration, file IO, record schema, auth/secrets, concurrency, resource limits, compatibility, errors, packaging and documentation.
+- Evidence floor: two-process create/join/status, complete lifecycle/key/epoch matrix, real fake-DocumentServer HTTP, exact unchanged-state refusal snapshots, fresh same-clock tickets and packaged two-worker HTTP smoke.
