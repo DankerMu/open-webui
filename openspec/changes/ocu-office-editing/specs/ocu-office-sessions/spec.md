@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Edit session lifecycle of the Office broker and its browser-facing session API in OCU: create or join, status with the change notice, save, close, the one-level save model, the sequence values, key stability, orphaning, the session sweep and the connection cap. Source: Plan 2 § 关键设计 2 接口, § 3 保存模型与状态机; design D7, D8, D9, D12 (session sweep), D13 (change notice), D14.
+Edit session lifecycle of the Office broker and its browser-facing session API in OCU: create or join, status with the change notice, save, close, the one-level save model, the sequence values, key stability, orphaning and the session sweep. Source: Plan 2 § 关键设计 2 接口, § 3 保存模型与状态机; design D7, D8, D9, D12 (session sweep), D13 (change notice), D14.
 
 ## ADDED Requirements
 
@@ -54,9 +54,9 @@ When enabled, these routes SHALL require the internal token and a canonical chat
 
 ### Requirement: Session creation validates the document and capacity
 
-`POST /api/office/{chat}/documents/{file}/sessions` SHALL resolve `{file}` through the outputs broker, check the document under the per-chat lock (consulting DocumentServer is not required to happen while the lock is held) and refuse with an explicit error when: the `file_id` is unknown, malformed or tombstoned (404 `unknown_file`); the file name does not end in `.docx`, `.xlsx` or `.pptx`, compared case-insensitively (415 `unsupported_type`); the file is larger than the outputs broker's per-file limit (413 `file_too_large`); the workspace file fails the safe-read check of `ocu-office-store` (422 `unsafe_path`); the content is not a readable OOXML container of the type its extension names (422 `corrupt_document`); free space is below the storage floor (503 `storage_low`); or DocumentServer is at its connection cap (503 `connection_limit`). One further refusal, 409 `unpublished_version`, is specified by the requirement "Orphaned sessions".
+`POST /api/office/{chat}/documents/{file}/sessions` SHALL resolve `{file}` through the outputs broker, check the document under the per-chat lock (consulting DocumentServer is not required to happen while the lock is held) and refuse with an explicit error when: the `file_id` is unknown, malformed or tombstoned (404 `unknown_file`); the file name does not end in `.docx`, `.xlsx` or `.pptx`, compared case-insensitively (415 `unsupported_type`); the file is larger than the outputs broker's per-file limit (413 `file_too_large`); the workspace file fails the safe-read check of `ocu-office-store` (422 `unsafe_path`); the content is not a readable OOXML container of the type its extension names (422 `corrupt_document`); or free space is below the storage floor (503 `storage_low`). One further refusal, 409 `unpublished_version`, is specified by the requirement "Orphaned sessions".
 
-When the B1 verification record shows that DocumentServer's connection usage can be queried, the broker SHALL query it before it creates a session and before it joins a request to an existing session, and SHALL refuse with 503 `connection_limit` when the cap is reached. When the record shows that usage cannot be queried, the broker SHALL make no cap check; the refusal then comes from the editor itself, the host page reports it with the same reason (`ocu-office-editor-embed`), and its `close` ends the session that never opened (requirement "Close records intent only").
+For the pinned 9.4.0 release the broker SHALL NOT impose a 20-connection limit, query a nonexistent global live-connection counter or treat the `license` command's quota arrays as a live count. Creation and joining SHALL continue to apply document validation, persisted-state rules and actual DocumentServer availability checks.
 
 A refused creation SHALL create no session and no document record, SHALL leave every existing session, version and workspace file unchanged, and SHALL leave the file available for read-only preview and download; a refused join SHALL leave the existing session unchanged. A successful creation SHALL return 201 with `session_id`, `file_id`, `document_key`, `state` (`opening`), `joined` (false) and `editor_config`.
 
@@ -85,16 +85,16 @@ A refused creation SHALL create no session and no document record, SHALL leave e
 - **WHEN** a session is requested for a `file_id` the outputs broker does not know, or one it holds only as a tombstone
 - **THEN** the response is 404 with reason `unknown_file`, no session exists and no file is created at the old path
 
-#### Scenario: Connection cap reached (B-T15)
+#### Scenario: No artificial connection limit at creation (B-T15)
 
-- **WHEN** the B1 record shows that usage can be queried, DocumentServer is at its connection cap and a session is requested for a document that has no open session
-- **THEN** the response is 503 with reason `connection_limit` and no session is created
-- **AND** every session that is already open keeps its state, versions and unsaved editor content
+- **WHEN** twenty documents have open sessions and a valid different document is requested while DocumentServer is available
+- **THEN** creation succeeds without a connection-count query or synthetic capacity refusal
+- **AND** every existing session keeps its state, versions and unsaved editor content
 
-#### Scenario: Connection cap reached at a join (B-T15)
+#### Scenario: No artificial connection limit at a join (B-T15)
 
-- **WHEN** the B1 record shows that usage can be queried, DocumentServer is at its connection cap and a second tab requests a session for a document that has an open session
-- **THEN** the response is 503 with reason `connection_limit` and carries no `editor_config`
+- **WHEN** twenty documents have open sessions and a second tab requests an existing document
+- **THEN** the request joins the same session with a freshly signed `editor_config`, without a connection-count query
 - **AND** the existing session keeps its `session_id`, `document_key`, `state`, versions and unsaved editor content
 
 ### Requirement: One open session per document with a stable key
@@ -317,9 +317,9 @@ Two cases end the session at the close request itself. A close on a session that
 - **WHEN** a close allocated `save_seq` 3, a status 1 callback with a remaining participant returned the session to `editing`, and a close is requested again
 - **THEN** the response is 202 with a `save_seq` higher than 3 and the session is `closing`
 
-#### Scenario: Close of a session that never opened (B-T15)
+#### Scenario: Close of a session that never opened
 
-- **WHEN** a close is requested for a session that is still `opening`, for example because the editor refused the connection at the cap
+- **WHEN** a close is requested for a session that is still `opening`, for example because the user leaves before the editor loads
 - **THEN** the response is 202 with `state` `closed`, the status reports `closed`, no version is added and the workspace file keeps its bytes
 - **AND** the next create request for the document returns 201 with a new session
 

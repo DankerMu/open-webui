@@ -38,9 +38,9 @@
 
 ### Requirement: Stub Office outcomes are selectable
 
-The stub SHALL let a test select, per chat, through its existing fixture-scenario mechanism, the Office outcomes the UI must handle: a save with intent `publish` that ends in `conflict` because the workspace file changed; session creation refused at the connection cap with 503 and reason `connection_limit`; the editor's own refusal at the connection cap, in which session creation succeeds and the stub editor host page then behaves as the real host page does when the editor raises its connection-cap event; a session that becomes `orphaned`; a close that ends in an automatic save-as; a document whose newest version is unpublished while no session is open; and a document whose stale session is found orphaned at session creation while its newest version is unpublished.
+The stub SHALL let a test select, per chat, through its existing fixture-scenario mechanism, the Office outcomes the UI must handle: a save with intent `publish` that ends in `conflict` because the workspace file changed; session creation refused for an unsupported type with 415 and reason `unsupported_type`; a session that becomes `orphaned`; a close that ends in an automatic save-as; a document whose newest version is unpublished while no session is open; and a document whose stale session is found orphaned at session creation while its newest version is unpublished.
 
-For the editor-refusal fixture, a close POSTed for the session that never left `opening` SHALL lead to `closed` at once. For the automatic save-as fixture, the edited file SHALL be absent from the outputs listing once the session is open, and close SHALL lead to a status of `closed` whose `saved_as` carries the new file's `file_id` and `path`, with a new file under a deduplicated name and its own `file_id` in the outputs listing and no file under the old name. For the unpublished-version fixture, the versions listing SHALL end, from the first request, with an unpublished `autosave` version above a published one while no session exists; restore of that version SHALL add a published `restore` version and raise the file's `revision`, and session creation SHALL succeed whether or not restore was called. For the stale-session fixture, the versions listing SHALL first report an `open_session` in `editing` with `editor_ended` false and an unpublished `autosave` version as the newest; the first session creation SHALL return 409 with reason `unpublished_version`; from then on the listing SHALL report `open_session` null with the same versions, and the next session creation SHALL succeed. For the conflict fixture, resolve with `save_as` SHALL add a new file with a deduplicated name to the outputs listing and return the session to `editing`, and resolve with `overwrite` SHALL publish over the original file and return the session to `editing`. A chat with none of these scenarios SHALL behave as the default fixture.
+For the automatic save-as fixture, the edited file SHALL be absent from the outputs listing once the session is open, and close SHALL lead to a status of `closed` whose `saved_as` carries the new file's `file_id` and `path`, with a new file under a deduplicated name and its own `file_id` in the outputs listing and no file under the old name. For the unpublished-version fixture, the versions listing SHALL end, from the first request, with an unpublished `autosave` version above a published one while no session exists; restore of that version SHALL add a published `restore` version and raise the file's `revision`, and session creation SHALL succeed whether or not restore was called. For the stale-session fixture, the versions listing SHALL first report an `open_session` in `editing` with `editor_ended` false and an unpublished `autosave` version as the newest; the first session creation SHALL return 409 with reason `unpublished_version`; from then on the listing SHALL report `open_session` null with the same versions, and the next session creation SHALL succeed. For the conflict fixture, resolve with `save_as` SHALL add a new file with a deduplicated name to the outputs listing and return the session to `editing`, and resolve with `overwrite` SHALL publish over the original file and return the session to `editing`. A chat with none of these scenarios SHALL behave as the default fixture.
 
 #### Scenario: Conflict then save as
 
@@ -52,15 +52,10 @@ For the editor-refusal fixture, a close POSTed for the session that never left `
 - **WHEN** the conflict scenario is selected, a save with intent `publish` is POSTed and resolve is POSTed with `overwrite`
 - **THEN** status returns to `editing`, the original file's `revision` is raised and no new name appears in the outputs listing
 
-#### Scenario: Refused at the cap
+#### Scenario: Refused by document validation
 
-- **WHEN** the cap scenario is selected and session creation is POSTed
-- **THEN** the response is 503 with reason `connection_limit` and no session exists
-
-#### Scenario: Editor refuses at the cap
-
-- **WHEN** the editor-refusal scenario is selected, session creation is POSTed and close is then POSTed for the returned session
-- **THEN** creation returns 201 with a session in `opening` and `joined` false, and after the close the status reports `closed` and no version was added
+- **WHEN** the unsupported-type scenario is selected and session creation is POSTed
+- **THEN** the response is 415 with reason `unsupported_type` and no session exists
 
 #### Scenario: Close ends in an automatic save-as
 
@@ -85,7 +80,7 @@ For the editor-refusal fixture, a close POSTed for the session that never left `
 
 ### Requirement: Stub editor host page
 
-For `GET /preview/{chat}?embed=office` the stub SHALL serve an editor host page that speaks the four-message protocol of the editor host page (`ocu:office-ready`, `ocu:office-open`, `ocu:office-state`, `ocu:office-command`) with the same key sets and the same source, origin, chat and generation checks, drives the stub's Office fixtures through the prefixed request wrapper with `X-Requested-With: ocu-workspace`, and contains no real editor. The page SHALL load no script and open no frame or connection on any origin other than the stub's public origin, and SHALL NOT require a DocumentServer. It SHALL expose a visible deterministic control that simulates a document modification, so a test can reach `dirty: true`. In the editor-refusal scenario the page SHALL, after session creation succeeded, report `refused` with reason `connection_limit` and the session's id, SHALL issue one close request when the create response had `joined` false and none when it had `joined` true, and SHALL report nothing further. The existing `embed=files`, `embed=browser`, `embed=terminal` and standalone preview fixtures SHALL be unchanged.
+For `GET /preview/{chat}?embed=office` the stub SHALL serve an editor host page that speaks the four-message protocol of the editor host page (`ocu:office-ready`, `ocu:office-open`, `ocu:office-state`, `ocu:office-command`) with the same key sets and the same source, origin, chat and generation checks, drives the stub's Office fixtures through the prefixed request wrapper with `X-Requested-With: ocu-workspace`, and contains no real editor. The page SHALL load no script and open no frame or connection on any origin other than the stub's public origin, and SHALL NOT require a DocumentServer. It SHALL expose a visible deterministic control that simulates a document modification, so a test can reach `dirty: true`. The existing `embed=files`, `embed=browser`, `embed=terminal` and standalone preview fixtures SHALL be unchanged.
 
 #### Scenario: Protocol without a real editor
 
@@ -93,15 +88,11 @@ For `GET /preview/{chat}?embed=office` the stub SHALL serve an editor host page 
 - **THEN** the page reports `opening`, `editing`, `editing` with `dirty: true`, `saving` and `editing` with `dirty: false`, each with the exact nine-key state message
 - **AND** every request it made went to the stub's own origin
 
-#### Scenario: Editor refusal on a new session (B-T15)
+#### Scenario: Broker validation refusal (B-T13)
 
-- **WHEN** the editor-refusal scenario is selected and the parent opens a file that has no session
-- **THEN** the page reports `opening` and then `refused` with reason `connection_limit` and a non-null `session_id`, and the stub has recorded exactly one close request for that session
-
-#### Scenario: Editor refusal on a join (B-T15)
-
-- **WHEN** the editor-refusal scenario is selected and the parent opens a file whose session was already created by an earlier request
-- **THEN** the page reports `refused` with reason `connection_limit` and that session's id, and the stub has recorded no close request
+- **WHEN** the unsupported-type scenario is selected and the parent opens the file
+- **THEN** the page reports `opening` and then `refused` with reason `unsupported_type` and `session_id: null`
+- **AND** the stub records no close request and no session was created
 
 #### Scenario: Malformed messages are ignored
 

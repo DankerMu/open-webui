@@ -90,14 +90,11 @@ The page SHALL act on an incoming message only when its source is the page's par
 
 ### Requirement: State reporting
 
-The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing`, `closed`, `conflict`, `error`, `orphaned` or `refused`, and SHALL post an `ocu:office-state` whenever any reported value changes. All nine keys SHALL always be present: `session_id` is `null` until the create response returned a session and is that session's id afterwards, in every state including `refused`; `dirty` and `workspace_changed` are booleans; `reason` is a non-empty string for `refused`, `error` and `conflict`, and in every other state is either `null` or the failure that is still to be surfaced (the reason of the latest session status, or of a rejected save or close request while the session stays usable).
+The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing`, `closed`, `conflict`, `error`, `orphaned` or `refused`, and SHALL post an `ocu:office-state` whenever any reported value changes. All nine keys SHALL always be present: `session_id` is `null` until the create response returned a session and is that session's id afterwards; `dirty` and `workspace_changed` are booleans; `reason` is a non-empty string for `refused`, `error` and `conflict`, and in every other state is either `null` or the failure that is still to be surfaced (the reason of the latest session status, or of a rejected save or close request while the session stays usable).
 
-`opening` SHALL be reported once the open is accepted. `refused` SHALL be reported in exactly two cases, both with no usable editor:
+`opening` SHALL be reported once the open is accepted. `refused` SHALL be reported only when the broker refuses session creation, such as 409 `unpublished_version` or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`. For the pinned 9.4.0 release the page SHALL NOT synthesize a connection-cap event or interpret connection-loss error `-18` as a cap refusal.
 
-- The broker refused session creation — 503 `connection_limit` at the connection cap, 409 `unpublished_version` when the document's earlier session was found orphaned with unpublished content, or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`.
-- The editor itself refused the connection after the session was created or joined, signalled by the editor event that the B1 verification record names for the connection cap. The page SHALL report `reason: "connection_limit"` with the `session_id` of the create response, and SHALL release the editor instance. When that create response had `joined` false the page SHALL issue exactly one `POST /api/office/{chat}/sessions/{session}/close`, which ends the never-opened session; when it had `joined` true the page SHALL issue no close request, because the session belongs to another tab that is still editing.
-
-`refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the session status cannot be read).
+`refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the editor reports a connection failure, the session status cannot be read).
 
 `dirty` SHALL be `true` exactly while content exists that has not been published to the workspace file, that is, while either holds:
 
@@ -143,22 +140,11 @@ In every other case `dirty` SHALL be `false`, whatever made `last_published_seq`
 - **WHEN** the editor reports a modification, a save is accepted with `save_seq` N, and the session status reports `last_committed_seq` below N — while the save is outstanding, or after the session returned to `editing` with a non-null `reason`
 - **THEN** every state the page posts carries `dirty: true`
 
-#### Scenario: Refused at the connection cap (B-T15)
+#### Scenario: Connection failure is not a cap refusal (B-T15)
 
-- **WHEN** session creation is refused with reason `connection_limit`
-- **THEN** the page reports `state: "refused"` with `session_id: null` and `reason: "connection_limit"`, shows a visible message and creates no editor instance
-
-#### Scenario: Editor refuses a new session at the cap (B-T15)
-
-- **WHEN** session creation returns a session with `joined` false and the editor then raises the connection-cap event named by the B1 verification record
-- **THEN** the page reports `state: "refused"` with that session's id and `reason: "connection_limit"`, shows a visible message and releases the editor instance
-- **AND** exactly one close request is issued for that session, and afterwards no status poll or auto-save timer is running and no other state is reported
-
-#### Scenario: Editor refuses a joined session at the cap (B-T15)
-
-- **WHEN** session creation returns an existing session with `joined` true and the editor then raises the connection-cap event
-- **THEN** the page reports `state: "refused"` with that session's id and `reason: "connection_limit"` and releases the editor instance
-- **AND** no close request is issued, also when a `close` command arrives afterwards, so the session of the other tab is unaffected
+- **WHEN** the editor reports connection-loss error `-18`
+- **THEN** the page reports `error` with the returned session id and a non-empty failure reason, not a synthetic cap refusal or a successful save
+- **AND** a joined session is not closed merely because this tab lost its connection
 
 #### Scenario: Refused by validation (B-T13)
 
