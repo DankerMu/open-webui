@@ -271,6 +271,15 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, config, schema, auth visibility, ordering, compatibility, errors and documentation.
 - Evidence floor: fresh-process environment-to-authenticated-config matrix; invalid input fails startup naming the variable; existing workspace assertions and `make smoke` pass; scoped lint/coverage and doc checks.
 
+## Office save and close fixture
+
+- Issue type: feature; fixture level: expanded, matching task 13.1's persisted state-machine and command-service boundary.
+- Scope: save/close request handlers, allocation metadata and signed native-force-save setting; no callback, publish, sweep or server-side auto-save timer.
+- Blast radius: reused sequence numbers, lost save intents, command/callback lock inversion, delayed replies overwriting newer lifecycle state and premature save acknowledgement.
+- Selected risk packs: API, config, file IO, schema, auth/secrets, concurrency, resource limits, compatibility, partial failure, packaging and documentation.
+- Evidence floor: state/outcome/epoch matrix, independently verified real HTTP commands, two-process admission, command-time callback-side lock acquisition, concurrent close/reconciliation and byte-preserving refusal proofs.
+- B1 input: [native save observation](../../../docs/evidence/issue-119/2026-10-03-b1.md#13-editor-native-save-with-user-force-save-disabled) with `editorConfig.customization.forcesave = false`: no callback in the measured 199.701-second DOCX window, not an unbounded guarantee.
+
 ## Office client and store fixture
 
 - Issue type: feature; fixture level: expanded for guarded HTTP calls and asynchronous chat isolation.
