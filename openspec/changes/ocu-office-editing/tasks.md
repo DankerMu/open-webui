@@ -451,7 +451,7 @@ Run the OCU unit command for Office store/version/workspace/config/token/router/
 
 - Public API / CLI / script entry — selected: actual-app 201 creation, 200 join/status, 404 unknown session, 409 unpublished-version and 502 unavailable-key responses; existing guard/availability errors retained.
 - Config / project setup — selected: absent/empty/equal/changed/unreadable restore marker, fixed-clock ticket refresh and existing command timeout; no setting added.
-- File IO / path safety / overwrite — selected: join uses safe document admission without capture; status traps workspace reads; refusal/orphaning snapshots prove version/blob/workspace preservation and no foreign access.
+- File IO / path safety / overwrite — selected: join uses safe document admission without capture; final/epoch-orphan status traps workspace reads, while open status follows D13's targeted notice; refusal/orphaning snapshots prove version/blob/workspace preservation and no foreign access.
 - Schema / columns / units / field names — selected: exact status projection, additive initial bookkeeping defaults, invalid present values fail closed; existing receipt statuses identify a final callback.
 - Auth / permissions / secrets — selected: unknown/foreign session/file ids, independent fresh-ticket/config signatures and no credential values in body/headers; DocumentServer command binding remains unchanged.
 - Concurrency / shared state / ordering — selected: two processes concurrently create/join one identity; another worker reads status; delayed lookup serializes same-chat transitions without blocking the application event loop; unrelated committed state survives.
@@ -466,7 +466,7 @@ Run Office session/join/status/token/store/version/workspace/epoch/config/comman
 ## 13. [ocu] Save, close, change notice and the session sweep (spec: ocu-office-sessions)
 
 - [x] 13.1 `POST .../save` and `POST .../close`: `save_seq` allocation, intent `publish` for a user save and `persist` for auto-save, the forcesave command with user-initiated force save left off in the editor configuration (the B1 item "the editor's own save command produces no callback" is what makes the status bar button the only save), close as recorded intent, a close of a never-opened session ending it at once, and `orphaned` when DocumentServer no longer knows the key. Add no artificial 20-connection check or global live-count query. Verify: tests with the fake DocumentServer cover each path (B-T15 creation and joining beyond twenty documents without a synthetic cap, B-T10 denied new operation), a save refused outside `editing`, a repeated close, and the editor configuration carrying user-initiated force save off.
-- [ ] 13.2 Status change notice: the status response checks only the edited file through the safe read — `stat`, hash on change — and reports `workspace_changed` against the session baseline. Verify: tests for unchanged, size-changing, same-size with changed mtime, deleted and symlinked file; no other file is read.
+- [x] 13.2 Status change notice: the status response checks only the edited file through the safe read — `stat`, hash on change — and reports `workspace_changed` against the session baseline. Verify: tests for unchanged, size-changing, same-size with changed mtime, deleted and symlinked file; no other file is read.
 - [ ] 13.3 Session sweep in the existing idle-reclamation poll (`app.py` `_idle_reaper`): a session without activity for the liveness interval whose key DocumentServer no longer knows becomes `orphaned`; a `saving` session past the save timeout returns to `editing` with `save_timeout`; an unreachable DocumentServer changes nothing. Verify: tests with the fake DocumentServer for each rule and for two workers sweeping the same chat.
 
 Depends on: 12.
@@ -488,6 +488,21 @@ Minimal mergeable slice: 13.1 (save and close) - green alone because the routes 
 - Documentation / migration notes — selected: D9 owns allocation/reconciliation fields and close behavior; B1 observation remains bounded; callbacks, publication/last-published advancement, sweep and UI timer remain named later slices.
 
 Run paired save/close tests plus existing Office/session/lifecycle/token/command/store/router and auth/outputs/preview/package regressions with the OCU unit command. Baseline shows save/close 404 and missing explicit force-save setting. Real packaged HTTP smoke must exercise both save intents, command outcomes, close branches and signed force-save-off configuration without adding a version. Negative controls for command-before-commit, lock-held command, sequence reuse and delayed-response state overwrite must fail behavioral assertions. Strict OpenSpec and documentation gates cover the companion fixture.
+
+### Workspace-change notice slice risk coverage
+
+- Public API / CLI / script entry — selected: actual status response changes only the advisory boolean; existing response keys, lifecycle/epoch errors and save admission remain intact.
+- Config / project setup — not selected: no new setting, startup behavior or dependency.
+- File IO / path safety / overwrite — selected: one descriptor-safe edited-file observation; no-read cache hit; deleted/moved, leaf/parent symlink, non-regular and unsafe-read recovery; no other workspace-file stat/read or content write.
+- Schema / field names — selected: existing baseline remains authoritative; absent cache pair initializes lazily, valid integer size/nanosecond pairs persist, partial/malformed pairs fail; equal-metadata blind spot is explicit.
+- Auth / permissions / secrets — selected: denied/foreign/unknown session status never accesses the workspace or another chat; no DocumentServer request or credential disclosure.
+- Concurrency / shared state / ordering — selected: canonical lock and targeted mutator preserve version/receipt commits across workers; notice cannot erase reason, sequence, pending allocations or unrelated state; epoch orphaning precedes notice IO.
+- Resource limits / discovery — selected: existing per-file limit bounds hash misses; size/mtime hits read no content; no reconcile, workspace scan or new cache service.
+- Compatibility — selected: existing creation/read/store APIs stay unchanged; status projection consumers and save/close ownership regressions remain valid; terminal records are not initialized or rewritten by the notice.
+- Errors / partial outputs — selected: missing/unsafe/unstable/oversized samples report true and invalidate hints; corrupted broker/state metadata and state write/durability failures stay explicit, not swallowed as notice results.
+- Packaging / documentation — selected: any new status helper module enters all existing reload inventories and package discovery; D13 owns cache fields, baseline ownership and later-writer invalidation.
+
+Run the targeted notice tests plus Office session/lifecycle/save-close/workspace/store/version and auth/output/preview/package regressions with the OCU unit command. Baseline actual-app status remains false after an external size-changing edit; the implemented path reports true without a lifecycle change. Packaged two-worker HTTP smoke covers first observation, unchanged polling, safe changes, missing/unsafe recovery and save acceptance. Qualify negative controls for unconditional hashing and bookkeeping that drops pending or unrelated state; observe a concurrent callback-like commit through the real store rather than implementing callbacks. Strict OpenSpec and documentation gates cover the companion fixture.
 
 ## 14. [ocu] DocumentServer callback and persist (spec: ocu-office-callback, ocu-auth-guard)
 
