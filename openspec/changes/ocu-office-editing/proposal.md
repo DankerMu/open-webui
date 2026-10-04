@@ -254,3 +254,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: false-positive gateway acceptance, leaked credentials and lost denial provenance.
 - Selected risk packs: API, config, file IO, schema, auth, ordering, compatibility, errors, packaging and documentation.
 - Evidence floor: real WebUI owner/non-owner cookies through native nginx to the deterministic stub; each denied request causes zero upstream arrivals; every executed Hurl file is named; stale-table, omitted-file and missing-file negative controls.
+
+## Office feature-flag fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with task 23.1's shared config/startup surface.
+- Scope: strict import-time Office flag in fork-owned code, one authenticated features entry in `main.py`, dev/test harness settings and backend behavior tests. No `config.py`, workspace parsing, frontend, route or deployment changes.
+- Blast radius: application startup availability and authenticated feature discovery.
+- Selected risk packs: API, config, schema, auth visibility, ordering, compatibility, errors and documentation.
+- Evidence floor: fresh-process environment-to-authenticated-config matrix; invalid input fails startup naming the variable; existing workspace assertions and `make smoke` pass; scoped lint/coverage and doc checks.

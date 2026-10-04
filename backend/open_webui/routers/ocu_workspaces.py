@@ -18,6 +18,15 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from starlette.responses import JSONResponse, Response
 
 ENABLE_OCU_WORKSPACE = os.getenv('ENABLE_OCU_WORKSPACE', 'False').lower() == 'true'
+_OFFICE_FLAG = os.getenv('ENABLE_OCU_OFFICE_EDIT')
+if _OFFICE_FLAG is None:
+    ENABLE_OCU_OFFICE_EDIT = False
+else:
+    _office = _OFFICE_FLAG.lower()
+    if _office not in ('true', 'false'):
+        raise RuntimeError('ENABLE_OCU_OFFICE_EDIT must be true or false')
+    ENABLE_OCU_OFFICE_EDIT = _office == 'true'
+
 OCU_INTERNAL_TOKEN = os.getenv('OCU_INTERNAL_TOKEN', '')
 OCU_INTERNAL_URL = os.getenv('OCU_INTERNAL_URL', '')
 
