@@ -22,16 +22,17 @@ from smoke_proxy_support import (
     assert_download_variants,
     distinct_ports,
     fail,
+    gateway_hurl_matrix,
     git_run,
     http_json,
     http_raw,
     kill_tree,
     materialize_git_files,
     observations,
-    redact,
     run,
+    run_hurl_files,
     run_owned_lifecycle,
-    scan_hurl_report,
+    setup_office_fixture,
     wait_http,
     websocket_echo,
     ws_unmask_or_server,
@@ -56,6 +57,7 @@ HURL_GLOBS = (
     'smoke/proxy/files.hurl',
     'smoke/proxy/routes.hurl',
     'smoke/proxy/mutate.hurl',
+    'smoke/proxy/office.hurl',
 )
 log = logging.getLogger('smoke-proxy')
 SENTINEL_EMAIL = 'proxy-owner-preexisting-sentinel@harness.local'
@@ -343,51 +345,10 @@ class Smoke:
             fail('x-api-key-only proxy requests contacted OCU')
 
     def hurl(self) -> None:
-        assert self.scratch is not None
-        report = self.scratch / 'hurl-report'
-        report.mkdir(mode=0o700)
-        files = [str(self.root / rel) for rel in HURL_GLOBS]
-        deny_index = files.index(str(self.root / 'smoke/proxy/deny.hurl'))
-        allowed = files[:deny_index]
-        denied = [files[deny_index]]
-        rest = files[deny_index + 1 :]
-        self._run_hurl(allowed, report / 'allowed')
-        self.deny_before = len(observations(self.record))
-        self._run_hurl(denied, report / 'deny')
-        if observations(self.record)[self.deny_before :]:
-            fail('denied/unlisted request contacted OCU')
-        self._run_hurl(rest, report / 'rest')
-        scan_hurl_report(report, self.token)
+        gateway_hurl_matrix(self, HURL_GLOBS, log)
 
     def _run_hurl(self, files: list[str], report: Path) -> None:
-        if not files:
-            return
-        report.mkdir(mode=0o700, exist_ok=True)
-        result = subprocess.run(
-            [
-                'hurl',
-                '--test',
-                '--max-time',
-                '30',
-                '--connect-timeout',
-                '5',
-                '--variables-file',
-                str(self.hurl_vars),
-                '--report-json',
-                str(report),
-                *files,
-            ],
-            cwd=self.root,
-            text=True,
-            capture_output=True,
-            env={'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''), 'TERM': 'dumb'},
-        )
-        if result.returncode:
-            log.error('%s', redact(result.stdout + result.stderr, self.secrets))
-            stub_log = self.scratch / 'stub.log' if self.scratch else None
-            if stub_log and stub_log.is_file():
-                log.error('%s', redact(stub_log.read_text(encoding='utf-8')[-4000:], self.secrets))
-            fail('hurl matrix failed')
+        run_hurl_files(self, files, report, log)
 
     def assert_private(self) -> None:
         rows = observations(self.record)
@@ -434,7 +395,10 @@ class Smoke:
                 continue
             if user_id != self.owner_id:
                 fail('owner request missing or forged X-User-Id')
-            if chat_id != self.chat_id:
+            office_chat = getattr(self, 'office_chat', '')
+            is_office = target.startswith('/api/office/') or target == f'/api/outputs/{office_chat}'
+            expected_chat = office_chat if is_office else self.chat_id
+            if chat_id != expected_chat:
                 fail('owner request missing or forged X-Chat-Id')
             if user_email != self.owner_email:
                 fail('owner request missing or forged X-User-Email')
@@ -704,7 +668,7 @@ class Smoke:
             return
         admin_token = self.admin_cookie.split('=', 1)[-1]
         auth = {'Authorization': f'Bearer {admin_token}'}
-        for key in ('chat', 'foreign_chat'):
+        for key in ('chat', 'foreign_chat', 'office_chat'):
             if key in self.created:
                 self._require_gone(
                     'DELETE',
@@ -757,6 +721,8 @@ class Smoke:
         self.origin = f'http://127.0.0.1:{self.proxy_port}'
         self.stage = self.stage_copy(checkout)
         self.render(nginx)
+        self.provision()
+        office_env = setup_office_fixture(self) if 'smoke/proxy/office.hurl' in HURL_GLOBS else {}
         stub_env = {
             'PATH': os.environ.get('PATH', ''),
             'HOME': os.environ.get('HOME', ''),
@@ -764,6 +730,7 @@ class Smoke:
             'OCU_PUBLIC_PREFIX': '/ocu',
             'OCU_INTERNAL_TOKEN': self.token,
             'OCU_STUB_RECORD': str(self.record),
+            **office_env,
         }
         stub_log = self.scratch / 'stub.log'
         self.start_owned(
@@ -779,7 +746,6 @@ class Smoke:
         }
         self.start_owned(['bash', str(self.root / 'scripts/proxy-dev.sh')], launcher_env, None)
         wait_http(f'http://127.0.0.1:{self.proxy_port}/health', self.owned[-1], timeout=8.0)
-        self.provision()
         self.write_hurl_vars()
         self.alternate_header_control()
         self.extra_matrix()

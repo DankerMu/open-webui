@@ -222,6 +222,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public HTTP API, production configuration, auth/permissions, path safety, schema/pin compatibility, error handling, atomic file replacement and documentation.
 - Evidence floor: a real-nginx Office forwarding case red against the unchanged table, then green; all seven owner rows and denial matrices; renderer pin/count/placeholder rejection preserving the previous private config; all existing proxy tests and the structure check.
 
+## Office stub fixture
+
+- Issue type: test infrastructure; fixture level: expanded. Override the suggested compact level because the threaded HTTP stub gains per-chat session state and an executable parent-message protocol.
+- Scope: task 22.1 only, the stub and its smoke helpers. Seven named scenarios are authoritative; the issue's isolated reference to eight is not an additional scenario.
+- Blast radius: deterministic browser/gateway fixtures, file identity and revisions, existing preview modes and credential containment.
+- Selected risk packs: API, configuration, schema, auth, concurrency, compatibility, errors and documentation.
+- Evidence floor: `make smoke-stub` exercises every named scenario, default behavior, forbidden methods/paths, isolation and deterministic replay; lint and documentation gates pass. Host-page JavaScript is review-only in this slice; browser execution belongs to tasks 24.1 and 24.4.
+
 ## Office route availability fixture
 
 - Issue type: feature; fixture level: expanded, matching task 12.1.
@@ -237,3 +245,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: partial session capture, workspace path escape, oversized reads, cross-chat disclosure and signed configuration integrity.
 - Selected risk packs: API, config, file/path safety, record schema, auth/secrets, concurrency, resource limits, compatibility, rollback, packaging and documentation.
 - Evidence floor: actual-app refusal/success matrix, byte-preserving refusal snapshots, atomic-commit failure injection, bounded safe-read and existing store regressions, concurrent creation, independent configuration verification and packaged HTTP smoke.
+
+## Office gateway smoke fixture
+
+- Issue type: test infrastructure; fixture level: expanded. Override compact because a shared smoke entrypoint and external configuration pin establish owner-only authorization evidence.
+- Scope: task 22.2, the WebUI OCU pin, gateway smoke/support and Hurl matrix; no stub, browser harness, production or OCU source changes.
+- Pin: `a53731df95a3b92acb2dcb5980f969b4f8b4ee52`, the pushed Office-row merge. Its table has 27 rows, seven Office rows and no upload read rows; its renderer has neither second-listener input.
+- Blast radius: false-positive gateway acceptance, leaked credentials and lost denial provenance.
+- Selected risk packs: API, config, file IO, schema, auth, ordering, compatibility, errors, packaging and documentation.
+- Evidence floor: real WebUI owner/non-owner cookies through native nginx to the deterministic stub; each denied request causes zero upstream arrivals; every executed Hurl file is named; stale-table, omitted-file and missing-file negative controls.

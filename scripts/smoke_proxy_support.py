@@ -516,3 +516,65 @@ def _finish_owned_cleanup(smoke, logger, code: int) -> int:
             logger.error('scratch removal failed: %s', cop)
             code = note_cleanup_failure(code, logger)
     return code
+
+
+def setup_office_fixture(smoke) -> dict[str, str]:
+    status, chat, _, _ = http_json(
+        'POST', f'{smoke.webui}/api/v1/chats/new',
+        cookie=smoke.owner_cookie, headers={'Content-Type': 'application/json'},
+        body=json.dumps({'chat': {'title': 'proxy-office-conflict'}}).encode(),
+    )
+    if status != 200 or not chat.get('id'):
+        fail('Office owner chat create failed')
+    smoke.office_chat = chat['id']
+    smoke.created['office_chat'] = chat['id']
+    fixtures = smoke.scratch / 'fixtures.json'
+    fixtures.write_text(json.dumps({chat['id']: 'office_conflict'}), encoding='utf-8')
+    os.chmod(fixtures, 0o600)
+    return {'OCU_STUB_FIXTURES': str(fixtures), 'OCU_STUB_ASSETS': str(smoke.scratch / 'assets')}
+
+
+def run_hurl_files(smoke, files: list[str], report: Path, logger, options=()) -> None:
+    for index, filename in enumerate(files):
+        path = Path(filename)
+        if not path.is_file():
+            fail(f'listed Hurl file missing: {path}')
+        destination = report / str(index)
+        destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+        logger.info('hurl: %s', path.relative_to(smoke.root))
+        result = subprocess.run(
+            ['hurl', '--test', '--max-time', '30', '--connect-timeout', '5',
+             '--variables-file', str(smoke.hurl_vars), '--report-json', str(destination),
+             *options, filename],
+            cwd=smoke.root, text=True, capture_output=True,
+            env={'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''), 'TERM': 'dumb'},
+        )
+        scan_hurl_report(destination, smoke.token)
+        if result.returncode:
+            logger.error('%s', redact(result.stdout + result.stderr, smoke.secrets))
+            stub_log = smoke.scratch / 'stub.log' if smoke.scratch else None
+            if stub_log and stub_log.is_file():
+                logger.error('%s', redact(stub_log.read_text(encoding='utf-8')[-4000:], smoke.secrets))
+            fail(f'hurl matrix failed: {path.relative_to(smoke.root)}')
+
+
+def gateway_hurl_matrix(smoke, files, logger) -> None:
+    from smoke_proxy_office import OfficeJudge
+
+    report = smoke.scratch / 'hurl-report'
+    report.mkdir(mode=0o700)
+    for index, relative in enumerate(files):
+        path = smoke.root / relative
+        if not path.is_file():
+            fail(f'listed Hurl file missing: {relative}')
+        destination = report / str(index)
+        if relative == 'smoke/proxy/office.hurl':
+            OfficeJudge(smoke, path, destination, logger).run()
+            continue
+        before = len(observations(smoke.record))
+        if relative == 'smoke/proxy/deny.hurl':
+            smoke.deny_before = before
+        smoke._run_hurl([str(path)], destination)
+        if relative == 'smoke/proxy/deny.hurl' and observations(smoke.record)[before:]:
+            fail('denied/unlisted request contacted OCU')
+    scan_hurl_report(report, smoke.token)

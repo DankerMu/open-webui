@@ -550,12 +550,46 @@ broker/editor acceptance is not claimed by this routing proof.
 
 ## 22. [webui] Stub Office fixtures and gateway smoke (spec: ocu-stub, ocu-proxy-smoke)
 
-- [ ] 22.1 `scripts/ocu-stub.py`: deterministic Office session, status, save, close, resolve, versions and restore fixtures and an `embed=office` host page that speaks the message protocol without a real editor. The selectable outcomes are added once, as these scenario names of the stub's existing mechanism: `office` (default round trip), `office_conflict`, `office_unsupported` (415 `unsupported_type` at creation), `office_orphaned`, `office_save_as` (automatic save-as at close), `office_unpublished` (newest version unpublished, no session) and `office_stale` (a stale session whose first creation is refused with `unpublished_version`); `scripts/smoke-stub.sh` asserts them. Verify: `make smoke-stub` output names each fixture.
-- [ ] 22.2 Bump the OCU pin in `constraints.yaml` to a commit that holds the Office rows (group 21) and does not yet hold group 31, add `smoke/proxy/office.hurl` to the explicit file list `HURL_GLOBS` in `scripts/smoke-proxy.py`, and make the script log every hurl file it ran, on success as well (today it prints only on failure): owner success, anonymous 401, non-owner 404, mutation guard 403, and the unproxied control-plane routes. Verify: `make smoke-proxy` passes, its output lists `office.hurl` among the files that ran, and with the file removed from the list the output no longer names it.
+- [x] 22.1 `scripts/ocu-stub.py`: deterministic Office session, status, save, close, resolve, versions and restore fixtures and an `embed=office` host page that speaks the message protocol without a real editor. The selectable outcomes are added once, as these scenario names of the stub's existing mechanism: `office` (default round trip), `office_conflict`, `office_unsupported` (415 `unsupported_type` at creation), `office_orphaned`, `office_save_as` (automatic save-as at close), `office_unpublished` (newest version unpublished, no session) and `office_stale` (a stale session whose first creation is refused with `unpublished_version`); `scripts/smoke-stub.sh` asserts them. Verify: `make smoke-stub` output names each fixture.
+- [x] 22.2 Bump the OCU pin in `constraints.yaml` to a commit that holds the Office rows (group 21) and does not yet hold group 31, add `smoke/proxy/office.hurl` to the explicit file list `HURL_GLOBS` in `scripts/smoke-proxy.py`, and make the script log every hurl file it ran, on success as well (today it prints only on failure): owner success, anonymous 401, non-owner 404, mutation guard 403, and the unproxied control-plane routes. Verify: `make smoke-proxy` passes, its output lists `office.hurl` among the files that ran, and with the file removed from the list the output no longer names it.
 
 Depends on: 7, 21.
 Suggested fixture level: compact - deterministic test infrastructure following an already reviewed table.
 Minimal mergeable slice: 22.1 (stub fixtures) - green alone because the stub is exercised by its own smoke; 22.2 needs the pinned table of group 21.
+
+### Office stub risk coverage
+
+- Public API / CLI / script entry — Selected: `make smoke-stub` drives all seven routes over HTTP; wrong methods and unknown Office paths return 404.
+- Config / project setup — Selected: existing `OCU_STUB_FIXTURES` selects each of the seven scenarios per chat; an unassigned chat follows the default Office round trip.
+- File IO / path safety / overwrite — Not selected: no workspace disk writes or production path resolver; existing uploads remain unchanged.
+- Schema / columns / units / field names — Selected: smoke asserts broker response fields, immutable version history, sequence cursors, save-as identity and outputs revision/ETag behavior.
+- Auth / permissions / secrets — Selected: Office arrivals remain privately observable, public responses do not echo credential canaries, and the host permits only the exact same-origin/source/chat/generation message contract. HTTP containment is smoked; page execution is review-only here.
+- Concurrency / shared state / ordering — Selected: smoke covers per-chat isolation, repeated creation joining one session, concurrent arrivals without lost transitions, and identical replay against fresh stub processes.
+- Resource limits / large input / discovery — Not selected: fixed small fixtures, no new quotas or production discovery behavior.
+- Legacy compatibility / examples — Selected: existing smoke cases stay intact; files/browser/terminal/standalone preview bodies and policies remain unchanged. No OCU pin, proxy, browser harness or production caller change.
+- Error handling / rollback / partial outputs — Selected: unsupported creation creates no session; stale creation refuses once without losing unpublished versions; orphaned recreation gets a new id; conflict resolution preserves the original on save-as and changes it only on explicit overwrite.
+- Release / packaging / dependency compatibility — Not selected: no dependency, image or release changes.
+- Documentation / migration notes — Selected: this fixture records harness guarantees and the explicit JavaScript evidence limit; `make doc-gate` and `make decisions-verify` cover documentation hygiene.
+
+Smoke inputs and outcomes are the `ocu-stub` scenarios: publish advances the published cursor and file revision; persist adds only an unpublished autosave; close then restore appends history without altering older entries; both conflict resolutions are distinct; unsupported, orphaned, save-as, unpublished and stale cases each print their scenario name only after their assertions pass. Preserve a failing Office HTTP assertion against the pre-change stub before implementing. Retain sanitized red/green logs; do not mark page protocol execution or real-editor acceptance as passed.
+
+`make smoke-stub` also requests `GET /preview/{chat}?embed=office` and asserts that the returned stub-owned page contains the visible modification control and references no origin other than its public origin. This HTTP/body check is executable evidence; it does not claim the page's JavaScript message protocol was executed.
+
+### Office gateway smoke risk coverage
+
+- Public API / CLI / script entry — Selected: `make smoke-proxy` judges all seven owner 2xx rows, unlisted methods/shapes and both control-plane 404s through real nginx.
+- Config / project setup — Selected: exact pushed OCU SHA `a53731df95a3b92acb2dcb5980f969b4f8b4ee52`; 27-row table, no upload reads, no second-listener inputs; fixture mapping selects a conflict chat before starting the stub.
+- File IO / path safety / overwrite — Selected: existing private staging, report redaction and owned-process/file cleanup remain intact; a listed missing Hurl file fails, never silently skips.
+- Schema / columns / units / field names — Selected: owner replies retain stub status/body; captured IDs address the proper file/session and all path segments are encoded once. Private observations prove stripped paths, owner identity, chat and credential on each arrival.
+- Auth / permissions / secrets — Selected: for every row anonymous401 and non-owner404; for each POST null-origin403 and missing-header403. Compare private observation count around each individual denial, including control-plane/unlisted paths; existing credential-containment scans cover Office replies.
+- Concurrency / shared state / ordering — Selected: run requests serially with a fresh observation boundary so successes cannot mask denials. Resolve follows a publishing save and observed conflict; restore follows observed closed state and uses a version number from history. Track file/session identities through resolution.
+- Resource limits / large input / discovery — Not selected: fixed finite matrix, no new input-size or discovery policy.
+- Legacy compatibility / examples — Selected: retain all five existing Hurl files, upload chain, mutation and file-isolation assertions. Read-only callsite/diff audit preserves the `Smoke` constructor/state, `pin`, `verify_checkout`, `render`, `start_owned` signature/PID ownership, `cleanup_procs`, `PINNED_FILES`, `require_tools`, and `BrowserHarness` overrides of `run`, `provision`, `cleanup_data`, `assert_sentinel`; lifecycle cleanup remains polymorphic. Record this audit separately from gateway runtime evidence; no browser-subclass execution or new second-listener parameters are claimed.
+- Error handling / rollback / partial outputs — Selected: stale20-row table must fail naming an Office row, never skip; both success/failure output name every Hurl file actually invoked, and cleanup executes on failures.
+- Release / packaging / dependency compatibility — Selected: CI consumes the same public pinned OCU commit; no dependency install, workflow edit, image build or second-listener rollout.
+- Documentation / migration notes — Selected: fixture and existing paired-smoke decision record explain Office denial evidence and pin boundary; strict OpenSpec, doc and decision gates pass.
+
+Required evidence: `make smoke-proxy` exit0 names `office.hurl` and every retained file; each owner route has one correctly attributed upstream arrival, every denial has none. In disposable source/checkouts, removing Office from the explicit list removes its name from execution output, leaving a listed file missing fails, and using the pre-Office table fails with the rejected Office row named. Preserve each command and exit; do not wire intentional-negative runs into the normal target or change the fixture to accept a stale pin.
 
 ## 23. [webui] Feature flag, client and store (spec: ocu-office-workspace-ui)
 

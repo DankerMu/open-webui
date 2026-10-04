@@ -612,6 +612,76 @@ PR CI runs broker tests against recorded callback fixtures and a fake Docker cli
 
 The samples are deterministic and carry what the acceptance rows judge: the DOCX has headings, a table, an image and Chinese text; the XLSX has two sheets, formulas including a cross-sheet reference, and a chart; the PPTX has several slides with shapes and an image. After the round trip the script checks that the edit is present, that formula cells still hold formulas and their recalculated values match, and that tables, images, sheets and slide order are intact. Page count before and after, and fonts substituted, are written to a fidelity record; differences are listed, not judged.
 
+#### Office stub boundary
+
+Task 22.1 changes `scripts/ocu-stub.py`, adjacent Office fixture/page helpers and
+the `make smoke-stub` script and helpers. Keep the shared entrypoint below its
+file-size limit rather than embedding another state machine in the handler.
+
+Governing invariant: a chat's Office responses and visible file revisions are a
+deterministic function of its selected scenario and ordered requests, never of
+another chat, credentials, wall-clock delays or an external service.
+
+Preserve the existing uploads, private observation channel, prefix handling,
+file-serving semantics and every non-Office preview body and response policy.
+Reuse the stub's listing and identity seams; Office changes must be visible to
+outputs and file consumers rather than stored in a disconnected second listing.
+Serialize shared transitions in the threaded stub, with deterministic session,
+version and new-file identities. Persist-only saves do not change workspace data.
+
+Sibling surfaces are Office dispatch, session/status/version responses, outputs
+listing and file serving, scenario selection, private request recording and the
+Office host page. The host uses the same exact message keys and generation
+checks as D15, prefixed same-origin requests and the mutation header; its visible
+modification control needs no DocumentServer or externally loaded resource.
+
+Evidence uses real HTTP through `make smoke-stub`: default and all seven
+scenarios, forbidden method/path rejection, credential canaries, independent
+chats, concurrent joins and fresh-process replay. Review checks the executable
+page against D15; this issue's command does not execute JavaScript, so its first
+browser proof remains tasks 24.1/24.4. No source outside the stub/smoke boundary,
+gateway pin bump, production broker behavior or deployment acceptance is added.
+
+#### Office gateway smoke boundary
+
+Task 22.2 consumes the reviewed 27-row OCU table through the exact pushed pin.
+The shared smoke entrypoint is already at its size limit; new matrix and
+observation handling belongs in its support module, not a second gateway runner.
+
+Invariant: every successful Office probe is attributed to its exact stripped
+path, owner and chat, and every denied probe is proven not to contact OCU.
+Keep the request and its private observation boundary adjacent; aggregate
+arrival totals across mixed successes and denials cannot establish this claim.
+
+Use the existing real-cookie provisioning, native nginx, fixture selection,
+Hurl variables and private report/credential scanners. Resolve requires a
+publishing save followed by observed `conflict`, then a valid resolve action.
+Restore requires observed `closed`, not merely an accepted close response, and
+a version number obtained from the versions reply. Track the applicable
+file/session identities through resolution instead of predicting opaque IDs.
+
+Preserve all existing gateway cases and the smoke API used by browser
+verification. Log each explicit Hurl file when invoked, including failure; do
+not report a file merely because its name exists in a constant. Missing listed
+files and incompatible route tables fail visibly. Private staging and owned
+cleanup cover both successful and failed matrices.
+
+Preserve `Smoke` constructor/state, `pin()`, `verify_checkout()`, `render()`,
+`start_owned()` arguments/PID ownership and `cleanup_procs()`, plus
+`PINNED_FILES` and `require_tools()`. `BrowserHarness` retains its `run()`,
+`provision()`, `cleanup_data()` and `assert_sentinel()` overrides;
+`run_owned_lifecycle` still dispatches their cleanup polymorphically. A
+read-only callsite/diff audit of `scripts/verify-ui-ocu.py` records compatibility
+for these unchanged seams; gateway smoke does not claim to execute the browser
+subclass. Browser case additions and a full browser run are outside this slice.
+
+Sibling surfaces: pin loader/materializer, renderer inputs, cookie provisioning,
+stub scenario mapping, Hurl request/reply evidence, private arrival records,
+credential scanner and lifecycle cleanup. No stub/proxy production changes,
+second listener, browser case or real-editor acceptance belongs to this slice.
+The negative controls in group22 prove discovery and pin failures without
+turning scratch mutants into permanent source or weakening the passing oracle.
+
 ### D22. `/files` cache policy
 
 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`, so a preview after a publish cannot come from a cache keyed on mtime and size.
