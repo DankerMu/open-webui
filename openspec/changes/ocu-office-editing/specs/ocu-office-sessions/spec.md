@@ -406,6 +406,24 @@ The sweep SHALL NOT change a session in `conflict` or in a final state, SHALL NO
 - **WHEN** the poll runs while DocumentServer cannot be reached and sessions are past the liveness interval or the save timeout
 - **THEN** no session changes state
 
+#### Scenario: Activity and save timeout have independent clocks
+
+- **WHEN** a successful status request refreshes activity while a session remains `saving`
+- **THEN** that request postpones liveness expiry but does not postpone the timeout measured from entry into `saving`
+- **AND** an expired save whose key is known returns to `editing` with `save_timeout`, retaining its sequence, intent and pending allocation for late callback handling
+
+#### Scenario: Office-only chat and disabled Office
+
+- **WHEN** a chat has Office state but no sandbox metadata
+- **THEN** the existing idle poll still sweeps its eligible sessions
+- **WHEN** Office editing is disabled
+- **THEN** the poll performs no Office discovery or DocumentServer lookup and keeps its sandbox-reclamation behavior
+
+#### Scenario: Concurrent sweeps preserve unrelated state
+
+- **WHEN** two workers sweep the same overdue session while another committed record exists in the chat state
+- **THEN** the canonical per-chat lock serializes eligibility and transition, both workers observe the rule's single resulting state, and the unrelated committed record remains intact
+
 #### Scenario: Close on a pending conflict changes nothing
 
 - **WHEN** a session is in `conflict`, its editor has already ended, and a close is requested

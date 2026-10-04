@@ -296,3 +296,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, file IO/path safety, schema, auth containment, concurrency, resource bounds, compatibility, errors, packaging and documentation. No configuration or dependency change.
 - Evidence floor: no-read cache hits, size/mtime and deliberate forged-metadata behavior, unsafe/missing recovery, no foreign/other-file IO, save acceptance, two-worker state conservation and packaged status HTTP smoke.
 - Existing creation already persists the comparison baseline. Missing baseline is corruption, not a migration that adopts current content; absent cache fields are initialized by the first status observation.
+
+## Office session sweep fixture
+
+- Issue type: feature; fixture level: expanded, matching task 13.3.
+- Scope: Office session sweep from the existing idle poll, persisted activity/save-start times and their current request producers. Sandbox reclamation, journal/fence recovery, callbacks and deployment remain unchanged.
+- Blast radius: live-session orphaning, permanently stuck saves, lost pending allocations, Office-only chats missed by discovery and two-worker state loss.
+- Selected risk packs: API, config, file/path safety, schema, auth containment, concurrency, discovery, compatibility, errors, packaging and documentation.
+- Evidence floor: actual poll ticks with a controlled clock and independently authenticated fake DocumentServer; timeout boundaries, unavailable/no-op conservation, Office-only discovery, request activity, save-after-timeout and two-process locked transitions. Packaged two-worker runtime exercises the poll.
