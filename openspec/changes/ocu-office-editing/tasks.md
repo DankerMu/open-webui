@@ -476,7 +476,7 @@ Minimal mergeable slice: 20.1 (protocol and state) - green alone because the pag
 
 ## 21. [deploy] Proxy table: Office rows (spec: ocu-reverse-proxy)
 
-- [ ] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.
+- [x] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.
 
 Depends on: 5 (both edit the route table and its pin).
 Suggested fixture level: expanded - reviewed default-deny gateway table, authentication mapping and its pin.
