@@ -208,6 +208,22 @@ Versions are not deleted automatically. Before storing a blob the broker checks 
 
 Every host-side read of the edited workspace file (the capture at session creation, the status poll's hash, the hash inside the fence, the captures before an overwrite and a restore) opens the file without following a symlink, checks that it is a regular file inside the chat's workspace files directory and that no parent component is a symlink. A file that fails the check is never read: creation, overwrite and restore refuse with `unsafe_path`, the status poll reports `workspace_changed`, and a publish treats it as a baseline mismatch.
 
+#### Version, receipt and safe-read boundary
+
+Task 10.2 extends `OfficeStore` in place. `store_version(chat_id, file_id, content, *, source, parent, published, min_free_bytes, receipt=None)` returns the selected version record; `mark_published(chat_id, file_id, number)` only moves its flag to true. `record_receipt` handles outcomes without content, `get_receipt` looks up session/sequence with an optional expected hash, `check_free_space` accepts the caller's floor, and `read_workspace_file(chat_id, relative_path)` returns bytes and their SHA-256. No configuration default belongs here.
+
+Version lists live inside `documents[file_id]["versions"]`; task 10.2 owns those records, not session-creation metadata (type/path/currently-published pointer). Receipts use `receipts[session_id][str(save_seq)]`. Store a complete receipt with callback status, hash or null, version number or null and the answer; an already recorded key may be replayed identically but not silently replaced with conflicting content.
+
+Governing invariant: every committed version record refers to an immutable durable blob, and its receipt is committed in the same state successor. Hold the canonical chat lock across admission, blob publication and the existing state update. The floor compares current available bytes with the supplied floor, not a new projected-size reserve policy. Below-floor and precommit ENOSPC failures cannot advance records or receipts.
+
+Publish a new blob through a private temp, file fsync and an exclusive no-replace claim, then sync its directory and owned ancestry before the state update can acknowledge. Verify an existing hash-named blob rather than assuming its filename proves content. Never rewrite an existing blob. Clean newly staged/uncommitted content on ordinary precommit failure without deleting a blob that predated the operation; a process killed after durable blob publication but before state publication may leave an unreferenced complete blob, not a dangling committed record. No pruning is introduced.
+
+Use one `OfficeStore.update` for the version-list mutation and optional receipt. Equal latest hash preserves the record's number/source/parent/time and binds the receipt to it; later reuse of an older hash appends a new number. Existing records are immutable except a one-way published flag. Preserve the state primitive's explicit postreplace durability error: do not remove a blob referenced by a visible successor or claim that a committed replacement rolled back.
+
+Safe workspace reads use the canonical chat root and no-follow directory descriptors down to an `O_NOFOLLOW|O_NONBLOCK` regular-file open. Validate relative components before access, hash the bytes actually read and reject unstable content. Reuse Office descriptor primitives where applicable; the outputs broker's private index observation remains unchanged. Downstream session/status/publish/restore owners map storage/path errors to their specified HTTP/session outcomes.
+
+Module placement keeps each production file below 800 lines: `office/store.py` owns the state transaction and the public `OfficeStore` entrypoints, `office/versions.py` owns the single version/blob/receipt implementation, and `office/workspace.py` owns the single safe-reader implementation. Store entrypoints delegate rather than duplicate algorithms. Paired version/workspace test modules exercise those behaviors through the public seam; existing state tests remain in their module. The existing package-level Dockerfile COPY includes these nested modules, so no server-root module or new packaging path is introduced.
+
 ### D7. Route shape and authentication
 
 Browser-facing routes carry the chat id and are proxied as ordinary chat rows (`auth: chat`), so the existing `auth_request` decides ownership:
