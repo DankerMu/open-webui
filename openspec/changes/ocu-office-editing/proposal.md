@@ -171,3 +171,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: per-chat durable state, cross-worker lost updates, corruption preservation and packaged module availability.
 - Selected risk packs: API, file IO/path safety, schema, concurrency, compatibility, errors, packaging and documentation.
 - Evidence floor: both process update orders, actual lock contention, killed-before-replace predecessor, fresh-process persistence, corrupt/unreadable-state byte retention, and a missing-office-COPY negative control. Decision and doc gates cover the companion record.
+
+## Version and receipt storage fixture
+
+- Issue type: feature; fixture level: expanded, matching task 10.2.
+- Scope: extend the Office store and its paired test module; keep the state transaction, routes, outputs broker and configuration behavior unchanged.
+- Blast radius: immutable history, receipt/version atomicity, storage admission and safe workspace bytes.
+- Selected risk packs: API, file IO/path safety, schema, concurrency, resource limits, compatibility, errors and documentation.
+- Evidence floor: content-addressed deduplication, monotonic records/published flag, restart receipt lookup, atomic version+receipt, floor/ENOSPC rejection, descriptor-confined reads and same-chat process ordering.
