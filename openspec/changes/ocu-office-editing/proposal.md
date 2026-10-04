@@ -213,3 +213,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, config, schema/units, auth/secrets, ordering/expiry, resource bounds, compatibility, errors, packaging and documentation.
 - Evidence floor: independent HS256 interoperability, altered/expired/wrong-key token rejection, every ticket binding, real fake-server HTTP outcomes, redirect containment and no credentials in captured output.
 - B1 input: [record item 12](../../../docs/evidence/issue-119/2026-10-03-b1.md) observed exact `userdata` echo in an authenticated status-6 callback. This slice uses local fake HTTP tests, not another image campaign.
+
+## Office gateway rows fixture
+
+- Issue type: feature; fixture level: expanded, matching task 21.1: reviewed production routing and owner authorization share a fail-closed boundary.
+- Scope: OCU `deploy/proxy/` table, renderer, existing tests and README; the WebUI companion records this fixture and task completion. No broker, listener, compose, deployment, image operation or WebUI pin change.
+- Blast radius: a wrong row, identity capture or raw-path match can forward an unauthorized Office/control-plane request.
+- Selected risk packs: public HTTP API, production configuration, auth/permissions, path safety, schema/pin compatibility, error handling, atomic file replacement and documentation.
+- Evidence floor: a real-nginx Office forwarding case red against the unchanged table, then green; all seven owner rows and denial matrices; renderer pin/count/placeholder rejection preserving the previous private config; all existing proxy tests and the structure check.

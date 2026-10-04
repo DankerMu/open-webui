@@ -285,6 +285,27 @@ Async `forcesave(document_key, save_seq, intent)` sends a signed command with `c
 
 Force-save returns a typed outcome: integer code 0 is `accepted`, 1 `key_unknown`, 4 `nothing_to_save`, and every other code or malformed/non-success response `rejected`; connection refusal or timeout is `unreachable`. Key lookup reports `known` for code 0, `key_unknown` for 1 and `unreachable` for every other result, so a failed check never orphans a session as though the key were absent. Boolean and non-integer codes are invalid. HTTP uses existing aiohttp, a bounded timeout and response read, no redirects, environment proxy or retries; cancellation is not converted into a result. No request goes to the browser origin. Response bodies and exception messages are not logged.
 
+#### Office gateway row boundary
+
+Task 21.1 adds exactly the seven browser rows above to the existing twenty-row
+inventory. Table bytes, count and SHA pin change atomically. Existing row objects,
+method sets, authentication, mutation rules and file/WebSocket policies stay
+unchanged. `{file}` and `{session}` match one non-empty segment, never the
+multi-segment `{path}` rule, and are invalid without `{chat}`.
+
+The invariant is default-deny before OCU contact: only a listed method and raw
+path with owner authorization can reach OCU; mutating rows also require origin
+proof. Sibling surfaces are renderer schema/pin validation, normalized-location
+selection, raw-URI validation, path-derived chat identity and recording-fixture
+observations. Control-plane source/callback paths and the imports GET stay
+unproxied, with or without the `/ocu` prefix.
+
+Extend the existing native fixture and test matrices; do not substitute a second
+proxy or a fake success from a broker. Only synthetic credentials and private
+temporary configs are exercised. A failed render preserves the previous config;
+rollback restores the matching table/renderer pair. The later WebUI pin/smoke
+consumer owns its update separately, and the second listener is out of scope.
+
 ### D8. One user-visible save; publish on save and on close
 
 | Trigger                                                                                                             | Effect                                                                        |
