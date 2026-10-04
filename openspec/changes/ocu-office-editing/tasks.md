@@ -523,6 +523,24 @@ Depends on: 7, 21.
 Suggested fixture level: compact - deterministic test infrastructure following an already reviewed table.
 Minimal mergeable slice: 22.1 (stub fixtures) - green alone because the stub is exercised by its own smoke; 22.2 needs the pinned table of group 21.
 
+### Office stub risk coverage
+
+- Public API / CLI / script entry — Selected: `make smoke-stub` drives all seven routes over HTTP; wrong methods and unknown Office paths return 404.
+- Config / project setup — Selected: existing `OCU_STUB_FIXTURES` selects each of the seven scenarios per chat; an unassigned chat follows the default Office round trip.
+- File IO / path safety / overwrite — Not selected: no workspace disk writes or production path resolver; existing uploads remain unchanged.
+- Schema / columns / units / field names — Selected: smoke asserts broker response fields, immutable version history, sequence cursors, save-as identity and outputs revision/ETag behavior.
+- Auth / permissions / secrets — Selected: Office arrivals remain privately observable, public responses do not echo credential canaries, and the host permits only the exact same-origin/source/chat/generation message contract. HTTP containment is smoked; page execution is review-only here.
+- Concurrency / shared state / ordering — Selected: smoke covers per-chat isolation, repeated creation joining one session, concurrent arrivals without lost transitions, and identical replay against fresh stub processes.
+- Resource limits / large input / discovery — Not selected: fixed small fixtures, no new quotas or production discovery behavior.
+- Legacy compatibility / examples — Selected: existing smoke cases stay intact; files/browser/terminal/standalone preview bodies and policies remain unchanged. No OCU pin, proxy, browser harness or production caller change.
+- Error handling / rollback / partial outputs — Selected: unsupported creation creates no session; stale creation refuses once without losing unpublished versions; orphaned recreation gets a new id; conflict resolution preserves the original on save-as and changes it only on explicit overwrite.
+- Release / packaging / dependency compatibility — Not selected: no dependency, image or release changes.
+- Documentation / migration notes — Selected: this fixture records harness guarantees and the explicit JavaScript evidence limit; `make doc-gate` and `make decisions-verify` cover documentation hygiene.
+
+Smoke inputs and outcomes are the `ocu-stub` scenarios: publish advances the published cursor and file revision; persist adds only an unpublished autosave; close then restore appends history without altering older entries; both conflict resolutions are distinct; unsupported, orphaned, save-as, unpublished and stale cases each print their scenario name only after their assertions pass. Preserve a failing Office HTTP assertion against the pre-change stub before implementing. Retain sanitized red/green logs; do not mark page protocol execution or real-editor acceptance as passed.
+
+`make smoke-stub` also requests `GET /preview/{chat}?embed=office` and asserts that the returned stub-owned page contains the visible modification control and references no origin other than its public origin. This HTTP/body check is executable evidence; it does not claim the page's JavaScript message protocol was executed.
+
 ## 23. [webui] Feature flag, client and store (spec: ocu-office-workspace-ui)
 
 - [ ] 23.1 `ENABLE_OCU_OFFICE_EDIT` (default false) parsed strictly — a value that is neither true nor false fails startup — exposed as `enable_ocu_office_edit` in the config features object beside `enable_ocu_workspace`, and set in the harness environment. Verify: a backend test asserts the feature value for both settings and the startup failure; `make smoke` passes.

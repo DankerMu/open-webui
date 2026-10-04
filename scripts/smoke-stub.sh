@@ -14,12 +14,14 @@ log="$(mktemp "${TMPDIR:-/tmp}/ocu-stub.XXXXXX")"
 body="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-body.XXXXXX")"
 hdr="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-hdr.XXXXXX")"
 auth_cfg="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-auth.XXXXXX")"
+record="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-record.XXXXXX")"
+export OCU_STUB_RECORD="$record"
 python3 "$repo_root/scripts/ocu-stub.py" >"$log" 2>&1 &
 stub_pid=$!
 cleanup() {
   kill "$stub_pid" 2>/dev/null || true
   wait "$stub_pid" 2>/dev/null || true
-  rm -f "$log" "$body" "$hdr" "$auth_cfg"
+  rm -f "$log" "$body" "$hdr" "$auth_cfg" "$record"
 }
 trap cleanup EXIT
 
@@ -214,5 +216,7 @@ assert 400 <= status < 500, status
 assert listing()[0] == unchanged
 print('smoke-stub: collision, chat isolation, ETag, concurrent claims and malformed multipart verified')
 PY
+
+python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$repo_root/scripts/ocu-stub.py" || fail "office fixtures"
 
 echo "smoke-stub: ok (port $port)"

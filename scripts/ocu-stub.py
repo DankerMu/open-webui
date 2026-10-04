@@ -21,6 +21,9 @@ from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from ocu_stub_office import OfficeStore
+from ocu_stub_office_page import office_host_page
+
 log = logging.getLogger('ocu-stub')
 
 PREFIX = os.environ.get('OCU_PUBLIC_PREFIX', '').rstrip('/')
@@ -120,7 +123,7 @@ STATIC = {
     'deep/preview.js': ('text/javascript; charset=utf-8', b'export const ocuStubDeep = true;\n'),
 }
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 _SEQ = 0
 _states: dict[str, str] = {
     'running': 'running',
@@ -128,6 +131,19 @@ _states: dict[str, str] = {
     'never_created': 'never_created',
 }
 _uploads: dict[str, dict[str, tuple[bytes, dict]]] = {}
+_OFFICE = OfficeStore(
+    lock=_LOCK,
+    scenario_of=lambda chat_id: _scenario(chat_id),
+    prefix=PREFIX,
+    fixture_file=lambda chat_id, name, revision=1: _fixture_file(chat_id, name, revision),
+    fixture_outputs=lambda chat_id: _fixture_outputs(chat_id),
+    occupied_names=lambda chat_id: set(FILES)
+    | {entry['path'] for entry in _fixture_outputs(chat_id)['files']}
+    | set(_uploads.get(chat_id, {})),
+    files=FILES,
+    uploads=_uploads,
+    valid_office=VALID_OFFICE,
+)
 
 DESCRIBE_RE = re.compile(r'^/internal/describe/([^/]+)$')
 LAUNCH_RE = re.compile(r'^/internal/launch/([^/]+)$')
@@ -153,8 +169,32 @@ STATIC_RE = re.compile('^' + re.escape(PREFIX) + r'/static/(.+)$') if PREFIX els
 def _scenario(chat_id: str) -> str | None:
     if not FIXTURE_PATH:
         return None
-    fixtures = json.loads(Path(FIXTURE_PATH).read_text(encoding='utf-8'))
-    return fixtures.get(chat_id)
+    return json.loads(Path(FIXTURE_PATH).read_text(encoding='utf-8')).get(chat_id)
+
+
+def _backend_error(name: str) -> tuple[int, bytes, str, dict] | None:
+    if name == 'backend403':
+        return 403, b'backend 403', 'text/plain; charset=utf-8', {}
+    if name == 'backend409':
+        return 409, b'backend 409', 'text/plain; charset=utf-8', {}
+    if name == 'backend-html403.html':
+        extra = {'Content-Security-Policy': WEAK_CSP, 'X-Content-Type-Options': 'other'}
+        return 403, b'upstream error', 'TEXT/HTML; charset=utf-8', extra
+    return None
+
+
+def _scenario_file(chat_id: str, name: str, query: dict) -> tuple[int, bytes, str, dict] | None:
+    scenario = _scenario(chat_id)
+    mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    if scenario in ('deleted_after', 'partial_after') and name == 'report.html':
+        return 404, b'not found', 'text/plain; charset=utf-8', {}
+    if scenario == 'corrupt' and name == 'corrupt.docx':
+        return 200, b'not a ZIP document', mime, _file_headers(name, query)
+    if scenario == 'valid' and name == 'valid.docx':
+        return 200, VALID_OFFICE.read_bytes(), mime, _file_headers(name, query)
+    if scenario is not None and re.fullmatch(r'item-[0-9]{3}\.txt', name):
+        return 200, name.encode(), 'text/plain; charset=utf-8', _file_headers(name, query)
+    return None
 
 
 def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
@@ -231,6 +271,10 @@ def _fixture_outputs(chat_id: str) -> dict:
         'large': ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)],
         'drawio': ['diagram.drawio'],
         'drawio_embedded': ['diagram.drawio'],
+        **{name: ['report.docx'] for name in (
+            'office', 'office_conflict', 'office_unsupported', 'office_orphaned', 'office_unpublished', 'office_stale'
+        )},
+        'office_save_as': [],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
     return {
         'chat_id': chat_id,
@@ -248,6 +292,7 @@ def _outputs(chat_id: str, query: dict | None = None) -> dict:
         uploaded = _uploads.get(chat_id, {})
         body['files'].extend(entry for _, entry in uploaded.values())
         body['revision'] += len(uploaded)
+        _OFFICE.overlay_listing(chat_id, body)
     if 'total' in body:
         offset = int((query or {}).get('cursor', ['0'])[0])
         if _scenario(chat_id) == 'partial_after' and offset > 0:
@@ -314,6 +359,8 @@ def _preview_generator():
 
 
 def _preview_html(chat_id: str, embed: str = '') -> tuple[bytes, dict[str, str]]:
+    if embed == 'office':
+        return office_host_page(chat_id, PREFIX)
     if ASSET_ROOT.is_dir() and FIXTURE_PATH:
         nonce = secrets.token_urlsafe(24) if embed in ('browser', 'terminal') else None
         headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
@@ -469,54 +516,25 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def _serve_file(self, match: re.Match[str], query: dict) -> None:
         name = unquote(match.group(2))
+        office = _OFFICE.file_bytes(match.group(1), name)
+        if office is not None:
+            self._write(200, office[0], office[1]['mime'], _file_headers(name, query))
+            return
         with _LOCK:
             uploaded = _uploads.get(match.group(1), {}).get(name)
         if uploaded is not None:
-            body, entry = uploaded
-            self._write(200, body, entry['mime'], _file_headers(name, query))
+            self._write(200, uploaded[0], uploaded[1]['mime'], _file_headers(name, query))
             return
-        if name == 'backend403':
-            self._write(403, b'backend 403', 'text/plain; charset=utf-8')
-            return
-        if name == 'backend409':
-            self._write(409, b'backend 409', 'text/plain; charset=utf-8')
-            return
-        if name == 'backend-html403.html':
-            extra = {
-                'Content-Security-Policy': WEAK_CSP,
-                'X-Content-Type-Options': 'other',
-            }
-            self._write(403, b'upstream error', 'TEXT/HTML; charset=utf-8', extra)
+        error = _backend_error(name) or _scenario_file(match.group(1), name, query)
+        if error is not None:
+            status, body, mime, extra = error
+            self._write(status, body, mime, extra) if status != 404 else self._not_found()
             return
         fixture = FILES.get(name)
-        scenario = _scenario(match.group(1))
-        if scenario in ('deleted_after', 'partial_after') and name == 'report.html':
-            self._not_found()
-            return
-        if scenario == 'corrupt' and name == 'corrupt.docx':
-            self._write(
-                200,
-                b'not a ZIP document',
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                _file_headers(name, query),
-            )
-            return
-        if scenario == 'valid' and name == 'valid.docx':
-            self._write(
-                200,
-                VALID_OFFICE.read_bytes(),
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                _file_headers(name, query),
-            )
-            return
-        if scenario is not None and re.fullmatch(r'item-[0-9]{3}\.txt', name):
-            self._write(200, name.encode(), 'text/plain; charset=utf-8', _file_headers(name, query))
-            return
         if fixture is None:
             self._not_found()
             return
-        content_type, body = fixture
-        self._write(200, body, content_type, _file_headers(name, query))
+        self._write(200, fixture[1], fixture[0], _file_headers(name, query))
 
     def _preview(self, match: re.Match[str], query: dict) -> None:
         modes = query.get('embed', [])
@@ -670,6 +688,8 @@ class StubHandler(BaseHTTPRequestHandler):
     def _serve_http(self, method: str) -> None:
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
+        if _OFFICE.dispatch(self, method, parsed.path, getattr(self, '_request_body', b'')):
+            return
         for verb, regex, fn in _ROUTES:
             if verb != method:
                 continue
@@ -682,7 +702,7 @@ class StubHandler(BaseHTTPRequestHandler):
     def _dispatch(self, method: str) -> None:
         extra: dict = {}
         self._request_body = b''
-        if method == 'POST':
+        if method in ('POST', 'PUT', 'PATCH'):
             payload = self._read_body()
             self._request_body = payload
             extra['body_sha256'] = hashlib.sha256(payload).hexdigest()
@@ -715,6 +735,8 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         self._dispatch('POST')
+
+    do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_POST
 
 
 _ROUTES = (
