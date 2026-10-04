@@ -594,7 +594,7 @@ Required evidence: `make smoke-proxy` exit0 names `office.hurl` and every retain
 ## 23. [webui] Feature flag, client and store (spec: ocu-office-workspace-ui)
 
 - [x] 23.1 `ENABLE_OCU_OFFICE_EDIT` (default false) parsed strictly — a value that is neither true nor false fails startup — exposed as `enable_ocu_office_edit` in the config features object beside `enable_ocu_workspace`, and set in the harness environment. Verify: a backend test asserts the feature value for both settings and the startup failure; `make smoke` passes.
-- [ ] 23.2 `src/lib/apis/ocu/office.ts` (session status, versions, restore, resolve, with the mutation header and the existing error mapping) and a chat-keyed Office store module. Verify: Vitest covers request shape, error mapping, generation handling and that no state crosses chats.
+- [x] 23.2 `src/lib/apis/ocu/office.ts` (session status, versions, restore, resolve, with the mutation header and the existing error mapping) and a chat-keyed Office store module. Verify: Vitest covers request shape, error mapping, generation handling and that no state crosses chats.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - a config surface in the upstream spine (`main.py`) and a new client on guarded routes.

@@ -5,7 +5,7 @@ export type OcuOfficeState = {
 	generation: number;
 	fileId?: string;
 	sessionId?: string;
-	state?: OfficeSessionState;
+	state?: OfficeSessionState | 'refused';
 	reason: string | null;
 	dirty: boolean;
 	workspaceChanged: boolean;

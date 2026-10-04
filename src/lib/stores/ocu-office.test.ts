@@ -122,4 +122,65 @@ describe('ocu office store', () => {
 			savedAs: { file_id: 'new-a', path: 'report (2).docx' }
 		});
 	});
+
+	it('retains a current refused editor state and ignores a retired refusal', () => {
+		const genA = beginOfficeGeneration('A');
+		applyOfficeState('A', genA, {
+			fileId: 'file-a',
+			sessionId: 'sess-a',
+			state: 'opening',
+			reason: null,
+			dirty: true,
+			workspaceChanged: false,
+			savedAs: null
+		});
+		const genB = beginOfficeGeneration('B');
+		applyOfficeState('B', genB, {
+			fileId: 'file-b',
+			sessionId: 'sess-b',
+			state: 'editing',
+			reason: null,
+			dirty: false,
+			workspaceChanged: false,
+			savedAs: null
+		});
+		const bBefore = get(ocuOffice).B;
+
+		applyOfficeState('A', genA, {
+			state: 'refused',
+			reason: 'unsupported_type',
+			dirty: false,
+			sessionId: undefined
+		});
+		expect(get(ocuOffice).A).toMatchObject({
+			generation: genA,
+			fileId: 'file-a',
+			state: 'refused',
+			reason: 'unsupported_type',
+			dirty: false
+		});
+		expect(get(ocuOffice).A.sessionId).toBeUndefined();
+		expect(get(ocuOffice).B).toBe(bBefore);
+
+		const retired = genA;
+		const nextA = retireOfficeGeneration('A');
+		applyOfficeState('A', nextA, {
+			state: 'opening',
+			dirty: true,
+			reason: null,
+			sessionId: 'sess-next'
+		});
+		const afterCurrent = get(ocuOffice);
+		applyOfficeState('A', retired, {
+			state: 'refused',
+			reason: 'unsupported_type',
+			dirty: false,
+			sessionId: undefined
+		});
+		expect(get(ocuOffice)).toBe(afterCurrent);
+		expect(get(ocuOffice).A.state).toBe('opening');
+		expect(get(ocuOffice).A.dirty).toBe(true);
+		expect(get(ocuOffice).A.reason).toBeNull();
+		expect(get(ocuOffice).B).toBe(bBefore);
+	});
 });
