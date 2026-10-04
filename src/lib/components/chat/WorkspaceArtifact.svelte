@@ -543,7 +543,7 @@
 					class="flex h-8 shrink-0 items-center gap-1.5 overflow-visible border-b border-gray-100 pr-1 dark:border-gray-800"
 				>
 					<span data-file-kind={selectedKind} class="contents">
-						<SelectedKindIcon className="size-4 shrink-0" />
+						<svelte:component this={SelectedKindIcon} className="size-4 shrink-0" />
 					</span>
 					<Tooltip
 						content={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
@@ -622,7 +622,10 @@
 							class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center"
 						>
 							<span data-file-kind={selectedKind} class="contents">
-								<SelectedKindIcon className="size-8 shrink-0 text-gray-400" />
+								<svelte:component
+									this={SelectedKindIcon}
+									className="size-8 shrink-0 text-gray-400"
+								/>
 							</span>
 							<p class="text-sm text-gray-500 dark:text-gray-400" role="status">
 								{$i18n.t('Preview not supported for this file type. Download the file to open it.')}

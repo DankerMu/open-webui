@@ -55,6 +55,13 @@ const rootNotes: WorkspaceFile = {
 	size: 64
 };
 const officeFile: WorkspaceFile = file('valid.docx');
+const rootPhoto: WorkspaceFile = {
+	...file('photo.png', 'photo.png'),
+	url: `/ocu/files/${chat}/photo.png`,
+	type: 'image',
+	mime: 'image/png',
+	size: 128
+};
 
 async function open() {
 	component = mount(WorkspaceArtifact, {
@@ -125,6 +132,33 @@ function previewSurface(region = selectedRegion()) {
 	const surface = region.querySelector('[data-selected-preview]');
 	expect(surface).not.toBeNull();
 	return surface as HTMLElement;
+}
+
+function restoreThenOpen(files: WorkspaceFile[], selectedFileId: string) {
+	scenario = (input, init) =>
+		input.endsWith('/prefs') && init?.method === 'PUT'
+			? json({ prefs: JSON.parse(String(init.body)) })
+			: input.includes('/workspaces/')
+				? json({ ...describeBody, prefs: { selected_file_id: selectedFileId, open: true } })
+				: json(listing(files));
+}
+
+function rowGlyph(name: string) {
+	const svg = namedButton(name).querySelector('[data-file-kind] svg');
+	expect(svg, name).not.toBeNull();
+	return svg!.innerHTML;
+}
+
+function barGlyph() {
+	const svg = selectedRegion().querySelector('[data-selected-bar] [data-file-kind] svg');
+	expect(svg).not.toBeNull();
+	return svg!.innerHTML;
+}
+
+function unsupportedGlyph() {
+	const svg = previewSurface().querySelector('[data-file-kind] svg');
+	expect(svg).not.toBeNull();
+	return svg!.innerHTML;
 }
 
 beforeEach(() => {
@@ -309,7 +343,8 @@ describe('selected workspace file bar and framed preview', () => {
 		await ready('Office preview error');
 		const failed = previewSurface();
 		expect(failed.querySelector('[role="status"]')?.textContent).toContain('Office preview error');
-		expect(failed.querySelector('.spinner_ajPY')).toBeNull();
+		expect(failed.querySelector('[role="status"] svg')).toBeNull();
+		expect(failed.querySelector('svg')).toBeNull();
 		const retry = [...failed.querySelectorAll('button')].find(
 			(item) => item.textContent?.trim() === 'Retry Office preview'
 		);
@@ -345,5 +380,60 @@ describe('selected workspace file bar and framed preview', () => {
 				(item) => item.textContent?.trim() === 'Download notes.bin'
 			)
 		).toHaveLength(1);
+	});
+
+	it('updates the selected bar glyph through restored other then web then other then web', async () => {
+		restoreThenOpen(
+			[nestedSummary, nestedIndex, rootPage, rootNotes, officeFile],
+			rootNotes.file_id
+		);
+		await open();
+		await ready('notes.bin');
+		const region = selectedRegion();
+		expect(barGlyph()).toBe(rowGlyph('notes.bin'));
+		expect(previewSurface().querySelector('iframe')).toBeNull();
+
+		namedButton('page.html').click();
+		await tick();
+		expect(barGlyph()).toBe(rowGlyph('page.html'));
+		expect(barGlyph()).not.toBe(rowGlyph('notes.bin'));
+		expect(previewSurface().querySelector('iframe[title="page.html"]')).not.toBeNull();
+
+		namedButton('notes.bin').click();
+		await tick();
+		expect(barGlyph()).toBe(rowGlyph('notes.bin'));
+		expect(barGlyph()).not.toBe(rowGlyph('page.html'));
+		expect(previewSurface().querySelector('iframe')).toBeNull();
+
+		namedButton('page.html').click();
+		await tick();
+		expect(barGlyph()).toBe(rowGlyph('page.html'));
+		expect(barGlyph()).not.toBe(rowGlyph('notes.bin'));
+		expect(previewSurface().querySelector('iframe[title="page.html"]')).not.toBeNull();
+		expect(selectedRegion()).toBe(region);
+	});
+
+	it('updates the unsupported glyph on other then image without remounting the surface', async () => {
+		restoreThenOpen(
+			[nestedSummary, nestedIndex, rootPage, rootNotes, rootPhoto, officeFile],
+			rootNotes.file_id
+		);
+		await open();
+		await ready('notes.bin');
+		const region = selectedRegion();
+		const surface = previewSurface();
+		const otherGlyph = unsupportedGlyph();
+		expect(otherGlyph).toBe(rowGlyph('notes.bin'));
+		expect(surface.querySelector('iframe')).toBeNull();
+
+		namedButton('photo.png').click();
+		await tick();
+		expect(unsupportedGlyph()).toBe(rowGlyph('photo.png'));
+		expect(unsupportedGlyph()).not.toBe(otherGlyph);
+		expect(barGlyph()).toBe(rowGlyph('photo.png'));
+		expect(barGlyph()).not.toBe(rowGlyph('notes.bin'));
+		expect(previewSurface()).toBe(surface);
+		expect(selectedRegion()).toBe(region);
+		expect(surface.querySelector('iframe')).toBeNull();
 	});
 });
