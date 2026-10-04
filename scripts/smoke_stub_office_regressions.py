@@ -1,8 +1,4 @@
-"""Focused HTTP regressions for Office stub review findings.
-
-Default selectors pin HTTP status, bodies and policies on one running stub.
-`--old-script` remains an opt-in before/after preview comparison.
-"""
+"""Focused HTTP regressions for Office stub review findings."""
 
 from __future__ import annotations
 
@@ -164,13 +160,16 @@ def assert_wrong_methods(base: str) -> None:
         fail('wrong-method launch mutated describe')
     upload_before = _outputs(base, 'upload-method')[0]
     data, headers = _multipart('wrong.docx', b'payload')
-    if _request(
-        base,
-        f'/api/uploads/{_seg("upload-method")}/{_seg("wrong.docx")}',
-        method='PUT',
-        data=data,
-        headers=headers,
-    )[0] != 404:
+    if (
+        _request(
+            base,
+            f'/api/uploads/{_seg("upload-method")}/{_seg("wrong.docx")}',
+            method='PUT',
+            data=data,
+            headers=headers,
+        )[0]
+        != 404
+    ):
         fail('PUT upload executed POST')
     if _outputs(base, 'upload-method')[0] != upload_before:
         fail('wrong-method upload mutated listing')
@@ -346,7 +345,6 @@ def assert_ended_conflict(base: str) -> None:
     _assert_overwrite_history(base, live, live_id, live_bytes)
 
 
-
 def _assert_ended_conflict_action(base: str, action: str, chat: str) -> None:
     file_id = _office_file(base, chat)
     original_bytes = _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2]
@@ -365,7 +363,6 @@ def _assert_ended_conflict_action(base: str, action: str, chat: str) -> None:
         fail('ended save_as mutated original bytes')
     if action == 'overwrite':
         _assert_overwrite_history(base, chat, file_id, original_bytes)
-
 
 
 def _assert_conflict_close_history(base: str, chat: str, file_id: str, session_id: str) -> None:
@@ -436,7 +433,13 @@ def assert_missing_field_http(base: str) -> None:
     assert_create_schema(created[2])
     status = _status(base, 'office', created[2]['session_id'])[2]
     for key in (
-        'session_id', 'file_id', 'document_key', 'state', 'save_seq', 'last_committed_seq', 'last_published_seq'
+        'session_id',
+        'file_id',
+        'document_key',
+        'state',
+        'save_seq',
+        'last_committed_seq',
+        'last_published_seq',
     ):
         if key not in status:
             fail(f'status missing {key}')
@@ -445,8 +448,13 @@ def assert_missing_field_http(base: str) -> None:
         if key not in versions:
             fail(f'versions missing {key}')
     expected = {
-        'state': 'editing', 'reason': None, 'save_seq': 0, 'last_committed_seq': 0,
-        'last_published_seq': 0, 'workspace_changed': False, 'saved_as': None,
+        'state': 'editing',
+        'reason': None,
+        'save_seq': 0,
+        'last_committed_seq': 0,
+        'last_published_seq': 0,
+        'workspace_changed': False,
+        'saved_as': None,
     }
     if any(status.get(key) != value for key, value in expected.items()):
         fail(f'initial status differs from fresh-session contract {status}')
@@ -624,9 +632,9 @@ def replay_transcript(base: str) -> list:
     conflict_id = _office_file(base, 'replay-office_conflict')
     conflict = _create(base, 'replay-office_conflict', conflict_id)
     _save(base, 'replay-office_conflict', conflict[2]['session_id'], 'publish')
-    snapshot.append((
-        'conflict-status', *_strip_pair(_status(base, 'replay-office_conflict', conflict[2]['session_id']))
-    ))
+    snapshot.append(
+        ('conflict-status', *_strip_pair(_status(base, 'replay-office_conflict', conflict[2]['session_id'])))
+    )
     saved = _resolve(base, 'replay-office_conflict', conflict[2]['session_id'], 'save_as')
     snapshot.append(('conflict-save_as', saved[0], _strip_times(saved[2])))
     overwrite_id = _office_file(base, 'replay-conflict-overwrite')
@@ -638,9 +646,9 @@ def replay_transcript(base: str) -> list:
     snapshot.append(('unsupported', unsupported[0], _strip_times(unsupported[2])))
     orphaned = _create(base, 'replay-office_orphaned', _office_file(base, 'replay-office_orphaned'))
     snapshot.append(('orphaned-create', orphaned[0], _strip_times(orphaned[2])))
-    snapshot.append((
-        'orphaned-status', *_strip_pair(_status(base, 'replay-office_orphaned', orphaned[2]['session_id']))
-    ))
+    snapshot.append(
+        ('orphaned-status', *_strip_pair(_status(base, 'replay-office_orphaned', orphaned[2]['session_id'])))
+    )
     save_as_id = _office_file(base, 'replay-office_save_as')
     save_as = _create(base, 'replay-office_save_as', save_as_id)
     snapshot.append(('save_as-create', save_as[0], _strip_times(save_as[2])))
@@ -648,9 +656,9 @@ def replay_transcript(base: str) -> list:
     closed_save_as = _close(base, 'replay-office_save_as', save_as[2]['session_id'])
     snapshot.append(('save_as-close', closed_save_as[0], _strip_times(closed_save_as[2])))
     unpublished_id = _office_file(base, 'replay-office_unpublished')
-    snapshot.append((
-        'unpublished-versions', *_strip_pair(_versions(base, 'replay-office_unpublished', unpublished_id))
-    ))
+    snapshot.append(
+        ('unpublished-versions', *_strip_pair(_versions(base, 'replay-office_unpublished', unpublished_id)))
+    )
     unpublished_restore = _restore(base, 'replay-office_unpublished', unpublished_id, 2)
     snapshot.append(('unpublished-restore', unpublished_restore[0], _strip_times(unpublished_restore[2])))
     stale_id = _office_file(base, 'replay-office_stale')
@@ -665,8 +673,11 @@ def replay_transcript(base: str) -> list:
         ('replay-conflict-overwrite', overwrite_id, overwrite_session),
         ('replay-office_unsupported', _office_file(base, 'replay-office_unsupported'), None),
         ('replay-office_orphaned', orphaned[2]['file_id'], orphaned[2]['session_id']),
-        ('replay-office_save_as', _office_file(base, 'replay-office_save_as', 'report (2).docx'),
-         save_as[2]['session_id']),
+        (
+            'replay-office_save_as',
+            _office_file(base, 'replay-office_save_as', 'report (2).docx'),
+            save_as[2]['session_id'],
+        ),
         ('replay-office_unpublished', unpublished_id, None),
         ('replay-office_stale', stale_id, recreated[2]['session_id']),
     )

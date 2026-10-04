@@ -409,9 +409,7 @@ class Smoke:
         for name in ('manifest', 'list'):
             before = len(observations(self.record))
             path = f'/ocu/api/uploads/{self.chat_id}/{name}'
-            status, _, _ = http_raw(
-                '127.0.0.1', self.proxy_port, 'GET', path, headers={'Cookie': self.owner_cookie}
-            )
+            status, _, _ = http_raw('127.0.0.1', self.proxy_port, 'GET', path, headers={'Cookie': self.owner_cookie})
             if status != 404:
                 fail(f'pinned table mismatch: retired GET {path} expected 404, got {status}')
             if observations(self.record)[before:]:

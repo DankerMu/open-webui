@@ -137,9 +137,9 @@ _OFFICE = OfficeStore(
     prefix=PREFIX,
     fixture_file=lambda chat_id, name, revision=1: _fixture_file(chat_id, name, revision),
     fixture_outputs=lambda chat_id: _fixture_outputs(chat_id),
-    occupied_names=lambda chat_id: set(FILES)
-    | {entry['path'] for entry in _fixture_outputs(chat_id)['files']}
-    | set(_uploads.get(chat_id, {})),
+    occupied_names=lambda chat_id: (
+        set(FILES) | {entry['path'] for entry in _fixture_outputs(chat_id)['files']} | set(_uploads.get(chat_id, {}))
+    ),
     files=FILES,
     uploads=_uploads,
     valid_office=VALID_OFFICE,
@@ -272,9 +272,17 @@ def _fixture_outputs(chat_id: str) -> dict:
         'large': ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)],
         'drawio': ['diagram.drawio'],
         'drawio_embedded': ['diagram.drawio'],
-        **{name: ['report.docx'] for name in (
-            'office', 'office_conflict', 'office_unsupported', 'office_orphaned', 'office_unpublished', 'office_stale'
-        )},
+        **{
+            name: ['report.docx']
+            for name in (
+                'office',
+                'office_conflict',
+                'office_unsupported',
+                'office_orphaned',
+                'office_unpublished',
+                'office_stale',
+            )
+        },
         'office_save_as': [],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
     return {
