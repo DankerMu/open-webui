@@ -404,6 +404,15 @@ class OfficeStore:
             document['published_version'] = record['number']
         return record
 
+    def _already_stored(self, document: dict, payload: bytes) -> bool:
+        digest = hashlib.sha256(payload).hexdigest()
+        return any(record['sha256'] == digest for record in document['versions'])
+
+    def _capture_workspace(self, document: dict) -> dict | None:
+        if self._already_stored(document, document['bytes']):
+            return None
+        return self._append_version(document, 'workspace', document['bytes'], True)
+
     def _publish_bytes(self, chat_id: str, document: dict, payload: bytes) -> None:
         document['bytes'] = payload
         document['serve'] = True
@@ -550,7 +559,6 @@ class OfficeStore:
         document = chat['documents'][session['file_id']]
         scenario = self.office_scenario(chat_id)
         if session['state'] == 'conflict':
-            self._append_version(document, 'close', document['latest']['bytes'], False)
             session['last_committed_seq'] = save_seq
             session['editor_ended'] = True
             return 202, {'session_id': session_id, 'save_seq': save_seq, 'state': 'conflict'}
@@ -606,10 +614,11 @@ class OfficeStore:
         latest = document['latest']
         resolved_state = 'closed' if session['editor_ended'] else 'editing'
         if action == 'overwrite':
-            self._append_version(document, 'workspace', document['bytes'], True)
-            latest['published'] = True
-            document['published_version'] = latest['number']
-            self._publish_bytes(chat_id, document, latest['bytes'])
+            user_version = document['latest']
+            self._capture_workspace(document)
+            user_version['published'] = True
+            document['published_version'] = user_version['number']
+            self._publish_bytes(chat_id, document, user_version['bytes'])
             session['state'] = resolved_state
             session['reason'] = None
             session['last_published_seq'] = session['last_committed_seq']
@@ -670,8 +679,7 @@ class OfficeStore:
         source = next((record for record in document['versions'] if record['number'] == number), None)
         if source is None:
             return 404, {'reason': 'unknown_version'}
-        if hashlib.sha256(document['bytes']).hexdigest() != document['latest']['sha256']:
-            self._append_version(document, 'workspace', document['bytes'], True)
+        self._capture_workspace(document)
         restored = self._append_version(document, 'restore', source['bytes'], True)
         self._publish_bytes(chat_id, document, restored['bytes'])
         return 200, {'file_id': document['file_id'], 'number': restored['number'], 'published': True}

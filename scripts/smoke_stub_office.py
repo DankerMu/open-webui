@@ -443,6 +443,12 @@ def assert_office_conflict(base: str, chat: str) -> None:
     if 'report (2).docx' not in {entry['path'] for entry in after_save_as['files']}:
         fail('save_as missing deduplicated name')
     log.info('office_conflict')
+    _assert_conflict_overwrite(base, chat)
+    log.info('office_conflict overwrite')
+
+
+
+def _assert_conflict_overwrite(base: str, chat: str) -> None:
     other_chat = f'{chat}-overwrite'
     listing_b, _ = _outputs(base, other_chat)
     file_b = _file_id(listing_b, 'report.docx')
@@ -457,7 +463,11 @@ def assert_office_conflict(base: str, chat: str) -> None:
         fail('overwrite did not raise revision')
     if any(entry['path'] == 'report (2).docx' for entry in after['files']):
         fail('overwrite created a new name')
-    log.info('office_conflict overwrite')
+    history = _versions(base, other_chat, file_b)[2]
+    if [record['source'] for record in history['versions']] != ['workspace', 'save']:
+        fail(f'overwrite stored a phantom workspace version {history}')
+    if history['published_version'] != 2:
+        fail(f'overwrite published_version {history}')
 
 
 def assert_office_unsupported(base: str, chat: str) -> None:
@@ -536,20 +546,7 @@ def assert_office_unpublished(base: str, chat: str) -> None:
     restore_listing, _ = _outputs(base, restore_chat)
     restore_id = _file_id(restore_listing, 'report.docx')
     restore_versions = _versions(base, restore_chat, restore_id)[2]
-    restored = _restore(base, restore_chat, restore_id, restore_versions['versions'][-1]['number'])
-    if restored[0] != 200:
-        fail(f'unpublished restore {restored}')
-    after, _ = _outputs(base, restore_chat)
-    if after['revision'] <= restore_listing['revision']:
-        fail('unpublished restore did not raise revision')
-    history = _versions(base, restore_chat, restore_id)[2]['versions']
-    if history[-1]['source'] != 'restore' or history[-1]['published'] is not True:
-        fail(f'unpublished restore versions {history}')
-    assert_history_restored(restore_versions['versions'], history, restore_versions['versions'][-1])
-    if _entry(after, 'report.docx')['revision'] <= _entry(restore_listing, 'report.docx')['revision']:
-        fail('unpublished restore did not raise file revision')
-    if _create(base, restore_chat, restore_id)[0] != 201:
-        fail('unpublished create after restore failed')
+    _assert_unpublished_restore(base, restore_chat, restore_listing, restore_id, restore_versions)
     created = _create(base, chat, file_id)
     if created[0] != 201:
         fail(f'unpublished create without restore {created}')
@@ -559,6 +556,29 @@ def assert_office_unpublished(base: str, chat: str) -> None:
     if first != second:
         fail('unpublished create without restore changed history')
     log.info('office_unpublished')
+
+
+def _assert_unpublished_restore(
+    base: str, chat: str, restore_listing: dict, restore_id: str, restore_versions: dict
+) -> None:
+    restored = _restore(base, chat, restore_id, restore_versions['versions'][-1]['number'])
+    if restored[0] != 200:
+        fail(f'unpublished restore {restored}')
+    after, _ = _outputs(base, chat)
+    if after['revision'] <= restore_listing['revision']:
+        fail('unpublished restore did not raise revision')
+    history = _versions(base, chat, restore_id)[2]['versions']
+    if history[-1]['source'] != 'restore' or history[-1]['published'] is not True:
+        fail(f'unpublished restore versions {history}')
+    assert_history_restored(restore_versions['versions'], history, restore_versions['versions'][-1])
+    if len(history) != 3 or history[1]['source'] != 'autosave':
+        fail(f'unpublished restore inserted an intermediate workspace version {history}')
+    if _versions(base, chat, restore_id)[2]['published_version'] != history[-1]['number']:
+        fail('unpublished restore published_version did not follow the restore copy')
+    if _entry(after, 'report.docx')['revision'] <= _entry(restore_listing, 'report.docx')['revision']:
+        fail('unpublished restore did not raise file revision')
+    if _create(base, chat, restore_id)[0] != 201:
+        fail('unpublished create after restore failed')
 
 
 def assert_office_stale(base: str, chat: str) -> None:

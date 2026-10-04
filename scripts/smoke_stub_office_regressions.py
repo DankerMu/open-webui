@@ -1,7 +1,7 @@
 """Focused HTTP regressions for Office stub review findings.
 
-Selectors stay independently callable so parent can prove history and
-missing-field oracles without depending on the first earlier assertion.
+Default selectors pin HTTP status, bodies and policies on one running stub.
+`--old-script` remains an opt-in before/after preview comparison.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -335,37 +334,75 @@ def assert_readonly_history(base: str) -> None:
 
 def assert_ended_conflict(base: str) -> None:
     for action, chat in (('save_as', 'office_conflict-ended'), ('overwrite', 'office_conflict-ended-ow')):
-        file_id = _office_file(base, chat)
-        original_bytes = _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2]
-        session_id = _create(base, chat, file_id)[2]['session_id']
-        _save(base, chat, session_id, 'publish')
-        first = _close(base, chat, session_id)
-        if first[0] != 202 or first[2]['state'] != 'conflict':
-            fail(f'conflict close {first}')
-        versions = _versions(base, chat, file_id)[2]
-        open_session = versions['open_session'] or {}
-        if open_session.get('editor_ended') is not True or open_session.get('state') != 'conflict':
-            fail(f'ended conflict listing {versions}')
-        repeat = _close(base, chat, session_id)
-        if repeat[0] != 202 or repeat[2] != first[2]:
-            fail(f'repeat conflict close changed {repeat}')
-        joined = _create(base, chat, file_id)
-        if joined[0] != 200 or joined[2].get('editor_config') is not None or joined[2]['state'] != 'conflict':
-            fail(f'ended conflict join {joined}')
-        resolved = _resolve(base, chat, session_id, action)
-        if resolved[0] != 200 or resolved[2]['state'] != 'closed':
-            fail(f'ended resolve {action} {resolved}')
-        if _status(base, chat, session_id)[2]['state'] != 'closed':
-            fail(f'ended resolve left {action} open')
-        if action == 'save_as' and _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2] != original_bytes:
-            fail('ended save_as mutated original bytes')
+        _assert_ended_conflict_action(base, action, chat)
     live = 'office_conflict-live'
     live_id = _office_file(base, live)
+    live_bytes = _request(base, f'/files/{_seg(live)}/{_seg("report.docx")}')[2]
     live_session = _create(base, live, live_id)[2]['session_id']
     _save(base, live, live_session, 'publish')
     live_resolve = _resolve(base, live, live_session, 'overwrite')
     if live_resolve[0] != 200 or live_resolve[2]['state'] != 'editing':
         fail(f'live resolve {live_resolve}')
+    _assert_overwrite_history(base, live, live_id, live_bytes)
+
+
+
+def _assert_ended_conflict_action(base: str, action: str, chat: str) -> None:
+    file_id = _office_file(base, chat)
+    original_bytes = _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2]
+    session_id = _create(base, chat, file_id)[2]['session_id']
+    _save(base, chat, session_id, 'publish')
+    _assert_conflict_close_history(base, chat, file_id, session_id)
+    joined = _create(base, chat, file_id)
+    if joined[0] != 200 or joined[2].get('editor_config') is not None or joined[2]['state'] != 'conflict':
+        fail(f'ended conflict join {joined}')
+    resolved = _resolve(base, chat, session_id, action)
+    if resolved[0] != 200 or resolved[2]['state'] != 'closed':
+        fail(f'ended resolve {action} {resolved}')
+    if _status(base, chat, session_id)[2]['state'] != 'closed':
+        fail(f'ended resolve left {action} open')
+    if action == 'save_as' and _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2] != original_bytes:
+        fail('ended save_as mutated original bytes')
+    if action == 'overwrite':
+        _assert_overwrite_history(base, chat, file_id, original_bytes)
+
+
+
+def _assert_conflict_close_history(base: str, chat: str, file_id: str, session_id: str) -> None:
+    first = _close(base, chat, session_id)
+    if first[0] != 202 or first[2]['state'] != 'conflict':
+        fail(f'conflict close {first}')
+    versions = _versions(base, chat, file_id)[2]
+    open_session = versions['open_session'] or {}
+    if open_session.get('editor_ended') is not True or open_session.get('state') != 'conflict':
+        fail(f'ended conflict listing {versions}')
+    if len(versions['versions']) != 2:
+        fail(f'conflict close stored a phantom version {versions}')
+    if versions['published_version'] != 1 or versions['versions'][1]['source'] != 'save':
+        fail(f'conflict close mutated published history {versions}')
+    repeat = _close(base, chat, session_id)
+    if repeat[0] != 202 or repeat[2] != first[2]:
+        fail(f'repeat conflict close changed {repeat}')
+    if _versions(base, chat, file_id)[2]['versions'] != versions['versions']:
+        fail('repeat conflict close stored a new version')
+
+
+def _assert_overwrite_history(base: str, chat: str, file_id: str, original_bytes: bytes) -> None:
+    history = _versions(base, chat, file_id)[2]
+    records = history['versions']
+    if [record['source'] for record in records] != ['workspace', 'save']:
+        fail(f'overwrite history sources {records}')
+    if any(not record['published'] for record in records):
+        fail(f'overwrite left unpublished records {records}')
+    if history['published_version'] != records[-1]['number'] or records[-1]['number'] != 2:
+        fail(f'overwrite published_version {history}')
+    if records[0]['number'] != 1 or records[0]['parent'] is not None or records[0]['source'] != 'workspace':
+        fail(f'overwrite mutated original workspace record {records[0]}')
+    content = _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2]
+    if hashlib.sha256(content).hexdigest() != records[-1]['sha256']:
+        fail('overwrite did not publish the user version')
+    if content == original_bytes:
+        fail('overwrite left original workspace bytes')
 
 
 def assert_listing_revision(base: str) -> None:
@@ -439,6 +476,100 @@ def _normalize_embed(status: int, headers: dict, body: bytes):
         filtered = {key: value.replace(token, 'NORMALIZED-NONCE') for key, value in filtered.items()}
         text = text.replace(token, 'NORMALIZED-NONCE')
     return status, filtered, text
+
+
+def _preview_headers(headers: dict) -> dict:
+    return {key.lower(): value for key, value in headers.items() if key.lower() not in TIME_HEADER}
+
+
+def _configured_assets() -> str | None:
+    assets = os.environ.get('OCU_STUB_ASSETS')
+    if assets and Path(assets).is_dir():
+        return assets
+    for root in ('.run/local-test/build/ocu/computer-use-server', '.run/vps-test/build/ocu/computer-use-server'):
+        if (Path(root) / 'app.py').is_file() and (Path(root) / 'static').is_dir():
+            return str((Path(root) / 'static').resolve())
+    return None
+
+
+def _placeholder_preview(base: str, mode: str):
+    path = f'/preview/{_seg("preview")}' if mode == 'standalone' else f'/preview/{_seg("preview")}?embed={mode}'
+    return _request(base, path)
+
+
+def _assert_placeholder_page(mode: str, status: int, headers: dict, body: bytes) -> None:
+    if status != 200:
+        fail(f'placeholder embed={mode} HTTP {status}')
+    filtered = _preview_headers(headers)
+    if filtered.get('content-type') != 'text/html; charset=utf-8':
+        fail(f'placeholder embed={mode} content-type {filtered.get("content-type")}')
+    if filtered.get('content-security-policy') != "default-src 'self'":
+        fail(f'placeholder embed={mode} CSP {filtered.get("content-security-policy")}')
+    text = body.decode()
+    if 'id="ocu-stub-preview"' not in text or 'ocu-office-simulate-modification' in text:
+        fail(f'placeholder embed={mode} served the wrong page')
+    if '/ocu/static/preview.js' not in text:
+        fail(f'placeholder embed={mode} missing prefixed static')
+    if 'data-chat-id="preview"' not in text:
+        fail(f'placeholder embed={mode} missing chat identity')
+    if 'data-api-url="/ocu/api/outputs/preview"' not in text:
+        fail(f'placeholder embed={mode} missing outputs URL')
+    if 'data-files-base="/ocu/files/preview"' not in text:
+        fail(f'placeholder embed={mode} missing files base')
+    if 'data-describe-url="/api/v1/ocu/workspaces/preview"' not in text:
+        fail(f'placeholder embed={mode} missing describe URL')
+
+
+def _assert_office_distinct(base: str) -> None:
+    status, headers, body = _request(base, f'/preview/{_seg("preview")}?embed=office')
+    if status != 200:
+        fail(f'embed=office HTTP {status}')
+    text = body.decode()
+    if 'ocu-office-simulate-modification' not in text or 'id="ocu-stub-preview"' in text:
+        fail('embed=office did not serve the Office host page')
+    csp = headers.get('Content-Security-Policy') or headers.get('content-security-policy') or ''
+    if csp == "default-src 'self'":
+        fail('embed=office reused the placeholder CSP')
+
+
+def _assert_configured_preview(base: str) -> None:
+    files = _normalize_embed(*_request(base, f'/preview/{_seg("preview")}?embed=files'))
+    browser = _normalize_embed(*_request(base, f'/preview/{_seg("preview")}?embed=browser'))
+    terminal = _normalize_embed(*_request(base, f'/preview/{_seg("preview")}?embed=terminal'))
+    if files[0] != 200 or browser[0] != 200 or terminal[0] != 200:
+        fail(f'configured-asset preview HTTP {(files[0], browser[0], terminal[0])}')
+    files_csp = files[1].get('content-security-policy', '')
+    browser_csp = browser[1].get('content-security-policy', '')
+    terminal_csp = terminal[1].get('content-security-policy', '')
+    if 'nonce-' in files_csp.lower() or 'NORMALIZED-NONCE' in files_csp:
+        fail(f'configured files preview used a nonce CSP {files_csp}')
+    if 'script-src' not in browser_csp or 'NORMALIZED-NONCE' not in browser_csp:
+        fail(f'configured browser preview missing nonce CSP {browser_csp}')
+    if browser_csp != terminal_csp:
+        fail('configured browser/terminal preview policies diverged')
+    if files[1].get('cache-control') != 'no-cache, no-store, must-revalidate':
+        fail(f'configured files preview cache {files[1].get("cache-control")}')
+    if files == browser:
+        fail('configured files preview matched browser policy')
+
+
+def assert_preview_contract(base: str, script: Path) -> None:
+    pages = {}
+    for mode in ('files', 'browser', 'terminal', 'standalone'):
+        pages[mode] = _placeholder_preview(base, mode)
+        _assert_placeholder_page(mode, *pages[mode])
+    if pages['files'][2] != pages['browser'][2] or pages['browser'][2] != pages['terminal'][2]:
+        fail('placeholder preview modes diverged')
+    if pages['standalone'][2] != pages['files'][2]:
+        fail('standalone preview diverged from files mode')
+    _assert_office_distinct(base)
+    assets = _configured_assets()
+    if not assets:
+        log.info('asset-mode coverage skipped, placeholder contract only')
+        return
+    with _StubContext(script, {'preview': 'office'}, {'OCU_STUB_ASSETS': assets}) as asset_base:
+        _assert_configured_preview(asset_base)
+    log.info('configured-asset preview coverage passed')
 
 
 def assert_embed_baseline(old_script: Path, new_script: Path) -> None:
@@ -577,9 +708,12 @@ def run_selector(name: str, *, script: Path, old_script: Path | None = None, bas
         assert_missing_field_http(base)
         return
     if name == 'embed-baseline':
-        if old_script is None:
-            fail('embed-baseline requires --old-script')
-        assert_embed_baseline(old_script, script)
+        if old_script is not None:
+            assert_embed_baseline(old_script, script)
+            return
+        if base is None:
+            fail('embed-baseline requires a running stub')
+        assert_preview_contract(base, script)
         return
     if base is None:
         fail(f'{name} requires a running stub')
@@ -598,13 +732,21 @@ def run_selector(name: str, *, script: Path, old_script: Path | None = None, bas
 
 def assert_restore_http(base: str) -> None:
     file_id = _office_file(base, 'office_unpublished')
-    before = _versions(base, 'office_unpublished', file_id)[2]['versions']
+    listing = _versions(base, 'office_unpublished', file_id)[2]
+    before = listing['versions']
+    if len(before) != 2 or [record['source'] for record in before] != ['workspace', 'autosave']:
+        fail(f'unpublished restore prefix {before}')
     selected = before[-1]
     result = _restore(base, 'office_unpublished', file_id, selected['number'])
     if result[0] != 200:
         fail(f'restore HTTP {result[0]}')
-    after = _versions(base, 'office_unpublished', file_id)[2]['versions']
+    after_listing = _versions(base, 'office_unpublished', file_id)[2]
+    after = after_listing['versions']
     assert_history_restored(before, after, selected)
+    if len(after) != 3 or after[-1]['source'] != 'restore' or after[1]['source'] != 'autosave':
+        fail(f'restore inserted an intermediate workspace version {after}')
+    if after_listing['published_version'] != after[-1]['number']:
+        fail(f'restore published_version {after_listing}')
     content = _request(base, f'/files/{_seg("office_unpublished")}/{_seg("report.docx")}')[2]
     if hashlib.sha256(content).hexdigest() != selected['sha256'] or len(content) != selected['size']:
         fail('restore did not serve selected content')
@@ -612,22 +754,15 @@ def assert_restore_http(base: str) -> None:
 
 def run_regressions(script: Path, *, old_script: Path | None = None, selectors: tuple[str, ...] | None = None) -> None:
     chosen = selectors or DEFAULT_SELECTORS
-    remaining = [name for name in chosen if name != 'embed-baseline']
-    for name in remaining:
-        with _StubContext(script, named_regression_mapping()) as base:
-            run_selector(name, script=script, old_script=old_script, base=base)
-        log.info('office regression: %s passed', name)
-    if 'embed-baseline' in chosen:
-        if old_script is None and os.environ.get('OCU_STUB_OLD_SCRIPT'):
-            old_script = Path(os.environ['OCU_STUB_OLD_SCRIPT'])
-        if old_script is not None:
-            assert_embed_baseline(old_script, script)
+    if old_script is None and os.environ.get('OCU_STUB_OLD_SCRIPT'):
+        old_script = Path(os.environ['OCU_STUB_OLD_SCRIPT'])
+    for name in chosen:
+        if name == 'embed-baseline' and old_script is not None:
+            run_selector(name, script=script, old_script=old_script)
         else:
-            with tempfile.TemporaryDirectory(prefix='ocu-legacy-embed-') as directory:
-                baseline = Path(directory, 'ocu-stub.py')
-                baseline.write_bytes(subprocess.check_output(['git', 'show', 'origin/main:scripts/ocu-stub.py']))
-                assert_embed_baseline(baseline, script)
-        log.info('office regression: embed-baseline passed')
+            with _StubContext(script, named_regression_mapping()) as base:
+                run_selector(name, script=script, old_script=old_script, base=base)
+        log.info('office regression: %s passed', name)
 
 
 def main(argv: list[str] | None = None) -> int:
