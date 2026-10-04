@@ -22,6 +22,8 @@ Chat subrequests authenticate cookies through WebUI owner auth; static subreques
 
 The permanent make smoke-proxy command verifies the exact OCU commit in constraints.yaml and materializes reviewed Git blobs into private scratch before launching the existing entrypoint. It does not read or overwrite a sibling checkout's ignored configuration. Real WebUI sessions establish owner/non-owner and alternate-header positive controls; private stub observations establish per-request forwarding, identity, credentials and denied-request noncontact. Public fixture responses never echo credentials. Ordinary Content-Length POST→GET sequences and WS frame exchange are part of acceptance, not optional diagnostics.
 
+The explicit Hurl list governs execution, and output names each invoked file on success or failure; a missing listed file fails. Office requests run serially with one private observation boundary per request: each admitted row requires one attributed arrival, and each denial requires none. A configured conflict chat must reach observed conflict before resolution and observed closed state before version restore. The pin carries the seven Office rows without DocumentServer listener inputs; this evidence does not establish browser editing or real-editor behavior.
+
 The user selected paired cross-repository acceptance: review and freeze OCU without merging, run WebUI's permanent smoke and CI against that source, then merge OCU and WebUI sequentially. A new counterexample invalidates previous evidence; changing request order or framing to avoid a failure is not an acceptable fix.
 
 ## Alternatives considered

@@ -237,3 +237,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: authentication precedence, canonical path identity, disabled-route containment and accidental chat-directory creation.
 - Selected risk packs: API, config, file/path safety, response schema, auth, ordering, compatibility, errors, packaging and documentation.
 - Evidence floor: real app authorization matrix, literal empty-segment rejection, Office preflight/method coverage, zero state/network work on denials, enabled/disabled import isolation and packaged HTTP smoke.
+
+## Office gateway smoke fixture
+
+- Issue type: test infrastructure; fixture level: expanded. Override compact because a shared smoke entrypoint and external configuration pin establish owner-only authorization evidence.
+- Scope: task 22.2, the WebUI OCU pin, gateway smoke/support and Hurl matrix; no stub, browser harness, production or OCU source changes.
+- Pin: `a53731df95a3b92acb2dcb5980f969b4f8b4ee52`, the pushed Office-row merge. Its table has 27 rows, seven Office rows and no upload read rows; its renderer has neither second-listener input.
+- Blast radius: false-positive gateway acceptance, leaked credentials and lost denial provenance.
+- Selected risk packs: API, config, file IO, schema, auth, ordering, compatibility, errors, packaging and documentation.
+- Evidence floor: real WebUI owner/non-owner cookies through native nginx to the deterministic stub; each denied request causes zero upstream arrivals; every executed Hurl file is named; stale-table, omitted-file and missing-file negative controls.

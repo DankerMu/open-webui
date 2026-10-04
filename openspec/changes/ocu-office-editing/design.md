@@ -614,6 +614,46 @@ page against D15; this issue's command does not execute JavaScript, so its first
 browser proof remains tasks 24.1/24.4. No source outside the stub/smoke boundary,
 gateway pin bump, production broker behavior or deployment acceptance is added.
 
+#### Office gateway smoke boundary
+
+Task 22.2 consumes the reviewed 27-row OCU table through the exact pushed pin.
+The shared smoke entrypoint is already at its size limit; new matrix and
+observation handling belongs in its support module, not a second gateway runner.
+
+Invariant: every successful Office probe is attributed to its exact stripped
+path, owner and chat, and every denied probe is proven not to contact OCU.
+Keep the request and its private observation boundary adjacent; aggregate
+arrival totals across mixed successes and denials cannot establish this claim.
+
+Use the existing real-cookie provisioning, native nginx, fixture selection,
+Hurl variables and private report/credential scanners. Resolve requires a
+publishing save followed by observed `conflict`, then a valid resolve action.
+Restore requires observed `closed`, not merely an accepted close response, and
+a version number obtained from the versions reply. Track the applicable
+file/session identities through resolution instead of predicting opaque IDs.
+
+Preserve all existing gateway cases and the smoke API used by browser
+verification. Log each explicit Hurl file when invoked, including failure; do
+not report a file merely because its name exists in a constant. Missing listed
+files and incompatible route tables fail visibly. Private staging and owned
+cleanup cover both successful and failed matrices.
+
+Preserve `Smoke` constructor/state, `pin()`, `verify_checkout()`, `render()`,
+`start_owned()` arguments/PID ownership and `cleanup_procs()`, plus
+`PINNED_FILES` and `require_tools()`. `BrowserHarness` retains its `run()`,
+`provision()`, `cleanup_data()` and `assert_sentinel()` overrides;
+`run_owned_lifecycle` still dispatches their cleanup polymorphically. A
+read-only callsite/diff audit of `scripts/verify-ui-ocu.py` records compatibility
+for these unchanged seams; gateway smoke does not claim to execute the browser
+subclass. Browser case additions and a full browser run are outside this slice.
+
+Sibling surfaces: pin loader/materializer, renderer inputs, cookie provisioning,
+stub scenario mapping, Hurl request/reply evidence, private arrival records,
+credential scanner and lifecycle cleanup. No stub/proxy production changes,
+second listener, browser case or real-editor acceptance belongs to this slice.
+The negative controls in group22 prove discovery and pin failures without
+turning scratch mutants into permanent source or weakening the passing oracle.
+
 ### D22. `/files` cache policy
 
 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`, so a preview after a publish cannot come from a cache keyed on mtime and size.
