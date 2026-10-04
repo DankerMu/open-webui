@@ -46,10 +46,15 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
   const origin = window.location.origin;
   let accepted = null;
   let sessionId = null;
-  let dirtyFromEditor = false;
+  let modificationEpoch = 0;
+  let committedEpoch = 0;
+  let pendingSaves = [];
   let lastCommitted = 0;
   let lastPublished = 0;
-  let coveringSave = null;
+  let terminal = false;
+  let brokerState = 'opening';
+  let requestReason = null;
+  let editorAvailable = false;
   let lastState = null;
   let refused = false;
   let pollTimer = null;
@@ -93,32 +98,40 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
       ? status.last_committed_seq : lastCommitted;
     const published = status && typeof status.last_published_seq === 'number'
       ? status.last_published_seq : lastPublished;
-    lastCommitted = committed;
-    lastPublished = published;
-    const covered = coveringSave !== null && committed >= coveringSave;
-    if (covered) {{
-      coveringSave = null;
-      dirtyFromEditor = false;
-    }}
+    lastCommitted = Math.max(lastCommitted, committed);
+    lastPublished = Math.max(lastPublished, published);
+    pendingSaves = pendingSaves.filter(function (save) {{
+      if (save.seq === null) return true;
+      if (lastCommitted < save.seq) {{
+        return !(status && status.state === 'editing' && status.reason);
+      }}
+      committedEpoch = Math.max(committedEpoch, save.epoch);
+      return false;
+    }});
     if (status && status.state === 'closed') return false;
-    return dirtyFromEditor || committed > published;
+    return modificationEpoch > committedEpoch || lastCommitted > lastPublished;
   }}
 
   function applyStatus(status, extra) {{
-    if (!accepted) return;
+    if (!accepted || terminal || refused || !alive) return;
     extra = extra || {{}};
+    if (status && status.state) brokerState = status.state;
+    if (status && status.state === 'editing' && status.reason) requestReason = status.reason;
+    const state = extra.state || brokerState;
+    if (state === 'orphaned' || state === 'closed' || state === 'error') {{
+      terminal = true;
+      stopTimers();
+      document.getElementById('ocu-office-simulate-modification').disabled = true;
+    }}
     postState({{
       file_id: accepted.file_id,
       generation: accepted.generation,
       session_id: status && status.session_id ? status.session_id : sessionId,
-      state: extra.state || (status && status.state) || 'editing',
+      state: state,
       dirty: extra.dirty !== undefined ? extra.dirty : computeDirty(status),
       workspace_changed: !!(status && status.workspace_changed),
-      reason: extra.reason !== undefined ? extra.reason : (status && status.reason)
+      reason: extra.reason !== undefined ? extra.reason : ((status && status.reason) || requestReason)
     }});
-    if (status && (status.state === 'orphaned' || status.state === 'closed' || status.state === 'error')) {{
-      stopTimers();
-    }}
   }}
 
   function stopTimers() {{
@@ -127,7 +140,7 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
   }}
 
   function pollStatus() {{
-    if (!alive || !sessionId || refused) return;
+    if (!alive || !sessionId || refused || terminal) return;
     const generation = accepted && accepted.generation;
     request('/api/office/' + encodeURIComponent(chatId) + '/sessions/' + encodeURIComponent(sessionId))
       .then(function (response) {{
@@ -136,29 +149,23 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
         }});
       }})
       .then(function (result) {{
-        if (!alive || !accepted || accepted.generation !== generation) return;
+        if (!alive || terminal || !accepted || accepted.generation !== generation) return;
         if (!result.ok) {{
-          postState({{
-            file_id: accepted.file_id,
-            generation: accepted.generation,
-            session_id: sessionId,
-            state: 'error',
-            dirty: computeDirty(null),
-            workspace_changed: false,
-            reason: (result.body && result.body.reason) || 'status_unavailable'
-          }});
-          stopTimers();
+          applyStatus(null, {{ state: 'error', reason: (result.body && result.body.reason) || 'status_unavailable' }});
           return;
         }}
         applyStatus(result.body);
+      }}).catch(function () {{
+        applyStatus(null, {{ state: 'error', reason: 'status_unavailable' }});
       }});
   }}
 
   function startSessionWatch() {{
-    if (pollTimer || !sessionId) return;
+    if (pollTimer || !sessionId || terminal || refused) return;
     pollTimer = setInterval(pollStatus, 1000);
     autoTimer = setInterval(function () {{
-      if (!dirtyFromEditor || coveringSave !== null) return;
+      if (brokerState !== 'editing' || !editorAvailable || modificationEpoch <= committedEpoch ||
+          pendingSaves.some(function (save) {{ return save.epoch >= modificationEpoch; }})) return;
       save('persist');
     }}, 300000);
   }}
@@ -181,16 +188,18 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
     }}).then(function (response) {{
       return response.json().then(function (body) {{ return {{ status: response.status, body: body }}; }});
     }}).then(function (result) {{
-      if (!alive || !accepted || accepted.generation !== generation) return;
+      if (!alive || terminal || !accepted || accepted.generation !== generation) return;
       if (result.status === 201 || result.status === 200) {{
         sessionId = result.body.session_id;
+        editorAvailable = !!result.body.editor_config;
+        document.getElementById('ocu-office-simulate-modification').disabled = !editorAvailable;
         applyStatus({{
           session_id: sessionId,
-          state: 'editing',
+          state: result.body.state === 'opening' ? 'editing' : result.body.state,
           last_committed_seq: 0,
           last_published_seq: 0,
           workspace_changed: false,
-          reason: null
+          reason: result.body.state === 'conflict' ? 'baseline_mismatch' : null
         }});
         startSessionWatch();
         return;
@@ -205,20 +214,23 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
         workspace_changed: false,
         reason: (result.body && result.body.reason) || 'unsupported_type'
       }});
+    }}).catch(function () {{
+      applyStatus(null, {{ state: 'error', reason: 'create_failed' }});
     }});
   }}
 
   function save(intent) {{
-    if (!alive || refused || !sessionId || !accepted) return;
+    if (!alive || refused || terminal || !sessionId || !accepted) return;
     const generation = accepted.generation;
+    const coverage = {{ epoch: modificationEpoch, seq: null }};
+    pendingSaves.push(coverage);
     if (intent === 'publish') {{
-      coveringSave = null;
       postState({{
         file_id: accepted.file_id,
         generation: generation,
         session_id: sessionId,
         state: 'saving',
-        dirty: true,
+        dirty: computeDirty(null),
         workspace_changed: false,
         reason: null
       }});
@@ -230,23 +242,26 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
     }}).then(function (response) {{
       return response.json().then(function (body) {{ return {{ ok: response.ok, body: body }}; }});
     }}).then(function (result) {{
-      if (!alive || !accepted || accepted.generation !== generation) return;
+      if (!alive || terminal || !accepted || accepted.generation !== generation) return;
       if (!result.ok) {{
-        if (result.body && result.body.reason === 'session_not_editing') return;
-        applyStatus(null, {{
-          state: 'editing',
-          dirty: computeDirty(null),
-          reason: (result.body && result.body.reason) || 'save_failed'
-        }});
+        pendingSaves = pendingSaves.filter(function (save) {{ return save !== coverage; }});
+        requestReason = (result.body && result.body.reason) || 'save_failed';
+        applyStatus(null, {{ reason: requestReason }});
+        pollStatus();
         return;
       }}
-      if (intent === 'publish') coveringSave = result.body.save_seq;
+      requestReason = null;
+      coverage.seq = result.body.save_seq;
       pollStatus();
+    }}).catch(function () {{
+      pendingSaves = pendingSaves.filter(function (save) {{ return save !== coverage; }});
+      requestReason = 'save_failed';
+      applyStatus(null, {{ reason: requestReason }});
     }});
   }}
 
   function closeSession() {{
-    if (!alive || refused || !sessionId || !accepted) return;
+    if (!alive || refused || terminal || !sessionId || !accepted) return;
     const generation = accepted.generation;
     postState({{
       file_id: accepted.file_id,
@@ -261,14 +276,21 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
       method: 'POST',
       headers: {{ 'Content-Type': 'application/json' }},
       body: '{{}}'
-    }}).then(function () {{
-      if (!alive || !accepted || accepted.generation !== generation) return;
+    }}).then(function (response) {{
+      return response.json().then(function (body) {{ return {{ ok: response.ok, body: body }}; }});
+    }}).then(function (result) {{
+      if (!alive || terminal || !accepted || accepted.generation !== generation) return;
+      requestReason = result.ok ? null : ((result.body && result.body.reason) || 'close_failed');
+      if (!result.ok) applyStatus(null, {{ reason: requestReason }});
       pollStatus();
+    }}).catch(function () {{
+      requestReason = 'close_failed';
+      applyStatus(null, {{ reason: requestReason }});
     }});
   }}
 
   function onMessage(event) {{
-    if (!alive) return;
+    if (!alive || terminal || refused) return;
     if (event.source !== window.parent || event.origin !== origin) return;
     const data = event.data;
     if (!data || typeof data !== 'object' || Array.isArray(data)) return;
@@ -276,7 +298,7 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
     if (data.type === 'ocu:office-open') {{
       if (!exactKeys(data, OPEN_KEYS)) return;
       if (typeof data.file_id !== 'string' || !data.file_id) return;
-      if (!Number.isInteger(data.generation) || data.generation < 0) return;
+      if (!Number.isSafeInteger(data.generation) || data.generation < 0) return;
       if (accepted) return;
       accepted = {{ file_id: data.file_id, generation: data.generation }};
       createSession(data.file_id);
@@ -297,9 +319,8 @@ def office_host_page(chat_id: str, prefix: str) -> tuple[bytes, dict[str, str]]:
     window.removeEventListener('message', onMessage);
   }});
   document.getElementById('ocu-office-simulate-modification').addEventListener('click', function () {{
-    if (!accepted || refused) return;
-    dirtyFromEditor = true;
-    coveringSave = null;
+    if (!alive || terminal || !accepted || refused || !editorAvailable) return;
+    modificationEpoch += 1;
     postState({{
       file_id: accepted.file_id,
       generation: accepted.generation,

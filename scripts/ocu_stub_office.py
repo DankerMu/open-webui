@@ -69,6 +69,7 @@ class OfficeStore:
         files: dict,
         uploads: dict,
         valid_office: Path,
+        scenario_file: Callable[[str, str], tuple | None],
     ) -> None:
         self._lock = lock
         self._scenario_of = scenario_of
@@ -79,6 +80,7 @@ class OfficeStore:
         self._files = files
         self._uploads = uploads
         self._valid_office = valid_office
+        self._scenario_file = scenario_file
         self._chats: dict[str, dict] = {}
         self._hidden: dict[str, set[str]] = {}
 
@@ -91,7 +93,7 @@ class OfficeStore:
     def overlay_listing(self, chat_id: str, body: dict) -> None:
         chat = self._ensure_chat(chat_id)
         hidden = self._hidden.get(chat_id, set())
-        extra = 0
+        extra = chat['revision_bump']
         files = [entry for entry in body['files'] if entry.get('path') not in hidden]
         by_path = {entry.get('path'): index for index, entry in enumerate(files)}
         for document in chat['documents'].values():
@@ -117,10 +119,18 @@ class OfficeStore:
             if chat is None:
                 return None
             for document in chat['documents'].values():
-                if document['path'] == name:
-                    mime = OFFICE_MIME.get(Path(name).suffix.lower(), 'application/octet-stream')
-                    return document['bytes'], {'mime': mime}
+                if document['path'] == name and document['serve']:
+                    return document['bytes'], {'mime': document['listing']['mime']}
             return None
+
+    def occupied_names(self, chat_id: str) -> set[str]:
+        with self._lock:
+            chat = self._ensure_chat(chat_id)
+            return (
+                set(self._occupied_names(chat_id))
+                | {document['path'] for document in chat['documents'].values()}
+                | self._hidden.get(chat_id, set())
+            )
 
     def dispatch(self, handler: Any, method: str, path: str, body: bytes) -> bool:
         parsed = urlparse(path).path
@@ -165,7 +175,7 @@ class OfficeStore:
         chat = self._chats.get(chat_id)
         if chat is not None:
             return chat
-        chat = {'documents': {}, 'sessions': {}, 'seq': 0}
+        chat = {'documents': {}, 'sessions': {}, 'seq': 0, 'revision_bump': 0}
         self._chats[chat_id] = chat
         scenario = self.office_scenario(chat_id)
         if scenario == 'office_unpublished':
@@ -215,6 +225,7 @@ class OfficeStore:
             'file_id': listing['file_id'],
             'path': path,
             'bytes': payload,
+            'serve': True,
             'listing': listing,
             'versions': [version],
             'latest': version,
@@ -311,12 +322,11 @@ class OfficeStore:
             return by_path
         payload = self._existing_bytes(chat_id, listing['path'])
         if payload is None:
-            payload = DEFAULT_BYTES
-        document = self._new_document(chat_id, listing['path'], payload)
+            return None
+        document = self._new_document(chat_id, listing['path'], payload, list_file=False)
+        document['serve'] = False
         document['file_id'] = listing['file_id']
         document['listing'] = copy.deepcopy(listing)
-        document['listing']['size'] = len(payload)
-        document['listing']['hash'] = hashlib.sha256(payload).hexdigest()
         chat['documents'][document['file_id']] = document
         return document
 
@@ -338,11 +348,12 @@ class OfficeStore:
         uploaded = self._uploads.get(chat_id, {}).get(path)
         if uploaded is not None:
             return uploaded[0]
+        scenario = self._scenario_file(chat_id, path)
+        if scenario is not None:
+            return scenario[1] if scenario[0] == 200 else None
         fixture = self._files.get(path)
         if fixture is not None:
             return fixture[1]
-        if path.endswith('.docx') and self._valid_office.is_file():
-            return self._valid_office.read_bytes()
         return None
 
     def _create_payload(self, session: dict, joined: bool) -> dict:
@@ -352,7 +363,7 @@ class OfficeStore:
             'document_key': session['document_key'],
             'state': 'opening' if not joined else session['state'],
             'joined': joined,
-            'editor_config': copy.deepcopy(session['editor_config']),
+            'editor_config': None if session['editor_ended'] else copy.deepcopy(session['editor_config']),
         }
 
     def _status_payload(self, session: dict) -> dict:
@@ -395,6 +406,8 @@ class OfficeStore:
 
     def _publish_bytes(self, chat_id: str, document: dict, payload: bytes) -> None:
         document['bytes'] = payload
+        document['serve'] = True
+        document['list'] = True
         document['listing']['size'] = len(payload)
         document['listing']['hash'] = hashlib.sha256(payload).hexdigest()
         document['listing']['revision'] = int(document['listing'].get('revision', 1)) + 1
@@ -404,11 +417,7 @@ class OfficeStore:
             self._uploads[chat_id][document['path']] = (payload, document['listing'])
 
     def _dedupe_name(self, chat_id: str, path: str) -> str:
-        occupied = set(self._occupied_names(chat_id))
-        chat = self._chats.get(chat_id)
-        if chat is not None:
-            occupied.update(document['path'] for document in chat['documents'].values())
-        occupied.update(self._hidden.get(chat_id, set()))
+        occupied = self.occupied_names(chat_id)
         candidate = path
         parsed = PurePosixPath(path)
         counter = 2
@@ -431,6 +440,8 @@ class OfficeStore:
         session = chat['sessions'][open_id]
         if session['state'] not in OPEN_STATES:
             return None
+        if session['editor_ended']:
+            return 200, self._create_payload(session, True)
         ticket = self._next_id(chat, 'ticket', chat_id)
         session['ticket'] = ticket
         session['editor_config'] = self._editor_config(chat_id, session, ticket)
@@ -439,11 +450,11 @@ class OfficeStore:
     def _create(self, chat_id: str, file_id: str) -> tuple[int, dict]:
         scenario = self.office_scenario(chat_id)
         chat = self._ensure_chat(chat_id)
-        if scenario == 'office_unsupported':
-            return 415, {'reason': 'unsupported_type'}
         document = self._lookup_existing(chat_id, file_id)
         if document is None:
             return 404, {'reason': 'unknown_file'}
+        if scenario == 'office_unsupported':
+            return 415, {'reason': 'unsupported_type'}
         joined = self._join_or_refuse(chat_id, chat, document)
         if joined is not None:
             return joined
@@ -458,6 +469,7 @@ class OfficeStore:
         if scenario == 'office_save_as':
             self._hidden.setdefault(chat_id, set()).add(document['path'])
             document['list'] = False
+            chat['revision_bump'] += 1
         return 201, self._create_payload(session, False)
 
     def _status(self, chat_id: str, session_id: str) -> tuple[int, dict]:
@@ -531,18 +543,24 @@ class OfficeStore:
             return 404, {'reason': 'unknown_session'}
         if session['state'] in {'closed', 'error', 'orphaned'}:
             return 409, {'reason': 'session_not_open'}
-        if session['state'] == 'conflict':
-            return 202, {'session_id': session_id, 'save_seq': session['save_seq'], 'state': session['state']}
+        if session['state'] == 'conflict' and session['editor_ended']:
+            return 202, {'session_id': session_id, 'save_seq': session['save_seq'], 'state': 'conflict'}
         session['save_seq'] += 1
         save_seq = session['save_seq']
         document = chat['documents'][session['file_id']]
         scenario = self.office_scenario(chat_id)
+        if session['state'] == 'conflict':
+            self._append_version(document, 'close', document['latest']['bytes'], False)
+            session['last_committed_seq'] = save_seq
+            session['editor_ended'] = True
+            return 202, {'session_id': session_id, 'save_seq': save_seq, 'state': 'conflict'}
         if scenario == 'office_save_as':
             new_path = self._dedupe_name(chat_id, document['path'])
             content = document['bytes'] + b'-saved-as'
             new_document = self._new_document(chat_id, new_path, content)
             new_document['versions'][0]['source'] = 'conflict'
             chat['documents'][new_document['file_id']] = new_document
+            chat['revision_bump'] += 1
             document['open_session'] = None
             document['list'] = False
             self._hidden.setdefault(chat_id, set()).add(document['path'])
@@ -586,18 +604,21 @@ class OfficeStore:
             return 422, {'reason': 'invalid_request'}
         document = chat['documents'][session['file_id']]
         latest = document['latest']
+        resolved_state = 'closed' if session['editor_ended'] else 'editing'
         if action == 'overwrite':
             self._append_version(document, 'workspace', document['bytes'], True)
             latest['published'] = True
             document['published_version'] = latest['number']
             self._publish_bytes(chat_id, document, latest['bytes'])
-            session['state'] = 'editing'
+            session['state'] = resolved_state
             session['reason'] = None
             session['last_published_seq'] = session['last_committed_seq']
             session['workspace_changed'] = False
+            if session['editor_ended']:
+                document['open_session'] = None
             return 200, {
                 'session_id': session_id,
-                'state': 'editing',
+                'state': resolved_state,
                 'file_id': document['file_id'],
                 'path': document['path'],
             }
@@ -605,17 +626,18 @@ class OfficeStore:
         new_document = self._new_document(chat_id, new_path, latest['bytes'])
         new_document['versions'][0]['source'] = 'conflict'
         chat['documents'][new_document['file_id']] = new_document
+        chat['revision_bump'] += 1
         document['open_session'] = None
         session['file_id'] = new_document['file_id']
         session['saved_as'] = {'file_id': new_document['file_id'], 'path': new_path}
-        session['state'] = 'editing'
+        session['state'] = resolved_state
         session['reason'] = None
         session['last_published_seq'] = session['last_committed_seq']
         session['workspace_changed'] = False
-        new_document['open_session'] = session_id
+        new_document['open_session'] = None if session['editor_ended'] else session_id
         return 200, {
             'session_id': session_id,
-            'state': 'editing',
+            'state': resolved_state,
             'file_id': new_document['file_id'],
             'path': new_path,
         }
@@ -623,8 +645,6 @@ class OfficeStore:
     def _versions(self, chat_id: str, file_id: str) -> tuple[int, dict]:
         chat = self._ensure_chat(chat_id)
         document = self._lookup_existing(chat_id, file_id)
-        if document is None and self.office_scenario(chat_id) in OFFICE_SCENARIOS:
-            document = self._find_by_path(chat, DEFAULT_PATH) or next(iter(chat['documents'].values()), None)
         if document is None:
             return 404, {'reason': 'unknown_file'}
         return 200, {
@@ -637,8 +657,6 @@ class OfficeStore:
     def _restore(self, chat_id: str, file_id: str, body: bytes) -> tuple[int, dict]:
         chat = self._ensure_chat(chat_id)
         document = self._lookup_existing(chat_id, file_id)
-        if document is None and self.office_scenario(chat_id) in OFFICE_SCENARIOS:
-            document = self._find_by_path(chat, DEFAULT_PATH) or next(iter(chat['documents'].values()), None)
         if document is None:
             return 404, {'reason': 'unknown_file'}
         if document.get('open_session'):

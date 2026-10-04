@@ -16,7 +16,8 @@ hdr="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-hdr.XXXXXX")"
 auth_cfg="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-auth.XXXXXX")"
 record="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-record.XXXXXX")"
 export OCU_STUB_RECORD="$record"
-python3 "$repo_root/scripts/ocu-stub.py" >"$log" 2>&1 &
+stub_script="${OCU_STUB_SCRIPT:-$repo_root/scripts/ocu-stub.py}"
+python3 "$stub_script" >"$log" 2>&1 &
 stub_pid=$!
 cleanup() {
   kill "$stub_pid" 2>/dev/null || true
@@ -154,7 +155,7 @@ def request(path, data=None, headers=None):
         return response.status, response.headers, response.read()
 
 def listing(chat='upload-smoke', headers=None):
-    status, response_headers, body = request('/api/outputs/' + chat, headers=headers)
+    status, response_headers, body = request('/api/outputs/' + quote(chat, safe=''), headers=headers)
     assert status == 200, (status, body)
     return json.loads(body), response_headers['ETag']
 
@@ -162,7 +163,7 @@ def upload(name, payload, chat='upload-smoke'):
     envelope = (b'--smoke-boundary\r\nContent-Disposition: form-data; name="file"; '
                 b'filename="ignored.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
                 + payload + b'\r\n--smoke-boundary--\r\n')
-    status, _, body = request('/api/uploads/' + chat + '/' + quote(name),
+    status, _, body = request('/api/uploads/' + quote(chat, safe='') + '/' + quote(name, safe=''),
                              envelope, {'Content-Type': 'multipart/form-data; boundary=smoke-boundary'})
     assert status == 200, (status, body)
     result = json.loads(body)
@@ -171,7 +172,7 @@ def upload(name, payload, chat='upload-smoke'):
     return result['filename']
 
 for name in ('manifest', 'list'):
-    status, _, _ = request('/api/uploads/upload-smoke/' + name)
+    status, _, _ = request('/api/uploads/' + quote('upload-smoke', safe='') + '/' + quote(name, safe=''))
     assert status == 404, (name, status)
 print('smoke-stub: retired upload GETs 404')
 
@@ -183,40 +184,40 @@ first, first_etag = listing(headers={'If-None-Match': etag})
 entry = next(row for row in first['files'] if row['path'] == 'report.docx')
 assert entry['file_id'] and entry['size'] == len(payload), entry
 assert first['revision'] > before['revision'] and first_etag != etag
-assert request('/files/upload-smoke/report.docx')[2] == payload
+assert request('/files/' + quote('upload-smoke', safe='') + '/' + quote('report.docx', safe=''))[2] == payload
 assert upload('report.docx', b'second document') == 'report (2).docx'
 second, second_etag = listing()
 assert second['revision'] > first['revision'] and second_etag != first_etag
 assert next(row for row in second['files'] if row['path'] == 'report.docx') == entry
 duplicate = next(row for row in second['files'] if row['path'] == 'report (2).docx')
 assert duplicate['file_id'] != entry['file_id']
-assert request('/files/upload-smoke/report.docx')[2] == payload
-assert request('/files/upload-smoke/' + quote('report (2).docx'))[2] == b'second document'
-assert request('/api/outputs/upload-smoke', headers={'If-None-Match': second_etag})[0] == 304
+assert request('/files/' + quote('upload-smoke', safe='') + '/' + quote('report.docx', safe=''))[2] == payload
+assert request('/files/' + quote('upload-smoke', safe='') + '/' + quote('report (2).docx', safe=''))[2] == b'second document'
+assert request('/api/outputs/' + quote('upload-smoke', safe=''), headers={'If-None-Match': second_etag})[0] == 304
 assert listing('other-chat')[0] == other_before
-assert request('/files/other-chat/report.docx')[0] == 404
+assert request('/files/' + quote('other-chat', safe='') + '/' + quote('report.docx', safe=''))[0] == 404
 print('smoke-stub: report.docx and report (2).docx listed; first bytes/id/revision preserved')
 
-original = request('/files/upload-smoke/page.html')[2]
+original = request('/files/' + quote('upload-smoke', safe='') + '/' + quote('page.html', safe=''))[2]
 assert upload('page.html', b'replacement') == 'page (2).html'
-assert request('/files/upload-smoke/page.html')[2] == original
+assert request('/files/' + quote('upload-smoke', safe='') + '/' + quote('page.html', safe=''))[2] == original
 for name in ('manifest', 'list'):
     assert upload(name, name.encode()) == name
-    assert request('/files/upload-smoke/' + name)[2] == name.encode()
+    assert request('/files/' + quote('upload-smoke', safe='') + '/' + quote(name, safe=''))[2] == name.encode()
 
 with ThreadPoolExecutor(max_workers=4) as pool:
     names = list(pool.map(lambda n: upload('race.txt', str(n).encode()), range(4)))
 assert set(names) == {'race.txt', 'race (2).txt', 'race (3).txt', 'race (4).txt'}, names
-assert {request('/files/upload-smoke/' + quote(name))[2] for name in names} == {b'0', b'1', b'2', b'3'}
+assert {request('/files/' + quote('upload-smoke', safe='') + '/' + quote(name, safe=''))[2] for name in names} == {b'0', b'1', b'2', b'3'}
 
 unchanged, _ = listing()
-status, _, _ = request('/api/uploads/upload-smoke/broken.docx', b'not multipart',
+status, _, _ = request('/api/uploads/' + quote('upload-smoke', safe='') + '/' + quote('broken.docx', safe=''), b'not multipart',
                        {'Content-Type': 'multipart/form-data; boundary=missing'})
 assert 400 <= status < 500, status
 assert listing()[0] == unchanged
 print('smoke-stub: collision, chat isolation, ETag, concurrent claims and malformed multipart verified')
 PY
 
-python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$repo_root/scripts/ocu-stub.py" || fail "office fixtures"
+python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$stub_script" || fail "office fixtures"
 
 echo "smoke-stub: ok (port $port)"

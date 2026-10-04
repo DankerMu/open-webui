@@ -9,6 +9,7 @@ losing a required clause.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -42,6 +43,10 @@ CREATE_FIELDS = {'session_id', 'file_id', 'document_key', 'state', 'joined', 'ed
 
 def fail(message: str) -> None:
     raise AssertionError(message)
+
+
+def _seg(value: str) -> str:
+    return quote(value, safe='')
 
 
 def _request(base: str, path: str, *, method: str = 'GET', data: bytes | None = None, headers: dict | None = None):
@@ -81,7 +86,27 @@ def _strip_times(value):
 
 
 def copy_version(record: dict) -> dict:
-    return {key: record[key] for key in ('number', 'parent', 'source', 'sha256', 'size', 'published')}
+    return dict(record)
+
+
+def assert_create_schema(body: dict) -> None:
+    if not CREATE_FIELDS <= set(body):
+        fail(f'create missing fields {CREATE_FIELDS - set(body)}')
+    for key in ('session_id', 'file_id', 'document_key'):
+        if not isinstance(body[key], str) or not body[key]:
+            fail(f'create invalid {key}: {body}')
+    if not isinstance(body['joined'], bool):
+        fail(f'create invalid joined: {body}')
+
+
+def assert_history_restored(before: list, after: list, selected: dict) -> None:
+    if after[:len(before)] != before:
+        fail('restore mutated earlier versions')
+    restored = after[-1]
+    if restored['source'] != 'restore' or restored['published'] is not True:
+        fail(f'restore versions {after}')
+    if (restored['sha256'], restored['size']) != (selected['sha256'], selected['size']):
+        fail('restore did not copy selected content')
 
 
 def _wait(base: str) -> None:
@@ -166,53 +191,63 @@ def _upload_docx(base: str, chat: str, name: str = 'brief.docx') -> tuple[str, d
     )
     status, _, body = _request(
         base,
-        f'/api/uploads/{chat}/{quote(name)}',
+        f'/api/uploads/{_seg(chat)}/{_seg(name)}',
         method='POST',
         data=envelope,
         headers={'Content-Type': 'multipart/form-data; boundary=smoke-boundary'},
     )
     if status != 200:
         fail(f'upload {name} HTTP {status}')
-    listing = json.loads(_request(base, f'/api/outputs/{chat}')[2])
+    listing = json.loads(_request(base, f'/api/outputs/{_seg(chat)}')[2])
     stored = json.loads(body)['filename']
     return _file_id(listing, stored), listing
 
 
 def _create(base: str, chat: str, file_id: str):
-    return _json(base, f'/api/office/{chat}/documents/{file_id}/sessions', method='POST', payload={})
+    return _json(base, f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/sessions', method='POST', payload={})
 
 
 def _status(base: str, chat: str, session_id: str):
-    return _json(base, f'/api/office/{chat}/sessions/{session_id}')
+    return _json(base, f'/api/office/{_seg(chat)}/sessions/{_seg(session_id)}')
 
 
 def _save(base: str, chat: str, session_id: str, intent: str):
-    return _json(base, f'/api/office/{chat}/sessions/{session_id}/save', method='POST', payload={'intent': intent})
+    return _json(
+        base,
+        f'/api/office/{_seg(chat)}/sessions/{_seg(session_id)}/save',
+        method='POST',
+        payload={'intent': intent},
+    )
 
 
 def _close(base: str, chat: str, session_id: str):
-    return _json(base, f'/api/office/{chat}/sessions/{session_id}/close', method='POST', payload={})
+    return _json(base, f'/api/office/{_seg(chat)}/sessions/{_seg(session_id)}/close', method='POST', payload={})
 
 
 def _resolve(base: str, chat: str, session_id: str, action: str):
     return _json(
         base,
-        f'/api/office/{chat}/sessions/{session_id}/resolve',
+        f'/api/office/{_seg(chat)}/sessions/{_seg(session_id)}/resolve',
         method='POST',
         payload={'action': action},
     )
 
 
 def _versions(base: str, chat: str, file_id: str):
-    return _json(base, f'/api/office/{chat}/documents/{file_id}/versions')
+    return _json(base, f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/versions')
 
 
 def _restore(base: str, chat: str, file_id: str, number: int):
-    return _json(base, f'/api/office/{chat}/documents/{file_id}/restore', method='POST', payload={'number': number})
+    return _json(
+        base,
+        f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/restore',
+        method='POST',
+        payload={'number': number},
+    )
 
 
 def _outputs(base: str, chat: str):
-    status, headers, body = _request(base, f'/api/outputs/{chat}')
+    status, headers, body = _request(base, f'/api/outputs/{_seg(chat)}')
     if status != 200:
         fail(f'outputs {chat} HTTP {status}')
     return json.loads(body), headers.get('ETag') or headers.get('etag')
@@ -223,19 +258,19 @@ def assert_unknown_paths(base: str) -> None:
     file_id = 'missing'
     session = 'missing'
     cases = (
-        ('GET', f'/api/office/{chat}/documents/{file_id}/sessions'),
-        ('PUT', f'/api/office/{chat}/documents/{file_id}/sessions'),
-        ('DELETE', f'/api/office/{chat}/sessions/{session}'),
-        ('POST', f'/api/office/{chat}/sessions/{session}'),
-        ('GET', f'/api/office/{chat}/sessions/{session}/save'),
-        ('PATCH', f'/api/office/{chat}/sessions/{session}/close'),
-        ('GET', f'/api/office/{chat}/sessions/{session}/resolve'),
-        ('POST', f'/api/office/{chat}/documents/{file_id}/versions'),
-        ('GET', f'/api/office/{chat}/documents/{file_id}/restore'),
-        ('GET', f'/api/office/{chat}/callback/{session}'),
-        ('POST', f'/api/office/{chat}/source/{session}'),
-        ('OPTIONS', f'/api/office/{chat}/documents/{file_id}/sessions'),
-        ('HEAD', f'/api/office/{chat}/sessions/{session}'),
+        ('GET', f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/sessions'),
+        ('PUT', f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/sessions'),
+        ('DELETE', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}'),
+        ('POST', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}'),
+        ('GET', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}/save'),
+        ('PATCH', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}/close'),
+        ('GET', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}/resolve'),
+        ('POST', f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/versions'),
+        ('GET', f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/restore'),
+        ('GET', f'/api/office/{_seg(chat)}/callback/{_seg(session)}'),
+        ('POST', f'/api/office/{_seg(chat)}/source/{_seg(session)}'),
+        ('OPTIONS', f'/api/office/{_seg(chat)}/documents/{_seg(file_id)}/sessions'),
+        ('HEAD', f'/api/office/{_seg(chat)}/sessions/{_seg(session)}'),
     )
     for method, path in cases:
         status, _, _ = _request(base, path, method=method)
@@ -244,7 +279,7 @@ def assert_unknown_paths(base: str) -> None:
 
 
 def assert_host_page(base: str, chat: str) -> None:
-    status, headers, body = _request(base, f'/preview/{chat}?embed=office')
+    status, headers, body = _request(base, f'/preview/{_seg(chat)}?embed=office')
     if status != 200:
         fail(f'embed=office HTTP {status}')
     text = body.decode()
@@ -256,7 +291,7 @@ def assert_host_page(base: str, chat: str) -> None:
     if 'connect-src' in csp and "'self'" not in csp:
         fail('office host CSP missing same-origin connect-src')
     for mode in ('files', 'browser', 'terminal'):
-        other = _request(base, f'/preview/{chat}?embed={mode}')
+        other = _request(base, f'/preview/{_seg(chat)}?embed={mode}')
         if other[0] != 200:
             fail(f'embed={mode} HTTP {other[0]}')
         if b'ocu-office-simulate-modification' in other[2]:
@@ -267,12 +302,16 @@ def _assert_create_and_join(base: str, chat: str, file_id: str) -> dict:
     created = _create(base, chat, file_id)
     if created[0] != 201 or created[2].get('joined') is not False:
         fail(f'default create {created[0]} {created[2]}')
-    if set(created[2]) < CREATE_FIELDS:
-        fail(f'create missing fields {created[2].keys()}')
+    assert_create_schema(created[2])
     session_id = created[2]['session_id']
     joined = _create(base, chat, file_id)
     if joined[0] != 200 or joined[2].get('joined') is not True or joined[2]['session_id'] != session_id:
         fail(f'default join {joined[0]} {joined[2]}')
+    assert_create_schema(joined[2])
+    if joined[2]['document_key'] != created[2]['document_key']:
+        fail('join changed document_key')
+    if joined[2]['editor_config'] == created[2]['editor_config']:
+        fail('join did not refresh editor configuration')
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(lambda _: _create(base, chat, file_id)[2]['session_id'], range(4)))
     if set(results) != {session_id}:
@@ -300,22 +339,43 @@ def _assert_persist_and_publish(
     versions = _versions(base, chat, file_id)[2]
     if versions['versions'][-1]['source'] != 'autosave' or versions['versions'][-1]['published'] is not False:
         fail(f'persist versions {versions}')
-    earlier = [copy_version(record) for record in versions['versions']]
+    persisted_status = _status(base, chat, session_id)[2]
+    if persisted_status['last_committed_seq'] != persist[2]['save_seq'] or persisted_status['last_published_seq'] != 0:
+        fail(f'persist cursors {persisted_status}')
+    return _assert_publish(
+        base, chat, file_id, session_id, listing_before, original_path, persist[2]['save_seq']
+    )
+
+
+def _assert_publish(
+    base: str,
+    chat: str,
+    file_id: str,
+    session_id: str,
+    listing_before: dict,
+    original_path: str,
+    persisted_seq: int,
+):
     publish = _save(base, chat, session_id, 'publish')
     if publish[0] != 202:
         fail(f'publish {publish[0]} {publish[2]}')
     status = _status(base, chat, session_id)[2]
-    if status['state'] != 'editing' or status['last_published_seq'] != publish[2]['save_seq']:
+    if (status['state'] != 'editing' or status['last_published_seq'] != publish[2]['save_seq']
+            or status['last_committed_seq'] != publish[2]['save_seq']
+            or publish[2]['save_seq'] <= persisted_seq):
         fail(f'publish status {status}')
     listing_after, _ = _outputs(base, chat)
     if listing_after['revision'] <= listing_before['revision']:
         fail('publish did not raise listing revision')
     if _entry(listing_after, original_path)['file_id'] != file_id:
         fail('publish changed file_id')
+    if _entry(listing_after, original_path)['revision'] <= _entry(listing_before, original_path)['revision']:
+        fail('publish did not raise file-entry revision')
     versions_after = _versions(base, chat, file_id)[2]
-    if not any(record['source'] == 'save' and record['published'] for record in versions_after['versions']):
-        fail(f'publish versions {versions_after}')
-    return earlier, versions_after
+    saves = [record for record in versions_after['versions'] if record['source'] == 'save' and record['published']]
+    if len(saves) != 1:
+        fail(f'publish expected exactly one save version {versions_after}')
+    return versions_after
 
 
 def _assert_close_and_restore(
@@ -323,8 +383,6 @@ def _assert_close_and_restore(
     chat: str,
     file_id: str,
     session_id: str,
-    earlier: list,
-    versions_after: dict,
 ):
     close = _close(base, chat, session_id)
     if close[0] != 202:
@@ -332,27 +390,28 @@ def _assert_close_and_restore(
     closed = _status(base, chat, session_id)[2]
     if closed['state'] != 'closed':
         fail(f'closed status {closed}')
-    restore_number = versions_after['versions'][0]['number']
+    earlier = _versions(base, chat, file_id)[2]['versions']
+    selected = earlier[0]
+    restore_number = selected['number']
     restored = _restore(base, chat, file_id, restore_number)
     if restored[0] != 200 or restored[2].get('published') is not True:
         fail(f'restore {restored[0]} {restored[2]}')
     history = _versions(base, chat, file_id)[2]['versions']
-    if history[-1]['source'] != 'restore' or history[-1]['published'] is not True:
-        fail(f'restore versions {history}')
-    for index, record in enumerate(earlier):
-        current = copy_version(history[index])
-        mutated = current != record and history[index]['number'] == record['number']
-        if mutated and history[index]['source'] != record['source']:
-            fail('restore mutated earlier versions')
+    assert_history_restored(earlier, history, selected)
+    listing, _ = _outputs(base, chat)
+    path = next(entry['path'] for entry in listing['files'] if entry['file_id'] == file_id)
+    restored_bytes = _request(base, f'/files/{_seg(chat)}/{_seg(path)}')[2]
+    if hashlib.sha256(restored_bytes).hexdigest() != selected['sha256'] or len(restored_bytes) != selected['size']:
+        fail('restore download differs from selected version')
 
 
 def _assert_default_round_trip(base: str, chat: str, file_id: str) -> dict:
     listing_before, etag_before = _outputs(base, chat)
     created = _assert_create_and_join(base, chat, file_id)
-    earlier, versions_after = _assert_persist_and_publish(
+    _assert_persist_and_publish(
         base, chat, file_id, created['session_id'], listing_before, etag_before
     )
-    _assert_close_and_restore(base, chat, file_id, created['session_id'], earlier, versions_after)
+    _assert_close_and_restore(base, chat, file_id, created['session_id'])
     return created
 
 
@@ -367,7 +426,7 @@ def assert_office_conflict(base: str, chat: str) -> None:
     listing, _ = _outputs(base, chat)
     file_id = _file_id(listing, 'report.docx')
     original = _entry(listing, 'report.docx')
-    original_bytes = _request(base, f'/files/{chat}/report.docx')[2]
+    original_bytes = _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2]
     session_id = _create(base, chat, file_id)[2]['session_id']
     _save(base, chat, session_id, 'publish')
     conflicted = _status(base, chat, session_id)[2]
@@ -377,9 +436,9 @@ def assert_office_conflict(base: str, chat: str) -> None:
     if saved[0] != 200 or saved[2]['state'] != 'editing':
         fail(f'save_as resolve {saved}')
     after_save_as, _ = _outputs(base, chat)
-    if _entry(after_save_as, 'report.docx')['revision'] != original['revision']:
+    if _entry(after_save_as, 'report.docx') != original or after_save_as['revision'] <= listing['revision']:
         fail('save_as mutated original listing identity')
-    if _request(base, f'/files/{chat}/report.docx')[2] != original_bytes:
+    if _request(base, f'/files/{_seg(chat)}/{_seg("report.docx")}')[2] != original_bytes:
         fail('save_as mutated original bytes')
     if 'report (2).docx' not in {entry['path'] for entry in after_save_as['files']}:
         fail('save_as missing deduplicated name')
@@ -427,16 +486,16 @@ def assert_office_orphaned(base: str, chat: str) -> None:
 
 
 def assert_office_save_as(base: str, chat: str) -> None:
-    versions = _versions(base, chat, 'seed')
-    if versions[0] != 200:
-        fail(f'save_as versions seed {versions[0]} {versions[2]}')
-    file_id = versions[2]['file_id']
+    before, _ = _outputs(base, chat)
+    file_id = _file_id(before, 'report.docx')
     created = _create(base, chat, file_id)
     if created[0] != 201:
         fail(f'save_as create {created[0]} {created[2]}')
     open_listing, _ = _outputs(base, chat)
     if any(entry['path'] == 'report.docx' for entry in open_listing['files']):
         fail('save_as still lists report.docx after open')
+    if open_listing['revision'] <= before['revision']:
+        fail('automatic save_as deletion did not advance chat revision')
     _close(base, chat, created[2]['session_id'])
     closed = _status(base, chat, created[2]['session_id'])[2]
     if closed['state'] != 'closed' or not closed.get('saved_as'):
@@ -449,7 +508,20 @@ def assert_office_save_as(base: str, chat: str) -> None:
         fail('save_as status file_id mismatch')
     if closed['saved_as']['path'] != 'report (2).docx':
         fail(f'save_as path {closed["saved_as"]}')
+    if after['revision'] <= open_listing['revision'] or closed['saved_as']['file_id'] == file_id:
+        fail('automatic save_as addition did not advance revision/new identity')
+    _assert_encoded_save_as(base, chat, closed['saved_as']['file_id'])
     log.info('office_save_as')
+
+
+def _assert_encoded_save_as(base: str, chat: str, saved_id: str) -> None:
+    if saved_id != 'fixture-report (2).docx':
+        fail(f'save_as stored file_id changed {saved_id}')
+    history = _versions(base, chat, saved_id)
+    if history[0] != 200 or history[2]['file_id'] != saved_id:
+        fail(f'save_as encoded history {history[0]} {history[2]}')
+    if _create(base, chat, saved_id)[0] != 201:
+        fail('save_as encoded create rejected the listed file_id')
 
 
 def assert_office_unpublished(base: str, chat: str) -> None:
@@ -473,6 +545,11 @@ def assert_office_unpublished(base: str, chat: str) -> None:
     history = _versions(base, restore_chat, restore_id)[2]['versions']
     if history[-1]['source'] != 'restore' or history[-1]['published'] is not True:
         fail(f'unpublished restore versions {history}')
+    assert_history_restored(restore_versions['versions'], history, restore_versions['versions'][-1])
+    if _entry(after, 'report.docx')['revision'] <= _entry(restore_listing, 'report.docx')['revision']:
+        fail('unpublished restore did not raise file revision')
+    if _create(base, restore_chat, restore_id)[0] != 201:
+        fail('unpublished create after restore failed')
     created = _create(base, chat, file_id)
     if created[0] != 201:
         fail(f'unpublished create without restore {created}')
@@ -531,14 +608,9 @@ def assert_named_office(script: Path) -> None:
         fixtures.unlink(missing_ok=True)
 
 
-def _snapshot_replay(base: str, chat: str, file_id: str) -> list:
-    created = _create(base, chat, file_id)
-    snapshot = [(created[0], _strip_times(created[2]))]
-    persist = _save(base, chat, created[2]['session_id'], 'persist')
-    snapshot.append((persist[0], _strip_times(persist[2])))
-    publish = _save(base, chat, created[2]['session_id'], 'publish')
-    snapshot.append((publish[0], _strip_times(publish[2])))
-    return snapshot
+def _snapshot_replay(base: str) -> list:
+    from smoke_stub_office_regressions import replay_transcript
+    return replay_transcript(base)
 
 
 def _office_snapshot(base: str, chat: str, file_id: str, session_id: str) -> tuple:
@@ -565,10 +637,20 @@ def _assert_foreign_resources(base: str, alpha_session: str, beta_session: str) 
         fail('beta-only file_id appeared in alpha listing')
     if _create(base, 'alpha', foreign_id)[0] != 404:
         fail('foreign file_id was accepted')
+    for file_id in ('missing', foreign_id):
+        if _versions(base, 'alpha', file_id)[0] != 404 or _restore(base, 'alpha', file_id, 1)[0] != 404:
+            fail('unknown or foreign file history/restore was accepted')
+    for response in (_save(base, 'alpha', beta_session, 'publish'),
+                     _close(base, 'alpha', beta_session), _resolve(base, 'alpha', beta_session, 'save_as')):
+        if response[0] != 404:
+            fail('foreign session mutation was accepted')
 
 
 def assert_isolation_and_replay(script: Path) -> None:
-    fixtures = _write_fixtures({'alpha': 'office', 'beta': 'office_orphaned', 'replay': 'office'})
+    mapping = {'alpha': 'office', 'beta': 'office_orphaned'}
+    mapping.update({f'replay-{name}': name for name in OFFICE_SCENARIOS})
+    mapping['replay-conflict-overwrite'] = 'office_conflict'
+    fixtures = _write_fixtures(mapping)
     env = {'OCU_STUB_FIXTURES': str(fixtures)}
     first, base, record = start_stub(script, env)
     try:
@@ -592,19 +674,19 @@ def assert_isolation_and_replay(script: Path) -> None:
             fail('Office arrivals were not privately observed')
         public = _request(
             base,
-            f'/api/office/alpha/sessions/{alpha["session_id"]}',
+            f'/api/office/{_seg("alpha")}/sessions/{_seg(alpha["session_id"])}',
             headers={'Authorization': f'Bearer {CANARY}'},
         )
         _assert_canary_absent(public[1], public[2])
-        snapshot = _snapshot_replay(base, 'replay', _file_id(_outputs(base, 'replay')[0], 'report.docx'))
+        snapshot = _snapshot_replay(base)
     finally:
         stop_stub(first, record)
     second, base2, record2 = start_stub(script, env)
     try:
-        replayed = _snapshot_replay(base2, 'replay', _file_id(_outputs(base2, 'replay')[0], 'report.docx'))
+        replayed = _snapshot_replay(base2)
         if replayed != snapshot:
             fail(f'deterministic replay diverged {snapshot} vs {replayed}')
-        page = _request(base2, '/preview/alpha?embed=office')
+        page = _request(base2, f'/preview/{_seg("alpha")}?embed=office')
         if page[0] != 200 or b'ocu-office-simulate-modification' not in page[2]:
             fail('replay host page missing control')
     finally:
@@ -612,10 +694,10 @@ def assert_isolation_and_replay(script: Path) -> None:
 
 
 def assert_non_office_preserved(base: str) -> None:
-    status, _, body = _request(base, '/api/outputs/running')
+    status, _, body = _request(base, f'/api/outputs/{_seg("running")}')
     if status != 200 or b'/ocu/files/' not in body:
         fail('non-Office outputs listing changed')
-    if _request(base, '/files/running/page.html')[0] != 200:
+    if _request(base, f'/files/{_seg("running")}/{_seg("page.html")}')[0] != 200:
         fail('non-Office file serving changed')
 
 
@@ -633,6 +715,8 @@ def run_office_smoke(base: str, *, script: Path, record: Path | None = None) -> 
     assert_named_office(script)
     assert_non_office_preserved(base)
     assert_isolation_and_replay(script)
+    from smoke_stub_office_regressions import run_regressions
+    run_regressions(script)
     log.info('smoke-stub: office fixtures verified')
 
 

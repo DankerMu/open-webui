@@ -143,6 +143,7 @@ _OFFICE = OfficeStore(
     files=FILES,
     uploads=_uploads,
     valid_office=VALID_OFFICE,
+    scenario_file=lambda chat_id, name: _scenario_file(chat_id, name, {}),
 )
 
 DESCRIBE_RE = re.compile(r'^/internal/describe/([^/]+)$')
@@ -307,7 +308,7 @@ def _store_upload(chat_id: str, name: str, payload: bytes) -> dict:
     with _LOCK:
         fixture = _fixture_outputs(chat_id)
         uploaded = _uploads.setdefault(chat_id, {})
-        occupied = set(FILES) | {entry['path'] for entry in fixture['files']} | uploaded.keys()
+        occupied = _OFFICE.occupied_names(chat_id)
         path = PurePosixPath(name)
         stored = name
         counter = 2
@@ -702,7 +703,7 @@ class StubHandler(BaseHTTPRequestHandler):
     def _dispatch(self, method: str) -> None:
         extra: dict = {}
         self._request_body = b''
-        if method in ('POST', 'PUT', 'PATCH'):
+        if self.headers.get('Content-Length'):
             payload = self._read_body()
             self._request_body = payload
             extra['body_sha256'] = hashlib.sha256(payload).hexdigest()
@@ -734,7 +735,7 @@ class StubHandler(BaseHTTPRequestHandler):
         self._dispatch('HEAD')
 
     def do_POST(self) -> None:
-        self._dispatch('POST')
+        self._dispatch(self.command)
 
     do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_POST
 
