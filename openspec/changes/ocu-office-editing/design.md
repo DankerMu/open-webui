@@ -481,6 +481,14 @@ If step 2 fails or step 3 times out, backup names the sessions still open, stops
 
 Restore epoch: the file `{BASE_DATA_DIR}/.office-restore-epoch` holds one line, an opaque token. An absent file is the initial epoch. Restore writes a fresh random token after the chat-data tree is in place. A session stores the epoch read at its creation; the broker compares for equality on every session request and every callback and treats a session with a different epoch as `orphaned`, so no pre-restore callback is replayed. The broker owns the format; recovery only writes the file.
 
+#### Restore-epoch read boundary
+
+Task 10.3 adds `office.epoch.current_epoch() -> str | None` and `RestoreEpochError`. `None` represents initial absence and differs from all strings, including the readable empty token `""`; ordinary equality is sufficient and survives JSON storage by future session owners. Decode UTF-8 and strip surrounding whitespace without interpreting token structure.
+
+Governing invariant: every call observes the marker anew and returns either its opaque token, absence, or an explicit read failure; it never changes filesystem state. ENOENT, including a missing base path, is absence. Other read errors retain their cause under `RestoreEpochError`. Reuse the Office no-follow/nonblocking file flags and verify a regular file, so directories, FIFOs and symlinks cannot masquerade as tokens or block the reader.
+
+Sibling surfaces: restore task 33.2 owns atomic token publication; session and callback tasks own storing/comparing tokens and orphaning. No cache, per-chat marker, timestamp order, default token string or extra lock is introduced. Evidence distinguishes absent from whitespace-only content, observes A→B without restart, and proves unreadable markers are not silently absent.
+
 One-version rollback verifies the seven images that the selected release's own inventory records. Recovery offers no rollback to a release that predates this change: such a release has a version-1 inventory, which recovery refuses.
 
 ### D19. Fonts

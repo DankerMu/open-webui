@@ -179,3 +179,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: immutable history, receipt/version atomicity, storage admission and safe workspace bytes.
 - Selected risk packs: API, file IO/path safety, schema, concurrency, resource limits, compatibility, errors and documentation.
 - Evidence floor: content-addressed deduplication, monotonic records/published flag, restart receipt lookup, atomic version+receipt, floor/ENOSPC rejection, descriptor-confined reads and same-chat process ordering.
+
+## Restore-epoch reader fixture
+
+- Issue type: feature; fixture level: expanded, matching task 10.3's persisted deployment marker.
+- Scope: `office/epoch.py` and paired `test_office_epoch.py`; no store, session, restore writer or route changes.
+- Blast radius: distinguishing absent initial epoch from every opaque token, including an empty token, across requests/workers.
+- Selected risk packs: API, file IO/path safety, schema/value representation, ordering/fresh reads, compatibility, errors and documentation.
+- Evidence floor: absent → A → B same-process reads, whitespace and empty-token equality, unreadable/nonregular/symlink rejection without writes, and a fresh-process marker smoke.

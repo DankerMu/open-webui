@@ -293,7 +293,7 @@ Tests cover missing-index creation only after valid registration, a new path wit
 
 - [x] 10.1 `office/` package with the per-chat state file: schema version, locked read-modify-write through the shared per-chat lock, atomic durable replace, explicit failure on corruption that preserves the prior state. The server image's `computer-use-server/Dockerfile` copies the new package (it copies modules one by one). Verify: tests cover two processes updating one chat without loss in either order, a corrupt file, a failure before replace, and restart persistence; a test asserts that every top-level `.py` module of `computer-use-server/` and every directory there that holds an `__init__.py` is named by a `COPY` line of that Dockerfile (directories without Python packages, such as `bin/` and `cli-defaults/`, are outside the check).
 - [x] 10.2 Versions and receipts: content-addressed immutable blobs, per-document numbering, sources and the published flag, no new record when content equals the latest version, the free-space floor, receipts for every processed callback, and the safe read of a workspace file (no-follow, regular file, inside the chat's directory, no symlinked parent). Verify: tests cover identical content stored once, numbering, refusal below the floor without partial blobs, receipt lookup by sequence and hash, and a symlinked file and a symlinked parent directory each refused without being read.
-- [ ] 10.3 The restore-epoch marker: read `{BASE_DATA_DIR}/.office-restore-epoch`, an absent file being the initial epoch, and compare for equality. Verify: tests for an absent file, a token, and a changed token.
+- [x] 10.3 The restore-epoch marker: read `{BASE_DATA_DIR}/.office-restore-epoch`, an absent file being the initial epoch, and compare for equality. Verify: tests for an absent file, a token, and a changed token.
 - [x] 10.4 Decision record `ocu-office-file-store` (design D5: per-chat files instead of a database). Verify: `make decisions-verify` passes.
 
 Depends on: none beyond group 8.
@@ -331,6 +331,22 @@ Run the OCU unit command narrowed to the new state-store and COPY-inventory test
 - Documentation / migration notes — Selected: fixture records APIs, record ownership and transaction boundary; no new decision or migration.
 
 Run the Office store test module together with the existing package-inventory test. Tests include shared blob across two documents, nonconsecutive repeat content, three sources numbered 1/2/3, equal-latest receipt reuse, immutable published transitions, receipt status 7 without content, sequence/hash lookup after process restart, version5 with save_seq3, floor below/equal and standalone refusal, mid-blob and precommit state ENOSPC cleanup, and external-read negative controls. Runtime smoke reads and hashes a nested workspace file, stores versions/receipts, restarts the reader and confirms history plus untouched workspace bytes.
+
+### Restore-epoch reader risk coverage
+
+- Public API / CLI / script entry — Selected: `office.epoch.current_epoch() -> str | None`; native equality is the comparison, no separate ordering/parser API.
+- Config / project setup — Not selected: read existing `docker_manager.BASE_DATA_DIR` at call time; no new setting.
+- File IO / path safety / overwrite — Selected: read only `.office-restore-epoch` with no-follow/nonblocking regular-file access; no mkdir/write. Symlink, directory and FIFO fail without external reads or blocking.
+- Schema / columns / units / field names — Selected: `None` is initial/absent and JSON-roundtrips as null; every stripped UTF-8 string, including `""`, is a token distinct from initial. Do not parse UUIDs/numbers or reject readable empty content.
+- Auth / permissions / secrets — Not selected: no route, auth or credential.
+- Concurrency / shared state / ordering — Selected: no cache; same process observes absent/A/B changes, fresh worker reads current token. Restore's atomic marker write and session comparisons remain later owners; no new writer lock.
+- Resource limits / large input / discovery — Not selected: no scan, quota or new token-length policy.
+- Legacy compatibility / examples — Selected: marker absent (including missing parent path) is initial and creates nothing; state/version behavior and Dockerfile package copy unchanged.
+- Error handling / rollback / partial outputs — Selected: only ENOENT is absence; other filesystem errors and invalid UTF-8 raise `RestoreEpochError` with cause, never initial. Portable EACCES/EIO injection and actual directory refusal.
+- Release / packaging / dependency compatibility — Not selected: package-level COPY already includes the module; run inventory test without image build.
+- Documentation / migration notes — Selected: this fixture records opaque/empty/initial semantics; no new decision or migration.
+
+Run the epoch test module and package-inventory test with the OCU unit command. Runtime smoke observes absent/A/B via the actual reader across process boundaries and confirms the reader never creates or changes the marker. Negative controls must reject swallowed read errors and stale cached values. Consumer orphaning and restore-token generation are explicitly outside task 10.3.
 
 ## 11. [ocu] DocumentServer configuration and client (spec: ocu-office-sessions, ocu-office-callback, ocu-auth-guard, ocu-documentserver-service)
 
