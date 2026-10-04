@@ -262,3 +262,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: application startup availability and authenticated feature discovery.
 - Selected risk packs: API, config, schema, auth visibility, ordering, compatibility, errors and documentation.
 - Evidence floor: fresh-process environment-to-authenticated-config matrix; invalid input fails startup naming the variable; existing workspace assertions and `make smoke` pass; scoped lint/coverage and doc checks.
+
+## Office client and store fixture
+
+- Issue type: feature; fixture level: expanded for guarded HTTP calls and asynchronous chat isolation.
+- Scope: task 23.2, two new frontend modules with paired Vitest files, intentionally without callers. Existing workspace exports, backend, components and `artifactContents` stay unchanged.
+- Blast radius: broker refusal visibility, mutation request shape and late results reaching the wrong chat.
+- Selected risk packs: API, schema, auth transport, concurrency/ordering, compatibility, errors and documentation.
+- Evidence floor: four request shapes, unchanged broker reasons, transport/JSON failures, current/retired generations and two-chat isolation; per-file coverage, scoped lint/typecheck, actual HTTP client/store smoke and clean-runner full frontend checks.

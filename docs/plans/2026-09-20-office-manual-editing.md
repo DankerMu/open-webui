@@ -171,6 +171,8 @@ Office broker 是 OCU 服务的进程内模块 `office/`。它的全部状态存
 - **放大**是 WebUI 内的覆盖层，不使用浏览器全屏 API。
 - **未保存守卫**涉及上游的 `ChatControls` 与 `Chat.svelte`，按关键路径处理：最小差异，新逻辑放在新模块。
 - 编辑入口由 `ENABLE_OCU_OFFICE_EDIT` 控制，默认关闭；只接受大小写无关的 `true`/`false`，其它值启动失败并点名该变量；已认证 `/api/config` 的 `features.enable_ocu_office_edit` 与 `enable_ocu_workspace` 并列，匿名响应不含该键。
+- WebUI 父页面的四个网关调用在 `src/lib/apis/ocu/office.ts`：`getOfficeSessionStatus`、`listOfficeVersions`、`restoreOfficeVersion`、`resolveOfficeConflict`。路径固定在 `/ocu`，段做 `encodeURIComponent`，cookie 同源；POST 带 `X-Requested-With: ocu-workspace`。失败复用 `WorkspaceRequestError`，broker 的字符串 `reason` 原样保留（含 404），无白名单；传输失败是 `0/request_failed`，不可读/非字符串 reason 是 `HTTP status/request_failed`，成功体不是 JSON 是 `HTTP status/invalid_response`。类型：`OfficeSessionStatus`（`session_id`、`file_id`、`document_key`、`state`、`reason`、`save_seq`、`last_committed_seq`、`last_published_seq`、`workspace_changed`、`saved_as`）、`OfficeVersions`（`file_id`、`published_version`、`open_session`、`versions`）、`OfficeRestoreResult`（`file_id`、`number`、`published`）、`OfficeResolveResult`（`session_id`、`state`、`file_id`、`path`）。会话创建、save、close 不在此模块。
+- 每聊天编辑状态在 `src/lib/stores/ocu-office.ts`（`ocuOffice`），与 broker 的 `ocu-office-store` 不是同一层。导出 `OcuOfficeState`（`generation`、`fileId?`、`sessionId?`、`state?`、`reason`、`dirty`、`workspaceChanged`、`savedAs`）、`beginOfficeGeneration`、`retireOfficeGeneration`、`isCurrentOfficeGeneration`、`applyOfficeState`。过期或缺失 generation 不改状态；对 A 的操作保持 B 的引用同一性。不写入 `artifactContents`。
 - `/files/*` 增加 `Cache-Control: no-store`，使「改后预览不返回旧缓存」不依赖 mtime 巧合。
 
 ### 6. 部署
