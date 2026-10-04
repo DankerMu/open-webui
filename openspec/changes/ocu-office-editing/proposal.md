@@ -204,3 +204,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Scope: task 8 records and fixture only; disposable measurement helpers are not production code or the later `verify-office` target. No LAN access, deployment, Office implementation or dependency upgrade.
 - Selected risks: protocol/API fields, image/config identity, auth/cookie containment, concurrent editor state and shutdown ordering, environment limits, licence/font provenance and evidence documentation.
 - Evidence floor: actual editor input and exported bytes for three formats; observed callbacks, command responses and browser events for the nine consumed values; explicit missing/operator-only items; owned-resource cleanup; independent evidence review before a verdict.
+
+## Token and command-client fixture
+
+- Issue type: feature; fixture level: expanded, matching task 11.2.
+- Scope: OCU `office/tokens.py`, `office/commands.py` and paired tests; no routes, state transitions, configuration changes or dependencies.
+- Blast radius: verified-payload authority, ticket confinement/expiry, credential containment and correct command outcome classification.
+- Selected risk packs: API, config, schema/units, auth/secrets, ordering/expiry, resource bounds, compatibility, errors, packaging and documentation.
+- Evidence floor: independent HS256 interoperability, altered/expired/wrong-key token rejection, every ticket binding, real fake-server HTTP outcomes, redirect containment and no credentials in captured output.
+- B1 input: [record item 12](../../../docs/evidence/issue-119/2026-10-03-b1.md) observed exact `userdata` echo in an authenticated status-6 callback. This slice uses local fake HTTP tests, not another image campaign.

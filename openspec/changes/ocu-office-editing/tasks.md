@@ -363,7 +363,7 @@ Run the epoch test module and package-inventory test with the OCU unit command. 
 ## 11. [ocu] DocumentServer configuration and client (spec: ocu-office-sessions, ocu-office-callback, ocu-auth-guard, ocu-documentserver-service)
 
 - [x] 11.1 Office configuration module in the `office/` package: the four setting names of design D17 that OCU reads (`OCU_OFFICE_DOCSERVER_URL`, `OCU_OFFICE_DOCSERVER_ORIGIN`, `OCU_OFFICE_SELF_URL`, `OCU_OFFICE_JWT_SECRET`) defined as constants, plus the tuning values with defaults (free-space floor, ticket lifetime, liveness interval, save timeout), validated in `auth_guard.startup_preflight`, the function the packaged multi-worker entrypoint already calls — Office editing is enabled when the address is configured, there is no separate switch; an address with a missing or blank secret, origin or self address exits non-zero, and no address needs none of the others. Verify: startup tests for each combination through `startup_preflight`, including the packaged multi-worker entrypoint.
-- [ ] 11.2 JWT signing and verification, source-ticket signing and verification with expiry and binding, and a command-service client (`forcesave` with `userdata`, key lookup). Uses the B1 item "`forcesave` echoes `userdata`". Verify: tests against a fake DocumentServer HTTP endpoint cover a valid round trip, a tampered token, an expired ticket, a ticket for another document, an unknown key, and command error codes.
+- [x] 11.2 JWT signing and verification, source-ticket signing and verification with expiry and binding, and a command-service client (`forcesave` with `userdata`, key lookup). Uses the B1 item "`forcesave` echoes `userdata`". Verify: tests against a fake DocumentServer HTTP endpoint cover a valid round trip, a tampered token, an expired ticket, a ticket for another document, an unknown key, and command error codes.
 
 Depends on: 3 (`auth_guard.py` and its test matrix are edited by groups 1 and 4, and every Office group that follows works on the single shared directory), 10 (the package).
 Suggested fixture level: expanded - secrets, authentication tokens and production configuration.
@@ -386,6 +386,22 @@ Minimal mergeable slice: 11.1 (configuration and fail-loud validation) - green a
 | Documentation / migration notes                | Selected: D17 defines defaults and environment boundary; no deploy setting additions.                                                                    |
 
 Run config, auth-guard and package-inventory tests with the OCU unit command. Runtime smoke runs actual preflight in fresh processes for configured success and missing-setting refusal, including the packaged parent command. A whitespace-as-valid mutant must fail the new startup matrix. Defaults are local choices, not B1 measurements; task 11.1 does not wire their consumers.
+
+### Token and command-client risk coverage
+
+- Public API / CLI / script entry — selected: JWT and ticket public helpers return verified values only; command APIs distinguish every declared outcome.
+- Config / project setup — selected: use the existing four setting names and source-ticket TTL; missing signing keys fail without values, no dependency or setting added.
+- File IO / path safety / overwrite — not selected: no file access or persistence; source routes and blob reads belong to later tasks.
+- Schema / columns / units / field names — selected: four ticket bindings, required expiry, positive integer version/sequence, JSON-string `userdata` carrying sequence and intent, strict integer command codes.
+- Auth / permissions / secrets — selected: independent HS256 verification/vector; missing, malformed, altered, wrong-key, expired and wrong-algorithm tokens fail; a DocumentServer-secret ticket forgery fails; canaries stay out of logs/errors.
+- Concurrency / shared state / ordering — selected: deterministic expiry-boundary and key-rotation cases, no token/cache state; state sequencing belongs to later session tasks.
+- Resource limits / large input / discovery — selected: bounded HTTP timeout and response read, cancellation propagates and response/session resources close; timeout/refusal tests use a real local endpoint.
+- Legacy compatibility / examples — selected: existing config and package tests remain green; standard HS256 token interoperability is independent of a helper round trip.
+- Error handling / rollback / partial outputs — selected: command codes, malformed/non-success responses and unavailable transport never become accepted/known; no decoded values escape failed verification.
+- Release / packaging / dependency compatibility — selected: standard-library HS256 and existing aiohttp only, package-inventory test; no image build or runtime deployment proof.
+- Documentation / migration notes — selected: D7 owns helper APIs, wire format and outcome mapping, linked to official command documentation and the B1 echo observation.
+
+Run token, command, configuration and package tests with the OCU unit command. The fake endpoint must independently verify the received signature and decode `userdata`; a second endpoint proves redirects never receive credentials. Runtime smoke crosses real local HTTP for force-save and key lookup plus refusal. Negative controls accepting expired tokens, bypassing signature checks and accepting a wrong algorithm must fail; restore the original source and confirm focused green.
 
 ## 12. [ocu] Office routes guard and session creation (spec: ocu-office-sessions, ocu-auth-guard, ocu-office-store)
 
