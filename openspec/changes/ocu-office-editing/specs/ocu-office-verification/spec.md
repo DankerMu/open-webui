@@ -14,10 +14,10 @@ B1 SHALL produce a dated Markdown record under `docs/` in this repository, writt
 - the licence terms read and whether they fit the deployment;
 - DocumentServer's official minimum requirements with their source, next to the measured headroom on the acceptance machine;
 - the result of opening, editing and exporting deterministic DOCX, XLSX and PPTX samples;
-- the behaviour at the 20-connection cap and whether current usage can be queried by the broker;
+- observed behaviour below and beyond the claimed 20-connection boundary and whether current usage can be queried by the broker;
 - the measured delay between the last editor closing and the status-2 callback;
 - the origin of the download address in status-2 callbacks and in status-6 callbacks: the browser-facing DocumentServer origin or the server-to-server one;
-- the editor event that signals the connection cap to the page hosting the editor;
+- the editor event that signals a measured connection cap, or its observed absence at the tested boundary;
 - the memory and swap actually present on the acceptance machine;
 - whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode;
 - whether the editor works when the proxy withholds the WebUI session cookie from DocumentServer;
@@ -31,7 +31,7 @@ The acceptance machine being below the official minimum SHALL be recorded as a d
 Nine items are consumed by later tasks of this change. Each SHALL be present in the record as a concrete value, never "not measured", before a "go" verdict is given and before the task that consumes it starts:
 
 - the iframe sandbox token list and the permission-policy feature list;
-- how the connection cap is detected, both parts: the broker-side usage query, or the statement that none exists, and the editor event;
+- connection-boundary detection, both parts: the broker-side usage query or the documented API's lack of one, and the measured cap event or its observed absence at the tested boundary;
 - the close-to-status-2 delay;
 - the shutdown-preparation command: its name and whether it saves and closes every open document;
 - whether a restart clears the shutdown-preparation mode;
@@ -41,6 +41,8 @@ Nine items are consumed by later tasks of this change. Each SHALL be present in 
 - whether the editor works without the WebUI session cookie.
 
 Five of these values are assumptions the design is built on: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears the shutdown-preparation mode; the editor's own save command produces no callback; the editor works without the WebUI session cookie. The record SHALL state for each whether the observation matches the assumption.
+
+For the pinned 9.4.0 release, the operator-approved B1 result of 21 simultaneous editable documents without refusal or a cap event SHALL count as a concrete boundary observation, not as "not measured". It SHALL NOT imply unlimited capacity or justify inventing a cap event. The session, host-page, UI and stub contracts SHALL contain no artificial 20-connection check or cap-specific refusal fixture.
 
 #### Scenario: Record is complete
 

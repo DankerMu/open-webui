@@ -21,7 +21,7 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 
 - `ocu-unified-files`: the single shared workspace files directory — sandbox mount, absent legacy paths, uploads into the same directory, import-once attachment sync.
 - `ocu-office-store`: per-chat broker state, immutable versions, save receipts, commit journal, capacity check and crash recovery.
-- `ocu-office-sessions`: edit session lifecycle and the browser-facing session API — create/join, status with change notice, save, close, the one-level save model, key stability and the connection cap.
+- `ocu-office-sessions`: edit session lifecycle and the browser-facing session API — create/join, status with change notice, save, close, the one-level save model and key stability.
 - `ocu-office-callback`: the DocumentServer-facing control-plane routes — source tickets, callback authentication, status handling, ordering, idempotence and the persist pipeline.
 - `ocu-office-publish`: publishing to the workspace file — the two-state fence, hash comparison, atomic replace, symlink guard, broker registration, stale-fence recovery, conflict resolution and version restore.
 - `ocu-office-editor-embed`: the OCU-served editor host page and its parent message protocol.
@@ -195,3 +195,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: parent-process fail-closed startup, secret disclosure, shared setting names and tuning units.
 - Selected risk packs: API/entrypoint, config, schema/names, auth/secrets, resource defaults, compatibility, errors, packaging and documentation.
 - Evidence floor: disabled/enabled and missing/blank matrix, secret canaries, packaged-parent exit without listening/respawn, existing guard regressions and whitespace-bypass negative control.
+
+## Isolated B1 measurement fixture
+
+- Issue type: release characterization; fixture level: expanded for the new cross-origin, callback and shutdown measurement oracles. This overrides the suggested documentation-only level for evidence review, not the source-code scope.
+- User exception, 2026-10-03: one isolated local measurement campaign of the pinned, unmodified DocumentServer 9.4.0 image is permitted. Restarts needed to measure shutdown reset are within that campaign; all other image builds and acceptance, including #197, remain frozen.
+- Blast radius: an incorrect observation or unsupported go would release dependent Office work against the wrong protocol.
+- Scope: task 8 records and fixture only; disposable measurement helpers are not production code or the later `verify-office` target. No LAN access, deployment, Office implementation or dependency upgrade.
+- Selected risks: protocol/API fields, image/config identity, auth/cookie containment, concurrent editor state and shutdown ordering, environment limits, licence/font provenance and evidence documentation.
+- Evidence floor: actual editor input and exported bytes for three formats; observed callbacks, command responses and browser events for the nine consumed values; explicit missing/operator-only items; owned-resource cleanup; independent evidence review before a verdict.

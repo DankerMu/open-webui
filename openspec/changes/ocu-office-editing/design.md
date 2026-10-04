@@ -167,7 +167,31 @@ Containment: server, tool guidance and rebuilt sandbox image ship together; acce
 
 ### D4. ONLYOFFICE Docs Community v9.4.0, gated by B1
 
-Unmodified upstream image, AGPL v3, branding kept. B1 produces a dated record: image identity, licence terms read, official minimum vs measured headroom on the acceptance machine, open/edit/export of deterministic DOCX/XLSX/PPTX samples, behaviour at the 20-connection cap and whether usage is queryable, delay between last close and the status-2 callback, the origin of the download address in status-2 and status-6 callbacks, the editor event that signals the connection cap, the memory and swap present on the acceptance machine, whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode, whether the editor works when the proxy withholds the WebUI cookie, whether `forcesave` echoes `userdata`, whether the editor's own save command produces a callback with user-initiated force save off, the minimal iframe sandbox and permission set the editor needs, and the fonts loaded. Five observations are assumptions this design is built on, and each must hold for a go: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears that mode; the editor's own save produces no callback; the editor works without the WebUI cookie. If B1 fails, work stops and returns to the plan; there is no automatic switch to Collabora.
+Unmodified upstream image, AGPL v3, branding kept. B1 produces a dated record: image identity, licence terms read, official minimum vs measured headroom on the acceptance machine, open/edit/export of deterministic DOCX/XLSX/PPTX samples, observed connection-boundary behaviour and whether usage is queryable, delay between last close and the status-2 callback, the origin of the download address in status-2 and status-6 callbacks, the editor's cap event or its observed absence at the tested boundary, the memory and swap present on the acceptance machine, whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode, whether the editor works when the proxy withholds the WebUI cookie, whether `forcesave` echoes `userdata`, whether the editor's own save command produces a callback with user-initiated force save off, the minimal iframe sandbox and permission set the editor needs, and the fonts loaded. Five observations are assumptions this design is built on, and each must hold for a go: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears that mode; the editor's own save produces no callback; the editor works without the WebUI cookie. If B1 fails, work stops and returns to the plan; there is no automatic switch to Collabora.
+
+#### B1 isolation and evidence boundary
+
+The user permits one local isolated B1 measurement campaign despite the general
+image freeze. Its only DocumentServer is the unmodified pinned 9.4.0 image;
+owned helper processes may serve deterministic samples, record real callbacks
+and proxy the browser origin. A fresh internal network and loopback publication
+isolate this campaign from existing services and the LAN. Restarts measure the
+same instance's shutdown reset; they do not authorize another deployment.
+
+The governing invariant is that every consumed value comes from the identified
+running editor and a discriminating observation, never a stub or assumed API.
+Sibling surfaces are browser events, command responses, callback bodies,
+exported OOXML, iframe policy, cookie stripping and shutdown/restart state.
+Keep JWT enabled, redact credentials, record monotonic timings and preserve
+counterexamples. Test-only helpers live outside the repository and are removed
+after retaining evidence. The pre-existing image is not deleted.
+
+The dated record distinguishes local arm64 behavior from acceptance-machine
+capacity and unmeasured architectures. Primary-source discrepancies, including
+the release's actual connection-limit behavior, are recorded rather than
+normalized to the plan. Licence applicability remains a human judgement.
+The verdict supplies the B1 prerequisite, not release acceptance; source-only
+exceptions recorded in tasks remain separate, and other image acceptance remains frozen.
 
 ### D5. The broker is an in-process package with per-chat file state
 
@@ -297,7 +321,7 @@ A final callback takes the pending close allocation as its `save_seq`, or alloca
 
 `POST .../close` records the intent only; the session ends when DocumentServer reports status 2 or 4. A close leaves a `conflict` session in `conflict`, so a pending conflict is not lost to it. A status 6 or 7 returns a `saving` session to `editing` only when it carries the outstanding `save_seq`. The host page destroys its editor only after the close request was accepted, so that status 1 cannot arrive before the close is recorded. A close on a session that never left `opening` ends it at once as `closed`: no editor connected, so no final callback will come. When a document is reopened, saved or closed and DocumentServer no longer knows the session's key, the session is `orphaned`. A reopen then creates a new session in the same request, with one exception: when the orphaned session leaves the document's newest version unpublished, that request is refused with `unpublished_version` and creates nothing, so the content is offered to the user before a new session buries it (D13). The session is orphaned by then, so the next create request succeeds.
 
-Connection cap. When the B1 record shows that usage can be queried, the broker checks it before creating a session and before a join and refuses with `connection_limit`. In every case the host page also maps the editor's own refusal (the event the B1 record names) to `refused` with reason `connection_limit`; it sends `close` when the session was not a join, which ends a never-opened session as above.
+Connection admission follows the [B1 selection decision](../../../docs/decisions/implemented/architecture/2026-10-03-ocu-office-editor-selection.md): 21 distinct documents entered edit mode without a cap refusal, and no documented global live-connection query is available. The broker adds no artificial 20-connection check and the host page adds no cap-event mapping. `refused` is reserved for broker refusals such as validation failure and `unpublished_version`; actual editor/API failures remain errors. This does not guarantee capacity above the measured boundary.
 
 ### D10. Persist pipeline
 
@@ -533,7 +557,7 @@ The samples are deterministic and carry what the acceptance rows judge: the DOCX
 - **Pause freezes user processes.** → Window under 1 second, hard limit 5 seconds, stale-fence recovery on the next poll.
 - **A same-size, forged-mtime Agent edit is not noticed while editing.** → The publish-time hash still catches it; only the convenience notice is missed.
 - **DocumentServer below its official minimum on the acceptance machine.** → Recorded deviation; the acceptance run keeps at most one sandbox running; production capacity is not claimed.
-- **The 20-connection cap.** → New sessions are refused with a clear message, by the broker when usage can be queried and by the host page when the editor itself refuses; exact detection is a B1 output.
+- **Concurrent-editor capacity is not certified.** → B1 demonstrates 21 admitted documents on the local machine, not production capacity; no synthetic cap replaces capacity measurement.
 - **A rename the index has not recorded is not followed at publish.** → The publish becomes a conflict and the content is saved as a new file; nothing is lost.
 - **Two workers and file state.** → Every transition is a locked read-modify-write of one file; no in-memory session state.
 - **A second published port widens the LAN surface.** → Session authentication on the listener, DocumentServer JWT, and DocumentServer itself still publishes nothing.
@@ -568,6 +592,5 @@ The samples are deterministic and carry what the acceptance rows judge: the DOCX
 ## Open Questions
 
 - The exact iframe sandbox tokens and permission-policy features the editor needs — answered by the B1 record; the spec fixes that the list is constant and code-defined.
-- Whether the connection cap is detected by DocumentServer's refusal or by a queried count — answered by the B1 record; the spec fixes the refusal behaviour on both paths.
 - Which origin DocumentServer puts in a callback's download address — answered by the B1 record; the spec accepts both configured origins and always fetches from the server-to-server one.
 - The measured delay between the last tab closing and the status-2 callback — answered by the B1 record; it sets the progress timeout shown by the UI, not the protocol.

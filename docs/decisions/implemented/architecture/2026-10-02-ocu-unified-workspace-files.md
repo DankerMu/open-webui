@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-02
 supersedes: none
-references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113
+references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, 2026-10-03-ocu-office-editor-selection
 ---
 
 # One writable workspace files directory per chat
@@ -44,4 +44,4 @@ Release the server, tool guidance and rebuilt sandbox image together. Acceptance
 
 Real linux/amd64 container evidence remains required for writable files, private-home isolation and failed legacy-path writes; fake-engine mount assertions cannot prove the image half. By user direction, compatible image checks are batched under [#197](https://github.com/DankerMu/open-webui/issues/197) after the non-image source checks and review. Source closure is not deployment acceptance or proof that pending image checks passed. Operator documentation, proxy/stub synchronization and archive staging-file filtering retain their separately scheduled owners.
 
-The user's execution boundary is completion of all Epic #107 source tasks: no image builds or image-dependent acceptance runs occur before then. Missing B1 measurements remain unresolved, not an inferred go decision.
+The user's execution boundary is completion of all Epic #107 source tasks: image builds and image-dependent acceptance remain deferred, except the explicitly authorized isolated B1 characterization recorded by the [Office selection decision](2026-10-03-ocu-office-editor-selection.md). Its verdict resolves the B1 dependency only; it neither certifies this sandbox cutover nor releases the remaining image-acceptance batch.
