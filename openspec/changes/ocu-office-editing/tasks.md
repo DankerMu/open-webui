@@ -626,7 +626,7 @@ Required evidence: `make smoke-proxy` exit0 names `office.hurl` and every retain
 ## 23. [webui] Feature flag, client and store (spec: ocu-office-workspace-ui)
 
 - [x] 23.1 `ENABLE_OCU_OFFICE_EDIT` (default false) parsed strictly — a value that is neither true nor false fails startup — exposed as `enable_ocu_office_edit` in the config features object beside `enable_ocu_workspace`, and set in the harness environment. Verify: a backend test asserts the feature value for both settings and the startup failure; `make smoke` passes.
-- [ ] 23.2 `src/lib/apis/ocu/office.ts` (session status, versions, restore, resolve, with the mutation header and the existing error mapping) and a chat-keyed Office store module. Verify: Vitest covers request shape, error mapping, generation handling and that no state crosses chats.
+- [x] 23.2 `src/lib/apis/ocu/office.ts` (session status, versions, restore, resolve, with the mutation header and the existing error mapping) and a chat-keyed Office store module. Verify: Vitest covers request shape, error mapping, generation handling and that no state crosses chats.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - a config surface in the upstream spine (`main.py`) and a new client on guarded routes.
@@ -647,6 +647,18 @@ Minimal mergeable slice: 23.1 (the flag) - green alone because nothing reads it 
 - Documentation / migration notes — Selected: update the existing Office plan's flag contract and record the one-line spine reference; strict OpenSpec, doc and decision gates.
 
 Required evidence: semantic red from missing Office config key or invalid input being accepted, then owning router/auth pytest modules, `make lint-scoped`, router/harness coverage and `make smoke`. Start/restart the harness with its explicit true value, probe authenticated config true and anonymous omission; do not claim generic smoke itself asserts the new key. Retain fresh command exits and remove only owned runtime resources.
+
+### Office client and store risk coverage
+
+- API / schema — Selected: Vitest asserts all four encoded gateway paths, methods, JSON bodies and response fields; no create/save/close API.
+- Auth / permissions — Selected: same-origin credentials, no bearer token, mutation header on both POSTs. Gateway authorization itself is unchanged and covered by the existing gateway smoke.
+- Concurrency / ordering — Selected: current generation applies; retired and absent generations do not; each operation preserves the other chat, including a late A result after B becomes current.
+- Compatibility — Selected: reuse the existing error class without modifying workspace exports, state or consumers; no `artifactContents` dependency.
+- Errors / partial outputs — Selected: transport → status 0/request_failed; every HTTP failure rejects with its status and unchanged string reason, including 404 unknown_file and an unrecognized broker reason; missing/unreadable reason → request_failed; invalid success JSON → actual status/invalid_response.
+- Documentation — Selected: record exported client/store names in the existing Office plan; strict OpenSpec, doc and decision gates.
+- Config, file IO, resource limits and packaging — Not selected: no flag, filesystem, quota, dependency, deployment or build change.
+
+Required evidence: write paired behavior tests before modules; retain red output, then scoped Vitest and per-file coverage for both new modules (at least 80%). Run `make lint-scoped`, `make typecheck`, frontend tests and anti-drift; a clean exact-head CI run supplies full frontend/coverage proof if local discovery hits the separately tracked user-owned `.run` copies. Never delete or modify those copies, relax discovery or hide failures. A disposable loopback HTTP smoke invokes the actual client and applies results to two chat entries, observing request/refusal semantics and late-result isolation; no browser/editor acceptance is claimed. Remove only the smoke's owned resources.
 
 ## 24. [webui] Edit entry and editor frame (spec: ocu-office-workspace-ui)
 

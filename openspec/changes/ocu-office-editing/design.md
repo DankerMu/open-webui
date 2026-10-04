@@ -607,6 +607,33 @@ An invalid-case subprocess must exit on startup and name the setting. Real
 harness smoke and an authenticated config probe prove the configured runtime;
 scoped route/auth tests, lint and coverage retain existing authorization.
 
+#### Office client and store slice boundary
+
+Task 23.2 adds exactly the parent's four gateway operations: session status,
+versions, restore and resolve. Use same-origin cookie credentials under `/ocu`;
+encode each chat/file/session segment and put `X-Requested-With: ocu-workspace`
+on restore and resolve. Session creation, save and close remain child-owned.
+
+Reuse `WorkspaceRequestError` without changing the existing workspace mapping.
+The governing issue ruling is: "the Office client passes the reason of the
+broker's response body through unchanged, with the HTTP status: no allow-list
+and no folding of 404 into `not_found`". An absent, non-string or unreadable
+reason yields `request_failed`; transport failure uses status 0. Invalid JSON
+on success yields `invalid_response` with the response status. No response
+schema validator, retries or reason translation is added by this slice.
+
+Invariant: Office state and generation belong to exactly one chat. Beginning
+or retiring a generation affects only that chat; an update for a retired or
+absent generation changes nothing. Making chat B current does not retarget an
+in-flight chat A result. The new store follows the workspace generation pattern,
+not a global active-chat pointer, and never imports `artifactContents`.
+
+Sibling surfaces are the shared error class, gateway listing transport, workspace
+generation helpers and the later frame/close-guard consumers. Existing modules
+remain unchanged. New modules deliberately have no component callers until
+the following slices; this is the issue's explicit boundary, not unused fallback
+code. Store field/API names are implementation choices documented for consumers.
+
 ### D17. DocumentServer placement and origin
 
 DocumentServer is a compose service on the control-plane network only, with no host publication and no Docker socket. It is added to the existing core stack beside the OCU server, not as a fourth stack, so the deployment entry and the smoke keep their three-stack lists. The proxy publishes a second port whose listener forwards to DocumentServer, including WebSocket upgrade. Every request on that listener passes session authentication (`/api/v1/auths/` with the browser cookie; cookies are not port-scoped). Browsers therefore see DocumentServer on a different origin from WebUI, so script running in the editor origin cannot read WebUI's `localStorage` token. The listener uses the WebUI session cookie for the authentication subrequest only and does not forward it to DocumentServer, a third-party image that has no use for the user's WebUI credential; B1 confirms the editor works without it.

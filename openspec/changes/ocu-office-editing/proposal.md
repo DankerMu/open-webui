@@ -279,3 +279,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, config, file IO, schema, auth/secrets, concurrency, resource limits, compatibility, partial failure, packaging and documentation.
 - Evidence floor: state/outcome/epoch matrix, independently verified real HTTP commands, two-process admission, command-time callback-side lock acquisition, concurrent close/reconciliation and byte-preserving refusal proofs.
 - B1 input: [native save observation](../../../docs/evidence/issue-119/2026-10-03-b1.md#13-editor-native-save-with-user-force-save-disabled) with `editorConfig.customization.forcesave = false`: no callback in the measured 199.701-second DOCX window, not an unbounded guarantee.
+
+## Office client and store fixture
+
+- Issue type: feature; fixture level: expanded for guarded HTTP calls and asynchronous chat isolation.
+- Scope: task 23.2, two new frontend modules with paired Vitest files, intentionally without callers. Existing workspace exports, backend, components and `artifactContents` stay unchanged.
+- Blast radius: broker refusal visibility, mutation request shape and late results reaching the wrong chat.
+- Selected risk packs: API, schema, auth transport, concurrency/ordering, compatibility, errors and documentation.
+- Evidence floor: four request shapes, unchanged broker reasons, transport/JSON failures, current/retired generations and two-chat isolation; per-file coverage, scoped lint/typecheck, actual HTTP client/store smoke and clean-runner full frontend checks.
