@@ -31,6 +31,8 @@
 	"{{count}} users_one": "{{count}} Benutzer",
 	"{{count}} users_other": "{{count}} Benutzer",
 	"{{COUNT}} words": "{{COUNT}} Wörter",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}} T",
 	"{{COUNT}}h_time_ago": "{{COUNT}} h",
 	"{{COUNT}}m_time_ago": "{{COUNT}} min",

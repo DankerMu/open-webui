@@ -31,6 +31,8 @@
 	"{{count}} users_one": "",
 	"{{count}} users_other": "",
 	"{{COUNT}} words": "{{COUNT}} வார்த்தைகள்",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}} நாட்களுக்கு முன்",
 	"{{COUNT}}h_time_ago": "{{COUNT}} மணி நேரங்களுக்கு முன்",
 	"{{COUNT}}m_time_ago": "{{COUNT}} நிமிடங்களுக்கு முன்",
