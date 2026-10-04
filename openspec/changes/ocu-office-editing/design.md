@@ -533,7 +533,8 @@ The host page owns session creation, the status poll, the 5-minute auto-save tim
 
 Task 23.1 owns only backend discovery of the Office switch. Parse once at import
 beside the existing fork-owned OCU flag; `main.py` adds one authenticated
-features entry and a Plan2 reference, not another parser.
+features entry, not another parser. The flag contract is recorded in
+`docs/plans/2026-09-20-office-manual-editing.md` §5.
 
 Invariant: unset means false; only case-insensitive `true`/`false` are accepted.
 Empty strings, whitespace padding and other values fail startup with the
