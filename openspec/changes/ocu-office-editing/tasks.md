@@ -498,7 +498,6 @@ processes and remove private temporary files after retaining sanitized evidence.
 The WebUI companion runs strict OpenSpec, doc and decision checks; production
 broker/editor acceptance is not claimed by this routing proof.
 
-
 ## 22. [webui] Stub Office fixtures and gateway smoke (spec: ocu-stub, ocu-proxy-smoke)
 
 - [ ] 22.1 `scripts/ocu-stub.py`: deterministic Office session, status, save, close, resolve, versions and restore fixtures and an `embed=office` host page that speaks the message protocol without a real editor. The selectable outcomes are added once, as these scenario names of the stub's existing mechanism: `office` (default round trip), `office_conflict`, `office_unsupported` (415 `unsupported_type` at creation), `office_orphaned`, `office_save_as` (automatic save-as at close), `office_unpublished` (newest version unpublished, no session) and `office_stale` (a stale session whose first creation is refused with `unpublished_version`); `scripts/smoke-stub.sh` asserts them. Verify: `make smoke-stub` output names each fixture.

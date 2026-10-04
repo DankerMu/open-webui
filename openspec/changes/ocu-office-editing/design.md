@@ -296,7 +296,6 @@ temporary configs are exercised. A failed render preserves the previous config;
 rollback restores the matching table/renderer pair. The later WebUI pin/smoke
 consumer owns its update separately, and the second listener is out of scope.
 
-
 ### D8. One user-visible save; publish on save and on close
 
 | Trigger                                                                                                             | Effect                                                                        |
