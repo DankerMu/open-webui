@@ -31,6 +31,8 @@
 	"{{count}} users_one": "",
 	"{{count}} users_other": "",
 	"{{COUNT}} words": "{{COUNT}} söz",
+	"{{count}}+ files_one": "",
+	"{{count}}+ files_other": "",
 	"{{COUNT}}d_time_ago": "{{COUNT}} gün əvvəl",
 	"{{COUNT}}h_time_ago": "{{COUNT}} saat əvvəl",
 	"{{COUNT}}m_time_ago": "{{COUNT}} dəq əvvəl",
