@@ -529,6 +529,32 @@ The host page owns session creation, the status poll, the 5-minute auto-save tim
 - Feature flag `ENABLE_OCU_OFFICE_EDIT`, default false, exposed through the config features object like `enable_ocu_workspace`. With the flag off no edit entry is rendered and no Office request is made. A value that is neither true nor false fails startup (AGENTS.md: misconfiguration fails loud); the existing workspace flag's lenient parsing is not changed here.
 - A new client module `src/lib/apis/ocu/office.ts` and chat-keyed store state beside the workspace store.
 
+#### Office flag slice boundary
+
+Task 23.1 owns only backend discovery of the Office switch. Parse once at import
+beside the existing fork-owned OCU flag; `main.py` adds one authenticated
+features entry and a Plan2 reference, not another parser.
+
+Invariant: unset means false; only case-insensitive `true`/`false` are accepted.
+Empty strings, whitespace padding and other values fail startup with the
+variable name, without echoing arbitrary input. Workspace parsing stays lenient
+and independent; an invalid Office value fails even when workspace is disabled.
+Anonymous config omits the Office key, while authenticated config reports a
+boolean regardless of the workspace flag's value.
+
+Sibling surfaces are router import, main config serialization, dev environment,
+backend test environment and the existing workspace config/auth tests. Both
+harness environments explicitly enable Office for later consumers; production
+defaults remain off. No client consumes the setting in this slice.
+
+Test environment setup must precede each case-specific environment assignment
+and fresh application import, so harness defaults and Python module caching
+cannot fake parser coverage. Isolated subprocesses use the existing harness
+storage boundary; authenticated TestClient config proves the parsed value.
+An invalid-case subprocess must exit on startup and name the setting. Real
+harness smoke and an authenticated config probe prove the configured runtime;
+scoped route/auth tests, lint and coverage retain existing authorization.
+
 ### D17. DocumentServer placement and origin
 
 DocumentServer is a compose service on the control-plane network only, with no host publication and no Docker socket. It is added to the existing core stack beside the OCU server, not as a fourth stack, so the deployment entry and the smoke keep their three-stack lists. The proxy publishes a second port whose listener forwards to DocumentServer, including WebSocket upgrade. Every request on that listener passes session authentication (`/api/v1/auths/` with the browser cookie; cookies are not port-scoped). Browsers therefore see DocumentServer on a different origin from WebUI, so script running in the editor origin cannot read WebUI's `localStorage` token. The listener uses the WebUI session cookie for the authentication subrequest only and does not forward it to DocumentServer, a third-party image that has no use for the user's WebUI credential; B1 confirms the editor works without it.

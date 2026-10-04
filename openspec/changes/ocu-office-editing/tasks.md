@@ -593,12 +593,28 @@ Required evidence: `make smoke-proxy` exit0 names `office.hurl` and every retain
 
 ## 23. [webui] Feature flag, client and store (spec: ocu-office-workspace-ui)
 
-- [ ] 23.1 `ENABLE_OCU_OFFICE_EDIT` (default false) parsed strictly — a value that is neither true nor false fails startup — exposed as `enable_ocu_office_edit` in the config features object beside `enable_ocu_workspace`, and set in the harness environment. Verify: a backend test asserts the feature value for both settings and the startup failure; `make smoke` passes.
+- [x] 23.1 `ENABLE_OCU_OFFICE_EDIT` (default false) parsed strictly — a value that is neither true nor false fails startup — exposed as `enable_ocu_office_edit` in the config features object beside `enable_ocu_workspace`, and set in the harness environment. Verify: a backend test asserts the feature value for both settings and the startup failure; `make smoke` passes.
 - [ ] 23.2 `src/lib/apis/ocu/office.ts` (session status, versions, restore, resolve, with the mutation header and the existing error mapping) and a chat-keyed Office store module. Verify: Vitest covers request shape, error mapping, generation handling and that no state crosses chats.
 
 Depends on: none beyond group 8.
 Suggested fixture level: expanded - a config surface in the upstream spine (`main.py`) and a new client on guarded routes.
 Minimal mergeable slice: 23.1 (the flag) - green alone because nothing reads it yet; 23.2 adds modules without callers.
+
+### Office feature-flag risk coverage
+
+- Public API / CLI / script entry — Selected: real authenticated `/api/config` reports the boolean; anonymous response omits the key. `main.py` changes only one features entry.
+- Config / project setup — Selected: fresh-process `true`, `TRUE`, mixed-case false, `false` and unset yield their corresponding booleans. `maybe`, empty and padded values reject startup naming `ENABLE_OCU_OFFICE_EDIT`; no trimming or truthiness coercion.
+- File IO / path safety / overwrite — Not selected: no new application storage or file behavior; test data stays under the existing harness boundary.
+- Schema / columns / units / field names — Selected: exact `features.enable_ocu_office_edit` boolean beside workspace; other config keys unchanged.
+- Auth / permissions / secrets — Selected: authenticated-only exposure, no credential values in errors; existing owner/shared/admin and anonymous workspace tests stay unchanged.
+- Concurrency / shared state / ordering — Selected: process-isolated environment cases after harness setup and before app import; no module reload or cached-flag patch substitutes for parser proof.
+- Resource limits / large input / discovery — Not selected: one bounded configuration value, no resource-policy change.
+- Legacy compatibility / examples — Selected: lenient workspace parser unchanged; Office value is independent of workspace enablement and adds no routes or requests.
+- Error handling / rollback / partial outputs — Selected: invalid Office value prevents startup even with workspace disabled; false rolls discovery off without deleting state.
+- Release / packaging / dependency compatibility — Not selected: no dependencies, images or deploy variables provisioned.
+- Documentation / migration notes — Selected: update the existing Office plan's flag contract and record the one-line spine reference; strict OpenSpec, doc and decision gates.
+
+Required evidence: semantic red from missing Office config key or invalid input being accepted, then owning router/auth pytest modules, `make lint-scoped`, router/harness coverage and `make smoke`. Start/restart the harness with its explicit true value, probe authenticated config true and anonymous omission; do not claim generic smoke itself asserts the new key. Retain fresh command exits and remove only owned runtime resources.
 
 ## 24. [webui] Edit entry and editor frame (spec: ocu-office-workspace-ui)
 

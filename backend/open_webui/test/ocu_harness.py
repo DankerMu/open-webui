@@ -26,6 +26,7 @@ def configure_ocu_test_env() -> None:
     os.environ.setdefault('OFFLINE_MODE', 'true')
     os.environ.setdefault('ENABLE_VERSION_UPDATE_CHECK', 'false')
     os.environ['ENABLE_OCU_WORKSPACE'] = 'true'
+    os.environ['ENABLE_OCU_OFFICE_EDIT'] = 'true'
 
 
 configure_ocu_test_env()
