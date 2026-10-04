@@ -22,6 +22,8 @@ Missing state is an empty schema without creating `state.json`. Unreadable, malf
 
 The top-level schema is `schema_version` 1 with mapping collections `documents`, `sessions`, `receipts` and `journal`. Session creation uses the version store's optional state mutator to publish its captured version, document metadata and opening session in the same successor. Blob publication retains its existing owned-blob cleanup on precommit failure; postreplace durability failure retains the complete visible successor and referenced blob. Workspace reads share one descriptor-safe implementation with an optional byte limit, so admission never requires materializing an oversized file.
 
+Join/reopen decisions keep this lock across the bounded DocumentServer key lookup in a synchronous request worker; the async client runs on that worker's private event loop, never while the application event loop owns a blocking chat lock. This serializes same-chat admission without an optimistic revalidation protocol, at the cost of delaying that chat by the existing lookup timeout. A confirmed orphan transition is durable independently of replacement creation: a later validation/storage failure must not revive a forgotten editor, while replacement capture remains atomic.
+
 ## Alternatives considered
 
 - **PostgreSQL** — new dependency, a migration job, a backup extension, and two-store crash consistency between chat files and rows.
