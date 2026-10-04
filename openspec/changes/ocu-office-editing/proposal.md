@@ -222,6 +222,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public HTTP API, production configuration, auth/permissions, path safety, schema/pin compatibility, error handling, atomic file replacement and documentation.
 - Evidence floor: a real-nginx Office forwarding case red against the unchanged table, then green; all seven owner rows and denial matrices; renderer pin/count/placeholder rejection preserving the previous private config; all existing proxy tests and the structure check.
 
+## Office stub fixture
+
+- Issue type: test infrastructure; fixture level: expanded. Override the suggested compact level because the threaded HTTP stub gains per-chat session state and an executable parent-message protocol.
+- Scope: task 22.1 only, the stub and its smoke helpers. Seven named scenarios are authoritative; the issue's isolated reference to eight is not an additional scenario.
+- Blast radius: deterministic browser/gateway fixtures, file identity and revisions, existing preview modes and credential containment.
+- Selected risk packs: API, configuration, schema, auth, concurrency, compatibility, errors and documentation.
+- Evidence floor: `make smoke-stub` exercises every named scenario, default behavior, forbidden methods/paths, isolation and deterministic replay; lint and documentation gates pass. Host-page JavaScript is review-only in this slice; browser execution belongs to tasks 24.1 and 24.4.
+
 ## Office route availability fixture
 
 - Issue type: feature; fixture level: expanded, matching task 12.1.
