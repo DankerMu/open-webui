@@ -229,3 +229,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: authentication precedence, canonical path identity, disabled-route containment and accidental chat-directory creation.
 - Selected risk packs: API, config, file/path safety, response schema, auth, ordering, compatibility, errors, packaging and documentation.
 - Evidence floor: real app authorization matrix, literal empty-segment rejection, Office preflight/method coverage, zero state/network work on denials, enabled/disabled import isolation and packaged HTTP smoke.
+
+## Office session creation fixture
+
+- Issue type: feature; fixture level: expanded, matching task 12.2.
+- Scope: creation handler and tests, with the [approved minimal store/read extensions](https://github.com/DankerMu/open-webui/issues/128#issuecomment-5977752090): one commit for version/document/session and a bounded descriptor-safe read. No new dependency or storage-schema migration.
+- Blast radius: partial session capture, workspace path escape, oversized reads, cross-chat disclosure and signed configuration integrity.
+- Selected risk packs: API, config, file/path safety, record schema, auth/secrets, concurrency, resource limits, compatibility, rollback, packaging and documentation.
+- Evidence floor: actual-app refusal/success matrix, byte-preserving refusal snapshots, atomic-commit failure injection, bounded safe-read and existing store regressions, concurrent creation, independent configuration verification and packaged HTTP smoke.

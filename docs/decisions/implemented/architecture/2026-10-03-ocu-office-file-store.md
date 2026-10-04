@@ -20,12 +20,13 @@ Keep Office broker state as per-chat files under `{BASE_DATA_DIR}/{chat_id}/.ocu
 
 Missing state is an empty schema without creating `state.json`. Unreadable, malformed or unknown-version state, including inspection and read `OSError` at the chat root, control directories, or `state.json`, fails as `StateCorruptError`, preserves the original cause, and keeps its bytes. A missing path stays absent rather than corrupt. Mutator failures and pre-replace write failures, including ancestor-directory sync failure before replace, remain explicit write-side errors and leave the predecessor. A post-replace leaf-directory sync failure is `StateDurabilityError` and does not claim rollback. Control directories and the state file are opened without following symlinks.
 
-This slice publishes only the top-level schema (`schema_version` 1 and mapping collections `documents`, `sessions`, `receipts`, `journal`). Version blobs, receipts semantics, session lifecycle and restore-epoch comparison are later owners.
+The top-level schema is `schema_version` 1 with mapping collections `documents`, `sessions`, `receipts` and `journal`. Session creation uses the version store's optional state mutator to publish its captured version, document metadata and opening session in the same successor. Blob publication retains its existing owned-blob cleanup on precommit failure; postreplace durability failure retains the complete visible successor and referenced blob. Workspace reads share one descriptor-safe implementation with an optional byte limit, so admission never requires materializing an oversized file.
 
 ## Alternatives considered
 
 - **PostgreSQL** — new dependency, a migration job, a backup extension, and two-store crash consistency between chat files and rows.
 - **SQLite** — still a second store beside the chat-data tree, with extra failure modes under two workers sharing one file.
+- **Capture, then commit the session separately** — an ENOSPC failure on the second commit leaves a document/version/blob without the refused session. One state publication keeps creation atomic without a second store or compensation journal.
 
 ## Consequences
 
