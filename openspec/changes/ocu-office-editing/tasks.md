@@ -756,7 +756,7 @@ Required evidence for 24.4: `make verify-ui-ocu` passes all configured cases wit
 
 ## 25. [webui] Maximize and version history (spec: ocu-office-workspace-ui)
 
-- [ ] 25.1 Maximize as an in-page overlay that keeps the same editor frame. Add a maximize case to `e2e/ocu-office.e2e.ts` that takes one explicit screenshot of each layout into `.run/ui-evidence/` (the configuration captures only on failure). Verify: Vitest asserts the frame element survives maximize and restore; `make verify-ui-ocu` passes with the maximize case named in its output and both screenshots present.
+- [x] 25.1 Maximize as an in-page overlay that keeps the same editor frame. Add a maximize case to `e2e/ocu-office.e2e.ts` that takes one explicit screenshot of each layout into `.run/ui-evidence/` (the configuration captures only on failure). Verify: Vitest asserts the frame element survives maximize and restore; `make verify-ui-ocu` passes with the maximize case named in its output and both screenshots present.
 - [ ] 25.2 Version history: reachable from the status bar and from the file entry when no editor is open; list with source and published flag; the restore action, disabled while an editor frame is open on the document in this page and otherwise left to the broker's answer. Verify: Vitest for the list, both entry points, the restore call, the disabled state, and a `session_open` refusal shown as an error.
 
 Depends on: 24.

@@ -159,6 +159,7 @@ async function expectOfficeSaveContinuity(
 	expect(await readOfficeParent(page, chatId)).toMatchObject({
 		fileId: opened.file.file_id,
 		sessionId: opened.session.session_id,
+		state: 'editing',
 		generation
 	});
 	const arrivals = chatOfficeRecords(recordOffset, chatId);
@@ -650,6 +651,7 @@ test('Office maximize keeps the same live editor document and usable overlay Sav
 		expect(sidebarGeometry?.selected.open).toBe(false);
 		await page.screenshot({ path: `${evidence}/office-maximize-sidebar.png`, fullPage: true });
 		await maximizeOfficeEditor(page, before);
+		expect((await readOfficeParent(page, chatId))?.state).toBe('editing');
 		const overlayGeometry = await officeLayoutGeometry(page);
 		expect(overlayGeometry?.selected.popover).toBe('manual');
 		expect(overlayGeometry?.selected.open).toBe(true);
@@ -716,6 +718,7 @@ test('Office maximize overlay remains reachable in the narrow Drawer layout', as
 		const before = await officeEditorIdentity(page);
 		expectLiveEditor(before);
 		await maximizeOfficeEditor(page, before);
+		expect((await readOfficeParent(page, chatId))?.state).toBe('editing');
 		const overlayGeometry = await officeLayoutGeometry(page);
 		expect(overlayGeometry?.drawer).toBe(true);
 		expect(overlayGeometry?.selected.popover).toBe('manual');

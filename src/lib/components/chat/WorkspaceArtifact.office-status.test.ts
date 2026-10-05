@@ -434,47 +434,64 @@ describe('Office editor status bar', () => {
 
 	it('keeps the same editor frame across maximize, overlay Save, and restore', async () => {
 		const requestFullscreen = vi.fn();
-		HTMLElement.prototype.requestFullscreen = requestFullscreen;
-		Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null });
-		const frame = await openEditor();
-		const { sent, openMessage } = await harness.acceptEditing(frame);
-		expect(frame.getAttribute('src')).toBe(`/ocu/preview/${chat}?embed=office`);
-		expect(frame.getAttribute('sandbox')).toBe(OFFICE_EDITOR_SANDBOX);
-		expect(frame.getAttribute('allow')).toBe(OFFICE_EDITOR_ALLOW);
-		maximizeControl()!.click();
-		await tick();
-		expect(editorFrame('report.docx')).toBe(frame);
-		expect(overlayLayout()).toBe(true);
-		expect(selectedFileSurface()?.getAttribute('popover')).toBe('manual');
-		expect(restoreControl()).toBeDefined();
-		expect(
-			sent.mock.calls.filter(
-				(call) =>
-					!!call[0] &&
-					typeof call[0] === 'object' &&
-					'type' in call[0] &&
-					call[0].type === 'ocu:office-open'
-			)
-		).toHaveLength(1);
-		expect(document.fullscreenElement).toBeNull();
-		expect(requestFullscreen).not.toHaveBeenCalled();
-		postOfficeState(frame, openMessage.generation, { dirty: true });
-		await tick();
-		saveControl()!.click();
-		await tick();
-		expect(officeCommandCalls(sent)[0][0]).toEqual({
-			type: 'ocu:office-command',
-			chat_id: chat,
-			generation: openMessage.generation,
-			command: 'save'
-		});
-		restoreControl()!.click();
-		await tick();
-		expect(editorFrame('report.docx')).toBe(frame);
-		expect(overlayLayout()).toBe(false);
-		expect(selectedFileSurface()?.hasAttribute('popover')).toBe(false);
-		expect(maximizeControl()).toBeDefined();
-		expect(harness.officeRequests()).toEqual([]);
+		const exitFullscreen = vi.fn();
+		const targets = [
+			[HTMLElement.prototype, 'requestFullscreen'],
+			[document, 'exitFullscreen']
+		] as const;
+		const descriptors = targets.map(([target, key]) =>
+			Object.getOwnPropertyDescriptor(target, key)
+		);
+		try {
+			Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
+				configurable: true,
+				value: requestFullscreen
+			});
+			Object.defineProperty(document, 'exitFullscreen', {
+				configurable: true,
+				value: exitFullscreen
+			});
+			const frame = await openEditor();
+			const { sent, openMessage } = await harness.acceptEditing(frame);
+			expect(frame.getAttribute('src')).toBe(`/ocu/preview/${chat}?embed=office`);
+			expect(frame.getAttribute('sandbox')).toBe(OFFICE_EDITOR_SANDBOX);
+			expect(frame.getAttribute('allow')).toBe(OFFICE_EDITOR_ALLOW);
+			maximizeControl()!.click();
+			await tick();
+			expect(editorFrame('report.docx')).toBe(frame);
+			expect(overlayLayout()).toBe(true);
+			expect(selectedFileSurface()?.getAttribute('popover')).toBe('manual');
+			expect(restoreControl()).toBeDefined();
+			postOfficeState(frame, openMessage.generation, { dirty: true });
+			await tick();
+			saveControl()!.click();
+			await tick();
+			expect(officeCommandCalls(sent)[0][0]).toEqual({
+				type: 'ocu:office-command',
+				chat_id: chat,
+				generation: openMessage.generation,
+				command: 'save'
+			});
+			restoreControl()!.click();
+			await tick();
+			expect(editorFrame('report.docx')).toBe(frame);
+			expect(overlayLayout()).toBe(false);
+			expect(selectedFileSurface()?.hasAttribute('popover')).toBe(false);
+			expect(maximizeControl()).toBeDefined();
+			expect(
+				sent.mock.calls.filter(([message]) => message?.type === 'ocu:office-open')
+			).toHaveLength(1);
+			expect(officeCommandCalls(sent)).toHaveLength(1);
+			expect(requestFullscreen).not.toHaveBeenCalled();
+			expect(exitFullscreen).not.toHaveBeenCalled();
+			expect(harness.officeRequests()).toEqual([]);
+		} finally {
+			targets.forEach(([target, key], index) => {
+				const descriptor = descriptors[index];
+				if (descriptor) Object.defineProperty(target, key, descriptor);
+				else Reflect.deleteProperty(target, key);
+			});
+		}
 	});
 
 	it('clears maximized layout on ready timeout and Open again', async () => {
