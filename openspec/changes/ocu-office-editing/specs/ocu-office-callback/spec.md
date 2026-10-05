@@ -30,6 +30,16 @@ OCU SHALL serve `GET /office/source/{ticket}` and `POST /office/callback/{chat}/
 - **WHEN** Office editing is not enabled and either route is requested
 - **THEN** the response is 404 and no Office state is read or created
 
+#### Scenario: Authentication without callback processing
+
+- **WHEN** a valid callback reaches the authentication-only slice before task 14.2 supplies processing
+- **THEN** the response is HTTP 503 with reason `callback_processing_unavailable`, no state or file changes, and no save is acknowledged
+
+#### Scenario: Disabled control-plane preflight
+
+- **WHEN** a non-sandbox peer sends OPTIONS to a source or callback route while Office is disabled
+- **THEN** the response is 404 without credential or Office-state evaluation, not a successful generic CORS preflight
+
 ### Requirement: Source ticket
 
 A source ticket SHALL be a signed token with a configured short lifetime that binds one chat, one document (`file_id`), one version and one session. `GET /office/source/{ticket}` SHALL return 401 with reason `invalid_ticket`, without reading version content, when the ticket is malformed, its signature does not verify, any bound value was altered, or its lifetime has passed. A valid ticket SHALL return exactly the stored bytes of the bound version — not the current workspace file — and SHALL give access to nothing else.
@@ -49,6 +59,21 @@ A source ticket SHALL be a signed token with a configured short lifetime that bi
 - **WHEN** the chat, document, version or session inside a ticket is replaced with another user's values, or the signature is changed
 - **THEN** the response is 401 with reason `invalid_ticket` and no content is returned
 
+#### Scenario: Ticket lifetime is independent of session lifecycle
+
+- **WHEN** an unexpired valid ticket binds an existing session, its document and an existing version, but that session is no longer active
+- **THEN** source delivery still returns that version's bytes without changing the session
+
+#### Scenario: Stored source integrity fails
+
+- **WHEN** a valid source binding selects a missing, nonregular, symlinked or hash-corrupt stored blob
+- **THEN** source delivery fails without reading through a link, returning workspace bytes or changing any stored state
+
+#### Scenario: Source chat data is gone
+
+- **WHEN** a valid source ticket names a chat whose data directory is absent
+- **THEN** a non-creating check before the canonical chat lock returns 401 `invalid_ticket`, and neither the directory nor a lock or state file is created
+
 ### Requirement: Callback authentication
 
 A callback SHALL be accepted only when its DocumentServer JWT verifies against the configured DocumentServer secret. Status, document key, download address and user data SHALL be taken only from the verified payload; values outside it SHALL be ignored. The key in the payload SHALL equal the `document_key` of the session named in the path, and that session SHALL belong to the chat named in the path. A missing, unverifiable or expired JWT, or a key that does not match, SHALL be answered 401 with reason `invalid_token`; a rejected callback SHALL change no session, version or file and SHALL be recorded as a diagnosable error naming chat, session and reason without the token.
@@ -67,6 +92,11 @@ A callback SHALL be accepted only when its DocumentServer JWT verifies against t
 
 - **WHEN** a callback's verified payload reports status 1 while an unsigned field of the request body claims status 2 and a download address
 - **THEN** the callback is handled as status 1 and nothing is downloaded
+
+#### Scenario: Invalid header cannot fall back to body token
+
+- **WHEN** Authorization is present but malformed or fails JWT verification, while the body carries a valid token
+- **THEN** the callback returns 401 `invalid_token`, performs no download and changes no state
 
 ### Requirement: Callback status handling
 
