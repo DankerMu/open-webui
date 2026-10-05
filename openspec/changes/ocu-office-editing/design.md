@@ -548,7 +548,7 @@ Always under `_combined_lock(chat)`:
 
 A rename that no listing has recorded yet is not followed: the file is missing at the indexed path and the publish is a conflict, which is safe. The WebUI sidebar reconciles on every listing poll, so the index is normally current.
 
-Target window under pause: below 1 second. Past 5 seconds the publish fails with `publish_timeout` and the sandbox is unpaused. When the sandbox is not running the same steps run without pause; `launch` takes the same lock and therefore waits.
+Target window under pause: below 1 second. The [user-approved timing ruling](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072) defines five seconds as a safe-boundary publication budget, not a hard wall-clock unpause guarantee. When elapsed monotonic time is at least five seconds at a safe boundary, start no further publication mutation; let an in-flight indivisible operation settle before cleanup. Before workspace replacement, timeout preserves the prior file; after replacement, incomplete registration/completion retains the journal instead of claiming rollback. A visible completed successor is never rewritten as a fabricated timeout failure. Slow engine/filesystem calls can extend actual pause duration. Stopped or externally paused sandboxes do not acquire this attempt's pause budget; `launch` still waits for the shared lock.
 
 Every publish ends in one of three outcomes, and each removes the journal entry and sets the session:
 
@@ -582,6 +582,24 @@ An interrupted IO transaction is not a completed failed outcome. Before replacem
 
 Governing invariant: a successful publish is complete workspace bytes, one registered broker revision and one consistent Office successor under the shared lock; a refused publish neither follows an unsafe path nor overwrites mismatched workspace content. Sibling surfaces are safe reads, immutable blobs, journal bindings, document publication metadata, session baselines, broker resolution/registration/listing and the real `launch_sandbox` lock consumer. The decision record states the full two-state design and explicitly separates this implemented stopped path from later pause/recovery integration.
 
+#### Running-sandbox fence boundary
+
+Task 15.2 generalizes the stopped-only entrypoint as `office.publish.publish(chat_id, journal_id)`; every caller migrates without an alias, and comparison/replacement/registration has one implementation. The stopped slice's identity, bounded-read, permissions and partial-commit guarantees remain. Running and externally paused states are admitted through the fence rules below; transitional/unknown engine states remain explicit refusals. No callback, route, startup recovery, idle-poll recovery or lifecycle outcome mapping is added.
+
+Resolve the indexed path and its expected failures before any pause. Persist the obligation's target/temp metadata before requesting a fence. An existing `fence.json` belongs to recovery and is never overwritten or treated as permission to resume a manually paused sandbox. For a running sandbox, persist a complete private no-follow marker with `schema_version: 1`, the observed `container_id` and `pause_started_at` wall time before issuing pause. An exclusive staged file and no-clobber hard link install complete marker bytes; marker and control-directory identities are checked before pause. Marker creation failure cannot proceed to pause or workspace mutation. Runtime duration uses a monotonic clock; persisted wall time is for later cross-process recovery.
+
+Only a fresh engine observation can establish the writer barrier. A successful pause call alone is insufficient; the same owned container must be observed paused before comparing/replacing. A pause error may occur after the engine actually paused, so failure cleanup must inspect and release the owned container too. A retention stop removes writers, never triggers start, and is not an error after the fence has been established. An initially paused sandbox without a marker is externally owned: no pause, no unpause, no marker claim, and its state is preserved.
+
+Check the five-second budget before and after potentially blocking publication phases and before irreversible transitions, including comparison, staging, replacement and broker registration. Expiry before replacement completes `failed / publish_timeout` without workspace change. Expiry after a visible replacement but before a consistent completion returns the nonterminal `interrupted / publish_timeout` result while retaining the obligation and whole workspace successor for recovery; it is not routed through terminal cleanup that would discard the journal. Never resume sandbox writers while a detached worker can still mutate the workspace. A timer/future cancellation does not cancel a synchronous engine or filesystem operation.
+
+The fenced pipeline's established result is preserved across release handling: slow or failed unpause does not retroactively turn a published/conflict result into a timeout. Release and final outcome bookkeeping may finish after the budget; no further workspace publication phase starts after observed expiry. Existing state durability exceptions retain their visible-successor semantics. This is the user's safe-boundary timing policy, not a guarantee that actual pause lasts at most five seconds.
+
+On every success, refusal, timeout or interruption, attempt release only for the fence owned by this attempt and the same container identity. Positive observation of unpaused, stopped or absent permits removal of the owned marker; unknown state or failed unpause leaves it for task 15.3. Do not target a replacement container found by name. Marker IO uses the existing safe Office directory primitives, private file modes and durability barriers, with owned-inode cleanup. Cleanup errors are reported without masking the primary result or exception. Emit one paused-window duration record for each attempted owned pause, identifying whether release was observed; elapsed time with a retained marker is not a claim that the sandbox resumed.
+
+The monotonic publication budget includes fence preparation. `paused_duration_seconds` is an upper-bound interval from pause request through release handling, identified by `duration_basis`; `publication_elapsed_seconds` reports the broader attempt. `release_observed`, `marker_retained` and `cleanup_failed` distinguish release observation, visible marker presence and cleanup durability. Neither elapsed interval claims precise engine-paused time.
+
+Required evidence distinguishes phase-clock behavior from wall-clock behavior: exact-five-second boundaries on both sides of replacement/registration, a genuinely delayed blocking dependency, primary-result preservation, marker write/remove faults, pause-success-despite-error, unpause/observation uncertainty, external pause, retention stop and container identity replacement. A process smoke uses a real filesystem writer governed by fake-engine pause state and observes complete publication or retained conflict bytes. Real-engine/image acceptance and recovery execution remain separate.
+
 The outputs broker gains two operations used here: resolve a `file_id` to its current path (a read of the persisted index; no scan, no hashing), and register a host-side write for a path. Registering a path that has no active entry creates one with a new `file_id`; this is how a `save_as` copy (D13) gets its identity.
 
 #### Read-only resolution boundary
@@ -610,7 +628,7 @@ Sibling surfaces: `reconcile` and `current_revision` observe the same index; `re
 
 ### D12. Stale-fence recovery, the session sweep, and why nothing else needs to yield
 
-`fence.json` records when the pause began. OCU's startup sweep and the existing idle-reclamation poll take the chat lock, and if they find a marker older than the 5-second limit they unpause the sandbox and remove the marker once it is observed not paused. A broker crash or a failed unpause therefore cannot leave a sandbox frozen for longer than one poll interval. A paused sandbox without a marker was not paused by a publish and is left alone.
+`fence.json` records when the pause began. OCU's startup sweep and the existing idle-reclamation poll take the chat lock and, for a marker older than five seconds, attempt to unpause the owned sandbox and remove the marker only after observing it not paused. Recovery cannot steal the fence from a live publisher that still owns the lock; slow engine/filesystem operations may delay lock acquisition or release under the user-approved safe-boundary policy. Once the lock is available and the engine accepts unpause, recovery clears a stale pause on the next poll. A paused sandbox without a marker was not paused by a publish and is left alone.
 
 The same poll sweeps Office sessions, so that no state is left without an exit:
 
@@ -1042,7 +1060,7 @@ turning scratch mutants into permanent source or weakening the passing oracle.
 - **A model writes to an old path by habit.** → The write fails loudly (`/mnt/user-data` is not writable); the system prompt names only the new path.
 - **The Agent can modify or delete an uploaded original.** → Intended. WebUI keeps the attachment; the first edit session stores the pre-edit content as a version.
 - **WebUI's stored attachment and content already injected into the model context go stale after an edit.** → Out of scope (Non-Goals); stated in the user notes.
-- **Pause freezes user processes.** → Window under 1 second, hard limit 5 seconds, stale-fence recovery on the next poll.
+- **Pause freezes user processes.** → Target below one second; five-second safe-boundary budget, not a hard wall-clock guarantee. Blocking calls can extend the pause; owned-marker recovery proceeds after the chat lock is available.
 - **A same-size, forged-mtime Agent edit is not noticed while editing.** → The publish-time hash still catches it; only the convenience notice is missed.
 - **DocumentServer below its official minimum on the acceptance machine.** → Recorded deviation; the acceptance run keeps at most one sandbox running; production capacity is not claimed.
 - **Concurrent-editor capacity is not certified.** → B1 demonstrates 21 admitted documents on the local machine, not production capacity; no synthetic cap replaces capacity measurement.

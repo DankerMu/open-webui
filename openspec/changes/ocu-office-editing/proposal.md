@@ -387,6 +387,15 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: retained conflict-browser invalid_response RED plus an independent owning smoke RED; conflict and automatic-close copies pass canonical URL and returned-URL byte/hash checks, then the actual unchanged browser consumer accepts both real gateway listings.
 - This authorized prerequisite precedes completion of task 26.1; the preserved conflict candidate and shared Office change remain open.
 
+## Running-sandbox fence fixture
+
+- Issue type: feature; fixture level: expanded, matching task 15.2 and the user-approved safe-boundary timing decision.
+- Scope: one generalized publication pipeline with owned pause/observe/unpause, durable marker and honest elapsed-time reporting; no callback, recovery poll, lifecycle lease or deployment changes.
+- Governing invariant: sandbox writers are excluded until the active publication work has settled; cleanup never assumes ownership of an external pause or erases an uncertain marker.
+- Selected risks: internal API/schema, file IO, ownership, concurrency/state, timing/resources, partial failure, compatibility, packaging and documentation.
+- Evidence floor: real filesystem transactions under a stateful fake engine, exact-five-second and delayed-operation cases, retained postreplace journal, marker/engine fault matrix and a process writer that quiesces only while paused.
+- User ruling: [「接受安全边界超时」](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072) permits blocking operations to extend actual pause duration; no hard wall-clock, real-engine or image/LAN certification is claimed.
+
 ## Office conflict-resolution fixture
 
 - Issue type: feature; fixture level: expanded, matching task 26.1 and its explicit multi-path width exception.

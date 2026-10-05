@@ -8,7 +8,13 @@ Publishing a stored version to the workspace file in OCU: the two-state fence un
 
 ### Requirement: Publish runs inside the fence under the shared per-chat lock
 
-Every publish — after a save with intent `publish`, after the final callback, on resolve and on restore — SHALL run entirely under the per-chat lock shared with sandbox lifecycle (the lock `launch` takes). When the sandbox is running, the broker SHALL write the fence marker `.ocu/office/fence.json` with the time the pause begins, pause the sandbox, observe that it is paused, and only then compare and replace; afterwards it SHALL unpause the sandbox. The marker SHALL be removed only after the sandbox is observed not paused, or not running at all; when the sandbox is still paused after the unpause attempt the marker SHALL stay, the stale-fence recovery (requirement "Stale-fence recovery never leaves a sandbox paused") retries the unpause, and the outcome of the publish SHALL NOT change because of it. A pause that fails or cannot be observed SHALL fail the publish with reason `pause_failed`: nothing is written to the workspace, and the same unpause and marker rule applies, so the sandbox is not left paused by the publish. When the sandbox is not running (stopped, absent or already paused by something else), the same steps SHALL run without pause and unpause, and the publish SHALL NOT change the sandbox's state; a `launch` arriving meanwhile SHALL wait for the lock and run after the publish. The paused window has a target below 1 second and the broker SHALL record the paused duration of every publish in its log; when the window reaches 5 seconds the publish SHALL fail with reason `publish_timeout` and the sandbox SHALL be unpaused. A failed publish SHALL leave the version stored with `published` false, SHALL leave the workspace file holding either its previous bytes or the complete version and never a mixture, and SHALL be reported as the requirement "Publish outcomes" specifies.
+Every publish — after a save with intent `publish`, after the final callback, on resolve and on restore — SHALL run entirely under the per-chat lock shared with sandbox lifecycle (the lock `launch` takes). When the sandbox is running, the broker SHALL write the fence marker `.ocu/office/fence.json` with the time the pause begins, pause the sandbox, observe that it is paused, and only then compare and replace; afterwards it SHALL unpause the sandbox. The marker SHALL be removed only after the owned sandbox is observed not paused, or not running at all; when it is still paused or its state cannot be established after the unpause attempt, the marker SHALL stay for stale-fence recovery. The established publish outcome SHALL NOT change because unpause fails. A pause that fails or cannot be observed SHALL fail the publish with reason `pause_failed`: nothing is written to the workspace, and the same ownership-aware unpause and marker rule applies. When the sandbox is not running (stopped, absent or already paused by something else without a marker), the same steps SHALL run without pause and unpause and SHALL preserve its state; a `launch` arriving meanwhile SHALL wait for the lock.
+
+The paused window has a target below one second. Under the [user-approved timing ruling](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072), five seconds is a monotonic safe-boundary publication budget, not a hard wall-clock release guarantee. At a safe boundary with elapsed time at least five seconds and publication unfinished, the broker SHALL start no further publication mutation, report `publish_timeout`, and attempt cleanup/unpause after an in-flight indivisible operation settles. It SHALL NOT unpause while a detached worker can still mutate the workspace. Before replacement, timeout SHALL preserve the previous file and leave the saved version unpublished. After a visible replacement, an incomplete transaction SHALL retain its journal obligation and complete workspace successor instead of claiming rollback. An already-visible completed success SHALL NOT be rewritten as timeout failure. Slow engine/filesystem calls can extend actual pause duration; release and final outcome bookkeeping SHALL preserve the established pipeline result. The workspace SHALL contain only prior or complete replacement bytes, never a partial mixture.
+
+The broker SHALL record the elapsed paused-window duration of each attempted owned pause, including refusal and timeout, and whether release was positively observed. A record with a retained marker SHALL NOT claim the sandbox resumed. An externally paused sandbox without a marker SHALL remain paused and SHALL NOT be claimed by this attempt.
+
+A failed publish SHALL leave the version stored with `published` false, SHALL leave the workspace file holding either its previous bytes or the complete version and never a mixture, and SHALL be reported as the requirement "Publish outcomes" specifies. An interrupted postreplace timeout retains its obligation as specified below; it is not a completed failed outcome that removes the journal.
 
 #### Scenario: Running sandbox is paused around the replace (B-T06)
 
@@ -38,8 +44,27 @@ Every publish — after a save with intent `publish`, after the final callback, 
 
 #### Scenario: Five-second limit
 
-- **WHEN** the sandbox has been paused by a publish for 5 seconds and the publish has not completed
-- **THEN** the publish fails with reason `publish_timeout`, the sandbox is unpaused, the version stays stored and the workspace file is not a partial write
+- **WHEN** a safe publication boundary observes elapsed monotonic time of at least five seconds and workspace replacement has not started
+- **THEN** the publish reports `publish_timeout`, starts no replacement, keeps the saved version unpublished and preserves the previous workspace bytes
+- **AND** it attempts owned cleanup/unpause; uncertain or failed release retains the marker
+
+#### Scenario: Blocking operation crosses the budget
+
+- **WHEN** an already-started engine or filesystem operation returns after the five-second budget
+- **THEN** the publisher does not begin a further publication mutation after observing expiry, and cleanup occurs only after that operation settles
+- **AND** the duration record reports the actual overrun rather than claiming a hard five-second release
+
+#### Scenario: Timeout after a visible replacement
+
+- **WHEN** expiry is observed after atomic workspace replacement but before a consistent publication completion
+- **THEN** the publish reports `publish_timeout`, retains the journal obligation for recovery and does not claim the workspace replacement rolled back
+- **AND** the workspace contains the complete version, the saved version remains stored, and a visible completed Office successor is never overwritten as failure
+
+#### Scenario: Slow release preserves the established outcome
+
+- **WHEN** the fenced comparison, replacement and registration phase establishes an outcome before expiry, and release handling is slow or fails
+- **THEN** cleanup does not retroactively change that outcome; final Office bookkeeping retains its ordinary durability semantics
+- **AND** the marker stays unless the owned sandbox is positively observed unpaused, stopped or absent
 
 #### Scenario: Paused window is recorded (B-T06)
 
@@ -194,6 +219,8 @@ There SHALL be no retry route. After a failed publish that followed a save, the 
 
 A publish SHALL start as a journal entry, the obligation to publish (`ocu-office-store`). For a publish that follows a callback the entry is written with the version and the receipt, as specified by `ocu-office-callback`; for a save that found nothing new, in the state update that completes that save; for resolve and restore, when the request is accepted. Before pausing, the broker SHALL record the target path and the temporary file name in the entry. The entry SHALL be removed only by the state update that records the publish's outcome. A publish SHALL count as published only when the file is replaced, the write is registered and that state update is durable.
 
+A safe-boundary timeout after a visible replacement is an interrupted obligation, not a terminal failed outcome that discards the entry. It SHALL retain the journal until recovery establishes a consistent outcome. An already-visible completed successor SHALL NOT be replaced with a fabricated failure or a recreated obligation. This follows the timing ruling in "Publish runs inside the fence under the shared per-chat lock".
+
 A journal entry that survives a crash SHALL be driven again under the per-chat lock: at OCU startup, by the idle-reclamation poll, when a duplicate of its callback arrives (before that callback is answered from its receipt), before any other publish for the chat, and before its session is marked `orphaned` by a request or by the session sweep (`ocu-office-sessions`). An orphaned session SHALL therefore never hold a journal entry, and no entry is removed without an outcome. The orphaning SHALL then apply to the state the outcome left, by the rule of `ocu-office-sessions` (requirement "Orphaned sessions"): a session in `editing`, `saving` or `closing`, or in `conflict` without the receipt of a final callback, becomes `orphaned`; a session the outcome put in `closed` or `error`, or in `conflict` with the receipt of a final callback, stays in that state. Driving an entry SHALL remove the temporary file it names if that file still exists. When the workspace file already equals the version, the broker SHALL complete the publish — registration and the published state update — without writing the file again; otherwise it SHALL run the publish again from the path resolution. A driven publish SHALL end in one of the three outcomes and SHALL set the session as the requirement "Publish outcomes" gives for it; a driven resolve or restore that publishes SHALL leave the state the successful request would have left. A stored version with an obligation SHALL therefore always end published, reported as a conflict, or reported as failed. Recovery SHALL never report a publish that did not replace the file as published.
 
 #### Scenario: Crash after the replace (B-T11)
@@ -226,7 +253,7 @@ A journal entry that survives a crash SHALL be driven again under the per-chat l
 
 ### Requirement: Stale-fence recovery never leaves a sandbox paused
 
-OCU's startup sweep and its idle-reclamation poll SHALL, under the per-chat lock, look for `fence.json`; when the marker's pause began more than 5 seconds ago they SHALL unpause the sandbox and SHALL remove the marker once the sandbox is observed not paused, or not running at all. While the sandbox is still paused the marker SHALL stay and the next poll SHALL try again. A broker crash or a failed unpause SHALL therefore not leave a sandbox paused for longer than one poll interval once the engine accepts the unpause. A paused sandbox without a marker SHALL be left paused. The retention guard, the cleanup job and recovery SHALL NOT be required to check for a publish: when the retention guard stops a sandbox while a publish holds it paused, the publish SHALL still complete the replace, the unpause that then finds no running sandbox SHALL NOT fail the publish, and the marker SHALL be removed because the sandbox is not running.
+OCU's startup sweep and its idle-reclamation poll SHALL, under the per-chat lock, look for `fence.json`; when the marker's pause began more than five seconds ago they SHALL attempt to unpause the owned sandbox and remove the marker only after positive nonpaused/not-running observation. Recovery SHALL NOT steal the fence while a live publisher owns the lock. While the sandbox is still paused or its state is uncertain, the marker SHALL stay for the next poll. Once the lock is available and the engine accepts unpause, stale-fence recovery runs on the next poll; slow blocking operations are not a hard wall-clock release guarantee. A paused sandbox without a marker SHALL be left paused. The retention guard, cleanup job and recovery SHALL NOT require a publish lease: a retention stop during an established pause fence removes writers, SHALL NOT fail publication or trigger a restart, and permits marker removal when the sandbox is observed not running.
 
 #### Scenario: Broker crashes while the sandbox is paused (B-T06)
 
