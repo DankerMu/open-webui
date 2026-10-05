@@ -323,3 +323,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: foreign version disclosure, false save acknowledgement, deleted-chat resurrection, token disclosure and weakened service authorization.
 - Selected risk packs: API, configuration, file/path safety, schema compatibility, auth/secrets, concurrency, resource handling, errors, packaging and documentation.
 - Evidence floor: actual-app authentication/denial matrix with exact byte/state conservation, verified-version hash after workspace change, no-follow/missing/corrupt storage cases, unchanged version-store consumers and real packaged-worker HTTP/access-log smoke. The companion decision record and fixture pass documentation gates.
+
+## Office status and save-control fixture
+
+- Issue type: feature; fixture level: expanded, matching task 24.3.
+- Scope: validated-state presentation, current-frame save command, refused/closed retirement and expired reopen. Browser save/refusal cases remain task 24.4; no harness, stub, backend or Chat/ChatControls change.
+- Blast radius: claiming saved before publish, sending a command to retired authority, hiding creation refusal, or regressing an admitted editor's identity.
+- Selected risk packs: message API/schema, frame authority, lifecycle/ordering, compatibility, error handling and documentation. No configuration, filesystem, discovery, deployment or dependency change.
+- Evidence floor: mounted status/precedence matrix, exact command destination/payload and no optimistic status, no-change save, failed-editing reason, all validation refusals, expired reopen, closed fallback, invalid-message invariance, existing identity/security tests and actual unchanged browser harness.
+- UI proof covers the bar in the existing first-open browser path. Full save/refusal browser scenarios remain the next issue; this does not substitute for their later acceptance.

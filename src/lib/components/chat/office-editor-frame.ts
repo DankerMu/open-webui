@@ -15,6 +15,7 @@ const OFFICE_EDITOR_READY_DEADLINE = 10_000;
 const READY_TYPE = 'ocu:office-ready';
 const OPEN_TYPE = 'ocu:office-open';
 const STATE_TYPE = 'ocu:office-state';
+const COMMAND_TYPE = 'ocu:office-command';
 const READY_KEYS = 'chat_id,type';
 const STATE_KEYS =
 	'chat_id,dirty,file_id,generation,reason,session_id,state,type,workspace_changed';
@@ -85,6 +86,7 @@ export type OfficeEditorController = {
 	start: (chatId: string, fileId: string, expectedSrc: string) => number;
 	attach: (frame: HTMLIFrameElement) => void;
 	detach: (frame: HTMLIFrameElement) => void;
+	save: () => void;
 	dispose: () => void;
 };
 
@@ -214,6 +216,16 @@ export const createOfficeEditorController = (options: {
 		},
 		detach(nextFrame) {
 			if (frame === nextFrame) disposeCurrent();
+		},
+		save() {
+			const bound = frame;
+			if (!bound?.contentWindow || !opened || !generation) return;
+			if (bound.src !== expectedSrc || !isCurrentOfficeGeneration(chatId, generation)) return;
+			if (get(ocuOffice)[chatId]?.state !== 'editing') return;
+			bound.contentWindow.postMessage(
+				{ type: COMMAND_TYPE, chat_id: chatId, generation, command: 'save' },
+				options.origin()
+			);
 		},
 		dispose() {
 			disposeCurrent();
