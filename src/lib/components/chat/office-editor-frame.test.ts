@@ -262,4 +262,38 @@ describe('office editor frame controller', () => {
 		expect(retired).toBeGreaterThan(generation);
 		expect(get(ocuOffice).B).toBe(beforeB);
 	});
+
+	it('posts an origin-targeted save only for the current opened editing frame', () => {
+		const generation = start();
+		editor.save();
+		expect(frame.contentWindow!.postMessage).not.toHaveBeenCalled();
+		dispatch(ready);
+		dispatch(state(generation, { state: 'opening' }));
+		editor.save();
+		expect(frame.contentWindow!.postMessage).toHaveBeenCalledTimes(1);
+		dispatch(state(generation));
+		editor.save();
+		expect(frame.contentWindow!.postMessage).toHaveBeenCalledTimes(2);
+		expect(frame.contentWindow!.postMessage).toHaveBeenLastCalledWith(
+			{ type: 'ocu:office-command', chat_id: CHAT, generation, command: 'save' },
+			ORIGIN
+		);
+		expect(vi.mocked(frame.contentWindow!.postMessage).mock.calls[1][1]).not.toBe('*');
+		applyOfficeState(CHAT, generation, { state: 'saving', dirty: true });
+		editor.save();
+		expect(frame.contentWindow!.postMessage).toHaveBeenCalledTimes(2);
+		editor.dispose();
+		editor.save();
+		expect(frame.contentWindow!.postMessage).toHaveBeenCalledTimes(2);
+	});
+
+	it('sends no save when the attached frame URL does not match', () => {
+		editor.start(CHAT, FILE, new URL(SRC, ORIGIN).href);
+		frame = createFrame('/ocu/preview/other?embed=office');
+		editor.attach(frame);
+		dispatch(ready);
+		applyOfficeState(CHAT, get(ocuOffice)[CHAT].generation, { state: 'editing' });
+		editor.save();
+		expect(frame.contentWindow!.postMessage).not.toHaveBeenCalled();
+	});
 });

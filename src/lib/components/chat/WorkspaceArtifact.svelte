@@ -11,6 +11,7 @@
 	} from '$lib/apis/ocu';
 	import { config } from '$lib/stores';
 	import { ocuWorkspaces, selectWorkspaceView, type OcuWorkspaceState } from '$lib/stores/ocu';
+	import { ocuOffice } from '$lib/stores/ocu-office';
 	import { formatFileSize } from '$lib/utils';
 	import {
 		WORKSPACE_RECONCILIATION,
@@ -24,6 +25,7 @@
 		officeEditorFrame,
 		officeEditorSrc
 	} from './office-editor-frame';
+	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -98,6 +100,11 @@
 		selected?.file_id === editorFileId &&
 		editorChatId === chatId &&
 		workspace?.view === 'files';
+	$: officeSession = $ocuOffice[chatId];
+	$: officeSessionForFile = officeSession?.fileId === (editorFileId || selected?.file_id);
+	$: showOfficeStatus =
+		officeSessionForFile &&
+		((editorActive && !editorError) || (!editorActive && officeSession?.state === 'refused'));
 	$: generated =
 		selected &&
 		!office &&
@@ -155,6 +162,10 @@
 				editorChatId !== chatId ||
 				selected?.file_id !== editorFileId)
 		)
+			stopEditor();
+	}
+	$: {
+		if (editorActive && (officeSession?.state === 'refused' || officeSession?.state === 'closed'))
 			stopEditor();
 	}
 
@@ -338,7 +349,7 @@
 		activateEditor(selected.file_id, officeEditorSrc(workspace.baseUrl, chatId));
 	}
 	function retryEditor() {
-		if (!editorActive || !editorFileId || !editorSrc) return;
+		if (!editorFileId || !editorSrc) return;
 		activateEditor(editorFileId, editorSrc);
 	}
 
@@ -663,6 +674,14 @@
 						</Tooltip>
 					</div>
 				</div>
+				{#if showOfficeStatus}
+					<OfficeEditorStatus
+						session={officeSession}
+						live={editorActive && !editorError}
+						onSave={() => editor.save()}
+						onReopen={retryEditor}
+					/>
+				{/if}
 				<div
 					data-selected-preview
 					class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"

@@ -61,10 +61,14 @@ export function officeConfig(office: boolean | undefined, workspace = true) {
 	return { features } as unknown as Parameters<typeof config.set>[0];
 }
 
-export function namedButton(name: string) {
-	const button = [...document.querySelectorAll('button')].find(
+export function namedControl(name: string) {
+	return [...document.querySelectorAll('button')].find(
 		(item) => item.getAttribute('aria-label') === name || item.textContent?.trim() === name
-	);
+	) as HTMLButtonElement | undefined;
+}
+
+export function namedButton(name: string) {
+	const button = namedControl(name);
 	expect(button, name).toBeDefined();
 	return button as HTMLButtonElement;
 }
@@ -88,6 +92,9 @@ export function previewFrame(name: string) {
 		`iframe[title="Office preview: ${name}"]`
 	) as HTMLIFrameElement | null;
 }
+
+export const saveControl = () => namedControl('Save');
+export const reopenControl = () => namedControl('Open again');
 
 export class OfficeArtifactHarness {
 	calls: Array<{ url: string; init?: RequestInit }> = [];
