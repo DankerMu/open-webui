@@ -77,6 +77,18 @@ def _entry(listing: dict, path: str) -> dict:
     return next(entry for entry in listing['files'] if entry['path'] == path)
 
 
+def _assert_listed_download(base: str, chat: str, entry: dict, version: dict) -> None:
+    expected_url = f'/ocu/files/{_seg(chat)}/' + '/'.join(_seg(part) for part in entry['path'].split('/'))
+    if entry['url'] != expected_url:
+        fail(f'Office listing URL is not canonical: {entry["url"]}')
+    status, _, content = _request(base, entry['url'][len('/ocu'):])
+    digest = hashlib.sha256(content).hexdigest()
+    if status != 200 or digest != version['sha256'] or len(content) != version['size']:
+        fail('listed URL did not retrieve the intended saved version')
+    if digest != entry['hash'] or len(content) != entry['size']:
+        fail('listed URL bytes disagree with listing metadata')
+
+
 def _strip_times(value):
     if isinstance(value, dict):
         return {key: _strip_times(item) for key, item in value.items() if key not in TIME_FIELDS}
@@ -431,6 +443,7 @@ def assert_office_conflict(base: str, chat: str) -> None:
     conflicted = _status(base, chat, session_id)[2]
     if conflicted['state'] != 'conflict':
         fail(f'conflict status {conflicted}')
+    saved_version = _versions(base, chat, file_id)[2]['versions'][-1]
     saved = _resolve(base, chat, session_id, 'save_as')
     if saved[0] != 200 or saved[2]['state'] != 'editing':
         fail(f'save_as resolve {saved}')
@@ -441,6 +454,7 @@ def assert_office_conflict(base: str, chat: str) -> None:
         fail('save_as mutated original bytes')
     if 'report (2).docx' not in {entry['path'] for entry in after_save_as['files']}:
         fail('save_as missing deduplicated name')
+    _assert_listed_download(base, chat, _entry(after_save_as, 'report (2).docx'), saved_version)
     log.info('office_conflict')
     _assert_conflict_overwrite(base, chat)
     log.info('office_conflict overwrite')
@@ -518,16 +532,17 @@ def assert_office_save_as(base: str, chat: str) -> None:
         fail(f'save_as path {closed["saved_as"]}')
     if after['revision'] <= open_listing['revision'] or closed['saved_as']['file_id'] == file_id:
         fail('automatic save_as addition did not advance revision/new identity')
-    _assert_encoded_save_as(base, chat, closed['saved_as']['file_id'])
+    _assert_encoded_save_as(base, chat, closed['saved_as']['file_id'], _entry(after, 'report (2).docx'))
     log.info('office_save_as')
 
 
-def _assert_encoded_save_as(base: str, chat: str, saved_id: str) -> None:
+def _assert_encoded_save_as(base: str, chat: str, saved_id: str, entry: dict) -> None:
     if saved_id != 'fixture-report (2).docx':
         fail(f'save_as stored file_id changed {saved_id}')
     history = _versions(base, chat, saved_id)
     if history[0] != 200 or history[2]['file_id'] != saved_id:
         fail(f'save_as encoded history {history[0]} {history[2]}')
+    _assert_listed_download(base, chat, entry, history[2]['versions'][-1])
     if _create(base, chat, saved_id)[0] != 201:
         fail('save_as encoded create rejected the listed file_id')
 

@@ -377,3 +377,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Governing invariant: only a baseline-matching safe path is atomically replaced, registered once and completed durably under the launch lock; interrupted publication retains its recovery obligation.
 - Selected risk packs: internal API/schema, file IO, identity compatibility, shared-state ordering, partial failure, resource ownership, packaging and decision documentation.
 - Evidence floor: real temporary storage and broker listings, no-follow and same-size mutation oracles, exclusive-temp ownership, actual competing launch, fault-phase conservation and a fresh-process publish smoke. No image/LAN certification.
+
+## Office stub URL compatibility fixture
+
+- Issue type: bugfix; fixture level: expanded, agreeing with the prerequisite issue because emitted URLs cross a public producer/consumer boundary.
+- Scope: the existing Office listing URL producer and its owning smoke assertions; no frontend validator, proxy, scenario, file identity, production OCU or unrelated upload change.
+- Governing invariant: each Office listing URL canonically represents its logical path and retrieves the bytes described by that entry.
+- Selected risk packs: public API/path representation, schema compatibility, sibling save-as transitions, response conservation, errors and documentation.
+- Evidence floor: retained conflict-browser invalid_response RED plus an independent owning smoke RED; conflict and automatic-close copies pass canonical URL and returned-URL byte/hash checks, then the actual unchanged browser consumer accepts both real gateway listings.
+- This authorized prerequisite precedes completion of task 26.1; the preserved conflict candidate and shared Office change remain open.
