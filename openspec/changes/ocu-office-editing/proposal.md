@@ -315,6 +315,15 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, config, file/path safety, schema, auth containment, concurrency, discovery, compatibility, errors, packaging and documentation.
 - Evidence floor: actual poll ticks with a controlled clock and independently authenticated fake DocumentServer; timeout boundaries, unavailable/no-op conservation, Office-only discovery, request activity, save-after-timeout and two-process locked transitions. Packaged two-worker runtime exercises the poll.
 
+## Office control-plane authentication fixture
+
+- Issue type: feature; fixture level: expanded, matching tasks 14.1 and 14.4.
+- Scope: source-ticket delivery, callback authentication, availability/peer admission and credential-safe logs; no callback status processing, downloads, persistence, publish or gateway changes.
+- Approved scope exception: the existing blob verifier may return its already-read, verified bytes for source delivery. Keep one reader, existing write/deduplication semantics and storage format; add regression evidence for existing callers.
+- Blast radius: foreign version disclosure, false save acknowledgement, deleted-chat resurrection, token disclosure and weakened service authorization.
+- Selected risk packs: API, configuration, file/path safety, schema compatibility, auth/secrets, concurrency, resource handling, errors, packaging and documentation.
+- Evidence floor: actual-app authentication/denial matrix with exact byte/state conservation, verified-version hash after workspace change, no-follow/missing/corrupt storage cases, unchanged version-store consumers and real packaged-worker HTTP/access-log smoke. The companion decision record and fixture pass documentation gates.
+
 ## Office status and save-control fixture
 
 - Issue type: feature; fixture level: expanded, matching task 24.3.
