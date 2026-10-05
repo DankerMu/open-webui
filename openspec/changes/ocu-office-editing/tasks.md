@@ -783,7 +783,7 @@ Required evidence for 24.4: `make verify-ui-ocu` passes all configured cases wit
 ## 25. [webui] Maximize and version history (spec: ocu-office-workspace-ui)
 
 - [x] 25.1 Maximize as an in-page overlay that keeps the same editor frame. Add a maximize case to `e2e/ocu-office.e2e.ts` that takes one explicit screenshot of each layout into `.run/ui-evidence/` (the configuration captures only on failure). Verify: Vitest asserts the frame element survives maximize and restore; `make verify-ui-ocu` passes with the maximize case named in its output and both screenshots present.
-- [ ] 25.2 Version history: reachable from the status bar and from the file entry when no editor is open; list with source and published flag; the restore action, disabled while an editor frame is open on the document in this page and otherwise left to the broker's answer. Verify: Vitest for the list, both entry points, the restore call, the disabled state, and a `session_open` refusal shown as an error.
+- [x] 25.2 Version history: reachable from the status bar and from the file entry when no editor is open; list with source and published flag; the restore action, disabled while an editor frame is open on the document in this page and otherwise left to the broker's answer. Verify: Vitest for the list, both entry points, the restore call, the disabled state, and a `session_open` refusal shown as an error.
 
 Depends on: 24.
 Suggested fixture level: expanded - a restore request that replaces user content.
@@ -800,6 +800,17 @@ Minimal mergeable slice: 25.1 (maximize) - green alone because it only changes l
 - Config, production file IO/path safety, release/dependencies — Not selected: no changes to these surfaces. History/restore, conflict, pre-open and close guards are explicit non-goals.
 
 Required evidence for 25.1: meaningful mounted RED against the unchanged component before implementation, then iframe identity/no-open/no-Fullscreen, overlay Save dispatch and retirement/replacement cleanup cases plus existing component/controller/store tests with per-file coverage. Run scoped lint/typecheck/anti-drift, generated-i18n/format and doc/decision/strict gates. Run `make verify-ui` including the full unchanged `make verify-ui-ocu` discovery with the maximize case named, explicit sidebar/overlay screenshots and zero unexpected console/page errors; inspect both desktop and narrow behavior. Real-browser document continuity and one creation arrival are required, not mocked iframe evidence alone. Parent owns final acceptance and 25.1 checkbox; 25.2 and the shared change remain open.
+
+### Version-history risk coverage
+
+- API / schema / mutation authority — Selected: mounted tests use the delivered client and assert captured chat/file, version number, same-origin mutation header, literal sources/times/publication and no session creation.
+- Overwrite / concurrency / lifecycle — Selected: local frame blocks restore; remote open_session does not. Pending restore is single-flight. Deferred responses after dismissal, identity/view/flag change are ignored; same-ID metadata leaves the read and live frame intact.
+- Compatibility / layout — Selected: both entries and unchanged editor identity, status/Save/maximize and generated/read-only policies; actual history controls remain reachable inside the native top layer.
+- Errors / partial output — Selected: session_open and other broker reasons preserve rows; list failure is visible; successful restore followed by failed reload is distinguished from failed mutation.
+- Resource / discovery / documentation — Selected: no request before explicit history opening; one initial GET and one reload per successful mutation; existing test discovery unchanged, generated localization and owning docs.
+- Config / release / dependencies / server path safety — Not selected: all unchanged; broker fence/path enforcement remains server-owned.
+
+Required evidence for 25.2: meaningful mounted entry RED, then all six issue acceptance cases and the lifecycle/error cases above; paired history-component tests and existing Office regressions with per-file coverage. Run scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict checks and unchanged `make verify-ui`. No committed browser case or stub change: retain a disposable actual-page history walk outside the repository, screenshots and diagnostics, including maximized history without editor reload. Parent independently accepts evidence before checking 25.2; later groups and the shared change stay open.
 
 ## 26. [webui] Conflict dialog and the open-time prompt (spec: ocu-office-workspace-ui)
 

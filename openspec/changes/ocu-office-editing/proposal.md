@@ -360,3 +360,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, configuration, file IO, schema, auth/secrets, concurrency, resource bounds, compatibility, partial failure, packaging and documentation.
 - Evidence floor: route-driven status/order/retry matrix, real HTTP download containment, exact workspace/index conservation, fresh-process durability, bounded crash/retry and concurrent callback smoke.
 - B1 input: [record item 7](../../../docs/evidence/issue-119/2026-10-03-b1.md#7-callback-download-origins) supplies the observed browser-facing origin. Recorded statuses 1/2/4/6 seed replay fixtures; statuses 3/7 are explicitly synthetic protocol-error variants, not claimed measurements.
+
+## Office version-history fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with task 25.2 because restore replaces workspace content.
+- Scope: parent-owned history and restore through the delivered Office client, selected-file/status entries, paired tests and generated localization. No broker, stub, browser-spec, ancestor, controller or store changes.
+- Governing invariant: history remains bound to its captured chat and file; only the broker authors versions and publication state, and a local live editor frame prevents restore.
+- Selected risk packs: API/schema, mutation authority, overwrite, lifecycle/concurrency, compatibility, error handling and documentation.
+- Evidence floor: semantic mounted RED; six issue acceptance cases plus stale completion, duplicate restore, failed reload and live-frame continuity; scoped gates, full unchanged UI target and disposable actual-page history smoke.
+- Browser evidence uses the deterministic gateway/stub, not a real DocumentServer restore. Shared change and subsequent tasks remain open.

@@ -30,10 +30,17 @@ async function render(props: {
 	onSave?: () => void;
 	onReopen?: () => void;
 	onToggleMaximize?: () => void;
+	onHistory?: () => void;
 }) {
 	const component = mount(OfficeEditorStatus, {
 		target: document.body,
-		props: { onSave: () => {}, onReopen: () => {}, onToggleMaximize: () => {}, ...props },
+		props: {
+			onSave: () => {},
+			onReopen: () => {},
+			onToggleMaximize: () => {},
+			onHistory: () => {},
+			...props
+		},
 		context: new Map<unknown, unknown>([['i18n', i18n]])
 	});
 	await tick();

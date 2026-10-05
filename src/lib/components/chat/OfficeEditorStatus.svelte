@@ -10,6 +10,7 @@
 	export let onSave: () => void;
 	export let onReopen: () => void;
 	export let onToggleMaximize: () => void;
+	export let onHistory: () => void;
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	function refusedMessage(reason: string | null) {
@@ -83,6 +84,12 @@
 			>
 		{/if}
 		{#if live && state !== 'refused' && state !== 'closed'}
+			<button
+				class="h-7 shrink-0 rounded-md border border-gray-200 px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+				type="button"
+				aria-label={$i18n.t('Version history')}
+				on:click={onHistory}>{$i18n.t('Version history')}</button
+			>
 			<button
 				class="h-7 shrink-0 rounded-md border border-gray-200 px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
 				type="button"
