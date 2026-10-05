@@ -522,8 +522,8 @@ Run sweep tests with fake DocumentServer, clock and cross-process barrier, follo
 ## 14. [ocu] DocumentServer callback and persist (spec: ocu-office-callback, ocu-auth-guard)
 
 - [x] 14.1 `GET /office/source/{ticket}` and `POST /office/callback/{chat}/{session}` with ticket and DocumentServer-JWT authentication, exemption from the internal-token carrier, sandbox-subnet rejection, no proxy exposure, and the check that the chat's data directory exists before the per-chat lock is taken. Verify: tests for a valid ticket, expired and foreign tickets, a bad signature, a sandbox-subnet peer, an internal token offered instead of the proper credential (B-T09), and a callback for a removed chat directory that creates nothing.
-- [ ] 14.2 Status handling 1 / 2 / 3 / 4 / 6 / 7 and unknown with the handling order of design D9: receipts for every processed callback, the final callback's `save_seq` and its void close allocation, the stale rule, status 6 / 7 leaving `closing` and `conflict` untouched, an error answer returning a `saving` session to `editing`, callbacks for unknown, ended or orphaned sessions, and the epoch check. Verify: recorded callback fixtures drive tests for each status, out-of-order and duplicate delivery including a retried final callback without a close request, the close → status 1 → auto-save → status 2 sequence, and no version regression (B-T04, B-T05, B-T08).
-- [ ] 14.3 Persist pipeline: accept a download address on the browser-facing or the server-to-server DocumentServer origin, fetch its path from the server-to-server origin with redirect validation, timeout and size limit; size, type and OOXML container checks; success acknowledged only after the version and receipt are durable. Uses the B1 item "origin of the download address". Verify: tests for an address on each accepted origin, an arbitrary host, a redirect to another host, an oversized body, a non-OOXML body, and a storage failure that returns an error to DocumentServer.
+- [x] 14.2 Status handling 1 / 2 / 3 / 4 / 6 / 7 and unknown with the handling order of design D9: receipts for every processed callback, the final callback's `save_seq` and its void close allocation, the stale rule, status 6 / 7 leaving `closing` and `conflict` untouched, an error answer returning a `saving` session to `editing`, callbacks for unknown, ended or orphaned sessions, and the epoch check. Verify: recorded callback fixtures drive tests for each status, out-of-order and duplicate delivery including a retried final callback without a close request, the close → status 1 → auto-save → status 2 sequence, and no version regression (B-T04, B-T05, B-T08).
+- [x] 14.3 Persist pipeline: accept a download address on the browser-facing or the server-to-server DocumentServer origin, fetch its path from the server-to-server origin with redirect validation, timeout and size limit; size, type and OOXML container checks; success acknowledged only after the version and receipt are durable. Uses the B1 item "origin of the download address". Verify: tests for an address on each accepted origin, an arbitrary host, a redirect to another host, an oversized body, a non-OOXML body, and a storage failure that returns an error to DocumentServer.
 - [x] 14.4 Decision record `ocu-office-control-plane-routes` (design D7: two routes authenticated by ticket and DocumentServer JWT instead of the internal token). Verify: `make decisions-verify` passes.
 
 Depends on: 13.
@@ -545,6 +545,32 @@ Minimal mergeable slice: 14.1 (routes and their authentication) - green alone be
 - Documentation — selected: D7 and the companion `ocu-office-control-plane-routes` architecture decision own credential separation; no gateway exposure, status dispatch or publish implementation.
 
 Run the new control-plane HTTP cases, auth/router/token/config/session/version/store and packaging regressions with the OCU unit command. Capture baseline failures at the real routes before source changes. Qualify negative controls for unsigned-field trust, credential-bearing access logs and unsafe external-target opens; traps must escape broad production exception handling. Real packaged-worker smoke covers source hash fidelity, authenticated callback non-success, removed-chat no-create, ordinary logs and ticket redaction for valid/invalid/disabled/peer-denied requests. Run strict OpenSpec validation, `make doc-gate` and `make decisions-verify` for the companion fixture/record.
+
+### Callback persistence slice risk coverage
+
+- Public API — selected: real callback route covers statuses 1/2/3/4/6/7, unknown status, verified-payload authority and exact reason/status responses. Retire admission-only 503 expectations without weakening authentication tests.
+- Configuration — selected: both configured origins are accepted but only the internal origin receives requests; no new environment variable or dependency.
+- File IO / safety — selected: canonical version staging, valid/wrong-type/corrupt OOXML, exact unchanged workspace and index, safe removed-chat refusal and empty staging after precommit failure.
+- Schema — selected: receipt status/hash/version/answer, recorded intent, participants, pending allocations and monotonic counters; final allocation and receipt share one commit.
+- Auth / secrets — selected: retain JWT/key and peer boundaries; unsigned body cannot select a download; foreign origin and redirect get zero arrivals; no credentials forwarded or logged.
+- Concurrency / ordering — selected: late/out-of-order saves, all-state receipt replay, voided close followed by save/final, cross-worker duplicate serialization and ASGI health while the chat lock is held. Epoch check precedes dispatch and replay.
+- Resource limits — selected: bounded actual body bytes, total timeout and redirect hops; timeout/oversize refusal leaves no receipt or staged content and permits a successful retry.
+- Compatibility — selected: existing save/close/sweep/epoch/store/OOXML/auth/source and package tests; no helper signature, storage primitive, listing revision or published-version regression.
+- Partial failures — selected: storage floor, write/fsync failure and kill after download before store; no success before durability, no successful receipt for a processing error, fresh-process blob/record/receipt after acknowledgement.
+- Durability replay — selected: inject the state-directory fsync failure after replace through the real callback route; first response is non-200 but the matching visible blob/version/receipt survive. A fresh worker's replay remains non-200 while its directory barrier fails; after recovery it returns the original answer without a final download, state rewrite, extra version/receipt/sequence or workspace/index change.
+- Packaging — selected: any new Office module joins the existing module/reload inventories and Dockerfile package-copy convention; no image builds.
+- Documentation — selected: D10 owns the serialized transaction and persist-only state boundary; public evidence distinguishes recorded statuses 1/2/4/6 from synthetic 3/7 error fixtures.
+
+Run canonical OCU `tests/` discovery with the callback/download and affected Office,
+auth, outputs and package module selection. Parent captures the status-1 tracer
+RED before implementation, then the complete GREEN run. Qualify semantic
+negative controls for receipt/hash ordering, origin confinement and premature
+acknowledgement. A real packaged two-worker smoke must persist via signed HTTP,
+compare workspace/index before and after, replay without an extra final fetch,
+and read the acknowledged record/blob/receipt from a fresh process. Use bounded
+owned-process crash/retry evidence at the postdownload/prestore boundary.
+Strict OpenSpec validation and doc/decision gates cover the companion fixture.
+Journal/publish outcomes and their crash-recovery evidence remain tasks 15/16.
 
 ## 15. [ocu] Publish inside the fence (spec: ocu-office-publish)
 

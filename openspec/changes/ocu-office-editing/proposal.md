@@ -351,3 +351,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: component API, iframe authority compatibility, lifecycle/ordering, layout integration, errors/cleanup, discovery and documentation.
 - Evidence floor: semantic mounted RED then identity/command/no-Fullscreen GREEN, actual desktop and narrow-layout geometry and continuity, explicit sidebar/overlay screenshots, one session creation and existing browser regressions.
 - Promote the existing wrapper to the browser top layer with a manual popover while maximized, then remove popover state on restore. Fixed positioning alone is obstructed by the existing Navbar/resizer stacking contexts. A portal, cloned frame or detach/reinsert remains forbidden; unchanged node identity alone does not prove no navigation.
+
+## Office callback persistence fixture
+
+- Issue type: feature; fixture level: expanded, matching tasks 14.2 and 14.3.
+- Scope: authenticated callback processing, confined download and durable receipts/versions; no publish, journal, container lifecycle, deployment or storage-primitive changes.
+- Blast radius: false save acknowledgement, stale results replacing newer state, outbound credential/path escape and partial durable commits.
+- Selected risk packs: API, configuration, file IO, schema, auth/secrets, concurrency, resource bounds, compatibility, partial failure, packaging and documentation.
+- Evidence floor: route-driven status/order/retry matrix, real HTTP download containment, exact workspace/index conservation, fresh-process durability, bounded crash/retry and concurrent callback smoke.
+- B1 input: [record item 7](../../../docs/evidence/issue-119/2026-10-03-b1.md#7-callback-download-origins) supplies the observed browser-facing origin. Recorded statuses 1/2/4/6 seed replay fixtures; statuses 3/7 are explicitly synthetic protocol-error variants, not claimed measurements.

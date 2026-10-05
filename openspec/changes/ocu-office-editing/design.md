@@ -471,6 +471,66 @@ DocumentServer may build the callback's download address from the browser-facing
 
 For a callback whose intent is to publish, the version, the receipt and the publish obligation (D11) are written in one state update, so a crash after the acknowledgement cannot leave a stored version that nothing will publish.
 
+#### Callback persistence slice boundary
+
+Tasks 14.2/14.3 implement D9 outcomes and persist only. Status 2 stores a
+`close` version and receipt, preserving lifecycle state; status 6 stores `save`
+or `autosave` according to the issued intent and returns only its outstanding
+`saving` allocation to `editing`. New versions remain unpublished. Status 4
+adds no version and closes when the latest version is already published;
+otherwise it preserves state. Publish, journal and publish-outcome states belong
+to task 16.1; unpublished status-4 completion belongs to task 16.2.
+
+Governing invariant: success means one durable receipt and its version, when
+content exists; retries never regress sequences, history, workspace bytes or
+listing revision. JWT verification and session-key binding precede processing.
+A validly signed unknown session returns 404; a known session with a different
+key remains 401. Epoch mismatch first orphans an open session and refuses that
+delivery, before any receipt replay. Otherwise final receipts replay without
+download; status-6 replay compares downloaded bytes, not URL identity. Status
+mismatch is stale without fetching; status 7 has no content hash.
+
+The entire bounded read/download/commit transaction runs on the existing worker
+thread under the canonical no-create chat lock. No force-save command runs here;
+download GETs do not request a callback. This trades same-chat latency for one
+serialized state snapshot, while the ASGI loop and other chats stay responsive.
+Use the existing OOXML validator, broker size limit, version staging and
+`store_version(receipt=..., mutate_state=...)`. No-content outcomes use one
+`OfficeStore.update` containing the existing receipt insertion and state change.
+Keep postreplace durability errors distinct: never delete a committed blob or
+claim acknowledgement when the state-directory flush failed.
+Before any receipt-based success, open the existing Office directory through
+the unchanged no-create descriptor opener and fsync that directory under the
+chat lock, closing every descriptor. This completes a prior postreplace state
+sync failure without rewriting state or adding a version/receipt/sequence.
+The blob and its directory were flushed before state replacement. A failed
+replay barrier remains non-200; never use a no-op state update or a process-local
+failure marker. A postreplace failure retains visible matching records, unlike
+a precommit failure, and must not be followed by an error-state rewrite.
+
+Final sequence allocation and receipt share the same commit. Status 1 voids
+only the pending close allocation, never reuses its number, and keeps the key.
+Retain issued intents after failed deliveries; retire only the matching pending
+save on an outcome or recoverable download/storage failure. Late saves leave
+newer pending saves and `closing`/`conflict` state and reason intact. Committed
+and already-published-equal-content counters advance monotonically, without
+marking a new version published or performing workspace IO.
+
+Download accepts only HTTP(S) exact parsed scheme/host/effective-port origins;
+reject malformed URLs and credentials. Rebuild only path/query on the internal
+origin, with no callback authorization header, cookies or environment proxy.
+Validate every redirect before requesting it; bound hops, total time and actual
+streamed bytes. Use the existing 10-second HTTP timeout convention and a finite
+five-hop bound; these bound lock occupancy, not editor-close latency.
+
+Sibling surfaces: save/close allocation and reconciliation, timeout sweep,
+epoch reader, session projection, receipt/version store, OOXML validator,
+outputs size/index and app module inventories. Preserve their APIs and formats.
+Required evidence: all status/order/failure cases through the real callback
+route, signed-field authority, confined fake-server traffic, concurrent repeats,
+same-loop health progress, crash before store, fresh-process reads after ack,
+and exact no-publish conservation. No image or LAN verification is claimed.
+
 ### D11. Publish: fence, compare, atomic replace
 
 A publish starts as a journal entry: document, version, session, `save_seq` and what requested it (save, final callback, resolve, restore). For a callback the entry is written in the same state update as the version and its receipt (D10); for resolve and restore, when the request is accepted. The entry is the obligation to publish and is removed only when the publish reaches an outcome.
