@@ -23,7 +23,9 @@ import {
 	maximizeControl,
 	officeCommandCalls,
 	postOfficeState,
-	saveControl
+	saveControl,
+	publishedOfficeVersions,
+	readyEditorFrame
 } from './workspace-artifact-office-test';
 
 const harness = new OfficeArtifactHarness();
@@ -188,10 +190,11 @@ describe('Office history restoration and lifetime', () => {
 	});
 
 	it('disables restore even before editor state arrives and preserves the live frame, document and commands', async () => {
-		serveOffice(() => json(payload));
+		let reads = 0;
+		serveOffice(() => json(++reads === 1 ? publishedOfficeVersions() : payload));
 		await selectedReport();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		const frame = editorFrame('report.docx')!;
 		const documentBefore = frame.contentDocument;
 		const snapshot = get(ocuOffice)[chat];
@@ -206,7 +209,7 @@ describe('Office history restoration and lifetime', () => {
 		expect(namedButton('Restore version 1').disabled).toBe(true);
 		namedButton('Restore version 1').click();
 		await tick();
-		expect(harness.officeRequests().map((call) => call.url)).toEqual([versionsUrl]);
+		expect(harness.officeRequests().map((call) => call.url)).toEqual([versionsUrl, versionsUrl]);
 		expect(editorFrame('report.docx')).toBe(frame);
 		expect(frame.contentDocument).toBe(documentBefore);
 		expect(get(ocuOffice)[chat]).toEqual(snapshot);
@@ -566,7 +569,8 @@ describe('Office history revocation during pending requests', () => {
 
 describe('Office history admitted-document identity', () => {
 	it('keeps history and its admitted frame through same-ID reclassification without reading again', async () => {
-		serveOffice(() => json(payload));
+		let reads = 0;
+		serveOffice(() => json(++reads === 1 ? publishedOfficeVersions() : payload));
 		await selectedReport();
 		const frame = await harness.selectAndEdit('report.docx');
 		const documentBefore = frame.contentDocument;
@@ -585,11 +589,15 @@ describe('Office history admitted-document identity', () => {
 		expect(editorFrame('report.html')).toBe(frame);
 		expect(frame.contentDocument).toBe(documentBefore);
 		expect(namedButton('Restore version 1').disabled).toBe(true);
-		expect(harness.officeRequests().map((call) => call.url)).toEqual([versionsUrl]);
+		expect(harness.officeRequests().map((call) => call.url)).toEqual([versionsUrl, versionsUrl]);
 		namedButton('Close version history').click();
 		await tick();
 		await openHistory();
-		expect(harness.officeRequests().map((call) => call.url)).toEqual([versionsUrl, versionsUrl]);
+		expect(harness.officeRequests().map((call) => call.url)).toEqual([
+			versionsUrl,
+			versionsUrl,
+			versionsUrl
+		]);
 		expect(get(ocuOffice)[chat]).toMatchObject({
 			generation: openMessage.generation,
 			sessionId: 'sess-1'

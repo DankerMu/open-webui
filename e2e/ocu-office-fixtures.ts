@@ -1,15 +1,23 @@
-import { expect, type Locator, type Page } from '@playwright/test';
-import { context, recordsSince } from './ocu-fixtures';
+import {
+	expect,
+	type APIResponse,
+	type Locator,
+	type Page,
+	type Response,
+	type Route
+} from '@playwright/test';
+import { context, evidence, recordsSince } from './ocu-fixtures';
+import type { OfficeVersions } from '../src/lib/apis/ocu/office';
 import type { OcuOfficeState } from '../src/lib/stores/ocu-office';
 
-type OfficeRecord = {
+export type OfficeRecord = {
 	method?: string;
 	target?: string;
 	token_ok?: boolean;
 	identity?: { 'x-chat-id'?: string };
 };
 
-async function workspaceFilesPanel(page: Page) {
+export async function workspaceFilesPanel(page: Page) {
 	await expect(page.locator('#chat-pane')).toBeVisible();
 	const panel = page.getByRole('region', { name: 'Workspace Files' });
 	const entry = page.getByRole('button', { name: 'Workspace Files', exact: true });
@@ -20,11 +28,11 @@ async function workspaceFilesPanel(page: Page) {
 	return panel;
 }
 
-async function openWorkspacePanel(page: Page, chatId: string) {
+export async function openWorkspacePanel(page: Page, chatId: string) {
 	await page.goto(`/c/${chatId}`);
 	return workspaceFilesPanel(page);
 }
-const readOfficeParent = (page: Page, chatId: string) =>
+export const readOfficeParent = (page: Page, chatId: string) =>
 	page.evaluate(async (id) => {
 		// Static imports in the Node runner cannot observe the browser's Vite store instance.
 		const modulePath = '/src/lib/stores/ocu-office.ts';
@@ -36,7 +44,7 @@ const readOfficeParent = (page: Page, chatId: string) =>
 		return snapshot;
 	}, chatId);
 
-async function listedReport(page: Page, panel: Locator, chatId: string) {
+export async function listedReport(page: Page, panel: Locator, chatId: string) {
 	await panel.getByRole('button', { name: 'report.docx', exact: true }).click();
 	const listing = await page.request.get(`/ocu/api/outputs/${chatId}`);
 	expect(listing.status()).toBe(200);
@@ -47,11 +55,11 @@ async function listedReport(page: Page, panel: Locator, chatId: string) {
 	return file as { file_id: string; path: string; hash?: string };
 }
 
-function officeCreatePath(chatId: string, fileId: string) {
+export function officeCreatePath(chatId: string, fileId: string) {
 	return `/ocu/api/office/${chatId}/documents/${encodeURIComponent(fileId)}/sessions`;
 }
 
-function waitOriginResponse(page: Page, pathname: string, method: string) {
+export function waitOriginResponse(page: Page, pathname: string, method: string) {
 	return page.waitForResponse(
 		(response) =>
 			new URL(response.url()).origin === context.origin &&
@@ -60,7 +68,7 @@ function waitOriginResponse(page: Page, pathname: string, method: string) {
 	);
 }
 
-async function clickEditAwaitCreate(page: Page, panel: Locator, sessionPath: string) {
+export async function clickEditAwaitCreate(page: Page, panel: Locator, sessionPath: string) {
 	const sessionResponse = waitOriginResponse(page, sessionPath, 'POST');
 	await panel
 		.locator('[data-selected-bar]')
@@ -69,12 +77,17 @@ async function clickEditAwaitCreate(page: Page, panel: Locator, sessionPath: str
 	return sessionResponse;
 }
 
-async function simulateModificationAndSave(page: Page, chatId: string, sessionId: string) {
-	const host = page.frameLocator('iframe[title="Office editor: report.docx"]');
-	await expect(
-		host.getByRole('button', { name: 'Simulate modification', exact: true })
-	).toBeEnabled();
-	await host.getByRole('button', { name: 'Simulate modification', exact: true }).click();
+async function readyOfficeModification(page: Page) {
+	const control = page
+		.frameLocator('iframe[title="Office editor: report.docx"]')
+		.getByRole('button', { name: 'Simulate modification', exact: true });
+	await expect(control).toBeEnabled();
+	return control;
+}
+
+export async function simulateModificationAndSave(page: Page, chatId: string, sessionId: string) {
+	const modification = await readyOfficeModification(page);
+	await modification.click();
 	await expect(page.locator('[data-office-status]').getByRole('status')).toHaveText('Unsaved');
 	const savePath = `/ocu/api/office/${chatId}/sessions/${encodeURIComponent(sessionId)}/save`;
 	const saveResponse = waitOriginResponse(page, savePath, 'POST');
@@ -89,7 +102,27 @@ type OfficeEditorOpening = {
 	sessionCreatePath: string;
 };
 
-async function openOfficeEditor(
+async function acceptOfficeEditor(
+	page: Page,
+	chatId: string,
+	fileId: string,
+	created: Response
+): Promise<OfficeEditorOpening['session']> {
+	expect(created.status()).toBe(201);
+	const session = await created.json();
+	await expect
+		.poll(() => readOfficeParent(page, chatId))
+		.toMatchObject({
+			fileId,
+			sessionId: session.session_id,
+			state: 'editing',
+			dirty: false,
+			reason: null
+		});
+	return session;
+}
+
+export async function openOfficeEditor(
 	page: Page,
 	chatId: string,
 	panel: Locator
@@ -97,34 +130,24 @@ async function openOfficeEditor(
 	const file = await listedReport(page, panel, chatId);
 	const sessionCreatePath = officeCreatePath(chatId, file.file_id);
 	const created = await clickEditAwaitCreate(page, panel, sessionCreatePath);
-	expect(created.status()).toBe(201);
-	const session = await created.json();
-	await expect
-		.poll(() => readOfficeParent(page, chatId))
-		.toMatchObject({
-			fileId: file.file_id,
-			sessionId: session.session_id,
-			state: 'editing',
-			dirty: false,
-			reason: null
-		});
+	const session = await acceptOfficeEditor(page, chatId, file.file_id, created);
 	return { file, session, sessionCreatePath };
 }
 
-function chatOfficeRecords(offset: number, chatId: string) {
+export function chatOfficeRecords(offset: number, chatId: string) {
 	const prefix = `/api/office/${chatId}/`;
 	return recordsSince(offset).filter(
 		(row: { target?: string }) => typeof row.target === 'string' && row.target.startsWith(prefix)
 	);
 }
 
-function expectAuthenticatedPost(arrivals: OfficeRecord[], target: string, chatId: string) {
+export function expectAuthenticatedPost(arrivals: OfficeRecord[], target: string, chatId: string) {
 	const matches = arrivals.filter((row) => row.method === 'POST' && row.target === target);
 	expect(matches).toHaveLength(1);
 	expect(matches[0]).toMatchObject({ token_ok: true, identity: { 'x-chat-id': chatId } });
 }
 
-async function expectOfficeSaveContinuity(
+export async function expectOfficeSaveContinuity(
 	page: Page,
 	chatId: string,
 	opened: OfficeEditorOpening,
@@ -145,7 +168,7 @@ async function expectOfficeSaveContinuity(
 	return arrivals;
 }
 
-function officeStatusPath(pathname: string, chatId: string) {
+export function officeStatusPath(pathname: string, chatId: string) {
 	const prefix = `/ocu/api/office/${chatId}/sessions/`;
 	if (!pathname.startsWith(prefix)) return null;
 	const remainder = pathname.slice(prefix.length);
@@ -172,7 +195,7 @@ type OfficeTrackingWindow = Window & {
 	__ocuOfficeSurfaceParent?: Node | null;
 };
 
-async function bindOfficeEditorTracking(page: Page) {
+export async function bindOfficeEditorTracking(page: Page) {
 	await page.evaluate(() => {
 		const remembered = window as OfficeTrackingWindow;
 		const node = document.querySelector(
@@ -200,7 +223,7 @@ async function bindOfficeEditorTracking(page: Page) {
 	});
 }
 
-async function officeEditorIdentity(page: Page): Promise<OfficeFrameIdentity> {
+export async function officeEditorIdentity(page: Page): Promise<OfficeFrameIdentity> {
 	return page.evaluate(() => {
 		const remembered = window as OfficeTrackingWindow;
 		const node = document.querySelector(
@@ -223,7 +246,7 @@ async function officeEditorIdentity(page: Page): Promise<OfficeFrameIdentity> {
 	});
 }
 
-function expectLiveEditor(identity: OfficeFrameIdentity, previous?: OfficeFrameIdentity) {
+export function expectLiveEditor(identity: OfficeFrameIdentity, previous?: OfficeFrameIdentity) {
 	expect(identity.hasDocument).toBe(true);
 	expect(identity.sameNode).toBe(true);
 	expect(identity.sameDocument).toBe(true);
@@ -238,7 +261,7 @@ function expectLiveEditor(identity: OfficeFrameIdentity, previous?: OfficeFrameI
 	}
 }
 
-async function maximizeOfficeEditor(page: Page, before: OfficeFrameIdentity) {
+export async function maximizeOfficeEditor(page: Page, before: OfficeFrameIdentity) {
 	await page.getByRole('button', { name: 'Maximize', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Restore', exact: true })).toBeVisible();
 	const during = await officeEditorIdentity(page);
@@ -246,7 +269,7 @@ async function maximizeOfficeEditor(page: Page, before: OfficeFrameIdentity) {
 	return during;
 }
 
-async function restoreOfficeEditor(page: Page, before: OfficeFrameIdentity) {
+export async function restoreOfficeEditor(page: Page, before: OfficeFrameIdentity) {
 	await page.getByRole('button', { name: 'Restore', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Maximize', exact: true })).toBeVisible();
 	const after = await officeEditorIdentity(page);
@@ -254,7 +277,7 @@ async function restoreOfficeEditor(page: Page, before: OfficeFrameIdentity) {
 	return after;
 }
 
-async function officeLayoutGeometry(page: Page) {
+export async function officeLayoutGeometry(page: Page) {
 	return page.evaluate(() => {
 		const selected = document.querySelector('[aria-label="Selected workspace file"]');
 		const panel = document.querySelector('[aria-label="Workspace Files"]');
@@ -354,7 +377,7 @@ type CapturedOfficeState = {
 	dirty: boolean;
 };
 
-async function expectOfficeControlHit(control: Locator) {
+export async function expectOfficeControlHit(control: Locator) {
 	const hit = await control.evaluate((element) => {
 		const selected = document.querySelector('[aria-label="Selected workspace file"]');
 		const iframe = selected?.querySelector('iframe[title^="Office editor:"]');
@@ -374,7 +397,7 @@ async function expectOfficeControlHit(control: Locator) {
 	expect(hit.iframeOwnsHit).toBe(false);
 }
 
-async function startOfficeStateCapture(page: Page) {
+export async function startOfficeStateCapture(page: Page) {
 	await page.evaluate(() => {
 		const remembered = window as Window & {
 			__ocuConflictStates?: CapturedOfficeState[];
@@ -415,7 +438,7 @@ async function startOfficeStateCapture(page: Page) {
 	});
 }
 
-async function stopOfficeStateCapture(page: Page) {
+export async function stopOfficeStateCapture(page: Page) {
 	await page.evaluate(() => {
 		const remembered = window as Window & {
 			__ocuConflictListener?: (event: MessageEvent) => void;
@@ -428,28 +451,219 @@ async function stopOfficeStateCapture(page: Page) {
 	});
 }
 
-export {
-	bindOfficeEditorTracking,
-	chatOfficeRecords,
-	clickEditAwaitCreate,
-	expectAuthenticatedPost,
-	expectLiveEditor,
-	expectOfficeControlHit,
-	expectOfficeSaveContinuity,
-	listedReport,
-	maximizeOfficeEditor,
-	officeCreatePath,
-	officeEditorIdentity,
-	officeLayoutGeometry,
-	officeStatusPath,
-	openOfficeEditor,
-	openWorkspacePanel,
-	readOfficeParent,
-	restoreOfficeEditor,
-	simulateModificationAndSave,
-	startOfficeStateCapture,
-	stopOfficeStateCapture,
-	waitOriginResponse,
-	workspaceFilesPanel,
-	type OfficeRecord
-};
+async function holdOfficeResponse(page: Page, path: string, method: string, ordinal = 1) {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	let receive!: (response: APIResponse) => void;
+	const response = new Promise<APIResponse>((resolve) => {
+		receive = resolve;
+	});
+	let count = 0;
+	let work: Promise<void> | undefined;
+	const address = `${context.origin}${path}`;
+	const handler = (route: Route) => {
+		if (route.request().method() !== method || ++count !== ordinal) return route.continue();
+		work = (async () => {
+			const upstream = await route.fetch();
+			receive(upstream);
+			await gate;
+			await route.fulfill({ response: upstream });
+		})();
+		return work;
+	};
+	await page.route(address, handler);
+	return {
+		response,
+		release,
+		async dispose() {
+			release();
+			await page.unroute(address, handler);
+			await work;
+		}
+	};
+}
+
+async function showUnpublishedChoice(page: Page, editor: Locator, screenshot: string) {
+	const dialog = page.getByRole('dialog', { name: 'Unpublished content' });
+	await expect(dialog).toBeVisible();
+	await expect(editor).toHaveCount(0);
+	await page.screenshot({ path: `${evidence}/${screenshot}`, fullPage: true });
+	return dialog;
+}
+
+function expectOfficeRequestOrder(arrivals: OfficeRecord[], sequence: Array<[string, string]>) {
+	const expected = sequence.map(([method, path]) => [method, path.slice('/ocu'.length)]);
+	expect(
+		arrivals
+			.filter((row) => expected.some(([, target]) => row.target === target))
+			.map((row) => [row.method, row.target])
+	).toEqual(expected);
+}
+
+async function openOfficeHistory(page: Page, versionsPath: string): Promise<OfficeVersions> {
+	const response = waitOriginResponse(page, versionsPath, 'GET');
+	await page
+		.locator('[data-office-status]')
+		.getByRole('button', { name: 'Version history', exact: true })
+		.click();
+	return (await response).json();
+}
+
+export async function restoreUnpublishedOffice(page: Page, chatId: string, recordOffset: number) {
+	const panel = await openWorkspacePanel(page, chatId);
+	const file = await listedReport(page, panel, chatId);
+	const versionsPath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/versions`;
+	const restorePath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/restore`;
+	const createPath = officeCreatePath(chatId, file.file_id);
+	const heldRead = await holdOfficeResponse(page, versionsPath, 'GET');
+	const heldRestore = await holdOfficeResponse(page, restorePath, 'POST');
+	const editor = panel.locator('iframe[title="Office editor: report.docx"]');
+	try {
+		const versionsResponse = waitOriginResponse(page, versionsPath, 'GET');
+		await panel
+			.locator('[data-selected-bar]')
+			.getByRole('button', { name: 'Edit', exact: true })
+			.click();
+		const read = await heldRead.response;
+		expect(read.status()).toBe(200);
+		const before: OfficeVersions = await read.json();
+		expect(before.open_session).toBeNull();
+		const latest = before.versions[before.versions.length - 1];
+		expect(latest).toMatchObject({ number: 2, source: 'autosave', published: false });
+		await expect(editor).toHaveCount(0);
+		expect(await readOfficeParent(page, chatId)).toBeUndefined();
+		heldRead.release();
+		await versionsResponse;
+		const dialog = await showUnpublishedChoice(page, editor, 'office-unpublished-content.png');
+		const restoring = waitOriginResponse(page, restorePath, 'POST');
+		const created = waitOriginResponse(page, createPath, 'POST');
+		await dialog
+			.getByRole('button', { name: 'Restore the unpublished content', exact: true })
+			.click();
+		const accepted = await heldRestore.response;
+		expect(accepted.status()).toBe(200);
+		await expect(editor).toHaveCount(0);
+		expect(await readOfficeParent(page, chatId)).toBeUndefined();
+		const posts = chatOfficeRecords(recordOffset, chatId).filter((row) => row.method === 'POST');
+		expect(posts.map((row) => row.target)).toEqual([restorePath.slice('/ocu'.length)]);
+		heldRestore.release();
+		const restoredResponse = await restoring;
+		expect(restoredResponse.request().postDataJSON()).toEqual({ number: latest.number });
+		expect(await restoredResponse.request().headerValue('X-Requested-With')).toBe('ocu-workspace');
+		const restored = await restoredResponse.json();
+		expect(restored).toMatchObject({ file_id: file.file_id, number: 3, published: true });
+		const sessionResponse = await created;
+		await acceptOfficeEditor(page, chatId, file.file_id, sessionResponse);
+		await expect(dialog).toHaveCount(0);
+		await expect(editor).toHaveAttribute('src', `/ocu/preview/${chatId}?embed=office`);
+		const arrivals = chatOfficeRecords(recordOffset, chatId);
+		expectOfficeRequestOrder(arrivals, [
+			['GET', versionsPath],
+			['POST', restorePath],
+			['POST', createPath]
+		]);
+		expectAuthenticatedPost(arrivals, restorePath.slice('/ocu'.length), chatId);
+		expectAuthenticatedPost(arrivals, createPath.slice('/ocu'.length), chatId);
+		const history = await openOfficeHistory(page, versionsPath);
+		expect(history.published_version).toBe(restored.number);
+		expect(history.versions.find((version) => version.number === restored.number)).toMatchObject({
+			source: 'restore',
+			published: true,
+			sha256: latest.sha256,
+			size: latest.size
+		});
+		expect(history.versions.find((version) => version.number === latest.number)).toEqual(latest);
+		const rows = page.getByRole('region', { name: 'Version history' }).locator('tbody tr');
+		await expect(
+			rows.filter({ has: page.locator('td').filter({ hasText: /^restore$/ }) })
+		).toContainText('true');
+		await readyOfficeModification(page);
+	} finally {
+		await heldRead.dispose();
+		await heldRestore.dispose();
+	}
+}
+
+export async function startAfterStaleOffice(page: Page, chatId: string, recordOffset: number) {
+	const panel = await openWorkspacePanel(page, chatId);
+	const file = await listedReport(page, panel, chatId);
+	const versionsPath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/versions`;
+	const createPath = officeCreatePath(chatId, file.file_id);
+	const heldCreate = await holdOfficeResponse(page, createPath, 'POST');
+	const heldRecheck = await holdOfficeResponse(page, versionsPath, 'GET', 2);
+	const editor = panel.locator('iframe[title="Office editor: report.docx"]');
+	try {
+		const firstRead = waitOriginResponse(page, versionsPath, 'GET');
+		const refusedCreation = waitOriginResponse(page, createPath, 'POST');
+		await panel
+			.locator('[data-selected-bar]')
+			.getByRole('button', { name: 'Edit', exact: true })
+			.click();
+		const initial: OfficeVersions = await (await firstRead).json();
+		expect(initial.open_session).toMatchObject({ state: 'editing', editor_ended: false });
+		const latest = initial.versions[initial.versions.length - 1];
+		expect(latest).toMatchObject({ number: 2, source: 'autosave', published: false });
+		const refused = await heldCreate.response;
+		expect(refused.status()).toBe(409);
+		expect(await refused.json()).toEqual({ reason: 'unpublished_version' });
+		await expect(editor).toHaveCount(1);
+		const retiredFrame = await editor.elementHandle();
+		expect(retiredFrame).not.toBeNull();
+		const secondRead = waitOriginResponse(page, versionsPath, 'GET');
+		heldCreate.release();
+		expect((await refusedCreation).status()).toBe(409);
+		const rechecked = await heldRecheck.response;
+		expect(rechecked.status()).toBe(200);
+		const fresh: OfficeVersions = await rechecked.json();
+		expect(fresh.open_session).toBeNull();
+		expect(fresh.versions.find((version) => version.number === latest.number)).toEqual(latest);
+		await expect(editor).toHaveCount(0);
+		expect(await retiredFrame!.evaluate((node) => node.isConnected)).toBe(false);
+		await expect(
+			page.getByText('Editing was refused: unpublished_version', { exact: true })
+		).toHaveCount(0);
+		expect((await readOfficeParent(page, chatId))?.state).not.toBe('refused');
+		heldRecheck.release();
+		await secondRead;
+		const dialog = await showUnpublishedChoice(
+			page,
+			editor,
+			'office-stale-unpublished-content.png'
+		);
+		const newCreation = waitOriginResponse(page, createPath, 'POST');
+		await dialog.getByRole('button', { name: 'Start from the current file', exact: true }).click();
+		const created = await newCreation;
+		const session = await acceptOfficeEditor(page, chatId, file.file_id, created);
+		expect(session.session_id).not.toBe(initial.open_session!.session_id);
+		await expect(editor).toHaveCount(1);
+		expect(await retiredFrame!.evaluate((node) => node.isConnected)).toBe(false);
+		await expect(dialog).toHaveCount(0);
+		const arrivals = chatOfficeRecords(recordOffset, chatId);
+		expectOfficeRequestOrder(arrivals, [
+			['GET', versionsPath],
+			['POST', createPath],
+			['GET', versionsPath],
+			['POST', createPath]
+		]);
+		expect(arrivals.filter((row) => row.target?.endsWith('/restore'))).toEqual([]);
+		const creations = arrivals.filter(
+			(row) => row.method === 'POST' && row.target === createPath.slice('/ocu'.length)
+		);
+		expect(creations).toHaveLength(2);
+		for (const arrival of creations)
+			expect(arrival).toMatchObject({ token_ok: true, identity: { 'x-chat-id': chatId } });
+		const history = await openOfficeHistory(page, versionsPath);
+		expect(history.versions.find((version) => version.number === latest.number)).toEqual(latest);
+		const rows = page.getByRole('region', { name: 'Version history' }).locator('tbody tr');
+		await expect(
+			rows.filter({ has: page.locator('td').filter({ hasText: /^autosave$/ }) })
+		).toContainText('false');
+		await readyOfficeModification(page);
+		return createPath;
+	} finally {
+		await heldCreate.dispose();
+		await heldRecheck.dispose();
+	}
+}

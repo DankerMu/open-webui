@@ -18,7 +18,8 @@ import {
 	officeCommandCalls,
 	officeConfig,
 	officeDocx,
-	postOfficeState
+	postOfficeState,
+	readyEditorFrame
 } from './workspace-artifact-office-test';
 
 const harness = new OfficeArtifactHarness();
@@ -448,7 +449,7 @@ describe('Office conflict choices and lifetime', () => {
 			if (cause === 'selection') namedButton('page.html').click();
 			if (cause === 'generation') {
 				namedButton('Edit').click();
-				await tick();
+				await readyEditorFrame('report.docx');
 				const replacement = editorFrame('report.docx')!;
 				const { openMessage: next } = await harness.acceptEditing(replacement, 'sess-2');
 				postOfficeState(replacement, next.generation, {

@@ -22,6 +22,8 @@ import {
 	readOfficeParent,
 	restoreOfficeEditor,
 	simulateModificationAndSave,
+	restoreUnpublishedOffice,
+	startAfterStaleOffice,
 	startOfficeStateCapture,
 	stopOfficeStateCapture,
 	waitOriginResponse,
@@ -635,6 +637,48 @@ test('Office conflict save-as keeps the live original editor and adds a deduplic
 		expect(observed.diagnostics).toEqual([]);
 	} finally {
 		await stopOfficeStateCapture(page);
+		observed.dispose();
+	}
+});
+
+test('Office unpublished content restores the captured version before opening the editor', async ({
+	page
+}) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office_unpublished');
+		await restoreUnpublishedOffice(page, chatId, recordOffset);
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('Office stale session rechecks unpublished content once before starting from the current file', async ({
+	page
+}) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office_stale');
+		const createPath = await startAfterStaleOffice(page, chatId, recordOffset);
+		const expectedCreateUrl = new URL(createPath, context.origin).href;
+		expect(
+			observed.diagnostics.filter(
+				(diagnostic) =>
+					!(
+						diagnostic.kind === 'console' &&
+						diagnostic.url === expectedCreateUrl &&
+						/^Failed to load resource: the server responded with a status of 409(?:\b|\s|\()/.test(
+							diagnostic.text
+						)
+					)
+			)
+		).toEqual([]);
+	} finally {
 		observed.dispose();
 	}
 });

@@ -12,7 +12,8 @@ import {
 	namedButton,
 	officeDocx,
 	postOfficeState,
-	previewFrame
+	previewFrame,
+	readyEditorFrame
 } from './workspace-artifact-office-test';
 
 const harness = new OfficeArtifactHarness();
@@ -75,7 +76,9 @@ describe('Office admitted editor identity', () => {
 				generation: openMessage.generation
 			});
 			expect(sent).toHaveBeenCalledTimes(1);
-			expect(harness.officeRequests()).toEqual([]);
+			expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+				['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+			]);
 			expect(harness.launchRequests()).toEqual([]);
 			namedButton('page.html').click();
 			await tick();
@@ -94,7 +97,7 @@ describe('Office admitted editor identity', () => {
 		namedButton('report.docx').click();
 		await tick();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		const retired = editorFrame('report.docx');
 		expect(retired).not.toBeNull();
 		const retiredWindow = retired!.contentWindow;
@@ -123,7 +126,7 @@ describe('Office admitted editor identity', () => {
 		expect(get(ocuOffice)[chat].generation).toBeGreaterThan(generation);
 		vi.useRealTimers();
 		namedButton('Retry').click();
-		await tick();
+		await readyEditorFrame('report.docx.bak');
 		const retry = editorFrame('report.docx.bak');
 		expect(retry).not.toBeNull();
 		expect(retry).not.toBe(retired);
@@ -134,7 +137,10 @@ describe('Office admitted editor identity', () => {
 		expect(openMessage.file_id).toBe(officeDocx.file_id);
 		expect(openMessage.generation).toBeGreaterThan(generation);
 		expect(get(ocuOffice)[chat].fileId).toBe(officeDocx.file_id);
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`],
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 		expect(harness.launchRequests()).toEqual([]);
 		namedButton('page.html').click();
 		await tick();
@@ -153,7 +159,7 @@ describe('Office admitted editor identity', () => {
 		namedButton('report.docx').click();
 		await tick();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		await vi.advanceTimersByTimeAsync(10_000);
 		await tick();
 		expect(document.body.textContent).toContain('Office editor did not become ready');
@@ -166,7 +172,9 @@ describe('Office admitted editor identity', () => {
 			[...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === 'Retry')
 		).toBeUndefined();
 		expect(editorFrame('page.html')).toBeNull();
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 		expect(harness.launchRequests()).toEqual([]);
 	});
 });

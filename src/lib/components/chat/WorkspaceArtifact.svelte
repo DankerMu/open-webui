@@ -28,6 +28,7 @@
 	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
 	import OfficeVersionHistory from './OfficeVersionHistory.svelte';
 	import OfficeConflictDialog from './OfficeConflictDialog.svelte';
+	import OfficeOpenPreflight from './OfficeOpenPreflight.svelte';
 	import WorkspaceSelectedFile from './WorkspaceSelectedFile.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -72,8 +73,10 @@
 	let editorError = '';
 	let editorMaximized = false;
 	let historyTarget = '';
+	let preflight: OfficeOpenPreflight | undefined;
 	const editor = createOfficeEditorController({
 		origin: () => window.location.origin,
+		onUnpublishedRefusal: (generation) => preflight?.refused(generation) ?? false,
 		onTimeout() {
 			editorError = $i18n.t('Office editor did not become ready');
 			editorMaximized = false;
@@ -348,40 +351,29 @@
 		editorError = '';
 		editorMaximized = false;
 		editorSrc = src;
-		editor.start(chatId, fileId, new URL(src, window.location.origin).href);
+		const generation = editor.start(chatId, fileId, new URL(src, window.location.origin).href);
 		editorFileId = fileId;
 		editorChatId = chatId;
 		editorKey += 1;
+		return generation;
 	}
-	function startEditor() {
-		if (!officeEdit || !selected || workspace?.baseUrl !== '/ocu') return;
-		activateEditor(selected.file_id, officeEditorSrc(workspace.baseUrl, chatId));
-	}
-	function retryEditor() {
-		if (!editorFileId || !editorSrc) return;
-		activateEditor(editorFileId, editorSrc);
-	}
-
-	function conflictAdmitted(targetChatId: string, fileId: string, generation: number) {
+	function fileAdmitted(targetChatId: string, fileId: string) {
 		const current = get(ocuWorkspaces)[targetChatId];
 		const flags = get(config);
-		const session = get(ocuOffice)[targetChatId];
 		return (
 			live &&
 			enabled &&
 			chatId === targetChatId &&
-			editorChatId === targetChatId &&
-			editorFileId === fileId &&
-			!editorError &&
+			isSavedChatId(targetChatId) &&
+			targetChatId !== 'default' &&
 			current?.view === 'files' &&
 			current.selectedFileId === fileId &&
+			current.files.some((file) => file.file_id === fileId) &&
 			current.baseUrl === '/ocu' &&
 			workspaceFilesEnabled(flags) &&
 			!!flags?.features &&
 			'enable_ocu_office_edit' in flags.features &&
-			flags.features.enable_ocu_office_edit === true &&
-			session?.fileId === fileId &&
-			session.generation === generation
+			flags.features.enable_ocu_office_edit === true
 		);
 	}
 
@@ -669,7 +661,16 @@
 					{editorActive}
 					{editorError}
 					onHistory={() => (historyTarget = historyContext)}
-					onEdit={startEditor}
+					onEdit={() => preflight?.start()}
+				/>
+				<OfficeOpenPreflight
+					bind:this={preflight}
+					{chatId}
+					fileId={selected.file_id}
+					enabled={enabled && live}
+					admitted={fileAdmitted}
+					onOpen={(file) => activateEditor(file, officeEditorSrc('/ocu', chatId))}
+					onRetire={() => (editorFileId = stopEditor())}
 				/>
 				{#if showOfficeStatus}
 					<OfficeEditorStatus
@@ -677,7 +678,7 @@
 						live={editorActive && !editorError}
 						maximized={editorMaximized}
 						onSave={() => editor.save()}
-						onReopen={retryEditor}
+						onReopen={() => preflight?.start(true)}
 						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
 						onHistory={() => (historyTarget = historyContext)}
 					/>
@@ -687,9 +688,13 @@
 						<OfficeConflictDialog
 							{chatId}
 							fileId={editorFileId}
-							generation={officeSession.generation}
-							expectedSessionId={officeSession.sessionId}
-							admitted={conflictAdmitted}
+							authority={{
+								kind: 'editor',
+								generation: officeSession.generation,
+								sessionId: officeSession.sessionId,
+								admitted: (chat, file, generation) =>
+									fileAdmitted(chat, file) && editor.admits(generation)
+							}}
 						/>
 					{/key}
 				{/if}
@@ -714,7 +719,7 @@
 								<button
 									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
 									type="button"
-									on:click={retryEditor}>{$i18n.t('Retry')}</button
+									on:click={() => preflight?.start(true)}>{$i18n.t('Retry')}</button
 								>
 							</div>
 						{:else}
