@@ -756,12 +756,24 @@ Required evidence for 24.4: `make verify-ui-ocu` passes all configured cases wit
 
 ## 25. [webui] Maximize and version history (spec: ocu-office-workspace-ui)
 
-- [ ] 25.1 Maximize as an in-page overlay that keeps the same editor frame. Add a maximize case to `e2e/ocu-office.e2e.ts` that takes one explicit screenshot of each layout into `.run/ui-evidence/` (the configuration captures only on failure). Verify: Vitest asserts the frame element survives maximize and restore; `make verify-ui-ocu` passes with the maximize case named in its output and both screenshots present.
+- [x] 25.1 Maximize as an in-page overlay that keeps the same editor frame. Add a maximize case to `e2e/ocu-office.e2e.ts` that takes one explicit screenshot of each layout into `.run/ui-evidence/` (the configuration captures only on failure). Verify: Vitest asserts the frame element survives maximize and restore; `make verify-ui-ocu` passes with the maximize case named in its output and both screenshots present.
 - [ ] 25.2 Version history: reachable from the status bar and from the file entry when no editor is open; list with source and published flag; the restore action, disabled while an editor frame is open on the document in this page and otherwise left to the broker's answer. Verify: Vitest for the list, both entry points, the restore call, the disabled state, and a `session_open` refusal shown as an error.
 
 Depends on: 24.
 Suggested fixture level: expanded - a restore request that replaces user content.
 Minimal mergeable slice: 25.1 (maximize) - green alone because it only changes layout; 25.2 is an independent dialog.
+
+### Maximize layout risk coverage
+
+- Component API / schema — Selected: status maximize/restore actions reach the existing wrapper; all callers/tests migrate together. No Office message or HTTP schema change.
+- Auth / iframe authority compatibility — Selected: same frame src/sandbox/allow and current generation survive both layout transitions; existing message rejection and A-T01 evidence remain.
+- Lifecycle / shared state / ordering — Selected: node and live-document continuity, no extra open/session request, unchanged editing state and usable Save. Restore/retirement/replacement remove native top-layer and popover attribute state; later activation is visible in the sidebar.
+- Layout integration / errors — Selected: native manual-popover presentation on the existing DOM wrapper; desktop and narrow geometry/hit-testing prove Navbar and separator cannot cover it. A check accepting the old separator as an alternative is invalid. Restore remains reachable; no Fullscreen call, fixed-only production fallback, orphan overlay or altered Files/Browser/Terminal presentation.
+- Resource limits / discovery — Selected: same configured full browser target, one session creation for the maximize case, explicit screenshots, no reload or leaked owned resources.
+- Documentation — Selected: owning Office plan/decision describes the layout owner and frame-continuity rationale; new labels use generated catalogs, no hand-written locale edits.
+- Config, production file IO/path safety, release/dependencies — Not selected: no changes to these surfaces. History/restore, conflict, pre-open and close guards are explicit non-goals.
+
+Required evidence for 25.1: meaningful mounted RED against the unchanged component before implementation, then iframe identity/no-open/no-Fullscreen, overlay Save dispatch and retirement/replacement cleanup cases plus existing component/controller/store tests with per-file coverage. Run scoped lint/typecheck/anti-drift, generated-i18n/format and doc/decision/strict gates. Run `make verify-ui` including the full unchanged `make verify-ui-ocu` discovery with the maximize case named, explicit sidebar/overlay screenshots and zero unexpected console/page errors; inspect both desktop and narrow behavior. Real-browser document continuity and one creation arrival are required, not mocked iframe evidence alone. Parent owns final acceptance and 25.1 checkbox; 25.2 and the shared change remain open.
 
 ## 26. [webui] Conflict dialog and the open-time prompt (spec: ocu-office-workspace-ui)
 

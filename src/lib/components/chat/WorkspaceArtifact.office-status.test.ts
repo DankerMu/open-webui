@@ -1,65 +1,35 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tick } from 'svelte';
+import { tick, unmount } from 'svelte';
 import { get } from 'svelte/store';
 import { config } from '$lib/stores';
 import { ocuWorkspaces } from '$lib/stores/ocu';
 import { ocuOffice } from '$lib/stores/ocu-office';
 import { chat } from '../../../../test/ocu-workspace-fixtures';
+import { OFFICE_EDITOR_ALLOW, OFFICE_EDITOR_SANDBOX } from './office-editor-frame';
 import {
 	OfficeArtifactHarness,
 	editAction,
 	editorFrame,
+	isOfficeCommand,
+	maximizeControl,
 	namedButton,
+	officeCommandCalls,
 	officeConfig,
 	officeDocx,
+	overlayLayout,
+	postOfficeState,
 	previewFrame,
+	restoreControl,
 	reopenControl,
-	saveControl
+	saveControl,
+	selectedFileSurface
 } from './workspace-artifact-office-test';
 
 const harness = new OfficeArtifactHarness();
 
 function downloadLink() {
 	return document.querySelector('[data-selected-bar] a[download]') as HTMLAnchorElement | null;
-}
-
-function officeCommand(data: unknown): data is {
-	type: 'ocu:office-command';
-	chat_id: string;
-	generation: number;
-	command: string;
-} {
-	return !!data && typeof data === 'object' && 'type' in data && data.type === 'ocu:office-command';
-}
-
-function commandCalls(sent: { mock: { calls: unknown[][] } }) {
-	return sent.mock.calls.filter((call) => officeCommand(call[0]));
-}
-
-function postState(
-	frame: HTMLIFrameElement,
-	generation: number,
-	extra: Record<string, unknown> = {}
-) {
-	window.dispatchEvent(
-		new MessageEvent('message', {
-			origin: window.location.origin,
-			source: frame.contentWindow,
-			data: {
-				type: 'ocu:office-state',
-				chat_id: chat,
-				file_id: officeDocx.file_id,
-				generation,
-				session_id: 'sess-1',
-				state: 'editing',
-				dirty: false,
-				workspace_changed: false,
-				reason: null,
-				...extra
-			}
-		})
-	);
 }
 
 async function openEditor() {
@@ -106,7 +76,7 @@ describe('Office editor status bar', () => {
 			}
 		];
 		for (const step of steps) {
-			postState(frame, openMessage.generation, step.extra);
+			postOfficeState(frame, openMessage.generation, step.extra);
 			await tick();
 			expect(document.body.textContent).toContain(step.text);
 			if (step.text === 'This file type cannot be edited') {
@@ -122,27 +92,27 @@ describe('Office editor status bar', () => {
 	it('posts one origin-targeted save and waits for reported saving then saved', async () => {
 		const frame = await openEditor();
 		const { sent, openMessage } = await harness.acceptEditing(frame);
-		postState(frame, openMessage.generation, { dirty: true });
+		postOfficeState(frame, openMessage.generation, { dirty: true });
 		await tick();
 		expect(document.body.textContent).toContain('Unsaved');
 		saveControl()!.click();
 		await tick();
-		expect(commandCalls(sent)).toHaveLength(1);
-		expect(commandCalls(sent)[0][0]).toEqual({
+		expect(officeCommandCalls(sent)).toHaveLength(1);
+		expect(officeCommandCalls(sent)[0][0]).toEqual({
 			type: 'ocu:office-command',
 			chat_id: chat,
 			generation: openMessage.generation,
 			command: 'save'
 		});
-		expect(commandCalls(sent)[0][1]).toBe(window.location.origin);
-		expect(commandCalls(sent)[0][1]).not.toBe('*');
+		expect(officeCommandCalls(sent)[0][1]).toBe(window.location.origin);
+		expect(officeCommandCalls(sent)[0][1]).not.toBe('*');
 		expect(document.body.textContent).toContain('Unsaved');
 		expect(document.body.textContent).not.toContain('Saving');
-		postState(frame, openMessage.generation, { state: 'saving', dirty: true });
+		postOfficeState(frame, openMessage.generation, { state: 'saving', dirty: true });
 		await tick();
 		expect(document.body.textContent).toContain('Saving');
 		expect(document.body.textContent).not.toContain('Saved');
-		postState(frame, openMessage.generation, { state: 'editing', dirty: false });
+		postOfficeState(frame, openMessage.generation, { state: 'editing', dirty: false });
 		await tick();
 		expect(document.body.textContent).toContain('Saved');
 		expect(harness.officeRequests()).toEqual([]);
@@ -157,16 +127,19 @@ describe('Office editor status bar', () => {
 			harness.install();
 			const frame = await openEditor();
 			const { sent, openMessage } = await harness.acceptEditing(frame);
-			postState(frame, openMessage.generation, { dirty: true });
+			postOfficeState(frame, openMessage.generation, { dirty: true });
 			await tick();
 			saveControl()!.click();
-			postState(frame, openMessage.generation, { state: 'saving', dirty: true });
+			postOfficeState(frame, openMessage.generation, { state: 'saving', dirty: true });
 			await tick();
-			postState(frame, openMessage.generation, { state: outcome.state, reason: outcome.reason });
+			postOfficeState(frame, openMessage.generation, {
+				state: outcome.state,
+				reason: outcome.reason
+			});
 			await tick();
 			expect(document.body.textContent).toContain(outcome.text);
 			expect(document.body.textContent).not.toContain('Saved');
-			expect(commandCalls(sent)).toHaveLength(1);
+			expect(officeCommandCalls(sent)).toHaveLength(1);
 		}
 	});
 
@@ -177,13 +150,13 @@ describe('Office editor status bar', () => {
 		expect(document.body.textContent).toContain('Saved');
 		saveControl()!.click();
 		await tick();
-		expect(commandCalls(sent)).toHaveLength(1);
+		expect(officeCommandCalls(sent)).toHaveLength(1);
 		expect(document.body.textContent).not.toContain('Unsaved');
-		postState(frame, openMessage.generation, { state: 'saving', dirty: false });
+		postOfficeState(frame, openMessage.generation, { state: 'saving', dirty: false });
 		await tick();
 		expect(document.body.textContent).toContain('Saving');
 		expect(document.body.textContent).not.toContain('Unsaved');
-		postState(frame, openMessage.generation, { state: 'editing', dirty: false });
+		postOfficeState(frame, openMessage.generation, { state: 'editing', dirty: false });
 		await tick();
 		expect(document.body.textContent).toContain('Saved');
 		expect(document.body.textContent).not.toContain('Unsaved');
@@ -193,7 +166,7 @@ describe('Office editor status bar', () => {
 		const frame = await openEditor();
 		const { openMessage } = await harness.acceptEditing(frame);
 		for (const dirty of [true, false]) {
-			postState(frame, openMessage.generation, {
+			postOfficeState(frame, openMessage.generation, {
 				state: 'editing',
 				dirty,
 				reason: 'save_timeout'
@@ -216,19 +189,22 @@ describe('Office editor status bar', () => {
 		async (reason, message) => {
 			const frame = await openEditor();
 			const { sent, openMessage } = harness.handshake(frame);
-			postState(frame, openMessage.generation, {
+			maximizeControl()!.click();
+			await tick();
+			postOfficeState(frame, openMessage.generation, {
 				state: 'refused',
 				session_id: null,
 				reason
 			});
 			await tick();
 			expect(editorFrame('report.docx')).toBeNull();
+			expect(overlayLayout()).toBe(false);
 			expect(previewFrame('report.docx')).not.toBeNull();
 			expect(downloadLink()?.getAttribute('download')).toBe('report.docx');
 			expect(document.body.textContent).toContain(message);
-			expect(commandCalls(sent)).toHaveLength(0);
+			expect(officeCommandCalls(sent)).toHaveLength(0);
 			expect(
-				sent.mock.calls.some((call) => officeCommand(call[0]) && call[0].command === 'close')
+				sent.mock.calls.some((call) => isOfficeCommand(call[0]) && call[0].command === 'close')
 			).toBe(false);
 			expect(harness.officeRequests()).toEqual([]);
 		}
@@ -237,7 +213,7 @@ describe('Office editor status bar', () => {
 	it('keeps a refusal message on the selected file after frame removal and does not bleed it', async () => {
 		const frame = await openEditor();
 		const { sent, openMessage } = harness.handshake(frame);
-		postState(frame, openMessage.generation, {
+		postOfficeState(frame, openMessage.generation, {
 			state: 'refused',
 			session_id: null,
 			reason: 'unsupported_type'
@@ -253,7 +229,7 @@ describe('Office editor status bar', () => {
 		expect(document.body.textContent).toContain('This file type cannot be edited');
 		expect(editorFrame('report.docx')).toBeNull();
 		expect(previewFrame('report.docx')).not.toBeNull();
-		expect(commandCalls(sent)).toHaveLength(0);
+		expect(officeCommandCalls(sent)).toHaveLength(0);
 		expect(harness.officeRequests()).toEqual([]);
 		editAction()!.click();
 		await tick();
@@ -268,7 +244,7 @@ describe('Office editor status bar', () => {
 			harness.install();
 			const frame = await openEditor();
 			const { openMessage } = harness.handshake(frame);
-			postState(frame, openMessage.generation, {
+			postOfficeState(frame, openMessage.generation, {
 				state: 'refused',
 				session_id: null,
 				reason
@@ -283,7 +259,7 @@ describe('Office editor status bar', () => {
 	it('reopens an expired editor with a fresh frame and higher generation after reclassification', async () => {
 		const frame = await openEditor();
 		const { sent, openMessage } = await harness.acceptEditing(frame);
-		postState(frame, openMessage.generation, { state: 'orphaned', reason: 'editor_lost' });
+		postOfficeState(frame, openMessage.generation, { state: 'orphaned', reason: 'editor_lost' });
 		await tick();
 		expect(document.body.textContent).toContain('Expired');
 		expect(editorFrame('report.docx')).toBe(frame);
@@ -300,51 +276,35 @@ describe('Office editor status bar', () => {
 		const handshake = harness.handshake(next!);
 		expect(handshake.openMessage.file_id).toBe(officeDocx.file_id);
 		expect(handshake.openMessage.generation).toBeGreaterThan(openMessage.generation);
-		window.dispatchEvent(
-			new MessageEvent('message', {
-				origin: window.location.origin,
-				source: frame.contentWindow,
-				data: {
-					type: 'ocu:office-state',
-					chat_id: chat,
-					file_id: officeDocx.file_id,
-					generation: openMessage.generation,
-					session_id: 'sess-1',
-					state: 'editing',
-					dirty: true,
-					workspace_changed: false,
-					reason: null
-				}
-			})
-		);
+		postOfficeState(frame, openMessage.generation, { dirty: true });
 		await tick();
 		expect(get(ocuOffice)[chat].generation).toBe(handshake.openMessage.generation);
 		expect(get(ocuOffice)[chat].state).toBeUndefined();
-		expect(commandCalls(sent)).toHaveLength(0);
+		expect(officeCommandCalls(sent)).toHaveLength(0);
 	});
 
 	it('toggles the workspace-changed notice without changing Save and hides it on false, closed, and refused', async () => {
 		const frame = await openEditor();
 		const { sent, openMessage } = await harness.acceptEditing(frame);
-		postState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
+		postOfficeState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
 		await tick();
 		expect(document.body.textContent).toContain('Workspace file changed');
 		expect(saveControl()?.disabled).toBe(false);
-		postState(frame, openMessage.generation, { dirty: true, workspace_changed: false });
+		postOfficeState(frame, openMessage.generation, { dirty: true, workspace_changed: false });
 		await tick();
 		expect(document.body.textContent).not.toContain('Workspace file changed');
-		postState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
+		postOfficeState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
 		await tick();
 		expect(document.body.textContent).toContain('Workspace file changed');
-		postState(frame, openMessage.generation, { state: 'closed', workspace_changed: true });
+		postOfficeState(frame, openMessage.generation, { state: 'closed', workspace_changed: true });
 		await tick();
 		expect(editorFrame('report.docx')).toBeNull();
 		expect(previewFrame('report.docx')).not.toBeNull();
 		expect(document.body.textContent).not.toContain('Workspace file changed');
-		expect(commandCalls(sent)).toHaveLength(0);
+		expect(officeCommandCalls(sent)).toHaveLength(0);
 		const again = await harness.selectAndEdit('report.docx');
 		const next = harness.handshake(again);
-		postState(again, next.openMessage.generation, {
+		postOfficeState(again, next.openMessage.generation, {
 			state: 'refused',
 			session_id: null,
 			reason: 'unsupported_type',
@@ -358,21 +318,17 @@ describe('Office editor status bar', () => {
 	it('returns to the read-only preview after a reported closed state', async () => {
 		const frame = await openEditor();
 		const { openMessage } = await harness.acceptEditing(frame);
-		postState(frame, openMessage.generation, { state: 'closed' });
+		maximizeControl()!.click();
+		await tick();
+		postOfficeState(frame, openMessage.generation, { state: 'closed' });
 		await tick();
 		expect(editorFrame('report.docx')).toBeNull();
+		expect(overlayLayout()).toBe(false);
 		expect(previewFrame('report.docx')).not.toBeNull();
 		expect(downloadLink()?.getAttribute('download')).toBe('report.docx');
 		await tick();
 		const preview = previewFrame('report.docx')!;
-		const post = vi.spyOn(preview.contentWindow!, 'postMessage');
-		window.dispatchEvent(
-			new MessageEvent('message', {
-				source: preview.contentWindow,
-				origin: window.location.origin,
-				data: { type: 'ocu:preview-ready', chat_id: chat }
-			})
-		);
+		const post = harness.previewHandshake(preview);
 		expect(post).toHaveBeenCalledTimes(1);
 		expect(post.mock.calls[0][0]).toMatchObject({
 			type: 'ocu:preview-select',
@@ -408,21 +364,44 @@ describe('Office editor status bar', () => {
 		expect(get(ocuOffice)).toBe(snapshot);
 		expect(document.body.textContent).toContain('Saved');
 		expect(document.body.textContent).not.toContain('Unsaved');
-		expect(commandCalls(sent)).toHaveLength(0);
+		expect(officeCommandCalls(sent)).toHaveLength(0);
 	});
 
-	it.each(['office-flag', 'workspace-flag', 'selection', 'view'])(
-		'hides the status bar on genuine %s revocation',
-		async (cause) => {
+	it.each([
+		['office-flag', false],
+		['workspace-flag', false],
+		['office-flag', true],
+		['workspace-flag', true],
+		['selection', true],
+		['view', true],
+		['selection-removed', true],
+		['unmount', true]
+	] as const)(
+		'hides the status bar on genuine %s revocation (maximized: %s)',
+		async (cause, maximized) => {
 			const frame = await openEditor();
-			const { openMessage } = await harness.acceptEditing(frame);
-			postState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
+			const oldWindow = frame.contentWindow;
+			const { sent, openMessage } = await harness.acceptEditing(frame);
+			postOfficeState(frame, openMessage.generation, { dirty: true, workspace_changed: true });
 			await tick();
 			expect(document.body.textContent).toContain('Unsaved');
+			if (maximized) {
+				maximizeControl()!.click();
+				await tick();
+				expect(overlayLayout()).toBe(true);
+			}
 			if (cause === 'office-flag') config.set(officeConfig(false));
 			else if (cause === 'workspace-flag') config.set(officeConfig(true, false));
 			else if (cause === 'selection') namedButton('page.html').click();
-			else
+			else if (cause === 'selection-removed')
+				ocuWorkspaces.update((states) => ({
+					...states,
+					[chat]: { ...states[chat], selectedFileId: undefined }
+				}));
+			else if (cause === 'unmount') {
+				await unmount(harness.component!);
+				harness.component = undefined;
+			} else
 				ocuWorkspaces.update((states) => ({
 					...states,
 					[chat]: { ...states[chat], view: 'browser' }
@@ -430,8 +409,118 @@ describe('Office editor status bar', () => {
 			await tick();
 			expect(editorFrame('report.docx')).toBeNull();
 			expect(saveControl()).toBeUndefined();
+			expect(overlayLayout()).toBe(false);
+			expect(selectedFileSurface()?.hasAttribute('popover') ?? false).toBe(false);
 			expect(document.body.textContent).not.toContain('Unsaved');
 			expect(document.body.textContent).not.toContain('Workspace file changed');
+			const retired = get(ocuOffice);
+			expect(retired[chat].generation).toBeGreaterThan(openMessage.generation);
+			postOfficeState(frame, openMessage.generation, { dirty: true }, oldWindow);
+			expect(get(ocuOffice)).toBe(retired);
+			expect(officeCommandCalls(sent)).toHaveLength(0);
+			if (cause === 'office-flag' || cause === 'workspace-flag') {
+				expect(previewFrame('report.docx')).not.toBeNull();
+				expect(downloadLink()?.getAttribute('download')).toBe('report.docx');
+				config.set(officeConfig(true));
+				await tick();
+				expect(editorFrame('report.docx')).toBeNull();
+				expect(saveControl()).toBeUndefined();
+				expect(overlayLayout()).toBe(false);
+				expect(previewFrame('report.docx')).not.toBeNull();
+				expect(get(ocuOffice)).toBe(retired);
+			}
 		}
 	);
+
+	it('keeps the same editor frame across maximize, overlay Save, and restore', async () => {
+		const requestFullscreen = vi.fn();
+		const exitFullscreen = vi.fn();
+		const targets = [
+			[HTMLElement.prototype, 'requestFullscreen'],
+			[document, 'exitFullscreen']
+		] as const;
+		const descriptors = targets.map(([target, key]) =>
+			Object.getOwnPropertyDescriptor(target, key)
+		);
+		try {
+			Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
+				configurable: true,
+				value: requestFullscreen
+			});
+			Object.defineProperty(document, 'exitFullscreen', {
+				configurable: true,
+				value: exitFullscreen
+			});
+			const frame = await openEditor();
+			const { sent, openMessage } = await harness.acceptEditing(frame);
+			expect(frame.getAttribute('src')).toBe(`/ocu/preview/${chat}?embed=office`);
+			expect(frame.getAttribute('sandbox')).toBe(OFFICE_EDITOR_SANDBOX);
+			expect(frame.getAttribute('allow')).toBe(OFFICE_EDITOR_ALLOW);
+			maximizeControl()!.click();
+			await tick();
+			expect(editorFrame('report.docx')).toBe(frame);
+			expect(overlayLayout()).toBe(true);
+			expect(selectedFileSurface()?.getAttribute('popover')).toBe('manual');
+			expect(restoreControl()).toBeDefined();
+			postOfficeState(frame, openMessage.generation, { dirty: true });
+			await tick();
+			saveControl()!.click();
+			await tick();
+			expect(officeCommandCalls(sent)[0][0]).toEqual({
+				type: 'ocu:office-command',
+				chat_id: chat,
+				generation: openMessage.generation,
+				command: 'save'
+			});
+			restoreControl()!.click();
+			await tick();
+			expect(editorFrame('report.docx')).toBe(frame);
+			expect(overlayLayout()).toBe(false);
+			expect(selectedFileSurface()?.hasAttribute('popover')).toBe(false);
+			expect(maximizeControl()).toBeDefined();
+			expect(
+				sent.mock.calls.filter(([message]) => message?.type === 'ocu:office-open')
+			).toHaveLength(1);
+			expect(officeCommandCalls(sent)).toHaveLength(1);
+			expect(requestFullscreen).not.toHaveBeenCalled();
+			expect(exitFullscreen).not.toHaveBeenCalled();
+			expect(harness.officeRequests()).toEqual([]);
+		} finally {
+			targets.forEach(([target, key], index) => {
+				const descriptor = descriptors[index];
+				if (descriptor) Object.defineProperty(target, key, descriptor);
+				else Reflect.deleteProperty(target, key);
+			});
+		}
+	});
+
+	it('clears maximized layout on ready timeout and Open again', async () => {
+		vi.useFakeTimers();
+		await harness.open();
+		await harness.ready('report.docx');
+		namedButton('report.docx').click();
+		await tick();
+		editAction()!.click();
+		await tick();
+		maximizeControl()!.click();
+		await tick();
+		await vi.advanceTimersByTimeAsync(10_000);
+		await tick();
+		expect(overlayLayout()).toBe(false);
+		vi.useRealTimers();
+		namedButton('Retry').click();
+		await tick();
+		expect(overlayLayout()).toBe(false);
+		const frame = editorFrame('report.docx')!;
+		const { openMessage } = await harness.acceptEditing(frame);
+		maximizeControl()!.click();
+		await tick();
+		postOfficeState(frame, openMessage.generation, { state: 'orphaned', reason: 'editor_lost' });
+		await tick();
+		namedButton('Open again').click();
+		await tick();
+		expect(editorFrame('report.docx')).not.toBe(frame);
+		expect(overlayLayout()).toBe(false);
+		expect(maximizeControl()).toBeDefined();
+	});
 });

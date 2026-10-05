@@ -95,6 +95,79 @@ export function previewFrame(name: string) {
 
 export const saveControl = () => namedControl('Save');
 export const reopenControl = () => namedControl('Open again');
+export const maximizeControl = () => namedControl('Maximize');
+export const restoreControl = () => namedControl('Restore');
+
+export function selectedFileSurface() {
+	return document.querySelector('[aria-label="Selected workspace file"]') as HTMLElement | null;
+}
+
+export function overlayLayout() {
+	const node = selectedFileSurface();
+	return node?.getAttribute('popover') === 'manual' && node.hasAttribute('data-ocu-popover-open');
+}
+
+export function installOfficePopoverModel() {
+	const descriptors = (['showPopover', 'hidePopover', 'matches'] as const).map(
+		(name) => [name, Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)] as const
+	);
+	HTMLElement.prototype.showPopover = function () {
+		this.toggleAttribute('data-ocu-popover-open', true);
+	};
+	HTMLElement.prototype.hidePopover = function () {
+		this.removeAttribute('data-ocu-popover-open');
+	};
+	const originalMatches = HTMLElement.prototype.matches;
+	HTMLElement.prototype.matches = function (selectors: string) {
+		if (selectors === ':popover-open') return this.hasAttribute('data-ocu-popover-open');
+		return originalMatches.call(this, selectors);
+	};
+	return () => {
+		for (const [name, descriptor] of descriptors) {
+			if (descriptor) Object.defineProperty(HTMLElement.prototype, name, descriptor);
+			else Reflect.deleteProperty(HTMLElement.prototype, name);
+		}
+	};
+}
+
+export function isOfficeCommand(data: unknown): data is {
+	type: 'ocu:office-command';
+	chat_id: string;
+	generation: number;
+	command: string;
+} {
+	return !!data && typeof data === 'object' && 'type' in data && data.type === 'ocu:office-command';
+}
+
+export function officeCommandCalls(sent: { mock: { calls: unknown[][] } }) {
+	return sent.mock.calls.filter((call) => isOfficeCommand(call[0]));
+}
+
+export function postOfficeState(
+	frame: HTMLIFrameElement,
+	generation: number,
+	extra: Record<string, unknown> = {},
+	source: MessageEventSource | null = frame.contentWindow
+) {
+	window.dispatchEvent(
+		new MessageEvent('message', {
+			origin: window.location.origin,
+			source,
+			data: {
+				type: 'ocu:office-state',
+				chat_id: chat,
+				file_id: officeDocx.file_id,
+				generation,
+				session_id: 'sess-1',
+				state: 'editing',
+				dirty: false,
+				workspace_changed: false,
+				reason: null,
+				...extra
+			}
+		})
+	);
+}
 
 export class OfficeArtifactHarness {
 	calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -105,6 +178,7 @@ export class OfficeArtifactHarness {
 	private detachController: (() => void) | undefined;
 	private priorConfig!: Parameters<typeof config.set>[0];
 	private priorSettings!: Parameters<typeof settings.set>[0];
+	private restorePopover: (() => void) | undefined;
 
 	officeRequests() {
 		return this.calls.filter((call) => call.url.includes('/ocu/api/office/'));
@@ -114,6 +188,15 @@ export class OfficeArtifactHarness {
 		return this.calls.filter(
 			(call) => call.url.endsWith('/launch') && call.init?.method === 'POST'
 		);
+	}
+
+	setListing(files: WorkspaceFile[], describe = describeBody, revision = 1) {
+		this.scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json(describe)
+					: json(listing(files, null, revision));
 	}
 
 	install() {
@@ -131,12 +214,7 @@ export class OfficeArtifactHarness {
 		document.body.replaceChildren();
 		localStorage.setItem('token', 'fixture-session');
 		this.calls = [];
-		this.scenario = (input, init) =>
-			input.endsWith('/prefs') && init?.method === 'PUT'
-				? json({ prefs: JSON.parse(String(init.body)) })
-				: input.includes('/workspaces/')
-					? json(describeBody)
-					: json(listing([officeDocx, htmlFile]));
+		this.setListing([officeDocx, htmlFile]);
 		vi.stubGlobal(
 			'fetch',
 			vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -144,6 +222,8 @@ export class OfficeArtifactHarness {
 				return Promise.resolve(this.scenario(String(input), init));
 			})
 		);
+		this.restorePopover?.();
+		this.restorePopover = installOfficePopoverModel();
 		this.controller = createWorkspaceReconciliation({
 			token: () => localStorage.token,
 			available: () => true,
@@ -154,6 +234,8 @@ export class OfficeArtifactHarness {
 
 	async cleanup() {
 		if (this.component) await unmount(this.component);
+		this.restorePopover?.();
+		this.restorePopover = undefined;
 		this.detachController?.();
 		this.component = undefined;
 		config.set(this.priorConfig);
@@ -211,25 +293,21 @@ export class OfficeArtifactHarness {
 		return { sent, openMessage };
 	}
 
-	async acceptEditing(frame: HTMLIFrameElement, sessionId = 'sess-1') {
-		const { sent, openMessage } = this.handshake(frame);
+	previewHandshake(frame: HTMLIFrameElement) {
+		const sent = vi.spyOn(frame.contentWindow!, 'postMessage');
 		window.dispatchEvent(
 			new MessageEvent('message', {
-				origin: window.location.origin,
 				source: frame.contentWindow,
-				data: {
-					type: 'ocu:office-state',
-					chat_id: chat,
-					file_id: officeDocx.file_id,
-					generation: openMessage.generation,
-					session_id: sessionId,
-					state: 'editing',
-					dirty: false,
-					workspace_changed: false,
-					reason: null
-				}
+				origin: window.location.origin,
+				data: { type: 'ocu:preview-ready', chat_id: chat }
 			})
 		);
+		return sent;
+	}
+
+	async acceptEditing(frame: HTMLIFrameElement, sessionId = 'sess-1') {
+		const { sent, openMessage } = this.handshake(frame);
+		postOfficeState(frame, openMessage.generation, { session_id: sessionId });
 		await tick();
 		expect(get(ocuOffice)[chat]).toMatchObject({
 			fileId: officeDocx.file_id,
@@ -256,12 +334,7 @@ export class OfficeArtifactHarness {
 	async refreshReclassifiedListing(next: WorkspaceFile) {
 		const beforeOffice = this.officeRequests().length;
 		const beforeLaunch = this.launchRequests().length;
-		this.scenario = (input, init) =>
-			input.endsWith('/prefs') && init?.method === 'PUT'
-				? json({ prefs: JSON.parse(String(init.body)) })
-				: input.includes('/workspaces/')
-					? json(describeBody)
-					: json(listing([next, htmlFile], null, next.revision));
+		this.setListing([next, htmlFile], describeBody, next.revision);
 		namedButton('Refresh workspace files').click();
 		await this.ready(next.name);
 		await tick();

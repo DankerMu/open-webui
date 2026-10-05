@@ -342,3 +342,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: actual route/proxy/stub save and refusal cases, a deterministic withheld-status confirmation window, private request records, usable preview/download, screenshots and no unexpected browser errors.
 - Characterization mode: production already implements these behaviors. Qualify new assertions with controlled known-bad browser/test inputs, restore them, and run the unchanged full browser target; no invented production RED or claim of a real DocumentServer save.
 - Review seats: correctness and test-evidence+spec-compliance; test-only scope needs no separate production security/performance seat.
+
+## Office maximize fixture
+
+- Issue type: feature; fixture level: expanded, matching task 25.1. The suggested level stands for live iframe/lifecycle integration, not the unrelated restore operation in 25.2.
+- Scope: an in-page editor/status overlay and restore control, mounted tests, browser proof and generated localization. No history, conflict, pre-open choice, close guard, upstream Chat/ChatControls, stub, harness configuration or OCU change.
+- Governing invariant: maximize and restore change layout only; the same iframe, live document, session, generation and message binding survive.
+- Selected risk packs: component API, iframe authority compatibility, lifecycle/ordering, layout integration, errors/cleanup, discovery and documentation.
+- Evidence floor: semantic mounted RED then identity/command/no-Fullscreen GREEN, actual desktop and narrow-layout geometry and continuity, explicit sidebar/overlay screenshots, one session creation and existing browser regressions.
+- Promote the existing wrapper to the browser top layer with a manual popover while maximized, then remove popover state on restore. Fixed positioning alone is obstructed by the existing Navbar/resizer stacking contexts. A portal, cloned frame or detach/reinsert remains forbidden; unchanged node identity alone does not prove no navigation.

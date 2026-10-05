@@ -11,6 +11,7 @@ import {
 	editorFrame,
 	namedButton,
 	officeDocx,
+	postOfficeState,
 	previewFrame
 } from './workspace-artifact-office-test';
 
@@ -64,23 +65,7 @@ describe('Office admitted editor identity', () => {
 				state: 'editing',
 				generation: openMessage.generation
 			});
-			window.dispatchEvent(
-				new MessageEvent('message', {
-					origin: window.location.origin,
-					source: frame.contentWindow,
-					data: {
-						type: 'ocu:office-state',
-						chat_id: chat,
-						file_id: officeDocx.file_id,
-						generation: openMessage.generation,
-						session_id: 'sess-1',
-						state: 'saving',
-						dirty: true,
-						workspace_changed: false,
-						reason: null
-					}
-				})
-			);
+			postOfficeState(frame, openMessage.generation, { state: 'saving', dirty: true });
 			await tick();
 			expect(get(ocuOffice)[chat]).toMatchObject({
 				fileId: officeDocx.file_id,
