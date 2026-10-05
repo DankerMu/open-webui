@@ -30,6 +30,8 @@ Ready expiry revokes generation authority before showing failure/Retry; the capt
 
 Retirement exposes activation invalidation as a reactive assignment so the frame, status and read-only preview projections settle in the same update. Controller disposal remains the cleanup owner; re-enabling a feature does not resurrect a retired activation.
 
+History belongs to a captured chat/file opening, not the editor store. It stays inside the selected-file wrapper so it remains visible above a maximized editor without moving the frame. Dismissal or lost context invalidates asynchronous completions; same-ID metadata does not restart the read. A local live frame blocks version restore; a remote `open_session` remains the broker's decision. A pending mutation prevents duplicate submission. Only an authoritative reload replaces rows; refusal preserves them, and an accepted restore with failed reload is reported distinctly.
+
 ## Alternatives considered
 
 - **Reuse workspace failure mapping** — folds 404 to `not_found` and drops unrecognized broker reasons that later status and restore UI must show.
@@ -45,6 +47,8 @@ Retirement exposes activation invalidation as a reactive assignment so the frame
 - **Portal or cloned iframe for maximize** — detaches or duplicates the live document instead of changing the existing wrapper's presentation.
 - **Fullscreen API for maximize** — enters browser fullscreen rather than the required in-page overlay.
 - **Fixed overlay with a local z-index** — remains underneath the Navbar and Controls separator stacking contexts, so geometry expansion is not page coverage.
+- **Disable restore from the listing's open session** — denies broker recovery of a forgotten session or another tab's authoritative refusal.
+- **Optimistically append a restored version** — invents broker numbering and publication state before the authoritative reload.
 
 ## Consequences
 

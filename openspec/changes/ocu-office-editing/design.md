@@ -818,6 +818,22 @@ The browser case explicitly saves sidebar and overlay screenshots, measures expa
 
 Sibling surfaces are the selected-file wrapper, Office status controls, existing frame action/controller/store, desktop Controls/Drawer ancestors and browser host/request record. Existing Files/Browser/Terminal layouts and generated/read-only sandbox policies remain unchanged. Owning Office documentation records the measured mechanism after smoke proof; rollback reverts this layout slice without a compatibility implementation.
 
+#### Version-history boundary
+
+Task 25.2 uses the existing parent Office client for versions and restore; it adds no message command, store authority or server route. The status bar exposes history while editing; the selected editable Office file exposes it without an editor. Opening either entry issues one versions read and never creates a session. Existing literal feature flags, saved-chat and canonical gateway admission remain required.
+
+The history surface remains inside the selected-file wrapper, including its native top layer when maximized. It must not portal beneath that layer, change layout mode, detach the editor or alter its key, document, session or generation. Version Restore is distinguishable from layout Restore. The view shows broker number, time, source and each row's literal published flag; the workspace source does not imply publication. The B-T14 fixture explicitly marks workspace false, save true and autosave false.
+
+Each opening captures chat and file identity. Selection, chat, view, feature revocation or dismissal invalidates that opening; late reads or mutation completions cannot populate another view, reopen it or trigger a reload for a retired opening. Same-ID metadata/revision changes do not restart its read. This identity belongs to the local history UI, not a second editor store.
+
+Restore is disabled with an explanation precisely while this page has an editor frame open on the document; a listing's remote open_session never disables it. Pending mutation also disables repeated submission. One chosen version produces one restore request through the existing mutation-header client, then one authoritative list reload. Refusal preserves every displayed row and reports the broker reason, including session_open. A successful mutation followed by a failed read is reported as a refresh failure after restore, never as mutation refusal or an optimistic fabricated row.
+
+Sibling surfaces are both entry points, the delivered Office client and error type, history component lifetime, live editor/status projection, native maximized wrapper, and the existing stub versions/restore contracts. No list publication flag, Office status or workspace revision is inferred from a successful click.
+
+Required proof: mounted real-client/fetch-boundary tests cover both entries, exact row fields/flags, local frame versus remote session, one mutation/header and authoritative reload, refusal conservation, stale results, duplicate clicks, feature-off/non-Office absence and unchanged live iframe. The existing browser suite remains unchanged; an external disposable browser walk proves actual history rendering and reachable controls in sidebar and maximized layout, with screenshots and no unexpected errors. It is not real-broker acceptance.
+
+Owning Office plan/decision records the history lifecycle after smoke proof. Rollback reverts this UI slice with the feature disabled; no compatibility path, deletion/pruning, conflict dialog, unpublished preflight or close guard is added.
+
 ### D17. DocumentServer placement and origin
 
 DocumentServer is a compose service on the control-plane network only, with no host publication and no Docker socket. It is added to the existing core stack beside the OCU server, not as a fourth stack, so the deployment entry and the smoke keep their three-stack lists. The proxy publishes a second port whose listener forwards to DocumentServer, including WebSocket upgrade. Every request on that listener passes session authentication (`/api/v1/auths/` with the browser cookie; cookies are not port-scoped). Browsers therefore see DocumentServer on a different origin from WebUI, so script running in the editor origin cannot read WebUI's `localStorage` token. The listener uses the WebUI session cookie for the authentication subrequest only and does not forward it to DocumentServer, a third-party image that has no use for the user's WebUI credential; B1 confirms the editor works without it.

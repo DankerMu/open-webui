@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { getContext, onMount, tick } from 'svelte';
-	import type { Writable } from 'svelte/store';
+	import { get, type Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import { get } from 'svelte/store';
 	import {
 		workspaceFileUrl,
 		workspaceRuntimeUrl,
@@ -27,6 +26,7 @@
 	} from './office-editor-frame';
 	import { officeMaximizeOverlay } from './office-maximize-overlay';
 	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
+	import OfficeVersionHistory from './OfficeVersionHistory.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -71,6 +71,7 @@
 	let editorSrc = '';
 	let editorError = '';
 	let editorMaximized = false;
+	let historyTarget = '';
 	const editor = createOfficeEditorController({
 		origin: () => window.location.origin,
 		onTimeout() {
@@ -98,6 +99,11 @@
 		$config.features.enable_ocu_office_edit === true &&
 		workspace?.baseUrl === '/ocu';
 	$: officeEdit = office && officeEnabled;
+	$: historyContext =
+		(officeEdit || (editorActive && officeEnabled)) && workspace?.view === 'files'
+			? `${encodeURIComponent(chatId)}/${encodeURIComponent(selected!.file_id)}`
+			: '';
+	$: if (historyTarget && historyTarget !== historyContext) historyTarget = '';
 	$: editorActive =
 		!!editorFileId &&
 		selected?.file_id === editorFileId &&
@@ -656,6 +662,14 @@
 						>{formatFileSize(selected.size)}</span
 					>
 					<div class="ml-auto flex shrink-0 items-center gap-1">
+						{#if officeEdit && (!editorActive || editorError)}
+							<button
+								type="button"
+								class="h-7 rounded-md border border-gray-200 px-2 text-xs hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
+								on:click={() => (historyTarget = historyContext)}
+								>{$i18n.t('Version history')}</button
+							>
+						{/if}
 						{#if officeEdit}
 							<Tooltip content={$i18n.t('Edit')} className="flex">
 								<button
@@ -686,6 +700,15 @@
 						onSave={() => editor.save()}
 						onReopen={retryEditor}
 						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
+						onHistory={() => (historyTarget = historyContext)}
+					/>
+				{/if}
+				{#if historyTarget}
+					<OfficeVersionHistory
+						{chatId}
+						fileId={selected.file_id}
+						localEditor={editorActive && !editorError}
+						onClose={() => (historyTarget = '')}
 					/>
 				{/if}
 				<div
