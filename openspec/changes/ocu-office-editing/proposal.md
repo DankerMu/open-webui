@@ -395,3 +395,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risks: internal API/schema, file IO, ownership, concurrency/state, timing/resources, partial failure, compatibility, packaging and documentation.
 - Evidence floor: real filesystem transactions under a stateful fake engine, exact-five-second and delayed-operation cases, retained postreplace journal, marker/engine fault matrix and a process writer that quiesces only while paused.
 - User ruling: [「接受安全边界超时」](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072) permits blocking operations to extend actual pause duration; no hard wall-clock, real-engine or image/LAN certification is claimed.
+
+## Office conflict-resolution fixture
+
+- Issue type: feature; fixture level: expanded, matching task 26.1 and its explicit multi-path width exception.
+- Scope: parent-owned conflict dialog, default save-as and confirmed overwrite, mounted branch tests, one permanent office_conflict browser case and generated localization.
+- Governing invariant: only an explicit eligible choice resolves the captured current session; resolution never changes the accepted editor identity or fabricates host state.
+- Selected risk packs: mutation API/schema, overwrite/authority, lifecycle/concurrency, compatibility, partial failures, browser discovery and documentation.
+- Evidence floor: semantic mounted conflict-dialog RED; every issue branch plus stale/duplicate/confirmation invalidation; real gateway conflict-to-save-as with unchanged live document, preserved original and deduplicated Files entry.
+- Keep WorkspaceArtifact below its unchanged size gate by extracting its existing selected-file action bar as one presentation responsibility; preserve markup, eligibility, callbacks and all existing editor/preview behavior. No ancestor, broker, stub, client/store/controller or dependency change.
+- Pending pre-open conflicts, unpublished choices and leave guards remain later tasks. Runtime certification remains stub/gateway, not real DocumentServer or LAN.
