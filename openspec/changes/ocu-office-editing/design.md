@@ -963,6 +963,16 @@ page against D15; this issue's command does not execute JavaScript, so its first
 browser proof remains tasks 24.1/24.4. No source outside the stub/smoke boundary,
 gateway pin bump, production broker behavior or deployment acceptance is added.
 
+#### Office listing URL compatibility
+
+The Office listing producer uses the existing URL-quoting convention for logical path segments, preserving path separators and the configured public prefix. Spaces and parentheses in deduplicated names are encoded in URL data, not changed in logical path, file_id or stored content. Do not special-case a name or normalize malformed responses in the consumer.
+
+Both conflict save-as and automatic close save-as share this producer. Their emitted URL must satisfy the unchanged workspaceFileUrl/listWorkspaceFiles consumer and retrieve the entry's bytes through the existing prefix-stripping gateway. Original-file conservation remains scenario-specific: conflict save-as retains the original; automatic close save-as keeps the old path absent. Existing session, revision, version and file-serving behavior is unchanged.
+
+The owning HTTP smoke checks the complete canonical URL and fetches that returned URL after the same single prefix removal the gateway performs, comparing bytes/length/hash and retaining original identity checks. A disposable browser proof invokes the real unchanged workspace client against authenticated gateway responses for both scenarios and downloads the returned resource. It reuses the existing isolated harness without altering discovery, routes or headers.
+
+Captured conflict-browser failure supplies integration RED; a new owning smoke assertion must also fail before the producer fix. After this prerequisite merges, resume the preserved conflict UI and rerun its original complete browser case. No claim of a real DocumentServer, deployment or completed conflict UI is made by this producer-only repair.
+
 #### Office gateway smoke boundary
 
 Task 22.2 consumes the reviewed 27-row OCU table through the exact pushed pin.

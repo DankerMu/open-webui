@@ -62,6 +62,13 @@ For the automatic save-as fixture, the edited file SHALL be absent from the outp
 - **WHEN** the automatic save-as scenario is selected, a session is created for `report.docx` and close is POSTed
 - **THEN** the status reports `closed`, the outputs listing contains `report (2).docx` with a new `file_id` and no `report.docx`, and the status names the new file
 
+#### Scenario: Saved-copy URLs reach workspace consumers
+
+- **WHEN** conflict save-as or automatic close save-as creates a deduplicated Office filename
+- **THEN** its outputs entry retains the logical name and identity but provides a canonically encoded URL accepted by the unchanged workspace consumer
+- **AND** requesting that returned URL through the gateway retrieves bytes matching the entry's size and content hash
+- **AND** original-file conservation and absence follow the selected scenario without changing its session or revision semantics
+
 #### Scenario: Newest version unpublished
 
 - **WHEN** the unpublished-version scenario is selected and the versions listing is read before any session creation

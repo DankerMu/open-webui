@@ -672,6 +672,7 @@ broker/editor acceptance is not claimed by this routing proof.
 
 - [x] 22.1 `scripts/ocu-stub.py`: deterministic Office session, status, save, close, resolve, versions and restore fixtures and an `embed=office` host page that speaks the message protocol without a real editor. The selectable outcomes are added once, as these scenario names of the stub's existing mechanism: `office` (default round trip), `office_conflict`, `office_unsupported` (415 `unsupported_type` at creation), `office_orphaned`, `office_save_as` (automatic save-as at close), `office_unpublished` (newest version unpublished, no session) and `office_stale` (a stale session whose first creation is refused with `unpublished_version`); `scripts/smoke-stub.sh` asserts them. Verify: `make smoke-stub` output names each fixture.
 - [x] 22.2 Bump the OCU pin in `constraints.yaml` to a commit that holds the Office rows (group 21) and does not yet hold group 31, add `smoke/proxy/office.hurl` to the explicit file list `HURL_GLOBS` in `scripts/smoke-proxy.py`, and make the script log every hurl file it ran, on success as well (today it prints only on failure): owner success, anonymous 401, non-owner 404, mutation guard 403, and the unproxied control-plane routes. Verify: `make smoke-proxy` passes, its output lists `office.hurl` among the files that ran, and with the file removed from the list the output no longer names it.
+- [x] 22.3 Canonical Office listing URLs: the existing producer encodes logical file paths without changing their identities or bytes. Verify conflict save-as and automatic close save-as through owning HTTP smoke, returned-URL downloads and the unchanged real workspace consumer before resuming conflict UI acceptance.
 
 Depends on: 7, 21.
 Suggested fixture level: compact - deterministic test infrastructure following an already reviewed table.
@@ -694,6 +695,16 @@ Minimal mergeable slice: 22.1 (stub fixtures) - green alone because the stub is 
 Smoke inputs and outcomes are the `ocu-stub` scenarios: publish advances the published cursor and file revision; persist adds only an unpublished autosave; close then restore appends history without altering older entries; both conflict resolutions are distinct; unsupported, orphaned, save-as, unpublished and stale cases each print their scenario name only after their assertions pass. Preserve a failing Office HTTP assertion against the pre-change stub before implementing. Retain sanitized red/green logs; do not mark page protocol execution or real-editor acceptance as passed.
 
 `make smoke-stub` also requests `GET /preview/{chat}?embed=office` and asserts that the returned stub-owned page contains the visible modification control and references no origin other than its public origin. This HTTP/body check is executable evidence; it does not claim the page's JavaScript message protocol was executed.
+
+### Office listing URL compatibility risk coverage
+
+- Public API / schema / path representation — Selected: complete canonical URL for deduplicated names, unchanged logical path/file_id and prefix; no consumer normalization or validator change.
+- State / compatibility — Selected: both save-as producers; conflict preserves original bytes/metadata/revision, automatic close preserves old-path absence and saved_as identity; all seven scenarios and non-Office smoke remain.
+- Errors / response conservation — Selected: retained real invalid_response failure; original malformed URL is rejected by the unchanged consumer, corrected URL downloads the described bytes.
+- Resource / discovery / documentation — Selected: existing smoke process ownership and browser harness; no new permanent harness or scenario/discovery changes; owning stub decision documents the URL contract.
+- Auth / production filesystem / configuration / release / dependencies — Not selected: unchanged. Real gateway proof retains owner authentication; no production broker or unrelated upload repair.
+
+Required evidence for 22.3: new owning smoke assertion RED before source, `make smoke-stub` GREEN covering both saves and exact returned-resource bytes, scoped lint/anti-drift and doc/decision/strict checks. Disposable browser execution of the actual workspace client accepts both real gateway listings and retrieves their resources; the harness still runs its unchanged required suite. Resume task26.1 only after this isolated prerequisite passes review/CI and merges.
 
 ### Office gateway smoke risk coverage
 

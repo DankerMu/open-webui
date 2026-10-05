@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 OFFICE_SCENARIOS = frozenset(
     {
@@ -239,7 +239,7 @@ class OfficeStore:
     def _listing_entry(self, chat_id: str, path: str, payload: bytes, revision: int) -> dict:
         entry = self._fixture_file(chat_id, path, revision)
         entry.update(
-            url=f'{self._prefix}/files/{chat_id}/{path}',
+            url=f'{self._prefix}/files/{chat_id}/{quote(path)}',
             size=len(payload),
             hash=hashlib.sha256(payload).hexdigest(),
             type='docx' if path.endswith('.docx') else entry.get('type', 'docx'),
