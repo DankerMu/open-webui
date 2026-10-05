@@ -546,6 +546,32 @@ Minimal mergeable slice: 14.1 (routes and their authentication) - green alone be
 
 Run the new control-plane HTTP cases, auth/router/token/config/session/version/store and packaging regressions with the OCU unit command. Capture baseline failures at the real routes before source changes. Qualify negative controls for unsigned-field trust, credential-bearing access logs and unsafe external-target opens; traps must escape broad production exception handling. Real packaged-worker smoke covers source hash fidelity, authenticated callback non-success, removed-chat no-create, ordinary logs and ticket redaction for valid/invalid/disabled/peer-denied requests. Run strict OpenSpec validation, `make doc-gate` and `make decisions-verify` for the companion fixture/record.
 
+### Callback persistence slice risk coverage
+
+- Public API — selected: real callback route covers statuses 1/2/3/4/6/7, unknown status, verified-payload authority and exact reason/status responses. Retire admission-only 503 expectations without weakening authentication tests.
+- Configuration — selected: both configured origins are accepted but only the internal origin receives requests; no new environment variable or dependency.
+- File IO / safety — selected: canonical version staging, valid/wrong-type/corrupt OOXML, exact unchanged workspace and index, safe removed-chat refusal and empty staging after precommit failure.
+- Schema — selected: receipt status/hash/version/answer, recorded intent, participants, pending allocations and monotonic counters; final allocation and receipt share one commit.
+- Auth / secrets — selected: retain JWT/key and peer boundaries; unsigned body cannot select a download; foreign origin and redirect get zero arrivals; no credentials forwarded or logged.
+- Concurrency / ordering — selected: late/out-of-order saves, all-state receipt replay, voided close followed by save/final, cross-worker duplicate serialization and ASGI health while the chat lock is held. Epoch check precedes dispatch and replay.
+- Resource limits — selected: bounded actual body bytes, total timeout and redirect hops; timeout/oversize refusal leaves no receipt or staged content and permits a successful retry.
+- Compatibility — selected: existing save/close/sweep/epoch/store/OOXML/auth/source and package tests; no helper signature, storage primitive, listing revision or published-version regression.
+- Partial failures — selected: storage floor, write/fsync failure and kill after download before store; no success before durability, no successful receipt for a processing error, fresh-process blob/record/receipt after acknowledgement.
+- Durability replay — selected: inject the state-directory fsync failure after replace through the real callback route; first response is non-200 but the matching visible blob/version/receipt survive. A fresh worker's replay remains non-200 while its directory barrier fails; after recovery it returns the original answer without a final download, state rewrite, extra version/receipt/sequence or workspace/index change.
+- Packaging — selected: any new Office module joins the existing module/reload inventories and Dockerfile package-copy convention; no image builds.
+- Documentation — selected: D10 owns the serialized transaction and persist-only state boundary; public evidence distinguishes recorded statuses 1/2/4/6 from synthetic 3/7 error fixtures.
+
+Run canonical OCU `tests/` discovery with the callback/download and affected Office,
+auth, outputs and package module selection. Parent captures the status-1 tracer
+RED before implementation, then the complete GREEN run. Qualify semantic
+negative controls for receipt/hash ordering, origin confinement and premature
+acknowledgement. A real packaged two-worker smoke must persist via signed HTTP,
+compare workspace/index before and after, replay without an extra final fetch,
+and read the acknowledged record/blob/receipt from a fresh process. Use bounded
+owned-process crash/retry evidence at the postdownload/prestore boundary.
+Strict OpenSpec validation and doc/decision gates cover the companion fixture.
+Journal/publish outcomes and their crash-recovery evidence remain tasks 15/16.
+
 ## 15. [ocu] Publish inside the fence (spec: ocu-office-publish)
 
 - [ ] 15.1 Publish for a sandbox that is not running: under the per-chat lock take the journal entry, resolve the path from the persisted index, compare the workspace hash with the baseline through the safe read, replace atomically through an exclusive no-follow temporary file with a second parent-component check, register with the outputs broker, and finish in one state update. Verify: tests for a clean publish, a baseline mismatch, a missing path and an unrecorded rename (nothing written), a file replaced by a symlink and a parent directory replaced by a symlink each ending as the conflict `baseline_mismatch` with nothing read through the link, a parent swapped for a symlink between the hash and the replace through a test seam ending as `unsafe_path`, an unreadable index (`index_unavailable`), a same-size publish that bumps the revision (B-T07, B-T13), a background writer changing another file during the publish, and a concurrent launch that runs only after the publish (B-T06).
