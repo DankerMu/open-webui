@@ -708,6 +708,20 @@ Sibling surfaces are the status projection, command sender, existing validator/s
 
 No history, maximize, conflict dialog, versions preflight, special unpublished recovery, close-progress/report/guard or beforeunload lands here. New text uses generated localization catalogs. The current Office client-store decision owns projection and dispatch; rollback disables the Office feature and reverts this slice without a second implementation.
 
+#### Save and refusal browser-proof boundary
+
+Task 24.4 adds two cases to the existing Office browser spec, retaining first-open proof. Each uses an isolated scenario chat and the existing owner authentication, proxy, fixture selection and private request recorder. No production hook or alternate stub is introduced.
+
+The save case observes actual Unsaved after the host's modification control, actual Saving after the parent Save action, then Saved only after the host receives a confirming status response. A test-local gate may hold all GETs for the exact chat/session status path; it must not fabricate bodies, intercept other paths or leave an earlier in-flight status response able to bypass the window. The real save POST must reach the stub and return its accepted save_seq while the gate is closed. Assert Saving and absence of Saved during that window, then release real traffic and correlate status last_published_seq with the accepted sequence before accepting Saved. All routes, subscriptions and pending gates are released in failure cleanup. No sleeps, timeout inflation or retries substitute for ordering.
+
+The stub completes publish synchronously inside the save request; this proves the UI waits for reported confirmation, not an asynchronous broker persist/publish implementation. Version records do not contain save_seq; sequence evidence belongs to save and status responses. Any state trace is secondary to rendered-state assertions and real network responses, never a replacement for them.
+
+The refusal case uses office_unsupported and observes the actual creation response 415/unsupported_type. Require its explicit parent message, absent editor, usable read-only preview and an actual download with fixture bytes. Scope private records to the case's chat and start offset; require no close arrival, including after the fallback actions. A present link or frame alone does not prove usability.
+
+Sibling surfaces are the host's message producer, parent controller/store/status projection, gateway HTTP requests, stub status and request record, and preview/download fallback. They are exercised, not edited. Existing first-open, A-T01 and other configured cases remain. Browser console handling may recognize only an expected 415 diagnostic tied to the exact refusal endpoint; all other console/page errors fail.
+
+Screenshots cover the save confirmation window/final Saved and refusal fallback under .run/ui-evidence. Evidence explicitly remains stub-level. The owning Office plan receives the verified browser boundary after smoke proof; rollback reverts only these tests and documentation, not runtime behavior.
+
 ### D17. DocumentServer placement and origin
 
 DocumentServer is a compose service on the control-plane network only, with no host publication and no Docker socket. It is added to the existing core stack beside the OCU server, not as a fourth stack, so the deployment entry and the smoke keep their three-stack lists. The proxy publishes a second port whose listener forwards to DocumentServer, including WebSocket upgrade. Every request on that listener passes session authentication (`/api/v1/auths/` with the browser cookie; cookies are not port-scoped). Browsers therefore see DocumentServer on a different origin from WebUI, so script running in the editor origin cannot read WebUI's `localStorage` token. The listener uses the WebUI session cookie for the authentication subrequest only and does not forward it to DocumentServer, a third-party image that has no use for the user's WebUI credential; B1 confirms the editor works without it.
