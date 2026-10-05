@@ -32,6 +32,10 @@ Retirement exposes activation invalidation as a reactive assignment so the frame
 
 History belongs to a captured chat/file opening, not the editor store. It stays inside the selected-file wrapper so it remains visible above a maximized editor without moving the frame. Dismissal or lost context invalidates asynchronous completions; same-ID metadata does not restart the read. A local live frame blocks version restore; a remote `open_session` remains the broker's decision. A pending mutation prevents duplicate submission. Only an authoritative reload replaces rows; refusal preserves them, and an accepted restore with failed reload is reported distinctly.
 
+`OfficeConflictDialog` stays inside the selected-file wrapper, including its maximized top layer. It resolves only the captured admitted chat/file/generation/session: save-as is the focused form default; overwrite requires a second explicit confirmation and is unavailable for `path_missing`. Dismissal sends nothing and repeated conflict reports do not reopen it. Ordinary refusal keeps the dialog and literal broker reason; `workspace_missing` closes it with the retained-content notice and suppresses further resolves for that identity. Pending requests coalesce, and retired completions cannot affect another activation. Success closes the dialog without changing editor identity or inventing host state.
+
+`WorkspaceSelectedFile` owns only the selected-file action bar's presentation. Editor admission, frame lifetime and accepted state remain with `WorkspaceArtifact` and its existing controller/store.
+
 ## Alternatives considered
 
 - **Reuse workspace failure mapping** — folds 404 to `not_found` and drops unrecognized broker reasons that later status and restore UI must show.
@@ -49,6 +53,7 @@ History belongs to a captured chat/file opening, not the editor store. It stays 
 - **Fixed overlay with a local z-index** — remains underneath the Navbar and Controls separator stacking contexts, so geometry expansion is not page coverage.
 - **Disable restore from the listing's open session** — denies broker recovery of a forgotten session or another tab's authoritative refusal.
 - **Optimistically append a restored version** — invents broker numbering and publication state before the authoritative reload.
+- **Apply resolve response as a new editor identity or Saved state** — retargets a live frame or invents a host outcome before the authoritative state message.
 
 ## Consequences
 
@@ -56,3 +61,5 @@ Workspace consumers keep their allow-list and 404 folding; Office callers must s
 Browser proof correlates a real gateway session creation with the parent store's accepted chat/file/session and editing state. The [editor screenshot](../../../evidence/issue-153/office-editing.png) shows the deterministic stub host, not a real DocumentServer. Desktop maximize evidence is the [sidebar](../../../evidence/issue-156/office-maximize-sidebar.png) and [overlay](../../../evidence/issue-156/office-maximize-overlay.png) pair: the overlay is the existing wrapper on the native top layer, Save/Restore remain usable, and the same live iframe document remains. B1 measured three-format open/input/export flows under this outer policy; clipboard, camera, microphone, screen capture, printing and popup/download UI remain unmeasured.
 
 History evidence covers the [file entry](../../../evidence/issue-157/history-selected.png), [published restore](../../../evidence/issue-157/history-selected-restored.png) and [local-frame restriction inside the maximized wrapper](../../../evidence/issue-157/history-editor-maximized.png). These gateway/stub images do not certify real DocumentServer restoration.
+
+The [conflict dialog](../../../evidence/issue-158/office-conflict.png) shows the gateway/stub scenario in the narrow maximized wrapper. Browser acceptance preserves the live iframe/document/session through default save-as and Files refresh, and observes the original plus the deduplicated file; it does not certify a real DocumentServer conflict.

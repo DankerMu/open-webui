@@ -841,12 +841,24 @@ Required evidence for 25.2: meaningful mounted entry RED, then all six issue acc
 
 ## 26. [webui] Conflict dialog and the open-time prompt (spec: ocu-office-workspace-ui)
 
-- [ ] 26.1 Conflict dialog: `save as new file` as default, `overwrite` behind a second confirmation, only `save as` when the reason is `path_missing`, and a resolve refused with `workspace_missing` closing the dialog with its message. Verify: Vitest for each branch and a browser case in `e2e/ocu-office.e2e.ts` driven by the stub's `office_conflict` scenario, named in the `make verify-ui-ocu` output.
+- [x] 26.1 Conflict dialog: `save as new file` as default, `overwrite` behind a second confirmation, only `save as` when the reason is `path_missing`, and a resolve refused with `workspace_missing` closing the dialog with its message. Verify: Vitest for each branch and a browser case in `e2e/ocu-office.e2e.ts` driven by the stub's `office_conflict` scenario, named in the `make verify-ui-ocu` output.
 - [ ] 26.2 Before the editor frame is created: a pending close-time conflict (`open_session` in `conflict` with `editor_ended` true) is presented first; otherwise, when no session is open and the document's newest version is unpublished, offer to restore it or to start from the current file; and when the host page reports the creation refused with `unpublished_version`, retire the frame and repeat the check once. Verify: Vitest for the pending conflict, both choices, no prompt when nothing is unpublished, and the refusal leading to the prompt; browser cases driven by the stub's `office_unpublished` and `office_stale` scenarios.
 
 Depends on: 25 (the restore call and the versions client state).
 Suggested fixture level: expanded - overwrite and restore requests on user content behind confirmations.
 Minimal mergeable slice: 26.1 (conflict dialog) - green alone because it reacts to a state the frame already reports; 26.2 adds the check before the frame.
+
+### Conflict-resolution risk coverage
+
+- API / schema / authority — Selected: current validated session, chosen save_as/overwrite and mutation header at the real client boundary; no request from dismissal, first overwrite click or declined confirmation.
+- Overwrite / safety — Selected: save-as primary; explicit second confirmation; path_missing removes overwrite even during confirmation; no discard and no silent content replacement.
+- Lifecycle / concurrency — Selected: captured chat/file/generation/session, duplicate suppression, stale completions after context retirement, repeated conflict after dismissal or terminal workspace_missing, and new conflict episode reopening.
+- Compatibility / layout — Selected: selected-file action-bar extraction preserves behavior under unchanged size gates; same iframe/document/activation across resolve and refreshed Files, history/Save/maximize/preview policies unchanged; dialog reachable within native top layer.
+- Errors / partial output — Selected: ordinary refusal leaves dialog and reason; workspace_missing closes with content-retained message and blocks further resolve; no optimistic host state or selection from HTTP success.
+- Discovery / resource / documentation — Selected: permanent office_conflict case in existing Office spec and unchanged full browser discovery; exactly one resolve, actual original/new Files identities, screenshot/diagnostics, generated localization and owning docs.
+- Config / release / dependencies / server fence and path safety — Not selected: unchanged; broker enforcement remains server-owned and actual DocumentServer certification remains acceptance work.
+
+Required evidence for 26.1: mounted semantic RED before source; all eight issue criteria and the lifecycle/confirmation cases above, paired component coverage and existing Office/selected-file/history regressions. Run scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict and `make verify-ui` including the named permanent conflict case. Parent accepts actual saved screenshot, message/state/listing continuity and authenticated request observations before marking 26.1. Task26.2, leave guards and shared change stay open.
 
 ## 27. [webui] Unsaved-state guard (spec: ocu-office-workspace-ui)
 

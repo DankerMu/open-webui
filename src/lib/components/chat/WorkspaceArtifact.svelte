@@ -27,7 +27,8 @@
 	import { officeMaximizeOverlay } from './office-maximize-overlay';
 	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
 	import OfficeVersionHistory from './OfficeVersionHistory.svelte';
-	import Pencil from '$lib/components/icons/Pencil.svelte';
+	import OfficeConflictDialog from './OfficeConflictDialog.svelte';
+	import WorkspaceSelectedFile from './WorkspaceSelectedFile.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
@@ -45,7 +46,6 @@
 	import ChartBar from '$lib/components/icons/ChartBar.svelte';
 	import Code from '$lib/components/icons/Code.svelte';
 	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
-	import Download from '$lib/components/icons/Download.svelte';
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
 	export let onClose: (() => void) | undefined = undefined;
@@ -362,6 +362,29 @@
 		activateEditor(editorFileId, editorSrc);
 	}
 
+	function conflictAdmitted(targetChatId: string, fileId: string, generation: number) {
+		const current = get(ocuWorkspaces)[targetChatId];
+		const flags = get(config);
+		const session = get(ocuOffice)[targetChatId];
+		return (
+			live &&
+			enabled &&
+			chatId === targetChatId &&
+			editorChatId === targetChatId &&
+			editorFileId === fileId &&
+			!editorError &&
+			current?.view === 'files' &&
+			current.selectedFileId === fileId &&
+			current.baseUrl === '/ocu' &&
+			workspaceFilesEnabled(flags) &&
+			!!flags?.features &&
+			'enable_ocu_office_edit' in flags.features &&
+			flags.features.enable_ocu_office_edit === true &&
+			session?.fileId === fileId &&
+			session.generation === generation
+		);
+	}
+
 	let collapsedFolders = new Set<string>();
 	function toggleFolder(path: string) {
 		const next = new Set(collapsedFolders);
@@ -635,63 +658,19 @@
 				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible bg-white dark:bg-gray-900"
 				aria-label={$i18n.t('Selected workspace file')}
 			>
-				<div
-					data-selected-bar
-					class="flex h-8 shrink-0 items-center gap-1.5 overflow-visible border-b border-gray-100 pr-1 dark:border-gray-800"
-				>
-					<span data-file-kind={selectedKind} class="contents">
-						<svelte:component this={SelectedKindIcon} className="size-4 shrink-0" />
-					</span>
-					<Tooltip
-						content={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
-						className="min-w-0 flex-1"
-						as="div"
-					>
-						<span
-							data-selected-name
-							class="block min-w-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100"
-							>{selectedRow?.kind === 'file' ? selectedRow.name : selected.name}</span
-						>
-					</Tooltip>
-					{#if selectedDirectory}
-						<span class="min-w-0 max-w-[30%] truncate text-xs text-gray-400"
-							>{selectedDirectory}</span
-						>
-					{/if}
-					<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
-						>{formatFileSize(selected.size)}</span
-					>
-					<div class="ml-auto flex shrink-0 items-center gap-1">
-						{#if officeEdit && (!editorActive || editorError)}
-							<button
-								type="button"
-								class="h-7 rounded-md border border-gray-200 px-2 text-xs hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-								on:click={() => (historyTarget = historyContext)}
-								>{$i18n.t('Version history')}</button
-							>
-						{/if}
-						{#if officeEdit}
-							<Tooltip content={$i18n.t('Edit')} className="flex">
-								<button
-									class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
-									type="button"
-									on:click={startEditor}
-									aria-label={$i18n.t('Edit')}><Pencil className="size-4" /></button
-								>
-							</Tooltip>
-						{/if}
-						<Tooltip content={$i18n.t('Download')} className="flex">
-							<a
-								class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
-								href={downloadUrl}
-								download={selected.name}
-								><span class="sr-only">{$i18n.t('Download')} {selected.name}</span><Download
-									className="size-4"
-								/></a
-							>
-						</Tooltip>
-					</div>
-				</div>
+				<WorkspaceSelectedFile
+					{selected}
+					selectedName={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
+					{selectedDirectory}
+					{selectedKind}
+					{SelectedKindIcon}
+					{downloadUrl}
+					{officeEdit}
+					{editorActive}
+					{editorError}
+					onHistory={() => (historyTarget = historyContext)}
+					onEdit={startEditor}
+				/>
 				{#if showOfficeStatus}
 					<OfficeEditorStatus
 						session={officeSession}
@@ -702,6 +681,17 @@
 						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
 						onHistory={() => (historyTarget = historyContext)}
 					/>
+				{/if}
+				{#if editorActive && showOfficeStatus && officeSession?.sessionId}
+					{#key `${encodeURIComponent(chatId)}/${encodeURIComponent(editorFileId)}/${officeSession.generation}/${encodeURIComponent(officeSession.sessionId)}`}
+						<OfficeConflictDialog
+							{chatId}
+							fileId={editorFileId}
+							generation={officeSession.generation}
+							expectedSessionId={officeSession.sessionId}
+							admitted={conflictAdmitted}
+						/>
+					{/key}
 				{/if}
 				{#if historyTarget}
 					<OfficeVersionHistory
