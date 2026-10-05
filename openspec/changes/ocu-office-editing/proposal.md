@@ -296,3 +296,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API, file IO/path safety, schema, auth containment, concurrency, resource bounds, compatibility, errors, packaging and documentation. No configuration or dependency change.
 - Evidence floor: no-read cache hits, size/mtime and deliberate forged-metadata behavior, unsafe/missing recovery, no foreign/other-file IO, save acceptance, two-worker state conservation and packaged status HTTP smoke.
 - Existing creation already persists the comparison baseline. Missing baseline is corruption, not a migration that adopts current content; absent cache fields are initialized by the first status observation.
+
+## Office editor entry and frame fixture
+
+- Issue type: feature; fixture level: expanded, matching tasks 24.1 and 24.2.
+- Scope: WebUI edit entry, one editor-frame module and paired tests, Office browser case, configured discovery and seven scenario registrations. Use the delivered client/store; no broker, stub, Chat/ChatControls or deployment changes.
+- B1 input: [record item 14](../../../docs/evidence/issue-119/2026-10-03-b1.md#14-minimal-tested-iframe-capabilities) supplies literal `sandbox="allow-scripts allow-same-origin"` and `allow=""`; no permission inferred from other frame classes.
+- Blast radius: accepting forged child messages, reloading an active editor on publish, stale state crossing frames/chats, and false-green browser discovery.
+- Selected risk packs: message API/schema, feature configuration, auth/frame authority, concurrency/lifecycle, discovery/resources, compatibility, errors and documentation.
+- Evidence floor: mounted flag/type/policy/identity matrix, rejected-message matrix, one handshake and ready-timeout/retry, browser open-to-editing with parent state acceptance, A-T01, missing-spec and missing-scenario negative controls, per-file coverage and exact-head CI.
+- Slice boundary: status/save UI, maximize/history/conflict/pre-open choices and close guards remain later tasks. Direct open and no close-on-removal are the issue's explicit interim behavior, not completed evidence for those later requirements.

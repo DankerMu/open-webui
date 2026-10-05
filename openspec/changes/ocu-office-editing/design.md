@@ -590,6 +590,24 @@ A page instance accepts one `ocu:office-open`; a command must carry that open's 
 
 The host page owns session creation, the status poll, the 5-minute auto-save timer and the save/close calls. On `close` it also destroys the editor instance, because DocumentServer sends the final callback only after the participant has left. The parent owns versions, restore and resolve calls and the status display. When the frame is destroyed before the session has ended (chat switch, sidebar close), the parent's guard module keeps the session id and reads the session status through its own client until a final state or the progress timeout. The read-only Files embedding and its protocol are not changed.
 
+#### Editor entry and frame slice boundary
+
+Tasks 24.1 and 24.2 implement the parent authority boundary and its executable browser path together. The selected-file action area is the entry seam; file rows and their existing accessible names remain unchanged. A saved chat, enabled workspace and literal true Office feature flag admit only broker types docx/xlsx/pptx. Display classification never grants edit eligibility. Editing does not call launch, including for stopped workspaces.
+
+The B1 record's outer-frame capabilities become two code constants: `allow-scripts allow-same-origin` and an empty permission-policy string. The editor uses the validated current-chat preview URL with `embed=office`, not a broker-supplied URL. Existing generated, read-only Office and runtime policy classes are untouched. A distinct local edit activation owns its frame; revision, path, unrelated files, streaming and the first session id never replace that frame.
+
+One new module owns current-frame binding, exact protocol validation, the one-open handshake and the 10-second ready deadline. It reuses the chat-keyed Office store's generation functions rather than inventing another counter or state owner. Generations remain monotonic for that chat across retries/remounts. A fresh activation resets its file/session/state/reason/dirty/workspaceChanged/savedAs snapshot explicitly through the existing store API; the generation alone does not reset these fields.
+
+Invariant: only a message belonging to the currently live frame and activation may alter that chat's Office state or cause a parent response. Require exact source, page origin, expected frame URL, exact keys, chat/file/generation, known state, boolean dirty/workspace_changed and the documented nullable session/reason types. State before the accepted ready handshake and duplicate ready messages do no work. Store the original opened file id, never replace it from later session or destination metadata.
+
+Deadline expiry retires authority before showing a failure/retry; a late ready cannot revive it. Retry creates a fresh frame. Removal, chat/file/view change, flag revocation and unmount detach owned listeners, cancel timers and retire generation authority without sending close or adding a leave guard. Test ready/deadline ordering and stale callbacks without changing the existing preview protocol.
+
+The browser harness keeps its five existing configured spec files, including the tree case, and adds Office as the sixth. It registers the seven existing Office scenarios and enables the delivered feature flag only in its isolated service environment. After a context is available, actual configured `playwright test --list` output must prove each required file contributes tests before the execution subprocess starts. Missing Office matching fails naming that file with no pass line; missing Office scenario data fails the Office case rather than manufacturing a chat.
+
+Sibling surfaces are selected-file entry eligibility, module/store authority, both child message types, every frame retirement path, delivered stub host/session requests, browser context/scenario provisioning, discovery and existing A-T01 consumers. Browser proof observes a real proxied session creation, editing and the parent-accepted store state without a production test hook or a premature status bar. The screenshot is stub-editor integration evidence, not real DocumentServer edit/save certification.
+
+No versions preflight, status/save controls, command UI, maximize/history/conflict UI, close-on-leave, beforeunload or background session following lands in this slice. The interim direct-open/no-close behavior is explicitly authorized by the issue; later groups replace those boundaries. New strings use the existing generation process. The owning decision and Office plan document this seam after runtime proof; rollback is the reviewed source commit with the Office flag disabled, not a compatibility implementation.
+
 ### D16. WebUI surface
 
 - `WorkspaceArtifact`: an 编辑 action on DOCX/XLSX/PPTX entries; while editing, a status bar with state text, save, history, maximize. Activating 编辑 never launches a stopped sandbox.
