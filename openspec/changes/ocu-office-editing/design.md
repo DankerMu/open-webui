@@ -273,6 +273,26 @@ Control-plane routes, never in the proxy table:
 
 OCU has no separate Office switch. Office editing is enabled on the OCU server when the DocumentServer server-to-server address is configured. Configured with a blank JWT secret, the server refuses to start. Not configured, every Office route answers 404 (the browser routes after the guard) and nothing else changes; this is the state of every OCU outside the deployment overlay. The user-facing switch is the WebUI flag (D16).
 
+#### Control-plane authentication slice
+
+Tasks 14.1 and 14.4 add source delivery and callback admission, not callback processing. Until task 14.2 supplies processing, an authenticated callback returns HTTP 503 with reason `callback_processing_unavailable`, changes no state and never acknowledges a save. This is the issue's explicit non-success slice ruling; no status-specific handling, download or receipt is added here.
+
+Admission order is transport-peer rejection, Office availability, then route-specific identity and credential checks. A sandbox peer receives 403 even when Office is disabled; otherwise disabled source/callback routes return 404 without evaluating credentials or storage. Control-plane OPTIONS requests do not bypass this boundary through the generic CORS shortcut. Other service and browser Office authentication remains unchanged.
+
+Callback chat ids use the existing canonical rules, including empty/transient/encoded cases. After JWT verification, check the chat control directory without creating it and before taking the canonical chat lock; a removed directory is 404 `unknown_session`. Under that lock recheck the safe root, read the session and compare its document key with the verified payload. Missing/mismatched session binding cannot authenticate and returns 401 `invalid_token`; task 14.2 owns the authenticated unknown-session disposition and lifecycle checks.
+
+For the documented [header token](https://api.onlyoffice.com/docs/docs-api/additional-api/signature/request/token-in-header/), `Authorization: Bearer` signs a nested `payload` object. A body `token` signs callback fields directly. A present Authorization header is authoritative: malformed/invalid headers never fall back to a body token. Only the verified callback object supplies key, status, URL and userdata; unsigned copies cannot override it. Existing JWT verification owns algorithms and expiry. Token helpers remain unchanged.
+
+Source verifies the ticket before any version-content read, then checks its canonical chat directory with a non-creating operation before taking the canonical chat lock. A missing chat returns 401 `invalid_ticket` and creates nothing. Under the lock recheck the safe root and resolve the document, positive version and session binding. The session must belong to the ticket's document; no active-state restriction invalidates an otherwise live ticket. A missing binding returns 401 `invalid_ticket`; a missing/corrupt blob is an explicit storage failure, never a workspace fallback. Read only the selected immutable version through existing descriptor-relative no-follow primitives and return those verified bytes, not a pathname reopened by the response.
+
+The user-approved reader exception lets the existing blob verifier return its already-read bytes. Existing write/deduplication callers retain their behavior; no second hashing/reading implementation, store schema or publication policy is introduced. All routing failures preserve version, receipt, session and workspace state, including timestamps.
+
+Source credentials must be redacted at the actual access-log owner for success, invalid credentials, disabled Office, unsupported methods and peer denial, without modifying dispatch paths or disabling unrelated access logs. Callback rejection diagnostics name chat, session and reason without raw tokens, request bodies or exception messages; untrusted identity text must not forge log records.
+
+Governing invariant: only verified, bound credentials can reach their immutable source bytes or callback admission, and authentication alone never confirms a saved document. Sibling surfaces are token/config producers, signed session URLs, the canonical store/blob verifier, guard/CORS/availability ordering, packaged Uvicorn logging, reload inventories and the unchanged gateway allowlist.
+
+Required evidence: public HTTP tests cover the admission matrix, signed/unsigned field disagreement and no-create/no-mutation failures; existing store tests cover the reader return change. A real packaged two-worker process serves a bound version after workspace mutation and emits redacted access logs while ordinary access logs remain visible. No image build, real-editor acceptance, epoch transition, callback processing or deployment is claimed by this slice.
+
 Alternative rejected: routes keyed by `file_id` without a chat segment. They need a second authorization path in which OCU resolves ownership it does not hold.
 
 #### Token and command-client boundary
