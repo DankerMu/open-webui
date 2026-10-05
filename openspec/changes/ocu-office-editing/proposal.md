@@ -369,3 +369,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: API/schema, mutation authority, overwrite, lifecycle/concurrency, compatibility, error handling and documentation.
 - Evidence floor: semantic mounted RED; six issue acceptance cases plus stale completion, duplicate restore, failed reload and live-frame continuity; scoped gates, full unchanged UI target and disposable actual-page history smoke.
 - Browser evidence uses the deterministic gateway/stub, not a real DocumentServer restore. Shared change and subsequent tasks remain open.
+
+## Stopped-sandbox publication fixture
+
+- Issue type: feature; fixture level: expanded, matching tasks 15.1 and 15.4.
+- Scope: journal-driven publication for a stopped/absent sandbox and its fence decision; no callback, route, pause, recovery, lifecycle, broker or generic-store changes.
+- Governing invariant: only a baseline-matching safe path is atomically replaced, registered once and completed durably under the launch lock; interrupted publication retains its recovery obligation.
+- Selected risk packs: internal API/schema, file IO, identity compatibility, shared-state ordering, partial failure, resource ownership, packaging and decision documentation.
+- Evidence floor: real temporary storage and broker listings, no-follow and same-size mutation oracles, exclusive-temp ownership, actual competing launch, fault-phase conservation and a fresh-process publish smoke. No image/LAN certification.
