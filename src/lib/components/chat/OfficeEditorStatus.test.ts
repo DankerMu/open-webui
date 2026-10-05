@@ -4,7 +4,12 @@ import { mount, tick, unmount } from 'svelte';
 import type { OcuOfficeState } from '$lib/stores/ocu-office';
 import { i18n } from '../../../../test/ocu-workspace-fixtures';
 import OfficeEditorStatus from './OfficeEditorStatus.svelte';
-import { reopenControl, saveControl } from './workspace-artifact-office-test';
+import {
+	maximizeControl,
+	reopenControl,
+	restoreControl,
+	saveControl
+} from './workspace-artifact-office-test';
 
 const session = (extra: Partial<OcuOfficeState> = {}): OcuOfficeState => ({
 	generation: 1,
@@ -21,12 +26,14 @@ const session = (extra: Partial<OcuOfficeState> = {}): OcuOfficeState => ({
 async function render(props: {
 	session: OcuOfficeState | undefined;
 	live: boolean;
+	maximized?: boolean;
 	onSave?: () => void;
 	onReopen?: () => void;
+	onToggleMaximize?: () => void;
 }) {
 	const component = mount(OfficeEditorStatus, {
 		target: document.body,
-		props: { onSave: () => {}, onReopen: () => {}, ...props },
+		props: { onSave: () => {}, onReopen: () => {}, onToggleMaximize: () => {}, ...props },
 		context: new Map<unknown, unknown>([['i18n', i18n]])
 	});
 	await tick();
@@ -204,5 +211,30 @@ describe('Office editor status projection', () => {
 		});
 		expect(document.body.textContent).not.toContain('Workspace file changed');
 		await unmount(component);
+	});
+
+	it('offers Maximize while live and Restore after the layout toggle', async () => {
+		const onToggleMaximize = vi.fn();
+		const component = await render({
+			session: session({ state: 'editing' }),
+			live: true,
+			onToggleMaximize
+		});
+		expect(maximizeControl()).toBeDefined();
+		expect(restoreControl()).toBeUndefined();
+		maximizeControl()!.click();
+		expect(onToggleMaximize).toHaveBeenCalledTimes(1);
+		await unmount(component);
+		const restored = await render({
+			session: session({ state: 'editing' }),
+			live: true,
+			maximized: true,
+			onToggleMaximize
+		});
+		expect(restoreControl()).toBeDefined();
+		expect(maximizeControl()).toBeUndefined();
+		restoreControl()!.click();
+		expect(onToggleMaximize).toHaveBeenCalledTimes(2);
+		await unmount(restored);
 	});
 });

@@ -25,6 +25,7 @@
 		officeEditorFrame,
 		officeEditorSrc
 	} from './office-editor-frame';
+	import { officeMaximizeOverlay } from './office-maximize-overlay';
 	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -69,10 +70,12 @@
 	let editorChatId = '';
 	let editorSrc = '';
 	let editorError = '';
+	let editorMaximized = false;
 	const editor = createOfficeEditorController({
 		origin: () => window.location.origin,
 		onTimeout() {
 			editorError = $i18n.t('Office editor did not become ready');
+			editorMaximized = false;
 		}
 	});
 	$: phase = workspace?.phase ?? 'loading';
@@ -160,13 +163,11 @@
 				!officeEnabled ||
 				workspace?.view !== 'files' ||
 				editorChatId !== chatId ||
-				selected?.file_id !== editorFileId)
+				selected?.file_id !== editorFileId ||
+				officeSession?.state === 'refused' ||
+				officeSession?.state === 'closed')
 		)
-			stopEditor();
-	}
-	$: {
-		if (editorActive && (officeSession?.state === 'refused' || officeSession?.state === 'closed'))
-			stopEditor();
+			editorFileId = stopEditor();
 	}
 
 	function retireFrame() {
@@ -330,14 +331,16 @@
 	}
 	function stopEditor() {
 		editor.dispose();
-		editorFileId = '';
 		editorChatId = '';
 		editorSrc = '';
 		editorError = '';
+		editorMaximized = false;
+		return '';
 	}
 	function activateEditor(fileId: string, src: string) {
 		if (!live || !officeEnabled) return;
 		editorError = '';
+		editorMaximized = false;
 		editorSrc = src;
 		editor.start(chatId, fileId, new URL(src, window.location.origin).href);
 		editorFileId = fileId;
@@ -380,7 +383,7 @@
 		window.addEventListener('message', receivePreview);
 		return () => {
 			live = false;
-			stopEditor();
+			editorFileId = stopEditor();
 			retireFrame();
 			window.removeEventListener('message', receivePreview);
 		};
@@ -622,7 +625,8 @@
 		{/if}
 		{#if selected && downloadUrl}
 			<div
-				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible"
+				use:officeMaximizeOverlay={editorMaximized}
+				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible bg-white dark:bg-gray-900"
 				aria-label={$i18n.t('Selected workspace file')}
 			>
 				<div
@@ -678,8 +682,10 @@
 					<OfficeEditorStatus
 						session={officeSession}
 						live={editorActive && !editorError}
+						maximized={editorMaximized}
 						onSave={() => editor.save()}
 						onReopen={retryEditor}
+						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
 					/>
 				{/if}
 				<div

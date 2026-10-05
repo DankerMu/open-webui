@@ -77,12 +77,7 @@ describe('Office edit entry', () => {
 	});
 
 	it('offers Edit only for broker docx, xlsx and pptx', async () => {
-		harness.scenario = (input, init) =>
-			input.endsWith('/prefs') && init?.method === 'PUT'
-				? json({ prefs: JSON.parse(String(init.body)) })
-				: input.includes('/workspaces/')
-					? json(describeBody)
-					: json(listing([officeDocx, officeXlsx, officePptx, htmlFile, pdfFile, legacyDoc]));
+		harness.setListing([officeDocx, officeXlsx, officePptx, htmlFile, pdfFile, legacyDoc]);
 		await harness.open();
 		await harness.ready('report.docx');
 		for (const name of ['report.docx', 'sheet.xlsx', 'deck.pptx']) {
@@ -120,12 +115,10 @@ describe('Office edit entry', () => {
 	});
 
 	it('keeps B1 sandbox and empty allow for all three types under toggled iframeSandbox settings', async () => {
-		harness.scenario = (input, init) =>
-			input.endsWith('/prefs') && init?.method === 'PUT'
-				? json({ prefs: JSON.parse(String(init.body)) })
-				: input.includes('/workspaces/')
-					? json({ ...describeBody, views: ['files', 'browser'] })
-					: json(listing([officeDocx, officeXlsx, officePptx, htmlFile]));
+		harness.setListing([officeDocx, officeXlsx, officePptx, htmlFile], {
+			...describeBody,
+			views: ['files', 'browser']
+		});
 		await harness.open();
 		await harness.ready('report.docx');
 		for (let bits = 0; bits < 16; bits++) {
@@ -263,14 +256,7 @@ describe('Office edit entry', () => {
 		expect(editorFrame('report.docx')).toBeNull();
 		await tick();
 		const preview = previewFrame('report.docx')!;
-		const post = vi.spyOn(preview.contentWindow!, 'postMessage');
-		window.dispatchEvent(
-			new MessageEvent('message', {
-				source: preview.contentWindow,
-				origin: window.location.origin,
-				data: { type: 'ocu:preview-ready', chat_id: chat }
-			})
-		);
+		const post = harness.previewHandshake(preview);
 		expect(post).toHaveBeenCalledTimes(1);
 		expect(post.mock.calls[0][0]).toMatchObject({
 			type: 'ocu:preview-select',

@@ -763,6 +763,18 @@ Depends on: 24.
 Suggested fixture level: expanded - a restore request that replaces user content.
 Minimal mergeable slice: 25.1 (maximize) - green alone because it only changes layout; 25.2 is an independent dialog.
 
+### Maximize layout risk coverage
+
+- Component API / schema — Selected: status maximize/restore actions reach the existing wrapper; all callers/tests migrate together. No Office message or HTTP schema change.
+- Auth / iframe authority compatibility — Selected: same frame src/sandbox/allow and current generation survive both layout transitions; existing message rejection and A-T01 evidence remain.
+- Lifecycle / shared state / ordering — Selected: node and live-document continuity, no extra open/session request, unchanged editing state and usable Save. Restore/retirement/replacement remove native top-layer and popover attribute state; later activation is visible in the sidebar.
+- Layout integration / errors — Selected: native manual-popover presentation on the existing DOM wrapper; desktop and narrow geometry/hit-testing prove Navbar and separator cannot cover it. A check accepting the old separator as an alternative is invalid. Restore remains reachable; no Fullscreen call, fixed-only production fallback, orphan overlay or altered Files/Browser/Terminal presentation.
+- Resource limits / discovery — Selected: same configured full browser target, one session creation for the maximize case, explicit screenshots, no reload or leaked owned resources.
+- Documentation — Selected: owning Office plan/decision describes the layout owner and frame-continuity rationale; new labels use generated catalogs, no hand-written locale edits.
+- Config, production file IO/path safety, release/dependencies — Not selected: no changes to these surfaces. History/restore, conflict, pre-open and close guards are explicit non-goals.
+
+Required evidence for 25.1: meaningful mounted RED against the unchanged component before implementation, then iframe identity/no-open/no-Fullscreen, overlay Save dispatch and retirement/replacement cleanup cases plus existing component/controller/store tests with per-file coverage. Run scoped lint/typecheck/anti-drift, generated-i18n/format and doc/decision/strict gates. Run `make verify-ui` including the full unchanged `make verify-ui-ocu` discovery with the maximize case named, explicit sidebar/overlay screenshots and zero unexpected console/page errors; inspect both desktop and narrow behavior. Real-browser document continuity and one creation arrival are required, not mocked iframe evidence alone. Parent owns final acceptance and 25.1 checkbox; 25.2 and the shared change remain open.
+
 ## 26. [webui] Conflict dialog and the open-time prompt (spec: ocu-office-workspace-ui)
 
 - [ ] 26.1 Conflict dialog: `save as new file` as default, `overwrite` behind a second confirmation, only `save as` when the reason is `path_missing`, and a resolve refused with `workspace_missing` closing the dialog with its message. Verify: Vitest for each branch and a browser case in `e2e/ocu-office.e2e.ts` driven by the stub's `office_conflict` scenario, named in the `make verify-ui-ocu` output.

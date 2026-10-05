@@ -6,9 +6,10 @@
 
 	export let session: OcuOfficeState | undefined;
 	export let live = false;
+	export let maximized = false;
 	export let onSave: () => void;
 	export let onReopen: () => void;
-
+	export let onToggleMaximize: () => void;
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	function refusedMessage(reason: string | null) {
@@ -79,6 +80,14 @@
 				aria-label={$i18n.t('Save')}
 				disabled={!saveEnabled}
 				on:click={onSave}>{$i18n.t('Save')}</button
+			>
+		{/if}
+		{#if live && state !== 'refused' && state !== 'closed'}
+			<button
+				class="h-7 shrink-0 rounded-md border border-gray-200 px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+				type="button"
+				aria-label={maximized ? $i18n.t('Restore') : $i18n.t('Maximize')}
+				on:click={onToggleMaximize}>{maximized ? $i18n.t('Restore') : $i18n.t('Maximize')}</button
 			>
 		{/if}
 		{#if showReopen}
