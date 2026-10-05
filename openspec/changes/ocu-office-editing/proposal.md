@@ -386,3 +386,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public API/path representation, schema compatibility, sibling save-as transitions, response conservation, errors and documentation.
 - Evidence floor: retained conflict-browser invalid_response RED plus an independent owning smoke RED; conflict and automatic-close copies pass canonical URL and returned-URL byte/hash checks, then the actual unchanged browser consumer accepts both real gateway listings.
 - This authorized prerequisite precedes completion of task 26.1; the preserved conflict candidate and shared Office change remain open.
+
+## Office conflict-resolution fixture
+
+- Issue type: feature; fixture level: expanded, matching task 26.1 and its explicit multi-path width exception.
+- Scope: parent-owned conflict dialog, default save-as and confirmed overwrite, mounted branch tests, one permanent office_conflict browser case and generated localization.
+- Governing invariant: only an explicit eligible choice resolves the captured current session; resolution never changes the accepted editor identity or fabricates host state.
+- Selected risk packs: mutation API/schema, overwrite/authority, lifecycle/concurrency, compatibility, partial failures, browser discovery and documentation.
+- Evidence floor: semantic mounted conflict-dialog RED; every issue branch plus stale/duplicate/confirmation invalidation; real gateway conflict-to-save-as with unchanged live document, preserved original and deduplicated Files entry.
+- Keep WorkspaceArtifact below its unchanged size gate by extracting its existing selected-file action bar as one presentation responsibility; preserve markup, eligibility, callbacks and all existing editor/preview behavior. No ancestor, broker, stub, client/store/controller or dependency change.
+- Pending pre-open conflicts, unpublished choices and leave guards remain later tasks. Runtime certification remains stub/gateway, not real DocumentServer or LAN.
