@@ -332,3 +332,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: message API/schema, frame authority, lifecycle/ordering, compatibility, error handling and documentation. No configuration, filesystem, discovery, deployment or dependency change.
 - Evidence floor: mounted status/precedence matrix, exact command destination/payload and no optimistic status, no-change save, failed-editing reason, all validation refusals, expired reopen, closed fallback, invalid-message invariance, existing identity/security tests and actual unchanged browser harness.
 - UI proof covers the bar in the existing first-open browser path. Full save/refusal browser scenarios remain the next issue; this does not substitute for their later acceptance.
+
+## Office save and refusal browser-proof fixture
+
+- Issue type: test; fixture level: expanded, agreeing with the suggested level for the exercised frame/protocol boundary.
+- Scope: task 24.4 in the existing Office browser spec, with existing shared e2e helpers only where needed. No component, stub, harness configuration, backend, dependency or OCU change.
+- Blast radius: false-green save confirmation, hidden validation refusal, lost read-only access or unnoticed close requests.
+- Selected risk packs: API/schema, authenticated integration, ordering/shared state, compatibility, errors, discovery and evidence documentation.
+- Evidence floor: actual route/proxy/stub save and refusal cases, a deterministic withheld-status confirmation window, private request records, usable preview/download, screenshots and no unexpected browser errors.
+- Characterization mode: production already implements these behaviors. Qualify new assertions with controlled known-bad browser/test inputs, restore them, and run the unchanged full browser target; no invented production RED or claim of a real DocumentServer save.
+- Review seats: correctness and test-evidence+spec-compliance; test-only scope needs no separate production security/performance seat.
