@@ -3,7 +3,13 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { get } from 'svelte/store';
-	import { workspaceFileUrl, workspaceRuntimeUrl, type WorkspaceFile } from '$lib/apis/ocu';
+	import {
+		workspaceFileUrl,
+		workspaceRuntimeUrl,
+		workspaceFilesEnabled,
+		type WorkspaceFile
+	} from '$lib/apis/ocu';
+	import { config } from '$lib/stores';
 	import { ocuWorkspaces, selectWorkspaceView, type OcuWorkspaceState } from '$lib/stores/ocu';
 	import { formatFileSize } from '$lib/utils';
 	import {
@@ -11,6 +17,14 @@
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
 	import { buildWorkspaceFileRows, workspaceFileKind } from './workspace-file-rows';
+	import {
+		OFFICE_EDITOR_ALLOW,
+		OFFICE_EDITOR_SANDBOX,
+		createOfficeEditorController,
+		officeEditorFrame,
+		officeEditorSrc
+	} from './office-editor-frame';
+	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
@@ -29,7 +43,6 @@
 	import Code from '$lib/components/icons/Code.svelte';
 	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
 	import Download from '$lib/components/icons/Download.svelte';
-
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
 	export let onClose: (() => void) | undefined = undefined;
@@ -49,6 +62,17 @@
 	let resultTimer: ReturnType<typeof setTimeout> | undefined;
 	let live = false;
 	let officeIdentity = '';
+	let editorKey = 0;
+	let editorFileId = '';
+	let editorChatId = '';
+	let editorSrc = '';
+	let editorError = '';
+	const editor = createOfficeEditorController({
+		origin: () => window.location.origin,
+		onTimeout() {
+			editorError = $i18n.t('Office editor did not become ready');
+		}
+	});
 	$: phase = workspace?.phase ?? 'loading';
 	$: notice = localNotice || workspace?.notice || '';
 	$: busy = workspace?.busy ?? false;
@@ -59,9 +83,25 @@
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
 	$: office = selected && ['docx', 'xlsx', 'pptx'].includes(selected.type);
+	$: officeEnabled =
+		enabled &&
+		isSavedChatId(chatId) &&
+		chatId !== 'default' &&
+		workspaceFilesEnabled($config) &&
+		$config?.features &&
+		'enable_ocu_office_edit' in $config.features &&
+		$config.features.enable_ocu_office_edit === true &&
+		workspace?.baseUrl === '/ocu';
+	$: officeEdit = office && officeEnabled;
+	$: editorActive =
+		!!editorFileId &&
+		selected?.file_id === editorFileId &&
+		editorChatId === chatId &&
+		workspace?.view === 'files';
 	$: generated =
 		selected &&
 		!office &&
+		!editorActive &&
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
 			selected.mime.split(';')[0].trim().toLowerCase()
 		);
@@ -95,7 +135,7 @@
 			: '';
 	$: {
 		const key =
-			live && workspace?.view === 'files' && office && selected
+			live && workspace?.view === 'files' && office && selected && !editorFileId
 				? `${selected.file_id}:${selected.path}:${selected.revision}`
 				: '';
 		if (key && key !== officeIdentity) {
@@ -105,6 +145,17 @@
 			officeIdentity = '';
 			retireFrame();
 		}
+	}
+	$: {
+		if (
+			editorFileId &&
+			(!live ||
+				!officeEnabled ||
+				workspace?.view !== 'files' ||
+				editorChatId !== chatId ||
+				selected?.file_id !== editorFileId)
+		)
+			stopEditor();
 	}
 
 	function retireFrame() {
@@ -228,7 +279,7 @@
 
 	function selectFile(file: WorkspaceFile) {
 		localNotice = '';
-		if (selected?.file_id === file.file_id && office) void startOffice();
+		if (selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
 		else {
 			previewState = '';
 			previewError = false;
@@ -266,6 +317,30 @@
 		localNotice = '';
 		void controller.more();
 	}
+	function stopEditor() {
+		editor.dispose();
+		editorFileId = '';
+		editorChatId = '';
+		editorSrc = '';
+		editorError = '';
+	}
+	function activateEditor(fileId: string, src: string) {
+		if (!live || !officeEnabled) return;
+		editorError = '';
+		editorSrc = src;
+		editor.start(chatId, fileId, new URL(src, window.location.origin).href);
+		editorFileId = fileId;
+		editorChatId = chatId;
+		editorKey += 1;
+	}
+	function startEditor() {
+		if (!officeEdit || !selected || workspace?.baseUrl !== '/ocu') return;
+		activateEditor(selected.file_id, officeEditorSrc(workspace.baseUrl, chatId));
+	}
+	function retryEditor() {
+		if (!editorActive || !editorFileId || !editorSrc) return;
+		activateEditor(editorFileId, editorSrc);
+	}
 
 	let collapsedFolders = new Set<string>();
 	function toggleFolder(path: string) {
@@ -294,6 +369,7 @@
 		window.addEventListener('message', receivePreview);
 		return () => {
 			live = false;
+			stopEditor();
 			retireFrame();
 			window.removeEventListener('message', receivePreview);
 		};
@@ -565,6 +641,16 @@
 						>{formatFileSize(selected.size)}</span
 					>
 					<div class="ml-auto flex shrink-0 items-center gap-1">
+						{#if officeEdit}
+							<Tooltip content={$i18n.t('Edit')} className="flex">
+								<button
+									class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
+									type="button"
+									on:click={startEditor}
+									aria-label={$i18n.t('Edit')}><Pencil className="size-4" /></button
+								>
+							</Tooltip>
+						{/if}
 						<Tooltip content={$i18n.t('Download')} className="flex">
 							<a
 								class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
@@ -581,7 +667,29 @@
 					data-selected-preview
 					class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
 				>
-					{#if generated}
+					{#if editorActive}
+						{#if editorError}
+							<div
+								class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+							>
+								<p role="status">{editorError}</p>
+								<button
+									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+									type="button"
+									on:click={retryEditor}>{$i18n.t('Retry')}</button
+								>
+							</div>
+						{:else}
+							{#key editorKey}<iframe
+									use:officeEditorFrame={editor}
+									title={`${$i18n.t('Office editor')}: ${selected.name}`}
+									src={editorSrc}
+									sandbox={OFFICE_EDITOR_SANDBOX}
+									allow={OFFICE_EDITOR_ALLOW}
+									class="min-h-0 w-full flex-1 border-0"
+								></iframe>{/key}
+						{/if}
+					{:else if generated}
 						<iframe
 							title={selected.name}
 							src={`${selectedUrl}?revision=${selected.revision}`}

@@ -8,15 +8,18 @@ import io
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
 from pathlib import Path
 
+from ocu_stub_office import OFFICE_SCENARIOS
 from smoke_proxy_support import (
     fail,
     free_port,
@@ -56,6 +59,15 @@ SCENARIOS = (
     'drawio',
     'drawio_embedded',
     'nested',
+    *sorted(OFFICE_SCENARIOS),
+)
+REQUIRED_SPECS = (
+    'ocu-workspace.e2e.ts',
+    'ocu-controls.e2e.ts',
+    'ocu-reconciliation.e2e.ts',
+    'ocu-drawio.e2e.ts',
+    'ocu-tree.e2e.ts',
+    'ocu-office.e2e.ts',
 )
 
 
@@ -300,6 +312,30 @@ class BrowserHarness(Smoke):
                 log.error('workspace failure logs: %s', evidence)
             raise
 
+    def verify_test_discovery(self, browser_env: dict[str, str]) -> None:
+        listing = subprocess.run(
+            [str(self.root / 'node_modules/.bin/playwright'), 'test', '--config', 'playwright.ocu.config.ts', '--list'],
+            cwd=self.root,
+            env=browser_env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        sys.stdout.write(listing.stdout)
+        sys.stderr.write(listing.stderr)
+        if listing.returncode:
+            fail(f'configured Playwright test discovery failed ({listing.returncode})')
+        discovered = set(
+            re.findall(
+                r'(?m)^\s*(?:\[.*?\]\s+›\s+)?(?:.*[/\\])?(ocu-[\w-]+\.e2e\.ts):\d+:\d+\s+›\s+\S',
+                listing.stdout,
+            )
+        )
+        for spec in REQUIRED_SPECS:
+            if spec not in discovered:
+                fail(f'required Playwright spec contributes no tests: {spec}')
+
     def run_stack(self) -> int:
         require_tools()
         if not shutil.which('uv'):
@@ -393,6 +429,8 @@ class BrowserHarness(Smoke):
             'OCU_INTERNAL_URL': f'http://127.0.0.1:{self.stub_port}',
             'OCU_INTERNAL_TOKEN': self.token,
             'WEBUI_BACKEND_URL': f'http://127.0.0.1:{self.backend_port}',
+            'ENABLE_OCU_WORKSPACE': 'true',
+            'ENABLE_OCU_OFFICE_EDIT': 'true',
             'CORS_ALLOW_ORIGIN': self.origin,
             'OCU_UI_PROXY_HARNESS': 'true',
             'OCU_UI_SVELTEKIT_OUT_DIR': str(self.scratch / 'svelte-kit'),
@@ -457,6 +495,7 @@ class BrowserHarness(Smoke):
             'OCU_E2E_EMAIL': identity,
             'OCU_E2E_PASSWORD': password,
         }
+        self.verify_test_discovery(browser_env)
         browser = subprocess.Popen(
             [str(self.root / 'node_modules/.bin/playwright'), 'test', '--config', 'playwright.ocu.config.ts'],
             cwd=self.root,
