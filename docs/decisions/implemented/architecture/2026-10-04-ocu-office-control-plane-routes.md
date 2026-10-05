@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-04
 supersedes: none
-references: 2026-09-21-ocu-mcp-service-credentials, 2026-09-20-lan-topology-external-reverse-proxy, DankerMu/open-webui#133, ocu-office-editing D7
+references: 2026-09-21-ocu-mcp-service-credentials, 2026-09-20-lan-topology-external-reverse-proxy, DankerMu/open-webui#133, DankerMu/open-webui#134, ocu-office-editing D7 D9 D10
 ---
 
 # DocumentServer source and callback routes authenticate with ticket and JWT
@@ -18,7 +18,7 @@ DocumentServer must fetch the bound Office source and post callbacks on the cont
 
 `GET /office/source/{ticket}` authenticates only a short-lived HMAC ticket derived from the internal token and bound to chat, file, version and session. A valid ticket returns the stored immutable version bytes, not the current workspace file. `POST /office/callback/{chat}/{session}` authenticates only a DocumentServer JWT verified with `OCU_OFFICE_JWT_SECRET`. A header Bearer token signs a nested `payload` object; a body `token` signs callback fields directly. A present Authorization header is authoritative and never falls back to the body.
 
-Neither route is a gateway row. Both remain exempt from the internal-token carrier and still reject sandbox-subnet transport peers with 403 before handler work. When Office editing is not enabled they answer 404 without evaluating credentials or storage. A missing chat directory is checked without creating it and before the canonical lock: source returns 401 `invalid_ticket`, callback returns 404 `unknown_session`. Until callback processing lands, an authenticated callback answers 503 `callback_processing_unavailable` and changes no state.
+Neither route is a gateway row. Both remain exempt from the internal-token carrier and still reject sandbox-subnet transport peers with 403 before handler work. When Office editing is not enabled they answer 404 without evaluating credentials or storage. A missing chat directory is checked without creating it and before the canonical lock: source returns 401 `invalid_ticket`, callback returns 404 `unknown_session`. An authenticated callback is handled under that lock: receipts answer repeats, status 1 records participants, content statuses persist a version and receipt before `{"error": 0}`, and every failure stays a non-200 `reason`. Confined fetch uses only the DocumentServer server-to-server origin. Directory-fsync after replace is the durability barrier for acknowledgement and receipt replay. Publish, journal and workspace replacement remain later work.
 
 This does not supersede the MCP/internal credential split. REST still uses Bearer `OCU_INTERNAL_TOKEN`; MCP still requires `X-OCU-Internal-Token` plus `MCP_API_KEY` when configured. DocumentServer JWT and source tickets are additional control-plane credentials, not substitutes for either service secret.
 
@@ -31,4 +31,4 @@ This does not supersede the MCP/internal credential split. REST still uses Beare
 
 ## Consequences
 
-Source tickets appear in DocumentServer fetch URLs, so Uvicorn access logs redact the ticket segment and any `ticket` query value without disabling ordinary access logs. Callback rejection diagnostics name chat, session and reason and omit the token. Callback status handling, download, persist and publish remain later work. Gateway denial of `/ocu/office/source/…` and `/ocu/office/callback/…` remains a proxy-table change.
+Source tickets appear in DocumentServer fetch URLs, so Uvicorn access logs redact the ticket segment and any `ticket` query value without disabling ordinary access logs. Callback rejection diagnostics name chat, session and reason and omit the token. Callback persist owns status, receipts and confined download; publish remains later work. Gateway denial of `/ocu/office/source/…` and `/ocu/office/callback/…` remains a proxy-table change.
