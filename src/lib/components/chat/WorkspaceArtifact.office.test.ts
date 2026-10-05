@@ -1,205 +1,39 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount, tick, unmount } from 'svelte';
+import { tick, unmount } from 'svelte';
 import { createClassComponent } from 'svelte/legacy';
 import { get } from 'svelte/store';
 import { config, settings } from '$lib/stores';
 import { applyWorkspaceListing, ocuWorkspaces } from '$lib/stores/ocu';
 import { ocuOffice } from '$lib/stores/ocu-office';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
-import {
-	chat,
-	describeBody,
-	file,
-	i18n,
-	json,
-	listing
-} from '../../../../test/ocu-workspace-fixtures';
-import {
-	createWorkspaceReconciliation,
-	WORKSPACE_RECONCILIATION,
-	type WorkspaceReconciliation
-} from './workspace-reconciliation';
-import type { WorkspaceFile } from '$lib/apis/ocu';
+import { chat, describeBody, i18n, json, listing } from '../../../../test/ocu-workspace-fixtures';
+import { WORKSPACE_RECONCILIATION } from './workspace-reconciliation';
 import { OFFICE_EDITOR_ALLOW, OFFICE_EDITOR_SANDBOX } from './office-editor-frame';
+import {
+	OfficeArtifactHarness,
+	editAction,
+	editorFrame,
+	htmlFile,
+	legacyDoc,
+	namedButton,
+	officeConfig,
+	officeDocx,
+	officePptx,
+	officeXlsx,
+	pdfFile,
+	previewFrame
+} from './workspace-artifact-office-test';
 
-let component: Record<string, unknown> | undefined;
-let calls: Array<{ url: string; init?: RequestInit }>;
-let scenario: (input: string, init?: RequestInit) => Response | Promise<Response>;
-let controller: WorkspaceReconciliation;
-let detachController: () => void;
-let priorConfig: Parameters<typeof config.set>[0];
-let priorSettings: Parameters<typeof settings.set>[0];
+const harness = new OfficeArtifactHarness();
 
-const officeDocx: WorkspaceFile = file('report.docx');
-const officeXlsx: WorkspaceFile = {
-	...file('sheet.xlsx', 'sheet.xlsx'),
-	type: 'xlsx',
-	mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-};
-const officePptx: WorkspaceFile = {
-	...file('deck.pptx', 'deck.pptx'),
-	type: 'pptx',
-	mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-};
-const htmlFile: WorkspaceFile = file('page.html');
-const pdfFile: WorkspaceFile = {
-	...file('brief.pdf', 'brief.pdf'),
-	type: 'pdf',
-	mime: 'application/pdf'
-};
-const legacyDoc: WorkspaceFile = {
-	...file('legacy.doc', 'legacy.doc'),
-	type: 'doc',
-	mime: 'application/msword'
-};
-
-function officeConfig(office: boolean | undefined, workspace = true) {
-	const features: Record<string, boolean> = { enable_ocu_workspace: workspace };
-	if (office !== undefined) features.enable_ocu_office_edit = office;
-	return { features } as unknown as Parameters<typeof config.set>[0];
-}
-
-function namedButton(name: string) {
-	const button = [...document.querySelectorAll('button')].find(
-		(item) => item.getAttribute('aria-label') === name || item.textContent?.trim() === name
-	);
-	expect(button, name).toBeDefined();
-	return button as HTMLButtonElement;
-}
-
-function editAction() {
-	const bar = document.querySelector('[data-selected-bar]');
-	if (!bar) return undefined;
-	return [...bar.querySelectorAll('button')].find(
-		(item) => item.getAttribute('aria-label') === 'Edit' || item.textContent?.trim() === 'Edit'
-	);
-}
-
-function editorFrame(name: string) {
-	return document.querySelector(
-		`iframe[title="Office editor: ${name}"]`
-	) as HTMLIFrameElement | null;
-}
-
-function previewFrame(name: string) {
-	return document.querySelector(
-		`iframe[title="Office preview: ${name}"]`
-	) as HTMLIFrameElement | null;
-}
-
-async function open(enabled = true, id = chat) {
-	component = mount(WorkspaceArtifact, {
-		target: document.body,
-		props: { chatId: id, enabled },
-		context: new Map<unknown, unknown>([
-			['i18n', i18n],
-			[WORKSPACE_RECONCILIATION, controller]
-		])
-	});
-	controller.observe(id, enabled);
-	await vi.waitFor(() =>
-		expect(document.body.querySelector('[aria-label="Workspace Files"]')).not.toBeNull()
-	);
-	return document.body;
-}
-
-async function ready(text: string) {
-	await vi.waitFor(() => expect(document.body.textContent).toContain(text));
-}
-
-async function selectAndEdit(name: string) {
-	namedButton(name).click();
-	await tick();
-	expect(editAction()).toBeDefined();
-	editAction()!.click();
-	await tick();
-	const frame = editorFrame(name);
-	expect(frame).not.toBeNull();
-	return frame as HTMLIFrameElement;
-}
-
-function officeRequests() {
-	return calls.filter((call) => call.url.includes('/ocu/api/office/'));
-}
-
-function launchRequests() {
-	return calls.filter((call) => call.url.endsWith('/launch') && call.init?.method === 'POST');
-}
-
-function handshake(frame: HTMLIFrameElement) {
-	const sent = vi.spyOn(frame.contentWindow!, 'postMessage');
-	window.dispatchEvent(
-		new MessageEvent('message', {
-			origin: window.location.origin,
-			source: frame.contentWindow,
-			data: { type: 'ocu:office-ready', chat_id: chat }
-		})
-	);
-	expect(sent).toHaveBeenCalledTimes(1);
-	const openMessage = sent.mock.calls[0][0] as {
-		type: string;
-		chat_id: string;
-		file_id: string;
-		generation: number;
-	};
-	expect(sent.mock.calls[0][1]).toBe(window.location.origin);
-	return { sent, openMessage };
-}
-
-beforeEach(() => {
-	priorConfig = get(config);
-	priorSettings = get(settings);
-	config.set(officeConfig(true));
-	settings.set({
-		iframeSandboxAllowScripts: false,
-		iframeSandboxAllowSameOrigin: true,
-		iframeSandboxAllowForms: true,
-		iframeSandboxAllowDownloads: true
-	});
-	ocuWorkspaces.set({});
-	ocuOffice.set({});
-	document.body.replaceChildren();
-	localStorage.setItem('token', 'fixture-session');
-	calls = [];
-	scenario = (input, init) =>
-		input.endsWith('/prefs') && init?.method === 'PUT'
-			? json({ prefs: JSON.parse(String(init.body)) })
-			: input.includes('/workspaces/')
-				? json(describeBody)
-				: json(listing([officeDocx, htmlFile]));
-	vi.stubGlobal(
-		'fetch',
-		vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-			calls.push({ url: String(input), init });
-			return Promise.resolve(scenario(String(input), init));
-		})
-	);
-	controller = createWorkspaceReconciliation({
-		token: () => localStorage.token,
-		available: () => true,
-		translate: (key, params) => get(i18n).t(key, params)
-	});
-	detachController = controller.mount();
-});
-
-afterEach(async () => {
-	if (component) await unmount(component);
-	detachController();
-	component = undefined;
-	config.set(priorConfig);
-	settings.set(priorSettings);
-	ocuOffice.set({});
-	vi.useRealTimers();
-	vi.unstubAllGlobals();
-	vi.restoreAllMocks();
-	document.body.replaceChildren();
-});
+beforeEach(() => harness.install());
+afterEach(() => harness.cleanup());
 
 describe('Office edit entry', () => {
 	it('offers Edit on a selected DOCX and mounts the editor frame', async () => {
-		await open();
-		await ready('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
 		namedButton('report.docx').click();
 		await tick();
 		expect(editAction()).toBeDefined();
@@ -211,16 +45,16 @@ describe('Office edit entry', () => {
 		expect(editor!.getAttribute('sandbox')).toBe(OFFICE_EDITOR_SANDBOX);
 		expect(editor!.getAttribute('allow')).toBe(OFFICE_EDITOR_ALLOW);
 		expect(previewFrame('report.docx')).toBeNull();
-		expect(officeRequests()).toEqual([]);
-		expect(launchRequests()).toEqual([]);
+		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.launchRequests()).toEqual([]);
 	});
 
 	it.each([undefined, false] as const)(
 		'hides Edit and keeps read-only preview when the Office flag is %s',
 		async (office) => {
 			config.set(officeConfig(office));
-			await open();
-			await ready('report.docx');
+			await harness.open();
+			await harness.ready('report.docx');
 			namedButton('report.docx').click();
 			await tick();
 			expect(editAction()).toBeUndefined();
@@ -229,28 +63,28 @@ describe('Office edit entry', () => {
 			expect(previewFrame('report.docx')!.getAttribute('sandbox')).toBe(
 				'allow-scripts allow-same-origin allow-forms'
 			);
-			expect(officeRequests()).toEqual([]);
+			expect(harness.officeRequests()).toEqual([]);
 		}
 	);
 
 	it('hides Edit when the workspace flag is off', async () => {
 		config.set(officeConfig(true, false));
-		await open();
+		await harness.open();
 		expect(document.body.querySelector('[aria-label="Workspace Files"]')).not.toBeNull();
 		expect(editAction()).toBeUndefined();
 		expect(editorFrame('report.docx')).toBeNull();
-		expect(officeRequests()).toEqual([]);
+		expect(harness.officeRequests()).toEqual([]);
 	});
 
 	it('offers Edit only for broker docx, xlsx and pptx', async () => {
-		scenario = (input, init) =>
+		harness.scenario = (input, init) =>
 			input.endsWith('/prefs') && init?.method === 'PUT'
 				? json({ prefs: JSON.parse(String(init.body)) })
 				: input.includes('/workspaces/')
 					? json(describeBody)
 					: json(listing([officeDocx, officeXlsx, officePptx, htmlFile, pdfFile, legacyDoc]));
-		await open();
-		await ready('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
 		for (const name of ['report.docx', 'sheet.xlsx', 'deck.pptx']) {
 			namedButton(name).click();
 			await tick();
@@ -262,11 +96,11 @@ describe('Office edit entry', () => {
 			expect(editAction(), name).toBeUndefined();
 			expect(editorFrame(name)).toBeNull();
 		}
-		expect(officeRequests()).toEqual([]);
+		expect(harness.officeRequests()).toEqual([]);
 	});
 
 	it('opens the editor on a stopped workspace without issuing launch', async () => {
-		scenario = (input, init) => {
+		harness.scenario = (input, init) => {
 			if (input.endsWith('/launch') && init?.method === 'POST') return json({ state: 'running' });
 			if (input.endsWith('/prefs') && init?.method === 'PUT')
 				return json({ prefs: JSON.parse(String(init.body)) });
@@ -278,22 +112,22 @@ describe('Office edit entry', () => {
 				});
 			return json(listing([officeDocx]));
 		};
-		await open();
-		await ready('Workspace is stopped; saved files remain available');
-		await selectAndEdit('report.docx');
-		expect(launchRequests()).toEqual([]);
+		await harness.open();
+		await harness.ready('Workspace is stopped; saved files remain available');
+		await harness.selectAndEdit('report.docx');
+		expect(harness.launchRequests()).toEqual([]);
 		expect(get(ocuWorkspaces)[chat].status).toBe('stopped');
 	});
 
 	it('keeps B1 sandbox and empty allow for all three types under toggled iframeSandbox settings', async () => {
-		scenario = (input, init) =>
+		harness.scenario = (input, init) =>
 			input.endsWith('/prefs') && init?.method === 'PUT'
 				? json({ prefs: JSON.parse(String(init.body)) })
 				: input.includes('/workspaces/')
 					? json({ ...describeBody, views: ['files', 'browser'] })
 					: json(listing([officeDocx, officeXlsx, officePptx, htmlFile]));
-		await open();
-		await ready('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
 		for (let bits = 0; bits < 16; bits++) {
 			settings.set({
 				iframeSandboxAllowScripts: !!(bits & 1),
@@ -302,7 +136,7 @@ describe('Office edit entry', () => {
 				iframeSandboxAllowDownloads: !!(bits & 8)
 			});
 			for (const name of ['report.docx', 'sheet.xlsx', 'deck.pptx']) {
-				const frame = await selectAndEdit(name);
+				const frame = await harness.selectAndEdit(name);
 				expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
 				expect(frame.getAttribute('allow')).toBe('');
 			}
@@ -320,10 +154,10 @@ describe('Office edit entry', () => {
 	});
 
 	it('preserves the editor element across revision, path, listing and first session id', async () => {
-		await open();
-		await ready('report.docx');
-		const frame = await selectAndEdit('report.docx');
-		const { openMessage } = handshake(frame);
+		await harness.open();
+		await harness.ready('report.docx');
+		const frame = await harness.selectAndEdit('report.docx');
+		const { openMessage } = harness.handshake(frame);
 		window.dispatchEvent(
 			new MessageEvent('message', {
 				origin: window.location.origin,
@@ -373,10 +207,11 @@ describe('Office edit entry', () => {
 		expect(retry).not.toBe(frame);
 		expect(get(ocuOffice)[chat].generation).toBeGreaterThan(openMessage.generation);
 	});
+
 	it('retires a frame that never becomes ready, ignores late ready, and retries with a fresh frame', async () => {
 		vi.useFakeTimers();
-		await open();
-		await ready('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
 		namedButton('report.docx').click();
 		await tick();
 		editAction()!.click();
@@ -411,13 +246,13 @@ describe('Office edit entry', () => {
 		const retry = editorFrame('report.docx');
 		expect(retry).not.toBeNull();
 		expect(retry).not.toBe(retired);
-		handshake(retry!);
+		harness.handshake(retry!);
 	});
 
 	it('returns to read-only preview after the editor is retired by selecting another file', async () => {
-		await open();
-		await ready('report.docx');
-		await selectAndEdit('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
+		await harness.selectAndEdit('report.docx');
 		namedButton('page.html').click();
 		await tick();
 		expect(editorFrame('report.docx')).toBeNull();
@@ -442,15 +277,16 @@ describe('Office edit entry', () => {
 			file_id: 'report.docx'
 		});
 	});
+
 	it.each(['office-flag', 'workspace-flag', 'selection', 'selection-removed', 'view', 'unmount'])(
 		'retires frame authority on %s without close or orphan editor work',
 		async (cause) => {
-			await open();
-			await ready('report.docx');
+			await harness.open();
+			await harness.ready('report.docx');
 			vi.useFakeTimers();
-			const frame = await selectAndEdit('report.docx');
+			const frame = await harness.selectAndEdit('report.docx');
 			const oldWindow = frame.contentWindow!;
-			const { sent, openMessage } = handshake(frame);
+			const { sent, openMessage } = harness.handshake(frame);
 			const removed = vi.spyOn(window, 'removeEventListener');
 			if (cause === 'office-flag') config.set(officeConfig(false));
 			else if (cause === 'workspace-flag') config.set(officeConfig(true, false));
@@ -466,8 +302,8 @@ describe('Office edit entry', () => {
 					[chat]: { ...states[chat], view: 'browser' }
 				}));
 			else {
-				await unmount(component!);
-				component = undefined;
+				await unmount(harness.component!);
+				harness.component = undefined;
 			}
 			await tick();
 			expect(editorFrame('report.docx')).toBeNull();
@@ -496,15 +332,15 @@ describe('Office edit entry', () => {
 			await vi.advanceTimersByTimeAsync(10_000);
 			await tick();
 			expect(document.body.textContent).not.toContain('Office editor did not become ready');
-			expect(officeRequests()).toEqual([]);
-			expect(launchRequests()).toEqual([]);
+			expect(harness.officeRequests()).toEqual([]);
+			expect(harness.launchRequests()).toEqual([]);
 		}
 	);
 
 	it('rejects the mounted sender, binding and schema matrix atomically', async () => {
-		await open();
-		await ready('report.docx');
-		const frame = await selectAndEdit('report.docx');
+		await harness.open();
+		await harness.ready('report.docx');
+		const frame = await harness.selectAndEdit('report.docx');
 		const generation = get(ocuOffice)[chat].generation;
 		const send = vi.spyOn(frame.contentWindow!, 'postMessage');
 		const data = {
@@ -580,28 +416,30 @@ describe('Office edit entry', () => {
 		const accepted = get(ocuOffice);
 		dispatch(data);
 		expect(get(ocuOffice)).toBe(accepted);
-		expect(officeRequests()).toEqual([]);
-		expect(launchRequests()).toEqual([]);
+		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.launchRequests()).toEqual([]);
 		sibling.remove();
 	});
+
 	it.each(['', 'default', 'temporary:new', 'local:new', 'channel:new'])(
 		'keeps unsaved chat %s off the editor and network',
 		async (id) => {
-			await open(true, id);
+			await harness.open(true, id);
 			expect(document.querySelector('[aria-label="Edit"]')).toBeNull();
 			expect(document.querySelector('iframe')).toBeNull();
-			expect(calls).toEqual([]);
+			expect(harness.calls).toEqual([]);
 			expect(get(ocuOffice)).toEqual({});
 		}
 	);
 
 	it('keeps disabled workspace off the editor and network', async () => {
-		await open(false);
+		await harness.open(false);
 		expect(document.querySelector('[aria-label="Edit"]')).toBeNull();
 		expect(document.querySelector('iframe')).toBeNull();
-		expect(calls).toEqual([]);
+		expect(harness.calls).toEqual([]);
 		expect(get(ocuOffice)).toEqual({});
 	});
+
 	it.each(['chat', 'enabled'])(
 		'retires authority when the mounted %s prop changes',
 		async (prop) => {
@@ -611,15 +449,15 @@ describe('Office edit entry', () => {
 				props: { chatId: chat, enabled: true },
 				context: new Map<unknown, unknown>([
 					['i18n', i18n],
-					[WORKSPACE_RECONCILIATION, controller]
+					[WORKSPACE_RECONCILIATION, harness.controller]
 				])
 			});
 			try {
-				controller.observe(chat, true);
-				await ready('report.docx');
-				const frame = await selectAndEdit('report.docx');
+				harness.controller.observe(chat, true);
+				await harness.ready('report.docx');
+				const frame = await harness.selectAndEdit('report.docx');
 				const source = frame.contentWindow!;
-				const { openMessage, sent } = handshake(frame);
+				const { openMessage, sent } = harness.handshake(frame);
 				mounted.$set({ chatId: chat, enabled: true });
 				await tick();
 				expect(editorFrame('report.docx')).toBe(frame);
@@ -651,7 +489,7 @@ describe('Office edit entry', () => {
 				);
 				expect(sent).toHaveBeenCalledTimes(1);
 				expect(get(ocuOffice)).toBe(snapshot);
-				expect(officeRequests()).toEqual([]);
+				expect(harness.officeRequests()).toEqual([]);
 			} finally {
 				mounted.$destroy();
 			}

@@ -83,8 +83,7 @@
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
 	$: office = selected && ['docx', 'xlsx', 'pptx'].includes(selected.type);
-	$: officeEdit =
-		office &&
+	$: officeEnabled =
 		enabled &&
 		isSavedChatId(chatId) &&
 		chatId !== 'default' &&
@@ -93,9 +92,16 @@
 		'enable_ocu_office_edit' in $config.features &&
 		$config.features.enable_ocu_office_edit === true &&
 		workspace?.baseUrl === '/ocu';
+	$: officeEdit = office && officeEnabled;
+	$: editorActive =
+		!!editorFileId &&
+		selected?.file_id === editorFileId &&
+		editorChatId === chatId &&
+		workspace?.view === 'files';
 	$: generated =
 		selected &&
 		!office &&
+		!editorActive &&
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
 			selected.mime.split(';')[0].trim().toLowerCase()
 		);
@@ -144,7 +150,7 @@
 		if (
 			editorFileId &&
 			(!live ||
-				!officeEdit ||
+				!officeEnabled ||
 				workspace?.view !== 'files' ||
 				editorChatId !== chatId ||
 				selected?.file_id !== editorFileId)
@@ -318,14 +324,22 @@
 		editorSrc = '';
 		editorError = '';
 	}
-	function startEditor() {
-		if (!live || !officeEdit || !selected || !workspace?.baseUrl) return;
+	function activateEditor(fileId: string, src: string) {
+		if (!live || !officeEnabled) return;
 		editorError = '';
-		editorSrc = officeEditorSrc(workspace.baseUrl, chatId);
-		editor.start(chatId, selected.file_id, new URL(editorSrc, window.location.origin).href);
-		editorFileId = selected.file_id;
+		editorSrc = src;
+		editor.start(chatId, fileId, new URL(src, window.location.origin).href);
+		editorFileId = fileId;
 		editorChatId = chatId;
 		editorKey += 1;
+	}
+	function startEditor() {
+		if (!officeEdit || !selected || workspace?.baseUrl !== '/ocu') return;
+		activateEditor(selected.file_id, officeEditorSrc(workspace.baseUrl, chatId));
+	}
+	function retryEditor() {
+		if (!editorActive || !editorFileId || !editorSrc) return;
+		activateEditor(editorFileId, editorSrc);
 	}
 
 	let collapsedFolders = new Set<string>();
@@ -653,14 +667,7 @@
 					data-selected-preview
 					class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
 				>
-					{#if generated}
-						<iframe
-							title={selected.name}
-							src={`${selectedUrl}?revision=${selected.revision}`}
-							sandbox="allow-scripts allow-forms"
-							class="min-h-0 w-full flex-1 border-0"
-						></iframe>
-					{:else if editorFileId && selected.file_id === editorFileId}
+					{#if editorActive}
 						{#if editorError}
 							<div
 								class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
@@ -669,7 +676,7 @@
 								<button
 									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
 									type="button"
-									on:click={startEditor}>{$i18n.t('Retry')}</button
+									on:click={retryEditor}>{$i18n.t('Retry')}</button
 								>
 							</div>
 						{:else}
@@ -682,6 +689,13 @@
 									class="min-h-0 w-full flex-1 border-0"
 								></iframe>{/key}
 						{/if}
+					{:else if generated}
+						<iframe
+							title={selected.name}
+							src={`${selectedUrl}?revision=${selected.revision}`}
+							sandbox="allow-scripts allow-forms"
+							class="min-h-0 w-full flex-1 border-0"
+						></iframe>
 					{:else if office}
 						{#if previewError}
 							<div

@@ -165,9 +165,9 @@ Office broker 是 OCU 服务的进程内模块 `office/`。它的全部状态存
 
 ### 5. 前端
 
-- **入口与状态**在 WebUI fork 的 `WorkspaceArtifact`。已实现的入口位于选中文件操作栏，复用 `Edit` 文案；只接受 broker 的 docx/xlsx/pptx 类型、已保存聊天及两个 literal true feature flags。状态条、保存、历史版本和放大仍未实现。
-- **编辑器**加载当前聊天的同源 `/ocu/preview/{chat}?embed=office`。每次显式编辑或重试建立本地 activation；revision、路径/改名、其他文件更新及首个 session id 不重建 iframe。`office-editor-frame.ts` 的固定 `sandbox="allow-scripts allow-same-origin"`、`allow=""` 消费 [B1 第 14 项](../evidence/issue-119/2026-10-03-b1.md#14-minimal-tested-iframe-capabilities)，不读取用户 `$settings.iframeSandbox*`。
-- `createOfficeEditorController` 验证当前窗口来源、origin、实际 frame URL、精确键/类型和 chat/file/generation；有效 ready 只产生一次同源定向 open。10 秒 ready deadline 先退役 authority，再显示失败和 Retry。清理覆盖 flags、选中文件 ID、视图、聊天和卸载；不发送 close。宿主页状态只写入既有 `ocuOffice` store，消息协议与只读预览并列。
+- **入口与状态**在 WebUI fork 的 `WorkspaceArtifact`。已实现的入口位于选中文件操作栏，复用 `Edit` 文案；只接受 broker 的 docx/xlsx/pptx 类型、已保存聊天及两个 literal true feature flags。当前类型只约束新的 Edit；已准入的 activation 在同一 `file_id` 的 path/type/MIME 更新后仍保留原 editor URL、策略、generation 与 session，并优先于 generated/只读预览渲染。状态条、保存、历史版本和放大仍未实现。
+- **编辑器**加载当前聊天的同源 `/ocu/preview/{chat}?embed=office`。每次显式编辑或重试建立本地 activation；Retry 继续已捕获的 activation，不把未选中或从未准入的非 Office 文件当作新的 Edit。revision、路径/改名/类型/MIME、其他文件更新及首个 session id 不重建 iframe。`office-editor-frame.ts` 的固定 `sandbox="allow-scripts allow-same-origin"`、`allow=""` 消费 [B1 第 14 项](../evidence/issue-119/2026-10-03-b1.md#14-minimal-tested-iframe-capabilities)，不读取用户 `$settings.iframeSandbox*`。
+- `createOfficeEditorController` 验证当前窗口来源、origin、实际 frame URL、精确键/类型和 chat/file/generation；有效 ready 只产生一次同源定向 open。10 秒 ready deadline 先退役 authority，再显示失败和 Retry。清理覆盖 flags/enablement、已保存聊天/canonical base、选中文件 ID、视图、聊天和卸载；同一 ID 的类型重分类不退役。不发送 close。宿主页状态只写入既有 `ocuOffice` store，消息协议与只读预览并列。
 - **放大**是 WebUI 内的覆盖层，不使用浏览器全屏 API。
 - **未保存守卫**涉及上游的 `ChatControls` 与 `Chat.svelte`，按关键路径处理：最小差异，新逻辑放在新模块。
 - 编辑入口由 `ENABLE_OCU_OFFICE_EDIT` 控制，默认关闭；只接受大小写无关的 `true`/`false`，其它值启动失败并点名该变量；已认证 `/api/config` 的 `features.enable_ocu_office_edit` 与 `enable_ocu_workspace` 并列，匿名响应不含该键。
