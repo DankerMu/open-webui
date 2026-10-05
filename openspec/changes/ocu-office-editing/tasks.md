@@ -467,7 +467,7 @@ Run Office session/join/status/token/store/version/workspace/epoch/config/comman
 
 - [x] 13.1 `POST .../save` and `POST .../close`: `save_seq` allocation, intent `publish` for a user save and `persist` for auto-save, the forcesave command with user-initiated force save left off in the editor configuration (the B1 item "the editor's own save command produces no callback" is what makes the status bar button the only save), close as recorded intent, a close of a never-opened session ending it at once, and `orphaned` when DocumentServer no longer knows the key. Add no artificial 20-connection check or global live-count query. Verify: tests with the fake DocumentServer cover each path (B-T15 creation and joining beyond twenty documents without a synthetic cap, B-T10 denied new operation), a save refused outside `editing`, a repeated close, and the editor configuration carrying user-initiated force save off.
 - [x] 13.2 Status change notice: the status response checks only the edited file through the safe read — `stat`, hash on change — and reports `workspace_changed` against the session baseline. Verify: tests for unchanged, size-changing, same-size with changed mtime, deleted and symlinked file; no other file is read.
-- [ ] 13.3 Session sweep in the existing idle-reclamation poll (`app.py` `_idle_reaper`): a session without activity for the liveness interval whose key DocumentServer no longer knows becomes `orphaned`; a `saving` session past the save timeout returns to `editing` with `save_timeout`; an unreachable DocumentServer changes nothing. Verify: tests with the fake DocumentServer for each rule and for two workers sweeping the same chat.
+- [x] 13.3 Session sweep in the existing idle-reclamation poll (`app.py` `_idle_reaper`): a session without activity for the liveness interval whose key DocumentServer no longer knows becomes `orphaned`; a `saving` session past the save timeout returns to `editing` with `save_timeout`; an unreachable DocumentServer changes nothing. Verify: tests with the fake DocumentServer for each rule and for two workers sweeping the same chat.
 
 Depends on: 12.
 Suggested fixture level: expanded - persisted session state machine on public routes, a periodic job that changes state.
@@ -503,6 +503,21 @@ Run paired save/close tests plus existing Office/session/lifecycle/token/command
 - Packaging / documentation — selected: any new status helper module enters all existing reload inventories and package discovery; D13 owns cache fields, baseline ownership and later-writer invalidation.
 
 Run the targeted notice tests plus Office session/lifecycle/save-close/workspace/store/version and auth/output/preview/package regressions with the OCU unit command. Baseline actual-app status remains false after an external size-changing edit; the implemented path reports true without a lifecycle change. Packaged two-worker HTTP smoke covers first observation, unchanged polling, safe changes, missing/unsafe recovery and save acceptance. Qualify negative controls for unconditional hashing and bookkeeping that drops pending or unrelated state; observe a concurrent callback-like commit through the real store rather than implementing callbacks. Strict OpenSpec and documentation gates cover the companion fixture.
+
+### Session sweep slice risk coverage
+
+- Public API / job entry — selected: real `_idle_reaper` tick transitions and public save-after-timeout 202; request producers refresh activity without changing response shapes.
+- Config / setup — selected: reuse existing liveness/save defaults and poll interval; disabled Office performs no Office discovery or lookup, sandbox reclamation tests unchanged.
+- File IO / path safety — selected: Office-only chat discovered without following linked control paths or creating absent state; no workspace/version IO or content mutation.
+- Schema / units — selected: persisted Unix-second activity and save-start fields, strict boundaries, absent clock disabling only its own predicate, malformed values refused and backward-clock behavior. Historical records with no clocks have no inferred age or automatic backfill.
+- Auth / secrets — selected: denied/foreign requests cannot refresh activity; fake DocumentServer independently verifies signed info commands; diagnostics omit keys/credentials.
+- Concurrency / ordering — selected: canonical lock spans read/check/lookup/targeted update; two processes serialize and preserve unrelated updates, allocations and history.
+- Resource limits / discovery — selected: existing bounded key client, one lookup per eligible session, no retries or new timer; every Office-state chat independent of sandbox candidates.
+- Compatibility — selected: exact public projections, final/ended-conflict conservation, notice no-read cache hits, command reconciliation and sandbox lifecycle regressions; activity-only state differences are explicit.
+- Errors / partial outputs — selected: unavailable means no rewrite; bad chat does not suppress later chats or sandbox work; state write/durability failure cannot report a committed transition.
+- Packaging / documentation — selected: reload inventories plus existing package COPY; D12 owns timestamps and timeout semantics. Journal/fence/callback/backup integration remains later work.
+
+Run sweep tests with fake DocumentServer, clock and cross-process barrier, followed by session/notice/save-close/store/auth/package and unchanged sandbox-lifecycle regressions using the OCU unit command. Baseline actual poll leaves an overdue Office-only session unchanged; the new poll must recover it. Qualify negative controls for omitted Office discovery and erased pending allocation; restore and run the affected assertions. Packaged two-worker smoke observes idle orphaning and save-timeout recovery through the live poll; strict OpenSpec and documentation gates cover this fixture.
 
 ## 14. [ocu] DocumentServer callback and persist (spec: ocu-office-callback, ocu-auth-guard)
 
