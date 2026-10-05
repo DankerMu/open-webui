@@ -377,4 +377,3 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Governing invariant: only a baseline-matching safe path is atomically replaced, registered once and completed durably under the launch lock; interrupted publication retains its recovery obligation.
 - Selected risk packs: internal API/schema, file IO, identity compatibility, shared-state ordering, partial failure, resource ownership, packaging and decision documentation.
 - Evidence floor: real temporary storage and broker listings, no-follow and same-size mutation oracles, exclusive-temp ownership, actual competing launch, fault-phase conservation and a fresh-process publish smoke. No image/LAN certification.
-

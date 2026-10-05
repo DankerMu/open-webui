@@ -582,7 +582,6 @@ An interrupted IO transaction is not a completed failed outcome. Before replacem
 
 Governing invariant: a successful publish is complete workspace bytes, one registered broker revision and one consistent Office successor under the shared lock; a refused publish neither follows an unsafe path nor overwrites mismatched workspace content. Sibling surfaces are safe reads, immutable blobs, journal bindings, document publication metadata, session baselines, broker resolution/registration/listing and the real `launch_sandbox` lock consumer. The decision record states the full two-state design and explicitly separates this implemented stopped path from later pause/recovery integration.
 
-
 The outputs broker gains two operations used here: resolve a `file_id` to its current path (a read of the persisted index; no scan, no hashing), and register a host-side write for a path. Registering a path that has no active entry creates one with a new `file_id`; this is how a `save_as` copy (D13) gets its identity.
 
 #### Read-only resolution boundary
