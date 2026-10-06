@@ -643,6 +643,31 @@ Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 �
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
 
+### Callback publication risk coverage
+
+- Public API / script entry — selected: authenticated status 6 publish and status 2 through the callback route; each terminal outcome still returns HTTP 200 `{"error": 0}` after durable persist.
+- Config / project setup — not selected: existing configuration and dependency set are unchanged.
+- File IO / path safety / overwrite — selected: real workspace/hash/revision assertions for published, mismatched and missing paths; reuse the existing fenced publisher without changing its file protocol.
+- Schema / field names — selected: observe version, receipt and fully bound journal in one persisted successor before publication; observe lifecycle/sequence/publication metadata and journal removal in one terminal successor.
+- Auth / permissions / secrets — selected for preservation: invalid credentials and mismatched duplicate status/hash never publish; final receipt replay fetches nothing. No credential or gateway changes.
+- Concurrency / shared state / ordering — selected: late sequence 3 while 4 is pending; closing/conflict guards; startup, duplicate, create, save, close, epoch/status and sweep recovery before orphaning; final outcomes cannot be orphaned.
+- Resource limits / discovery — selected for preservation: existing bounded download and publisher behavior; metadata-free startup/poll recovery remains covered. No new discovery or background execution.
+- Legacy compatibility / examples — selected: persist-only callbacks retain behavior and no journal; duplicate callbacks without obligations retain version/receipt/sequence/revision identity; migrate persist-only expectations only where publication changes the contract.
+- Error handling / rollback / partial outputs — selected: save/final matrix for all four failed reasons, conflict cases, interrupted obligation retention and unresolved-recovery orphan refusal. No successful response before durable persist.
+- Release / packaging — selected for preservation: existing package/reload inventory and full-discovery pytest command; no dependency or deployment changes.
+- Documentation / migration notes — selected: D11 owns completion and orphan ordering; strict fixture validation and companion doc/decision gates. No schema migration.
+
+Required parent evidence: one real-route semantic RED before production edits;
+owning callback/publish/session/sweep regressions and affected unit discovery;
+independent HTTP callback smoke plus SIGKILL after durable persist, fresh-process
+duplicate/recovery, and inspection of workspace bytes, broker listing and Office
+state. Status 6 replay checks hash before driving; status 2 replay performs no
+download or second version. The startup path leaves a recovered save editing.
+Create/sweep cover recovered save success, conflict and failure with an unknown
+key; final outcomes stay closed/conflict/error. The sweep preserves ordinary
+pre-existing-conflict exclusion and existing liveness/timeout thresholds.
+Final path-missing copy and workspace-missing policy remain task 16.3.
+
 ## 17. [ocu] Resolve, versions and restore (spec: ocu-office-publish, ocu-office-sessions)
 
 - [ ] 17.1 `POST .../resolve`: publishes the session's latest stored version; `save_as` under a deduplicated name claimed with the no-replace helper of 1.1, in the original directory or in the workspace root when that directory is gone or not safe, with the session continuing on the new document; `overwrite` after storing the current workspace content as a version; only `save_as` when the path is gone; a missing workspace files directory refused with `workspace_missing` and the session ending `error`; a session whose editor has ended closed by the resolve. Verify: tests for each action, the two-conflict case, the refused `overwrite`, an `overwrite` of a symlinked file refused, a `save_as` after a symlinked parent landing in the workspace root, the removed workspace directory, and `last_published_seq` after a success.

@@ -315,6 +315,24 @@ Any failure before that point SHALL be answered with a non-200 status so that Do
 - **WHEN** the version is durable and the publish then reports a conflict
 - **THEN** the response is `{"error": 0}`, the version is listed with `published` false and the session is `conflict`
 
+#### Scenario: Publishing callback commits its obligation atomically
+
+- **WHEN** a status 6 callback with recorded intent `publish`, or a status 2 callback, reaches durable persist and publication has not started
+- **THEN** the persisted successor contains the selected version, its receipt and a journal entry binding that document, version, session, sequence and requester
+- **AND** a status 6 callback with recorded intent `persist` has no publication obligation
+
+#### Scenario: Rejected forcesave replay cannot drive a surviving entry
+
+- **WHEN** a forcesave receipt still has its publication obligation and a duplicate presents a different status or content hash
+- **THEN** the response is 409 `stale_save_seq`, the obligation remains and no publication, version or listing revision changes
+- **AND** an accepted same-status, same-hash duplicate drives its obligation before returning the receipt answer without adding a version
+
+#### Scenario: Terminal publish failure does not reject durable content
+
+- **WHEN** durable callback content is followed by `pause_failed`, `publish_timeout`, `unsafe_path` or `index_unavailable`
+- **THEN** the callback answers HTTP 200 `{"error": 0}`, the stored version remains unpublished and the completed obligation is absent
+- **AND** the outcome update leaves the outstanding save editing or the final callback error, with that reason and the ordering exceptions of Publish outcomes
+
 ### Requirement: Callbacks that cannot apply change no file
 
 A callback for a session the chat does not have SHALL be answered 404 with reason `unknown_session`. A callback for a session in `closed`, `error` or `orphaned` that rules 1 and 2 of the handling order (requirement "Ordering and idempotence by save_seq") do not decide SHALL be answered 409 with reason `session_not_open`. Neither SHALL download content, store a version or change a file. The restore epoch check of `ocu-office-store` (requirement "Restore epoch marker") SHALL run before a callback is handled, and a session it makes `orphaned` SHALL be treated as such for that callback.

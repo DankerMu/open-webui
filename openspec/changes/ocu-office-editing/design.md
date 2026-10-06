@@ -566,6 +566,46 @@ There is no retry route. After a failed publish the version stays stored. Follow
 
 Restore runs the same fence. It first stores the current workspace content as a `workspace` version if that content is not yet a version, then publishes the chosen one as a new version. It is refused while a session is open on the document and when the path no longer exists.
 
+#### Callback publication boundary
+
+Task 16.1 uses the existing version transaction's state mutator to bind
+`file_id`, version, `session_id`, `save_seq` and requester (`save` or `final`)
+in the journal with the callback receipt. A persist-only callback adds no
+obligation. The publisher runs only after that commit is durable; terminal
+conflict or failure cannot turn the persisted callback into an error answer.
+An interrupted publication retains its obligation and is not a terminal failure.
+
+Receipt replay drives a surviving obligation only after the existing replay
+checks pass: final receipts require no download; forcesave receipts require the
+same status and content hash. With no matching obligation, replay changes no
+workspace or revision. Existing publisher ordering remains authoritative.
+
+The publisher's completion update owns lifecycle state, reason, baseline,
+publication metadata, monotonic `last_published_seq` and journal removal.
+Outstanding-save identity must survive until that update; a late result cannot
+consume a newer allocation. A status-6 result preserves `closing` and `conflict`.
+Recovery uses that same completion path, not a second state transition.
+
+Every request-owned orphan decision drives the session's obligation first and
+re-reads its resulting state. Final `closed`/`error` and a conflict with a final
+receipt remain final. A create request that actually orphans a session and
+finds its newest version unpublished returns `unpublished_version` without
+creating a session or workspace version.
+
+The sweep's ordinary exclusion of conflict sessions remains. The specific
+surviving-entry rule also covers a session eligible for the sweep whose recovered
+save reaches conflict: apply its due unknown-key orphan decision to that result.
+Do not query unrelated pre-existing conflicts, relax liveness intervals or orphan
+a conflict completed by a final callback. Unresolved recovery prevents orphaning.
+
+Sibling surfaces: callback new-content and receipt paths, version mutator,
+publisher completion/recovery, create/status/save reconciliation/close epoch and
+unknown-key paths, startup and idle sweep. Required evidence observes actual
+workspace bytes, immutable versions, receipts, journal, broker revision and
+session state across route execution and fresh-process recovery.
+No-change saves/status 4 and unattended final missing-path policy remain separate
+slices; no new background worker, callback authentication or fence implementation.
+
 #### Stopped-sandbox publication boundary
 
 Tasks 15.1 and 15.4 consume a persisted journal obligation and record the fence decision; they do not wire callbacks, routes, recovery or the running/paused sandbox path. The publish module owns the entry validator and outcome representation. An entry identifies `file_id`, positive version number, optional `session_id`, `save_seq` and requester (`save`, `final`, `resolve`, `restore`); its map key identifies the obligation. Validate document/version/session binding before workspace access. A bound session supplies `baseline_sha256`; a sessionless obligation uses the document's recorded published hash. The operation resolves its own path rather than accepting a caller-supplied destination.

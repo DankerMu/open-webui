@@ -426,3 +426,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Keep editor generation authority in the delivered controller/store, not the preflight owner. Do not manufacture a live generation or write a frame-less conflict into ocuOffice.
 - Post-resolution choice: return to the file entry without creating or selecting an editor; a subsequent explicit Edit reads versions anew. This conservative interpretation follows D13's ordinary new-session rule and does not auto-open a save-as result.
 - No ancestor, broker, stub, gateway, dependency, message-schema or leave-guard change; shared Office change remains open.
+
+## Callback publication fixture
+
+- Issue type: feature; fixture level: expanded, matching task 16.1 and its durable callback-to-workspace boundary.
+- Scope: atomic callback publication obligations, receipt-owned replay, terminal outcome/session mapping and drive-before-orphan ordering.
+- Governing invariant: an acknowledged publishing callback owns either a durable obligation or its atomic terminal outcome; orphaning cannot abandon that obligation.
+- Selected risks: callback API, persisted bindings, file overwrite, authentication preservation, shared-state ordering, partial failure, compatibility, runtime integration and documentation.
+- Evidence floor: real callback-route semantic RED; save/final outcome matrix; commit and completion conservation; replay validation; late-save/closing precedence; request/sweep orphan ordering; killed-worker/fresh-process callback recovery with real workspace and broker observations.
+- No new routes, callback credentials, fence mechanism, no-change/status-4 publication, final missing-path copy, UI or deployment work. Shared Office change remains open.
