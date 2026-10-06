@@ -93,6 +93,7 @@ export type OfficeEditorController = {
 	attach: (frame: HTMLIFrameElement) => void;
 	detach: (frame: HTMLIFrameElement) => void;
 	save: () => void;
+	close: () => void;
 	admits: (generation: number) => boolean;
 	dispose: () => void;
 };
@@ -109,6 +110,7 @@ export const createOfficeEditorController = (options: {
 	let expectedSrc = '';
 	let frame: HTMLIFrameElement | undefined;
 	let opened = false;
+	let refused = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let listener: ((event: MessageEvent) => void) | undefined;
 
@@ -128,6 +130,7 @@ export const createOfficeEditorController = (options: {
 		unlisten();
 		frame = undefined;
 		opened = false;
+		refused = false;
 		if (chatId && generation && isCurrentOfficeGeneration(chatId, generation)) {
 			retireOfficeGeneration(chatId);
 		}
@@ -181,6 +184,7 @@ export const createOfficeEditorController = (options: {
 		}
 		if (!opened || !stateMessage(data)) return;
 		if (data.file_id !== fileId || data.generation !== generation) return;
+		refused = data.state === 'refused';
 		if (isUnpublishedCreationRefusal(data) && options.onUnpublishedRefusal?.(generation)) return;
 		applyState(data);
 	};
@@ -236,10 +240,21 @@ export const createOfficeEditorController = (options: {
 				options.origin()
 			);
 		},
+		close() {
+			const bound = frame;
+			if (!bound?.isConnected || !bound.contentWindow || !opened || refused || !generation) return;
+			if (bound.src !== expectedSrc || !isCurrentOfficeGeneration(chatId, generation)) return;
+			if (get(ocuOffice)[chatId]?.state === 'refused') return;
+			bound.contentWindow.postMessage(
+				{ type: COMMAND_TYPE, chat_id: chatId, generation, command: 'close' },
+				options.origin()
+			);
+		},
 		admits(expectedGeneration) {
 			return (
 				!!frame?.contentWindow &&
 				opened &&
+				!refused &&
 				generation === expectedGeneration &&
 				frame.src === expectedSrc &&
 				isCurrentOfficeGeneration(chatId, generation)

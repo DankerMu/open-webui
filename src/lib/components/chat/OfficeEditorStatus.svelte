@@ -11,6 +11,8 @@
 	export let onReopen: () => void;
 	export let onToggleMaximize: () => void;
 	export let onHistory: () => void;
+	export let onClose: (() => void) | undefined = undefined;
+	export let leaving = false;
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	function refusedMessage(reason: string | null) {
@@ -34,34 +36,36 @@
 	$: state = snapshot?.state;
 	$: reason = snapshot?.reason;
 	$: dirty = snapshot?.dirty === true;
-	$: statusText = !state
-		? ''
-		: state === 'refused'
-			? refusedMessage(reason ?? null)
-			: !live
-				? ''
-				: state === 'opening'
-					? $i18n.t('Opening')
-					: state === 'saving' || state === 'closing'
-						? $i18n.t('Saving')
-						: state === 'conflict'
-							? $i18n.t('Conflict')
-							: state === 'error'
-								? reason
-									? $i18n.t('Failed: {{reason}}', { reason })
-									: $i18n.t('Failed')
-								: state === 'orphaned'
-									? $i18n.t('Expired')
-									: state === 'editing'
-										? reason != null
-											? $i18n.t('Failed: {{reason}}', { reason })
-											: dirty
-												? $i18n.t('Unsaved')
-												: $i18n.t('Saved')
-										: '';
+	$: statusText = leaving
+		? $i18n.t('Saving')
+		: !state
+			? ''
+			: state === 'refused'
+				? refusedMessage(reason ?? null)
+				: !live
+					? ''
+					: state === 'opening'
+						? $i18n.t('Opening')
+						: state === 'saving' || state === 'closing'
+							? $i18n.t('Saving')
+							: state === 'conflict'
+								? $i18n.t('Conflict')
+								: state === 'error'
+									? reason
+										? $i18n.t('Failed: {{reason}}', { reason })
+										: $i18n.t('Failed')
+									: state === 'orphaned'
+										? $i18n.t('Expired')
+										: state === 'editing'
+											? reason != null
+												? $i18n.t('Failed: {{reason}}', { reason })
+												: dirty
+													? $i18n.t('Unsaved')
+													: $i18n.t('Saved')
+											: '';
 	$: showBar = live || state === 'refused';
 	$: showSave = live && state !== 'refused' && state !== 'closed';
-	$: saveEnabled = state === 'editing';
+	$: saveEnabled = state === 'editing' && !leaving;
 	$: showReopen = live && state === 'orphaned';
 	$: showNotice =
 		live && session?.workspaceChanged === true && state !== 'refused' && state !== 'closed';
@@ -95,6 +99,14 @@
 				type="button"
 				aria-label={maximized ? $i18n.t('Restore') : $i18n.t('Maximize')}
 				on:click={onToggleMaximize}>{maximized ? $i18n.t('Restore') : $i18n.t('Maximize')}</button
+			>
+		{/if}
+		{#if live && onClose}
+			<button
+				class="h-7 shrink-0 rounded-md border border-gray-200 px-2 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+				type="button"
+				aria-label={$i18n.t('Close editor')}
+				on:click={onClose}>{$i18n.t('Close editor')}</button
 			>
 		{/if}
 		{#if showReopen}

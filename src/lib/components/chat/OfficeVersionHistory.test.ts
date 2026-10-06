@@ -4,6 +4,7 @@ import { tick } from 'svelte';
 import { createClassComponent } from 'svelte/legacy';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 import { WORKSPACE_RECONCILIATION } from './workspace-reconciliation';
+import { officeLeaveGuard } from './office-leave-guard';
 import { get } from 'svelte/store';
 import { config } from '$lib/stores';
 import { applyWorkspaceListing, ocuWorkspaces, selectWorkspaceView } from '$lib/stores/ocu';
@@ -128,7 +129,10 @@ async function deliver(gate: { resolve: (response: Response) => void }, response
 }
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office version history', () => {
 	it('opens fetched version history from the selected file without opening an editor', async () => {

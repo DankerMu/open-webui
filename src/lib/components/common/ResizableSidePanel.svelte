@@ -12,6 +12,7 @@
 	export let className = '';
 	export let resizerId = 'controls-resizer';
 	export let onClose: () => void = () => {};
+	export let onCloseRequest: (() => void) | undefined = undefined;
 
 	let panelElement: HTMLDivElement | null = null;
 	let isResizing = false;
@@ -46,8 +47,11 @@
 	};
 
 	const close = () => {
-		open = false;
-		onClose();
+		if (onCloseRequest) onCloseRequest();
+		else {
+			open = false;
+			onClose();
+		}
 	};
 
 	const resizeStartHandler = (e: PointerEvent) => {

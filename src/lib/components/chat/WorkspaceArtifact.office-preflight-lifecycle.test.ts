@@ -10,6 +10,7 @@ import type { OfficeVersions } from '$lib/apis/ocu/office';
 import { chat, describeBody, i18n, json } from '../../../../test/ocu-workspace-fixtures';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 import { WORKSPACE_RECONCILIATION } from './workspace-reconciliation';
+import { officeLeaveGuard } from './office-leave-guard';
 import {
 	OfficeArtifactHarness,
 	editAction,
@@ -85,9 +86,41 @@ function mountArtifact() {
 }
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office preflight retired admission', () => {
+	it('retires a pending preflight on synchronous selected-file disappearance and keeps the HTML workspace usable', async () => {
+		const held = deferred();
+		const fallback = harness.scenario;
+		harness.scenario = (url, init) => (url === versionsUrl ? held.promise : fallback(url, init));
+		await harness.open();
+		await harness.ready('report.docx');
+		namedButton('report.docx').click();
+		await tick();
+		const retainedEdit = editAction()!;
+		retainedEdit.click();
+		expect(harness.officeRequests().map(({ url }) => url)).toEqual([versionsUrl]);
+		const state = get(ocuWorkspaces)[chat];
+		applyWorkspaceListing(chat, state.generation, [htmlFile], 2, null);
+		config.set(officeConfig(true));
+		retainedEdit.click();
+		expect(harness.officeRequests().map(({ url }) => url)).toEqual([versionsUrl]);
+		await deliver(held.resolve, json(unpublished));
+		expect(editorFrame('report.docx')).toBeNull();
+		expect(choice()).toBeNull();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+		expect(get(ocuOffice)[chat]).toBeUndefined();
+		namedButton('page.html').click();
+		await tick();
+		expect(document.querySelector('iframe[title="page.html"]')?.getAttribute('sandbox')).toBe(
+			'allow-scripts allow-forms'
+		);
+		expect(harness.officeRequests().map(({ url }) => url)).toEqual([versionsUrl]);
+	});
+
 	for (const operation of ['read', 'restore', 'resolve'] as const) {
 		it.each([
 			'selection',

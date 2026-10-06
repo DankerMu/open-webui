@@ -958,12 +958,25 @@ Required evidence for 26.2: one semantic mounted preflight RED before implementa
 
 ## 27. [webui] Unsaved-state guard (spec: ocu-office-workspace-ui)
 
-- [ ] 27.1 A guard module: `beforeunload` only while unpublished changes exist; chat switch and sidebar close send `close`, follow the session status after the frame is gone until a final state or the progress timeout (the B1 item "close-to-status-2 delay"), report how the close ended (saved, saved as a new file with its name, conflict at the next open, failed, unconfirmed), and never apply a late result to another chat; `ChatControls.svelte` and `Chat.svelte` gain only calls into the module. Verify: Vitest covers each trigger, each reported ending and the late-result case; the diff of the two upstream files contains no Office logic; `make verify-ui-ocu` passes.
+- [x] 27.1 A guard module: `beforeunload` only while unpublished changes exist; chat switch and sidebar close send `close`, follow the session status after the frame is gone until a final state or the progress timeout (the B1 item "close-to-status-2 delay"), report how the close ended (saved, saved as a new file with its name, conflict at the next open, failed, unconfirmed), and never apply a late result to another chat; `ChatControls.svelte` and `Chat.svelte` gain only calls into the module. Verify: Vitest covers each trigger, each reported ending and the late-result case; the diff of the two upstream files contains no Office logic; `make verify-ui-ocu` passes.
 - [ ] 27.2 Extend `e2e/ocu-office.e2e.ts` with B-T12 — switch chat, close the sidebar, refresh, reopen the old chat — and with a close that ends saved as a new file (the stub's `office_save_as` scenario). Verify: `make verify-ui-ocu` passes with screenshots and the cases named in its output.
 
 Depends on: 26 (both extend the same browser spec file and the same component).
 Suggested fixture level: expanded - hooks in upstream spine components listed as Critical Paths.
 Minimal mergeable slice: 27.1 (module and hooks) - green alone because it is covered by component tests and the existing browser cases; 27.2 adds the browser walk.
+
+### Leave-guard risk coverage
+
+- Public API / schema — Selected: unchanged close command and status/saved_as fields, literal errors, refused exception; test exact captured generation/origin and real gateway close arrival.
+- Lifecycle / concurrency — Selected: five removal triggers, synchronous capture, close-before-removal delivery, one follower per session, one close per departing generation, old conflict, newer same-session generation and cross-chat late results. Held old replies cannot release or report a newer dirty attachment; repeated hooks on one attachment do not duplicate close.
+- Resource bounds / errors — Selected: B1-informed 15-second progress deadline, one-second nonoverlapping status reads, hung/read-failed requests, no late resurrection, all five outcomes and released timers/subscriptions.
+- Compatibility / upstream ownership — Selected: mounted controller/preflight/history/conflict and both panel layouts; imports/calls only in Chat/ChatControls, no changes to delivered Office store/client or Plan 1 modules.
+- Documentation / evidence — Selected: semantic mounted RED, paired guard coverage, independent disposable browser delivery proof, unchanged complete browser regression/discovery, generated catalogs, owning decision/plan and strict validation.
+- Scoped gate configuration — Selected under the user's explicit size-rule decision: exact-path Chat.svelte line ceiling only, documented motivation/exit condition and executable ceiling/sibling/lint regression tests; no global threshold or baseline change.
+- Common close-request compatibility — Selected under the user's explicit scope decision: optional admission hook only, no cleanup-as-intent, hydrated open preference preserved across layout initialization, real user close waits for admission, and default callers remain synchronous.
+- File IO / server authorization / deployment / dependency / runtime configuration — Not selected: unchanged broker enforcement, gateway and fixed frame policy; tests preserve their consumer contracts and do not certify real DocumentServer or LAN behavior.
+
+Required evidence for 27.1: all eleven issue acceptance criteria and each five-trigger/five-outcome case at real mounted/module boundaries; dirty/clean/absent/refused native prompt lifetime; delayed A outcome leaves B unchanged and appears on return; duplicate and stale responses do no additional work. Test pre-existing conflict versus ended conflict and close-response delay so posting alone cannot satisfy delivery. Run affected Vitest with per-file coverage, scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict, `make verify-ui` and the complete existing Office suite. Parent-owned disposable browser smoke proves actual close arrival, retained document until acceptance, removed frame afterward and owner-bound report. Permanent e2e/stub/harness files remain untouched; 27.2 remains unchecked.
 
 ## 28. [deploy] Release inventory: DocumentServer role and font bundle (spec: ocu-offline-image-delivery, ocu-backup-rollback)
 
