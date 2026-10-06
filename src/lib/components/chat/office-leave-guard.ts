@@ -1,4 +1,5 @@
 import { onMount } from 'svelte';
+import type { BeforeNavigate } from '@sveltejs/kit';
 import { get, writable } from 'svelte/store';
 import { toast } from 'svelte-sonner';
 import {
@@ -55,6 +56,7 @@ type Attachment = {
 	generation: number;
 	workspace?: OcuWorkspaceState;
 	closeSent?: boolean;
+	session?: string;
 	priorSessions?: Record<string, true>;
 	retire: () => void;
 	translate: Translate;
@@ -210,6 +212,10 @@ export function createOfficeLeaveGuard(
 		if (latest.get(owner.chat) !== owner) return;
 		reports[owner.chat] = {
 			...identity,
+			name:
+				outcome === 'conflict' && status?.saved_as
+					? status.saved_as.path.split('/').pop() || identity.name
+					: identity.name,
 			outcome,
 			reason: status?.reason ?? op.reason,
 			path: status?.saved_as?.path
@@ -260,7 +266,7 @@ export function createOfficeLeaveGuard(
 		authority: DepartureAuthority,
 		status: OfficeSessionStatus
 	) {
-		const versions = await listOfficeVersions('/ocu', op.owner.chat, authority.identity.file);
+		const versions = await listOfficeVersions('/ocu', op.owner.chat, status.file_id);
 		if (!authorized(op) || authority !== op.authority) return;
 		if (versions.open_session?.session_id === op.session && versions.open_session.editor_ended) {
 			finish(op, 'conflict', status);
@@ -376,11 +382,14 @@ export function createOfficeLeaveGuard(
 		continuation?: () => void,
 		cancel?: () => void
 	) {
+		owner.session = session;
 		const op: Operation = {
 			owner,
 			authority: {
 				owner,
-				uncertainAcceptance: owner.priorSessions?.[session] === true,
+				uncertainAcceptance:
+					owner.priorSessions?.[session] === true ||
+					get(ocuOffice)[owner.chat]?.state === 'closing',
 				identity: {
 					chat: owner.chat,
 					file: owner.file,
@@ -413,7 +422,7 @@ export function createOfficeLeaveGuard(
 			state?.state === 'refused' ||
 			!state?.sessionId
 		) {
-			if (owner && !forced) owner.retire();
+			if (owner) owner.retire();
 			continuation?.();
 			return;
 		}
@@ -460,6 +469,7 @@ export function createOfficeLeaveGuard(
 	}
 	function observeAttachment(owner: Attachment) {
 		if (!mounted(owner)) return;
+		owner.session = get(ocuOffice)[owner.chat]?.sessionId ?? owner.session;
 		const workspace = get(ocuWorkspaces)[owner.chat];
 		const panelGone = workspacePanelHidden();
 		const op = pendingDeparture(owner);
@@ -516,6 +526,8 @@ export function createOfficeLeaveGuard(
 				workspace: get(ocuWorkspaces)[options.chat],
 				priorSessions: {}
 			};
+			const previousSession = latest.get(owner.chat)?.session;
+			if (previousSession) owner.priorSessions![previousSession] = true;
 			attachments.set(owner.chat, owner);
 			for (const op of operations.values()) {
 				if (op.owner.chat !== owner.chat) continue;
@@ -678,10 +690,14 @@ export function officeLeaveFrame(
 	}
 ) {
 	const frame = officeEditorFrame(node, options.editor);
-	const detach = officeLeaveGuard.attach(node, options);
+	const generation = get(ocuOffice)[options.chat].generation;
+	const retire = () => {
+		if (get(ocuOffice)[options.chat]?.generation === generation) options.retire();
+	};
+	const detach = officeLeaveGuard.attach(node, { ...options, retire });
 	return {
 		update(next: typeof options) {
-			officeLeaveGuard.synchronize(node, next);
+			officeLeaveGuard.synchronize(node, { ...next, retire });
 		},
 		destroy() {
 			detach();
@@ -690,40 +706,95 @@ export function officeLeaveFrame(
 	};
 }
 
+type OfficeNavigation = Pick<BeforeNavigate, 'willUnload' | 'cancel'> & {
+	to: { url: URL } | null;
+	from?: { url: URL } | null;
+	type?: BeforeNavigate['type'];
+	delta?: number;
+	event?: Event;
+};
+type OfficePopstate = OfficeNavigation & { type: 'popstate'; delta: number };
+
+function isPopstate(navigation: OfficeNavigation): navigation is OfficePopstate {
+	return navigation.type === 'popstate' && navigation.delta !== undefined;
+}
+
 export function registerOfficeNavigation(
-	register: (
-		callback: (navigation: {
-			willUnload: boolean;
-			to: { url: URL } | null;
-			cancel: () => void;
-		}) => void
-	) => void,
+	register: (callback: (navigation: OfficeNavigation) => void) => void,
 	navigate: (url: string) => Promise<void>
 ) {
-	let admitted = '';
+	let admitted: OfficeNavigation | undefined;
+	let cancelPending: (() => void) | undefined;
+	let disposed = false;
 	register((navigation) => {
-		if (navigation.willUnload || !navigation.to) return;
-		const target = navigation.to.url.href;
-		if (admitted === target) {
-			admitted = '';
+		if (disposed) return;
+		const target = navigation.to?.url.href;
+		if (
+			target &&
+			admitted?.to?.url.href === target &&
+			admitted.type === navigation.type &&
+			admitted.delta === navigation.delta
+		) {
+			admitted = undefined;
 			return;
 		}
+		cancelPending?.();
+		admitted = undefined;
+		if (navigation.willUnload || !target) return;
 		const chat = get(activeChat);
 		const state = get(officeLeaveSnapshot);
 		const editor = get(ocuOffice)[chat];
 		if (!editor?.sessionId || editor.state === 'refused') return;
-		// Only an attached live editor can defer navigation; retained dirty snapshots cannot.
+		const traversal = isPopstate(navigation);
+		const origin = navigation.from?.url.href;
+		// Kit stores the entry index in popstate state; equal URLs need not be equal entries.
+		const index = (navigation.event as PopStateEvent | undefined)?.state?.['sveltekit:history'];
+		const originIndex = typeof index === 'number' ? index - (navigation.delta ?? 0) : undefined;
+		let active = true;
+		let accepted = false;
+		let rolledBack = !traversal;
+		const cancel = () => {
+			active = false;
+			window.removeEventListener('popstate', onRollback);
+			if (cancelPending === cancel) cancelPending = undefined;
+		};
+		const replay = () => {
+			if (!active || !accepted || !rolledBack) return;
+			cancel();
+			admitted = navigation;
+			if (traversal) window.history.go(navigation.delta);
+			else void navigate(target);
+		};
+		const onRollback = (event: PopStateEvent) => {
+			if (event === navigation.event || window.location.href !== origin) return;
+			if (originIndex !== undefined && event.state?.['sveltekit:history'] !== originIndex) return;
+			rolledBack = true;
+			window.removeEventListener('popstate', onRollback);
+			// Let Kit consume its undo event before requesting the original traversal.
+			queueMicrotask(replay);
+		};
+		cancelPending = cancel;
+		if (traversal) window.addEventListener('popstate', onRollback);
 		let synchronous = true;
 		let immediate = false;
-		officeLeaveGuard.depart(chat, () => {
-			if (synchronous) {
-				immediate = true;
-				return;
-			}
-			admitted = target;
-			void navigate(target);
-		});
+		officeLeaveGuard.depart(
+			chat,
+			() => {
+				if (synchronous) immediate = true;
+				else {
+					accepted = true;
+					replay();
+				}
+			},
+			cancel
+		);
 		synchronous = false;
 		if (!immediate || state.holding[chat]) navigation.cancel();
+		else cancel();
 	});
+	return () => {
+		disposed = true;
+		cancelPending?.();
+		admitted = undefined;
+	};
 }

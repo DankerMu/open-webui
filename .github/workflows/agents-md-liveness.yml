@@ -4,7 +4,7 @@ name: AGENTS.md liveness
 
 on:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: '0 6 * * 1'
   pull_request:
     paths: [AGENTS.md, Makefile, constraints.yaml, scripts/**, .git-hooks/**]
   workflow_dispatch:
@@ -34,4 +34,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+      - run: npm ci
       - run: bash scripts/test-guardrails.sh

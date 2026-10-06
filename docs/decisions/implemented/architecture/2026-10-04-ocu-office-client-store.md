@@ -48,6 +48,8 @@ The 15-second progress deadline starts with the attachment's first close attempt
 
 `Chat` and `ChatControls` supply calls and reactive arguments, not Office scheduling or state logic. Drawer and ResizableSidePanel accept an optional `onCloseRequest` for user Escape/backdrop/drag intent; owner prop changes and teardown do not invoke it. Unconfigured callers retain synchronous close behavior. A layout replacement must not persist a closed workspace. `Chat.svelte` alone has the user-approved 4688-line ceiling for these hooks; lint and complexity gates remain enforced, and the exception ends when the file is at most 800 lines or the hooks are removed.
 
+Canceled Back/Forward retains its traversal delta and resumes only after SvelteKit restores the originating history entry and close admission completes; URL navigation remains separate. Supersession and component teardown dispose the rollback listener. Ended-conflict evidence follows the session status's current document after manual save-as while frame message authority stays bound to the original file/generation; recovery guidance names the destination. A pre-READY frame removed by listing or selection changes retires its activation, so returning to that file requires a fresh Edit.
+
 ## Alternatives considered
 
 - **Reuse workspace failure mapping** — folds 404 to `not_found` and drops unrecognized broker reasons that later status and restore UI must show.

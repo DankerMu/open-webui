@@ -167,7 +167,7 @@
 	});
 	setContext(WORKSPACE_RECONCILIATION, workspaceReconciliation);
 	mountOfficeLeaveGuard();
-	registerOfficeNavigation(beforeNavigate, goto);
+	onDestroy(registerOfficeNavigation(beforeNavigate, goto));
 	const delegateWorkspaceLinks = workspaceReconciliation.delegateLinks;
 	$: workspaceReconciliation.observe($chatId, workspaceEnabled);
 	$: workspaceChat.observeTemporary($temporaryChatEnabled);
