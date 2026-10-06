@@ -13,6 +13,7 @@ import {
 	temporaryChatEnabled
 } from '$lib/stores';
 import {
+	applyDescribe,
 	applyWorkspaceListing,
 	beginGeneration,
 	hydrateWorkspacePrefs,
@@ -25,6 +26,15 @@ import {
 	WORKSPACE_RECONCILIATION,
 	type WorkspaceReconciliation
 } from './workspace-reconciliation';
+import {
+	OfficeArtifactHarness,
+	expectOfficeCloseHeld,
+	namedButton,
+	officeCommandCalls,
+	postOfficeState
+} from './workspace-artifact-office-test';
+import { officeLeaveGuard, officeLeaveSnapshot } from './office-leave-guard';
+import { closingStatus, deliver } from './office-leave-guard-test';
 // This policy case never mounts XTerminal; its eager xterm import needs canvas in jsdom.
 vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn() }));
 
@@ -152,26 +162,63 @@ afterEach(async () => {
 	document.body.replaceChildren();
 });
 
+function mountControls(workspaceController: WorkspaceReconciliation) {
+	return mount(ChatControls, {
+		target: document.body,
+		context: new Map<unknown, unknown>([
+			['i18n', i18n],
+			[WORKSPACE_RECONCILIATION, workspaceController]
+		]),
+		props: {
+			chatId: id,
+			history: { messages: {}, currentId: null },
+			files: [],
+			modelId: null,
+			eventTarget: new EventTarget(),
+			submitPrompt: () => {},
+			stopResponse: () => {},
+			showMessage: () => {},
+			ensureSavedChat: async () => id
+		}
+	});
+}
+
 describe('mounted chat workspace policy', () => {
-	it('auto-opens first output, keeps a user-closed panel closed with a change badge, then acknowledges explicit open', async () => {
-		component = mount(ChatControls, {
-			target: document.body,
-			context: new Map<unknown, unknown>([
-				['i18n', i18n],
-				[WORKSPACE_RECONCILIATION, controller]
-			]),
-			props: {
-				chatId: id,
-				history: { messages: {}, currentId: null },
-				files: [],
-				modelId: null,
-				eventTarget: new EventTarget(),
-				submitPrompt: () => {},
-				stopResponse: () => {},
-				showMessage: () => {},
-				ensureSavedChat: async () => id
-			}
+	it('preserves a hydrated open workspace through initial desktop layout replacement without persisting a close', async () => {
+		const generation = beginGeneration(id);
+		applyDescribe(id, generation, {
+			status: 'running',
+			capabilities: ['prefs'],
+			views: ['files'],
+			base_url: '/ocu'
 		});
+		applyWorkspaceListing(id, generation, [file], 1, null);
+		hydrateWorkspacePrefs(id, generation, {
+			open: true,
+			view: 'files',
+			selected_file_id: file.file_id
+		});
+		showControls.set(true);
+		component = mountControls(controller);
+		await tick();
+		await queueWorkspacePrefs(id, async () => {});
+		const closeWrites = vi
+			.mocked(fetch)
+			.mock.calls.filter(
+				([input, init]) =>
+					String(input).endsWith('/prefs') &&
+					init?.method === 'PUT' &&
+					JSON.parse(String(init.body)).open === false
+			);
+		expect(closeWrites).toEqual([]);
+		expect(document.querySelector('section[aria-label="Workspace Files"]')).not.toBeNull();
+		expect(document.querySelector('[aria-label="Resize panel"]')).not.toBeNull();
+		expect(get(ocuWorkspaces)[id].open).toBe(true);
+		expect(get(showControls)).toBe(true);
+	});
+
+	it('auto-opens first output, keeps a user-closed panel closed with a change badge, then acknowledges explicit open', async () => {
+		component = mountControls(controller);
 		await tick();
 		const first = beginGeneration(id);
 		applyWorkspaceListing(id, first, [file], 1, null);
@@ -199,4 +246,75 @@ describe('mounted chat workspace policy', () => {
 		await vi.waitFor(() => expect(get(showControls)).toBe(true));
 		await vi.waitFor(() => expect(document.body.textContent).not.toContain('Workspace changed'));
 	});
+
+	it.each([
+		{ large: true, trigger: 'button' },
+		{ large: false, trigger: 'button' },
+		{ large: true, trigger: 'external controls' },
+		{ large: false, trigger: 'external controls' },
+		{ large: true, trigger: 'external workspace' },
+		{ large: false, trigger: 'external workspace' },
+		{ large: true, trigger: 'resizer' },
+		{ large: false, trigger: 'escape' },
+		{ large: false, trigger: 'backdrop' }
+	])(
+		'retains the original Office frame until broker close acceptance ($large, $trigger)',
+		async ({ large, trigger }) => {
+			const office = new OfficeArtifactHarness();
+			office.install();
+			vi.stubGlobal(
+				'matchMedia',
+				vi.fn((query: string) => ({
+					matches: large,
+					media: query,
+					addEventListener: () => {},
+					removeEventListener: () => {}
+				}))
+			);
+			const held = Promise.withResolvers<Response>();
+			const fallback = office.scenario;
+			const statusUrl = `/ocu/api/office/${id}/sessions/sess-1`;
+			office.scenario = (url, init) => (url === statusUrl ? held.promise : fallback(url, init));
+			showControls.set(true);
+			try {
+				office.component = mountControls(office.controller);
+				office.controller.observe(id, true);
+				await office.ready('report.docx');
+				const frame = await office.selectAndEdit('report.docx');
+				const originalWindow = frame.contentWindow;
+				const { sent, openMessage } = await office.acceptEditing(frame);
+				postOfficeState(frame, openMessage.generation, { dirty: true });
+				await tick();
+				if (trigger === 'button') namedButton('Close workspace').click();
+				else if (trigger === 'external controls') showControls.set(false);
+				else if (trigger === 'external workspace')
+					ocuWorkspaces.update((states) => ({
+						...states,
+						[id]: { ...states[id], open: false, userClosed: true }
+					}));
+				else if (trigger === 'escape')
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+				else if (trigger === 'backdrop')
+					document
+						.querySelector('.modal')!
+						.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+				else {
+					document
+						.querySelector('[aria-label="Resize panel"]')!
+						.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientX: 0 }));
+					window.dispatchEvent(new MouseEvent('pointermove', { clientX: 1000 }));
+				}
+				await tick();
+				expectOfficeCloseHeld(frame, originalWindow, sent, openMessage.generation, id);
+				expect(office.officeRequests().filter(({ url }) => url === statusUrl)).toHaveLength(1);
+				await deliver(held, closingStatus());
+				await vi.waitFor(() => expect(frame.isConnected).toBe(false));
+				expect(get(officeLeaveSnapshot).reports[id].outcome).toBe('saving');
+				expect(officeCommandCalls(sent)).toHaveLength(1);
+			} finally {
+				officeLeaveGuard.dispose();
+				await office.cleanup();
+			}
+		}
+	);
 });

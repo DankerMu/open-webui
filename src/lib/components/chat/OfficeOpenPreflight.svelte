@@ -13,7 +13,7 @@
 	import OfficeConflictDialog from './OfficeConflictDialog.svelte';
 
 	export let chatId: string;
-	export let fileId: string;
+	export let fileId: string | undefined;
 	export let enabled: boolean;
 	export let admitted: (chat: string, file: string) => boolean;
 	export let onOpen: (file: string) => number | undefined;
@@ -41,7 +41,7 @@
 	function matchesContext(
 		captured: Activation,
 		ownerChat: string,
-		ownerFile: string,
+		ownerFile: string | undefined,
 		permission: typeof admitted,
 		available: boolean
 	) {
@@ -66,7 +66,7 @@
 	}
 	function synchronizeContext(
 		ownerChat: string,
-		ownerFile: string,
+		ownerFile: string | undefined,
 		permission: typeof admitted,
 		available: boolean
 	) {
@@ -144,11 +144,13 @@
 		if (!active) return;
 		observeContext();
 		if (stage === 'reading' || stage === 'choice' || stage === 'conflict' || pending) return;
-		if (!enabled || !admitted(chatId, fileId) || (capturedEntry && !target)) return;
-		const selected = get(ocuWorkspaces)[chatId]?.files.find((file) => file.file_id === fileId);
+		const currentFile = fileId;
+		if (!enabled || !currentFile || !admitted(chatId, currentFile) || (capturedEntry && !target))
+			return;
+		const selected = get(ocuWorkspaces)[chatId]?.files.find((file) => file.file_id === currentFile);
 		if (!capturedEntry && !['docx', 'xlsx', 'pptx'].includes(selected?.type ?? '')) return;
 		onRetire();
-		target = { chat: chatId, file: fileId, rechecked: false };
+		target = { chat: chatId, file: currentFile, rechecked: false };
 		void read(target);
 	}
 	export function refused(generation: number) {
@@ -223,7 +225,7 @@
 	{:else if stage === 'conflict' && session && target && conflictResolved}
 		<OfficeConflictDialog
 			{chatId}
-			{fileId}
+			fileId={target.file}
 			authority={{
 				kind: 'preflight',
 				session,

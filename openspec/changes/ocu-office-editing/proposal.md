@@ -444,3 +444,15 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risks: save/callback API, journal and receipt bindings, file overwrite, stale-command ordering, errors, compatibility, recovery integration and documentation.
 - Evidence floor: real save-after-autosave route RED; all seven task cases; atomic commit and crash recovery for both entry points; metadata-only no-change controls; stale/final/closing guards; real HTTP and fresh-process recovery.
 - Preserve content deduplication, contentless status-4 receipts, existing outcome/fence/recovery and authentication policies. Final missing-path handling, UI and deployment remain outside this slice.
+
+## Office leave-guard fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with task 27.1 because it crosses upstream lifecycle hooks and shared asynchronous session state.
+- Scope: one guard owner, paired behavioral tests, editor/controller integration and call-only Chat/ChatControls hooks; generated localization and owning documentation. Permanent browser additions belong to task 27.2.
+- Governing invariant: a user's departure cannot silently discard the close command or attribute an unconfirmed save to success; every followed outcome remains bound to the captured owning chat and session.
+- Selected risks: command/status API and schema, lifecycle/ordering, bounded resources, compatibility, partial failure, upstream ownership and evidence.
+- Evidence floor: mounted semantic RED for a real departure; all eleven issue criteria; independent real-page proof of close arrival before frame retirement, existing browser regression suite, per-file coverage and scoped static/documentation gates.
+- B1 input: the qualified last-close callback interval is 5.337–5.358 seconds, not a timeout guarantee. A 15-second UI progress budget accommodates that observation and polling/network margin; expiration means unconfirmed, not failure or success.
+- No parent create/save/close HTTP API, protocol extension, broker/stub/browser-harness change, Plan 1 module change, persisted Office report or production deployment certification.
+- User-authorized gate exception: only Chat.svelte may use an exact, documented line ceiling for the required minimal guard hooks. Constraints and scoped-lint enforcement change together with executable boundary tests; eslint, complexity, all other files and the global baseline remain enforced.
+- User-authorized common-component seam: optional user-close admission for Drawer and, if needed, ResizableSidePanel. Disposal/layout replacement is not a user close; unconfigured callers retain their behavior. No appearance or unrelated common-component refactor.

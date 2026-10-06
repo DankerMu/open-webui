@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick } from 'svelte';
 import { get } from 'svelte/store';
 import { ocuOffice } from '$lib/stores/ocu-office';
-import { chat } from '../../../../test/ocu-workspace-fixtures';
+import { chat, json } from '../../../../test/ocu-workspace-fixtures';
 import { OFFICE_EDITOR_ALLOW, OFFICE_EDITOR_SANDBOX } from './office-editor-frame';
+import { officeLeaveGuard } from './office-leave-guard';
 import {
 	OfficeArtifactHarness,
 	editAction,
@@ -19,7 +20,10 @@ import {
 const harness = new OfficeArtifactHarness();
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office admitted editor identity', () => {
 	it.each([
@@ -80,8 +84,25 @@ describe('Office admitted editor identity', () => {
 				['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
 			]);
 			expect(harness.launchRequests()).toEqual([]);
+			const fallback = harness.scenario;
+			harness.scenario = (url, init) =>
+				url.endsWith('/sessions/sess-1')
+					? json({
+							session_id: 'sess-1',
+							file_id: 'report.docx',
+							document_key: 'doc-key',
+							state: 'closing',
+							reason: null,
+							save_seq: 2,
+							last_committed_seq: 1,
+							last_published_seq: 1,
+							workspace_changed: false,
+							saved_as: null
+						})
+					: fallback(url, init);
 			namedButton('page.html').click();
 			await tick();
+			await vi.waitFor(() => expect(editorFrame(path)).toBeNull());
 			expect(editorFrame(path)).toBeNull();
 			namedButton(path).click();
 			await tick();

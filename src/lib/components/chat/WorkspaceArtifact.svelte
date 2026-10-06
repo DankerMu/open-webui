@@ -21,10 +21,17 @@
 		OFFICE_EDITOR_ALLOW,
 		OFFICE_EDITOR_SANDBOX,
 		createOfficeEditorController,
-		officeEditorFrame,
 		officeEditorSrc
 	} from './office-editor-frame';
 	import { officeMaximizeOverlay } from './office-maximize-overlay';
+	import {
+		officeLeaveFrame,
+		officeLeaveSnapshot,
+		retainOfficeWorkspace,
+		guardOfficeAction,
+		closeOfficeEditor,
+		officeFileAdmitted
+	} from './office-leave-guard';
 	import OfficeEditorStatus from './OfficeEditorStatus.svelte';
 	import OfficeVersionHistory from './OfficeVersionHistory.svelte';
 	import OfficeConflictDialog from './OfficeConflictDialog.svelte';
@@ -74,6 +81,10 @@
 	let editorMaximized = false;
 	let historyTarget = '';
 	let preflight: OfficeOpenPreflight | undefined;
+	const openEditor = guardOfficeAction(
+		() => editorChatId,
+		(capturedEntry: boolean = false) => preflight?.start(capturedEntry)
+	);
 	const editor = createOfficeEditorController({
 		origin: () => window.location.origin,
 		onUnpublishedRefusal: (generation) => preflight?.refused(generation) ?? false,
@@ -85,7 +96,7 @@
 	$: phase = workspace?.phase ?? 'loading';
 	$: notice = localNotice || workspace?.notice || '';
 	$: busy = workspace?.busy ?? false;
-	$: workspace = $ocuWorkspaces[chatId];
+	$: workspace = retainOfficeWorkspace(chatId, $ocuWorkspaces[chatId], $officeLeaveSnapshot);
 	$: fileCount = workspace?.files.length ?? 0;
 	$: fileRows = buildWorkspaceFileRows(workspace?.files ?? []);
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
@@ -103,8 +114,8 @@
 		workspace?.baseUrl === '/ocu';
 	$: officeEdit = office && officeEnabled;
 	$: historyContext =
-		(officeEdit || (editorActive && officeEnabled)) && workspace?.view === 'files'
-			? `${encodeURIComponent(chatId)}/${encodeURIComponent(selected!.file_id)}`
+		selected && (officeEdit || (editorActive && officeEnabled)) && workspace?.view === 'files'
+			? `${encodeURIComponent(chatId)}/${encodeURIComponent(selected.file_id)}`
 			: '';
 	$: if (historyTarget && historyTarget !== historyContext) historyTarget = '';
 	$: editorActive =
@@ -164,19 +175,6 @@
 			officeIdentity = '';
 			retireFrame();
 		}
-	}
-	$: {
-		if (
-			editorFileId &&
-			(!live ||
-				!officeEnabled ||
-				workspace?.view !== 'files' ||
-				editorChatId !== chatId ||
-				selected?.file_id !== editorFileId ||
-				officeSession?.state === 'refused' ||
-				officeSession?.state === 'closed')
-		)
-			editorFileId = stopEditor();
 	}
 
 	function retireFrame() {
@@ -298,32 +296,42 @@
 		previewState = $i18n.t('Office preview {{state}}', { state: stateLabel });
 	}
 
-	function selectFile(file: WorkspaceFile) {
-		localNotice = '';
-		if (selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
-		else {
-			previewState = '';
-			previewError = false;
-		}
-		void controller.selectFile(chatId, file).catch(() => {
-			if (live) localNotice = $i18n.t('Selection could not be saved');
-		});
-	}
+	const selectFile = guardOfficeAction(
+		() => editorChatId,
+		(file: WorkspaceFile) => {
+			localNotice = '';
+			if (selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
+			else {
+				previewState = '';
+				previewError = false;
+			}
+			void controller.selectFile(chatId, file).catch(() => {
+				if (live) localNotice = $i18n.t('Selection could not be saved');
+			});
+		},
+		(file) => file.file_id !== editorFileId
+	);
 
-	function selectView(view: OcuWorkspaceState['view']) {
-		const current = get(ocuWorkspaces)[chatId];
-		if (!live || !current || current.view === view) return;
-		if (
-			view !== 'files' &&
-			(current.status !== 'running' || current.baseUrl !== '/ocu' || !current.views.includes(view))
-		)
-			return;
-		localNotice = '';
-		selectWorkspaceView(chatId, view);
-		void controller.writePrefs(chatId, { view, open: true }).catch(() => {
-			if (live) localNotice = $i18n.t('Workspace preference could not be saved');
-		});
-	}
+	const selectView = guardOfficeAction(
+		() => editorChatId,
+		(view: OcuWorkspaceState['view']) => {
+			const current = get(ocuWorkspaces)[chatId];
+			if (!live || !current || current.view === view) return;
+			if (
+				view !== 'files' &&
+				(current.status !== 'running' ||
+					current.baseUrl !== '/ocu' ||
+					!current.views.includes(view))
+			)
+				return;
+			localNotice = '';
+			selectWorkspaceView(chatId, view);
+			void controller.writePrefs(chatId, { view, open: true }).catch(() => {
+				if (live) localNotice = $i18n.t('Workspace preference could not be saved');
+			});
+		},
+		(view) => workspace?.view !== view
+	);
 
 	function refresh() {
 		localNotice = '';
@@ -358,23 +366,7 @@
 		return generation;
 	}
 	function fileAdmitted(targetChatId: string, fileId: string) {
-		const current = get(ocuWorkspaces)[targetChatId];
-		const flags = get(config);
-		return (
-			live &&
-			enabled &&
-			chatId === targetChatId &&
-			isSavedChatId(targetChatId) &&
-			targetChatId !== 'default' &&
-			current?.view === 'files' &&
-			current.selectedFileId === fileId &&
-			current.files.some((file) => file.file_id === fileId) &&
-			current.baseUrl === '/ocu' &&
-			workspaceFilesEnabled(flags) &&
-			!!flags?.features &&
-			'enable_ocu_office_edit' in flags.features &&
-			flags.features.enable_ocu_office_edit === true
-		);
+		return officeFileAdmitted(targetChatId, fileId, chatId, live && enabled);
 	}
 
 	let collapsedFolders = new Set<string>();
@@ -404,6 +396,7 @@
 		window.addEventListener('message', receivePreview);
 		return () => {
 			live = false;
+			closeOfficeEditor(editorChatId, true);
 			editorFileId = stopEditor();
 			retireFrame();
 			window.removeEventListener('message', receivePreview);
@@ -661,12 +654,12 @@
 					{editorActive}
 					{editorError}
 					onHistory={() => (historyTarget = historyContext)}
-					onEdit={() => preflight?.start()}
+					onEdit={() => openEditor()}
 				/>
 				<OfficeOpenPreflight
 					bind:this={preflight}
 					{chatId}
-					fileId={selected.file_id}
+					fileId={selected?.file_id}
 					enabled={enabled && live}
 					admitted={fileAdmitted}
 					onOpen={(file) => activateEditor(file, officeEditorSrc('/ocu', chatId))}
@@ -676,14 +669,16 @@
 					<OfficeEditorStatus
 						session={officeSession}
 						live={editorActive && !editorError}
+						leaving={$officeLeaveSnapshot.holding[chatId]}
 						maximized={editorMaximized}
 						onSave={() => editor.save()}
-						onReopen={() => preflight?.start(true)}
+						onReopen={() => openEditor(true)}
 						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
 						onHistory={() => (historyTarget = historyContext)}
+						onClose={() => closeOfficeEditor(chatId)}
 					/>
 				{/if}
-				{#if editorActive && showOfficeStatus && officeSession?.sessionId}
+				{#if editorActive && showOfficeStatus && officeSession?.sessionId && !$officeLeaveSnapshot.holding[chatId]}
 					{#key `${encodeURIComponent(chatId)}/${encodeURIComponent(editorFileId)}/${officeSession.generation}/${encodeURIComponent(officeSession.sessionId)}`}
 						<OfficeConflictDialog
 							{chatId}
@@ -724,7 +719,16 @@
 							</div>
 						{:else}
 							{#key editorKey}<iframe
-									use:officeEditorFrame={editor}
+									use:officeLeaveFrame={{
+										editor,
+										chat: editorChatId,
+										file: editorFileId,
+										name: selected.name,
+										retire: () => (editorFileId = stopEditor()),
+										translate: (key, values) => $i18n.t(key, values),
+										available: live && !!officeEnabled && editorChatId === chatId,
+										state: officeSession?.state
+									}}
 									title={`${$i18n.t('Office editor')}: ${selected.name}`}
 									src={editorSrc}
 									sandbox={OFFICE_EDITOR_SANDBOX}

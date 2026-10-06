@@ -51,10 +51,10 @@ generated_sections:
     - title: "Development Workflow"
       owner: "eng-init"
       template_version: "3.6.0"
-    - title: "Verification Matrix"
+    - title: "Runtime Lifecycle"
       owner: "eng-init"
       template_version: "3.6.0"
-    - title: "Runtime Lifecycle"
+    - title: "Verification Matrix"
       owner: "eng-init"
       template_version: "3.6.0"
     - title: "Important Development Notes"
@@ -102,6 +102,11 @@ size_limits:
     value: 800
     severity: "block"
     enforced_by: "scripts/lint-scoped.sh (line count) + eslint max-lines"
+    bounded_overrides:
+      - path: "src/lib/components/chat/Chat.svelte"
+        ceiling: 4688
+        reason: "User-approved #160 call-only Office leave guard hooks."
+        exit_condition: "Remove when Chat.svelte is <=800 lines or these Office hooks are removed."
   max_complexity:
     value: 15                      # L3 minimum; ruff keeps upstream mccabe=10 (stricter), eslint complexity=15
     severity: "block"
@@ -317,3 +322,4 @@ environments:
   staging: "n/a — LAN test deployment is operated by hand (deploy overlay lives in the OCU repo)"
   prod: "none"
   enforced_by: "credential scoping + AGENTS.md Environment tiers"
+

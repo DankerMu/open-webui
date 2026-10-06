@@ -5,6 +5,7 @@ import { get } from 'svelte/store';
 import { ocuWorkspaces } from '$lib/stores/ocu';
 import { ocuOffice } from '$lib/stores/ocu-office';
 import type { OfficeVersions } from '$lib/apis/ocu/office';
+import { officeLeaveGuard } from './office-leave-guard';
 import { chat, json } from '../../../../test/ocu-workspace-fixtures';
 import {
 	OfficeArtifactHarness,
@@ -109,7 +110,10 @@ async function deliver(gate: HeldResponse, response: Response) {
 }
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office open-time preflight', () => {
 	it('reads versions before opening an editor and offers unpublished content without a frame', async () => {

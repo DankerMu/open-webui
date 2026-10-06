@@ -10,6 +10,7 @@ import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 import { chat, describeBody, i18n, json, listing } from '../../../../test/ocu-workspace-fixtures';
 import { WORKSPACE_RECONCILIATION } from './workspace-reconciliation';
 import { OFFICE_EDITOR_ALLOW, OFFICE_EDITOR_SANDBOX } from './office-editor-frame';
+import { officeLeaveGuard } from './office-leave-guard';
 import {
 	OfficeArtifactHarness,
 	editAction,
@@ -29,7 +30,10 @@ import {
 const harness = new OfficeArtifactHarness();
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office edit entry', () => {
 	it('offers Edit on a selected DOCX and mounts the editor frame', async () => {
@@ -198,7 +202,24 @@ describe('Office edit entry', () => {
 		ocuWorkspaces.update((states) => ({ ...states, [chat]: { ...states[chat] } }));
 		await tick();
 		expect(editorFrame('renamed.docx')).toBe(frame);
+		const fallback = harness.scenario;
+		harness.scenario = (url, init) =>
+			url.endsWith('/sessions/sess-1')
+				? json({
+						session_id: 'sess-1',
+						file_id: 'report.docx',
+						document_key: 'doc-key',
+						state: 'closing',
+						reason: null,
+						save_seq: 2,
+						last_committed_seq: 1,
+						last_published_seq: 1,
+						workspace_changed: false,
+						saved_as: null
+					})
+				: fallback(url, init);
 		editAction()!.click();
+		await vi.waitFor(() => expect(editorFrame('renamed.docx')).not.toBe(frame));
 		await readyEditorFrame('renamed.docx');
 		const retry = editorFrame('renamed.docx');
 		expect(retry).not.toBeNull();
@@ -270,7 +291,7 @@ describe('Office edit entry', () => {
 	});
 
 	it.each(['office-flag', 'workspace-flag', 'selection', 'selection-removed', 'view', 'unmount'])(
-		'retires frame authority on %s without close or orphan editor work',
+		'retires an unaccepted frame on %s without following a nonexistent session',
 		async (cause) => {
 			await harness.open();
 			await harness.ready('report.docx');

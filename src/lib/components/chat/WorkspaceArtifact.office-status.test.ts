@@ -3,19 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tick, unmount } from 'svelte';
 import { get } from 'svelte/store';
 import { config } from '$lib/stores';
-import { ocuWorkspaces } from '$lib/stores/ocu';
+import { applyWorkspaceListing, ocuWorkspaces } from '$lib/stores/ocu';
 import { ocuOffice } from '$lib/stores/ocu-office';
-import { chat } from '../../../../test/ocu-workspace-fixtures';
+import { chat, json } from '../../../../test/ocu-workspace-fixtures';
 import { OFFICE_EDITOR_ALLOW, OFFICE_EDITOR_SANDBOX } from './office-editor-frame';
+import { officeLeaveGuard } from './office-leave-guard';
+import { closingStatus, deliver } from './office-leave-guard-test';
 import {
 	OfficeArtifactHarness,
 	editAction,
 	editorFrame,
+	expectOfficeCloseHeld,
 	isOfficeCommand,
 	maximizeControl,
 	namedButton,
 	officeCommandCalls,
 	officeConfig,
+	htmlFile,
 	officeDocx,
 	overlayLayout,
 	postOfficeState,
@@ -40,9 +44,43 @@ async function openEditor() {
 }
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office editor status bar', () => {
+	it('keeps the workspace usable and clears history when the selected file disappears before an HTML selection', async () => {
+		await harness.open();
+		await harness.ready('report.docx');
+		namedButton('report.docx').click();
+		await tick();
+		await vi.waitFor(() =>
+			expect(get(ocuWorkspaces)[chat].serverPrefs.selected_file_id).toBe('report.docx')
+		);
+		namedButton('Version history').click();
+		await vi.waitFor(() =>
+			expect(document.querySelector('[role="region"][aria-label="Version history"]')).not.toBeNull()
+		);
+		const generation = get(ocuWorkspaces)[chat].generation;
+		applyWorkspaceListing(chat, generation, [], 2, null);
+		await tick();
+		expect(selectedFileSurface()).toBeNull();
+		expect(document.querySelector('[role="region"][aria-label="Version history"]')).toBeNull();
+		expect(document.querySelector('[aria-label="Workspace Files"]')).not.toBeNull();
+		applyWorkspaceListing(chat, generation, [htmlFile], 3, null);
+		await tick();
+		namedButton('page.html').click();
+		await tick();
+		expect(selectedFileSurface()?.textContent).toContain('page.html');
+		const generated = document.querySelector('iframe[title="page.html"]');
+		expect(generated?.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
+		expect(document.querySelector('[role="region"][aria-label="Version history"]')).toBeNull();
+		expect(harness.officeRequests().map(({ url }) => url)).toEqual([
+			'/ocu/api/office/owner-chat/documents/report.docx/versions'
+		]);
+	});
+
 	it('shows no invented status before the first valid state and disables Save', async () => {
 		const frame = await openEditor();
 		expect(frame).not.toBeNull();
@@ -90,6 +128,49 @@ describe('Office editor status bar', () => {
 		expect(new Set(seen).size).toBe(seen.length);
 	});
 
+	it('keeps the dirty editor mounted when selecting another file until the broker accepts close', async () => {
+		const frame = await openEditor();
+		const originalWindow = frame.contentWindow;
+		const { sent, openMessage } = await harness.acceptEditing(frame);
+		postOfficeState(frame, openMessage.generation, { dirty: true });
+		await tick();
+		expect(document.body.textContent).toContain('Unsaved');
+
+		let acceptClose!: (response: Response) => void;
+		const pendingStatus = new Promise<Response>((resolve) => {
+			acceptClose = resolve;
+		});
+		const statusUrl = `/ocu/api/office/${chat}/sessions/sess-1`;
+		const fallback = harness.scenario;
+		harness.scenario = (url, init) =>
+			url === statusUrl && init?.method === 'GET' ? pendingStatus : fallback(url, init);
+
+		namedButton('page.html').click();
+		await tick();
+		expectOfficeCloseHeld(frame, originalWindow, sent, openMessage.generation);
+		expect(document.querySelector('iframe[title="page.html"]')).toBeNull();
+		await vi.waitFor(
+			() => expect(harness.officeRequests().filter(({ url }) => url === statusUrl)).toHaveLength(1),
+			{ timeout: 3000 }
+		);
+
+		postOfficeState(frame, openMessage.generation, { state: 'closing', dirty: true });
+		await tick();
+		expect(editorFrame('report.docx')).toBe(frame);
+		expect(frame.isConnected).toBe(true);
+		expect(frame.contentWindow).toBe(originalWindow);
+		expect(document.querySelector('iframe[title="page.html"]')).toBeNull();
+
+		await deliver({ resolve: acceptClose }, closingStatus());
+		await vi.waitFor(() =>
+			expect(document.querySelector('iframe[title="page.html"]')).not.toBeNull()
+		);
+		expect(editorFrame('report.docx')).toBeNull();
+		expect(frame.isConnected).toBe(false);
+		expect(selectedFileSurface()?.textContent).toContain('page.html');
+		expect(officeCommandCalls(sent)).toHaveLength(1);
+	});
+
 	it('posts one origin-targeted save and waits for reported saving then saved', async () => {
 		const frame = await openEditor();
 		const { sent, openMessage } = await harness.acceptEditing(frame);
@@ -126,6 +207,7 @@ describe('Office editor status bar', () => {
 			{ state: 'error', reason: 'save_failed', text: 'Failed' },
 			{ state: 'conflict', reason: 'workspace_changed', text: 'Conflict' }
 		]) {
+			officeLeaveGuard.dispose();
 			await harness.cleanup();
 			harness.install();
 			const frame = await openEditor();
@@ -247,6 +329,7 @@ describe('Office editor status bar', () => {
 
 	it('falls back to a localized literal for unknown and prototype-like refusal reasons', async () => {
 		for (const reason of ['constructor', '__proto__', 'mystery_reason']) {
+			officeLeaveGuard.dispose();
 			await harness.cleanup();
 			harness.install();
 			const frame = await openEditor();
@@ -275,7 +358,24 @@ describe('Office editor status bar', () => {
 			harness.reclassifiedFile('report.docx.bak', 'other', 'application/octet-stream')
 		);
 		expect(editorFrame('report.docx.bak')).toBe(frame);
+		const fallback = harness.scenario;
+		harness.scenario = (url, init) =>
+			url.endsWith('/sessions/sess-1')
+				? json({
+						session_id: 'sess-1',
+						file_id: 'report.docx',
+						document_key: 'doc-key',
+						state: 'orphaned',
+						reason: 'editor_lost',
+						save_seq: 2,
+						last_committed_seq: 1,
+						last_published_seq: 1,
+						workspace_changed: false,
+						saved_as: null
+					})
+				: fallback(url, init);
 		reopenControl()!.click();
+		await vi.waitFor(() => expect(editorFrame('report.docx.bak')).not.toBe(frame));
 		await readyEditorFrame('report.docx.bak');
 		const next = editorFrame('report.docx.bak');
 		expect(next).not.toBeNull();
@@ -287,7 +387,7 @@ describe('Office editor status bar', () => {
 		await tick();
 		expect(get(ocuOffice)[chat].generation).toBe(handshake.openMessage.generation);
 		expect(get(ocuOffice)[chat].state).toBeUndefined();
-		expect(officeCommandCalls(sent)).toHaveLength(0);
+		expect(officeCommandCalls(sent)).toHaveLength(1);
 	});
 
 	it('toggles the workspace-changed notice without changing Save and hides it on false, closed, and refused', async () => {
@@ -397,6 +497,22 @@ describe('Office editor status bar', () => {
 				await tick();
 				expect(overlayLayout()).toBe(true);
 			}
+			const fallback = harness.scenario;
+			harness.scenario = (url, init) =>
+				url.endsWith('/sessions/sess-1')
+					? json({
+							session_id: 'sess-1',
+							file_id: 'report.docx',
+							document_key: 'doc-key',
+							state: 'closing',
+							reason: null,
+							save_seq: 2,
+							last_committed_seq: 1,
+							last_published_seq: 1,
+							workspace_changed: false,
+							saved_as: null
+						})
+					: fallback(url, init);
 			if (cause === 'office-flag') config.set(officeConfig(false));
 			else if (cause === 'workspace-flag') config.set(officeConfig(true, false));
 			else if (cause === 'selection') namedButton('page.html').click();
@@ -414,6 +530,7 @@ describe('Office editor status bar', () => {
 					[chat]: { ...states[chat], view: 'browser' }
 				}));
 			await tick();
+			await vi.waitFor(() => expect(editorFrame('report.docx')).toBeNull());
 			expect(editorFrame('report.docx')).toBeNull();
 			expect(saveControl()).toBeUndefined();
 			expect(overlayLayout()).toBe(false);
@@ -424,7 +541,15 @@ describe('Office editor status bar', () => {
 			expect(retired[chat].generation).toBeGreaterThan(openMessage.generation);
 			postOfficeState(frame, openMessage.generation, { dirty: true }, oldWindow);
 			expect(get(ocuOffice)).toBe(retired);
-			expect(officeCommandCalls(sent)).toHaveLength(0);
+			if (cause === 'unmount') {
+				expect(officeCommandCalls(sent)).toEqual([]);
+				expect(
+					harness
+						.officeRequests()
+						.filter(({ url }) => url === '/ocu/api/office/owner-chat/sessions/sess-1')
+				).toHaveLength(1);
+				expect(get(officeLeaveGuard.snapshot).reports[chat].outcome).toBe('saving');
+			} else expect(officeCommandCalls(sent)).toHaveLength(1);
 			if (cause === 'office-flag' || cause === 'workspace-flag') {
 				expect(previewFrame('report.docx')).not.toBeNull();
 				expect(downloadLink()?.getAttribute('download')).toBe('report.docx');
@@ -526,7 +651,24 @@ describe('Office editor status bar', () => {
 		await tick();
 		postOfficeState(frame, openMessage.generation, { state: 'orphaned', reason: 'editor_lost' });
 		await tick();
+		const fallback = harness.scenario;
+		harness.scenario = (url, init) =>
+			url.endsWith('/sessions/sess-1')
+				? json({
+						session_id: 'sess-1',
+						file_id: 'report.docx',
+						document_key: 'doc-key',
+						state: 'orphaned',
+						reason: 'editor_lost',
+						save_seq: 2,
+						last_committed_seq: 1,
+						last_published_seq: 1,
+						workspace_changed: false,
+						saved_as: null
+					})
+				: fallback(url, init);
 		namedButton('Open again').click();
+		await vi.waitFor(() => expect(editorFrame('report.docx')).not.toBe(frame));
 		await readyEditorFrame('report.docx');
 		expect(editorFrame('report.docx')).not.toBe(frame);
 		expect(overlayLayout()).toBe(false);

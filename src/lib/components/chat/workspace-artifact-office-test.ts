@@ -156,17 +156,40 @@ export function installOfficePopoverModel() {
 	};
 }
 
-export function isOfficeCommand(data: unknown): data is {
+export type OfficeCommandMessage = {
 	type: 'ocu:office-command';
 	chat_id: string;
 	generation: number;
 	command: string;
-} {
+};
+
+export function isOfficeCommand(data: unknown): data is OfficeCommandMessage {
 	return !!data && typeof data === 'object' && 'type' in data && data.type === 'ocu:office-command';
 }
 
 export function officeCommandCalls(sent: { mock: { calls: unknown[][] } }) {
-	return sent.mock.calls.filter((call) => isOfficeCommand(call[0]));
+	return sent.mock.calls.filter((call): call is [OfficeCommandMessage, ...unknown[]] =>
+		isOfficeCommand(call[0])
+	);
+}
+
+export function expectOfficeCloseHeld(
+	frame: HTMLIFrameElement,
+	originalWindow: Window | null,
+	sent: { mock: { calls: unknown[][] } },
+	generation: number,
+	ownerChat = chat
+) {
+	expect(officeCommandCalls(sent)).toEqual([
+		[
+			{ type: 'ocu:office-command', chat_id: ownerChat, generation, command: 'close' },
+			window.location.origin
+		]
+	]);
+	expect(editorFrame('report.docx')).toBe(frame);
+	expect(frame.isConnected).toBe(true);
+	expect(frame.contentWindow).toBe(originalWindow);
+	expect(document.body.textContent).toContain('Saving');
 }
 
 export function postOfficeState(
@@ -343,6 +366,21 @@ export class OfficeArtifactHarness {
 			generation: openMessage.generation
 		});
 		return { sent, openMessage };
+	}
+
+	async openAcceptedEditor(sessionId = 'sess-1') {
+		await this.open();
+		await this.ready('report.docx');
+		const frame = await this.selectAndEdit('report.docx');
+		const handshake = await this.acceptEditing(frame, sessionId);
+		return { frame, ...handshake };
+	}
+
+	async remountAcceptedEditor(sessionId = 'sess-1') {
+		if (!this.component) throw new Error('No mounted workspace artifact to replace');
+		await unmount(this.component);
+		this.component = undefined;
+		return this.openAcceptedEditor(sessionId);
 	}
 
 	reclassifiedFile(path: string, type: string, mime: string, revision = 2): WorkspaceFile {

@@ -127,6 +127,101 @@ else
   skip "secret scan" "gitleaks not on PATH"
 fi
 
+# 9. A bounded line ceiling changes only the exact file's size allowance.
+size_fixture="$tmp/line-ceiling"
+mkdir -p "$size_fixture/scripts" "$size_fixture/src/lib/components/chat"
+cp "$repo_root/scripts/lint-scoped.sh" "$repo_root/scripts/change-scope.sh" "$size_fixture/scripts/"
+cp "$repo_root/.eslintrc.cjs" "$repo_root/constraints.yaml" "$size_fixture/"
+printf 'node_modules/\n' > "$size_fixture/.gitignore"
+ln -s "$repo_root/node_modules" "$size_fixture/node_modules"
+git -C "$size_fixture" init --quiet || exit 1
+git -C "$size_fixture" config user.name "Guardrail fixture"
+git -C "$size_fixture" config user.email "guardrail@example.invalid"
+git -C "$size_fixture" config commit.gpgsign false
+git -C "$size_fixture" config core.hooksPath "$size_fixture/.git/hooks"
+
+sized_svelte() {
+  local path="$1" lines="$2" i
+  {
+    printf '<script lang="ts">\nexport const title = "Scoped fixture";\n</script>\n'
+    for ((i = 3; i < lines; i++)); do printf '\n'; done
+  } > "$size_fixture/$path"
+}
+
+chat_path="src/lib/components/chat/Chat.svelte"
+sized_svelte "$chat_path" 3
+git -C "$size_fixture" add . || exit 1
+git -C "$size_fixture" commit --quiet -m "test: freeze scoped gate fixture" || exit 1
+size_base="$(git -C "$size_fixture" rev-parse HEAD)"
+awk -v rev="$size_base" '
+  /^  rev: / { print "  rev: \"" rev "\""; next }
+  { print }
+' "$repo_root/constraints.yaml" > "$size_fixture/constraints.yaml"
+size_template="$tmp/line-ceiling-template.yaml"
+cp "$size_fixture/constraints.yaml" "$size_template"
+
+override_variant() {
+  local style="$1" fragment="$tmp/bounded-stanza.yaml"
+  (cd "$size_fixture" && node --input-type=module - "$size_template" "$fragment" "$style" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+import { parse, stringify } from 'yaml';
+
+const [template, fragment, style] = process.argv.slice(2);
+const config = parse(readFileSync(template, 'utf8'));
+const styles = { double: 'QUOTE_DOUBLE', single: 'QUOTE_SINGLE', plain: 'PLAIN', formatted: 'QUOTE_DOUBLE' };
+writeFileSync(fragment, stringify({
+  bounded_overrides: config.size_limits.max_file_lines.bounded_overrides
+}, { defaultKeyType: 'PLAIN', defaultStringType: styles[style] }));
+NODE
+  ) || return 1
+  if [ "$style" = "formatted" ]; then
+    (cd "$size_fixture" && npx --no-install prettier --config "$repo_root/.prettierrc" --parser yaml --write "$fragment") || return 1
+  fi
+  node --input-type=module - "$size_template" "$fragment" "$size_fixture/constraints.yaml" <<'NODE'
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const [template, fragment, output] = process.argv.slice(2);
+const source = readFileSync(template, 'utf8');
+const start = source.indexOf('    bounded_overrides:\n');
+const end = source.indexOf('  max_complexity:', start);
+if (start < 0 || end < 0) throw new Error('bounded stanza fixture boundaries missing');
+const stanza = readFileSync(fragment, 'utf8').trimEnd().split('\n')
+  .map((line) => `    ${line}`).join('\n') + '\n';
+writeFileSync(output, source.slice(0, start) + stanza + source.slice(end));
+NODE
+}
+
+scoped_size_gate() { (cd "$size_fixture" && bash scripts/lint-scoped.sh); }
+
+sized_svelte "$chat_path" 4688
+for style in double single plain formatted; do
+  override_variant "$style" || exit 1
+  expect_accept "bounded Chat ceiling ($style YAML, 4688 lines)" scoped_size_gate
+done
+sized_svelte "$chat_path" 4689
+expect_reject "bounded Chat ceiling (4689 lines)" "4689 lines, expected <= 4688" scoped_size_gate
+sized_svelte "$chat_path" 4688
+other_path="src/lib/components/chat/Chat.svelte.extra.svelte"
+sized_svelte "$other_path" 801
+expect_reject "bounded ceiling exact-path isolation" "801 lines, expected <= 800" scoped_size_gate
+rm -f "$size_fixture/$other_path"
+
+{
+  printf '<script lang="ts">\nexport function choose(value: number) {\n'
+  for ((i = 0; i < 16; i++)); do printf '  if (value === %s) return %s;\n' "$i" "$i"; done
+  printf '  return -1;\n}\n</script>\n'
+  for ((i = 21; i < 4688; i++)); do printf '\n'; done
+} > "$size_fixture/$chat_path"
+complexity_output="$(cd "$size_fixture" && npx --no-install eslint --no-eslintrc -c .eslintrc.cjs -f unix "$chat_path" 2>&1)"
+complexity_status=$?
+if [ "$complexity_status" -eq 1 ] && printf '%s\n' "$complexity_output" | grep -qF '[Error/complexity]'; then
+  expect_reject "bounded Chat ceiling retains complexity gate" "eslint violations rose 0 -> 1" scoped_size_gate
+else
+  echo "FAIL  bounded Chat complexity fixture — expected a real complexity violation, not another lint failure"
+  printf '%s\n' "$complexity_output"
+  fail=$((fail + 1))
+fi
+
 echo
 echo "guardrail self-test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

@@ -37,9 +37,18 @@
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
+	import {
+		officeLeaveSnapshot,
+		retainOfficePanel,
+		allowOfficeSiblingPanel,
+		guardOfficeAction,
+		mountOfficeLeaveGuard,
+		officeLeaveGuard
+	} from './office-leave-guard';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 	const workspaceController: WorkspaceReconciliation = getContext(WORKSPACE_RECONCILIATION);
+	mountOfficeLeaveGuard();
 
 	export let history;
 	export let models = [];
@@ -85,13 +94,16 @@
 		(!chatId || (isSavedChatId(chatId) && chatId !== 'default'));
 	$: workspaceAvailable = workspaceActionAvailable && isSavedChatId(chatId);
 	$: workspace = chatId ? $ocuWorkspaces[chatId] : undefined;
-	$: showWorkspace =
+	$: showWorkspace = retainOfficePanel(
 		workspaceAvailable &&
-		workspace?.open &&
-		$showControls &&
-		!$showArtifacts &&
-		!$showEmbeds &&
-		!$showCallOverlay;
+			!!workspace?.open &&
+			$showControls &&
+			!$showArtifacts &&
+			!$showEmbeds &&
+			!$showCallOverlay,
+		chatId,
+		$officeLeaveSnapshot
+	);
 	$: workspaceChanged =
 		!!workspace && !workspace.open && workspace.revision > workspace.acknowledgedRevision;
 	$: {
@@ -276,21 +288,27 @@
 		persistOpen(savedId, true);
 	};
 
-	const closeHandler = () => {
-		if (showWorkspace && chatId) {
-			closeWorkspacePanel(chatId);
-			persistOpen(chatId, false);
+	const closeHandler = guardOfficeAction(
+		() => chatId,
+		() => {
+			if (showWorkspace && chatId) {
+				closeWorkspacePanel(chatId);
+				persistOpen(chatId, false);
+			}
+			if (!largeScreen) showControls.set(false);
+			showArtifacts.set(false);
+			showEmbeds.set(false);
+			if ($showCallOverlay) showCallOverlay.set(false);
 		}
-		if (!largeScreen) showControls.set(false);
-		showArtifacts.set(false);
-		showEmbeds.set(false);
-		if ($showCallOverlay) showCallOverlay.set(false);
-	};
+	);
 
-	const closeWorkspace = () => {
-		if (showWorkspace) closeHandler();
-		showControls.set(false);
-	};
+	const closeWorkspace = guardOfficeAction(
+		() => chatId,
+		() => {
+			if (showWorkspace) closeHandler();
+			showControls.set(false);
+		}
+	);
 
 	$: if (mounted && !chatId) closeHandler();
 
@@ -321,14 +339,14 @@
 	</p>{/if}
 
 {#if !largeScreen}
-	{#if $showControls}
+	{#if retainOfficePanel($showControls, chatId, $officeLeaveSnapshot)}
 		<Drawer
-			show={$showControls}
-			onClose={closeWorkspace}
+			show={$showControls || officeLeaveGuard.panelRetained(chatId, $officeLeaveSnapshot)}
+			onCloseRequest={closeWorkspace}
 			className="min-h-[100dvh] !bg-white dark:!bg-gray-850"
 		>
 			<div class="h-[100dvh] flex flex-col">
-				{#if $showCallOverlay}
+				{#if allowOfficeSiblingPanel($showCallOverlay, chatId, $officeLeaveSnapshot)}
 					<div
 						class="h-full max-h-[100dvh] bg-white text-gray-700 dark:bg-black dark:text-gray-300 flex justify-center"
 					>
@@ -342,9 +360,9 @@
 							on:close={() => showControls.set(false)}
 						/>
 					</div>
-				{:else if $showEmbeds}
+				{:else if allowOfficeSiblingPanel($showEmbeds, chatId, $officeLeaveSnapshot)}
 					<Embeds />
-				{:else if $showArtifacts}
+				{:else if allowOfficeSiblingPanel($showArtifacts, chatId, $officeLeaveSnapshot)}
 					<Artifacts {history} />
 				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact
@@ -456,12 +474,12 @@
 	{/if}
 {:else}
 	<ResizableSidePanel
-		open={$showControls}
+		open={$showControls || officeLeaveGuard.panelRetained(chatId, $officeLeaveSnapshot)}
 		bind:width={controlsWidth}
 		minWidth={350}
 		minSiblingWidth={360}
 		closeOnDragBelowMinWidth
-		onClose={closeWorkspace}
+		onCloseRequest={closeWorkspace}
 		storageKey="chatControlsSize"
 		className="h-full z-10 bg-white dark:bg-gray-900"
 	>
@@ -474,7 +492,7 @@
 					: 'overflow-y-auto'} scrollbar-hidden"
 				id="controls-container"
 			>
-				{#if $showCallOverlay}
+				{#if allowOfficeSiblingPanel($showCallOverlay, chatId, $officeLeaveSnapshot)}
 					<div class="w-full h-full flex justify-center">
 						<CallOverlay
 							bind:files
@@ -486,9 +504,9 @@
 							on:close={() => showControls.set(false)}
 						/>
 					</div>
-				{:else if $showEmbeds}
+				{:else if allowOfficeSiblingPanel($showEmbeds, chatId, $officeLeaveSnapshot)}
 					<Embeds overlay={dragged} />
-				{:else if $showArtifacts}
+				{:else if allowOfficeSiblingPanel($showArtifacts, chatId, $officeLeaveSnapshot)}
 					<Artifacts {history} overlay={dragged} />
 				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact

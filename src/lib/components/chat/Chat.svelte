@@ -6,7 +6,7 @@
 	import { fade } from 'svelte/transition';
 	const i18n: Writable<i18nType> = getContext('i18n');
 
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 
 	import { get, type Unsubscriber, type Writable } from 'svelte/store';
@@ -76,6 +76,11 @@
 		createWorkspaceReconciliation,
 		WORKSPACE_RECONCILIATION
 	} from './workspace-reconciliation';
+	import {
+		guardOfficeAction,
+		mountOfficeLeaveGuard,
+		registerOfficeNavigation
+	} from './office-leave-guard';
 
 	import {
 		archiveChatById,
@@ -161,6 +166,8 @@
 		available: () => workspaceEnabled
 	});
 	setContext(WORKSPACE_RECONCILIATION, workspaceReconciliation);
+	mountOfficeLeaveGuard();
+	onDestroy(registerOfficeNavigation(beforeNavigate, goto));
 	const delegateWorkspaceLinks = workspaceReconciliation.delegateLinks;
 	$: workspaceReconciliation.observe($chatId, workspaceEnabled);
 	$: workspaceChat.observeTemporary($temporaryChatEnabled);
@@ -817,112 +824,118 @@
 		saveControlsTimer = setTimeout(saveControls, 400);
 	}
 
-	const navigateHandler = async () => {
-		workspaceChat.retire();
-		workspaceReconciliation.retire();
-		noteChatDebug('navigateHandler start');
-		// Mark the outgoing chat as read before loading the new one.
-		// $chatId still holds the previous chat here — loadChat() updates it.
-		if ($chatId && $chatId !== chatIdProp && !$temporaryChatEnabled) {
-			noteChatDebug('marking outgoing chat read', { outgoingChatId: $chatId });
-			updateLastReadAt($chatId);
+	const navigateHandler = guardOfficeAction(
+		() => $chatId,
+		async () => {
+			workspaceChat.retire();
+			workspaceReconciliation.retire();
+			noteChatDebug('navigateHandler start');
+			// Mark the outgoing chat as read before loading the new one.
+			// $chatId still holds the previous chat here — loadChat() updates it.
+			if ($chatId && $chatId !== chatIdProp && !$temporaryChatEnabled) {
+				noteChatDebug('marking outgoing chat read', { outgoingChatId: $chatId });
+				updateLastReadAt($chatId);
+			}
+
+			clearTimeout(saveControlsTimer);
+			await saveControls();
+			loading = true;
+
+			prompt = '';
+			messageInput?.setText('');
+
+			files = [];
+			selectedToolIds = [];
+			selectedSkillIds = [];
+			selectedFilterIds = [];
+			webSearchEnabled = false;
+			imageGenerationEnabled = false;
+
+			const storageChatInput = sessionStorage.getItem(
+				`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`
+			);
+
+			const loaded = chatIdProp ? await loadChat() : false;
+			noteChatDebug('loadChat completed inside navigateHandler', { loaded });
+			if (loaded) {
+				await tick();
+				loading = false;
+				noteChatDebug('embedded chat loading false');
+				window.setTimeout(() => scrollToBottom(), 0);
+
+				await tick();
+
+				// Mark chat read when initially loading it
+				if (chatIdProp && !$temporaryChatEnabled) {
+					updateLastReadAt(chatIdProp);
+				}
+
+				// Process any queued requests if the chat is idle
+				const lastMessage = history.currentId ? history.messages[history.currentId] : null;
+				const isIdle = !lastMessage || lastMessage.role !== 'assistant' || lastMessage.done;
+				if (isIdle) {
+					await processNextInQueue(chatIdProp);
+				}
+
+				if (!(await restoreChatInput(storageChatInput))) {
+					await setDefaults();
+				}
+
+				messageInput?.focus({ preventScroll: true });
+			} else if (!embedded) {
+				await goto('/');
+			} else {
+				loading = false;
+				console.warn('[note-chat] embedded load failed; clearing spinner', {
+					chatIdProp,
+					activeChatId: $chatId
+				});
+			}
 		}
+	);
 
-		clearTimeout(saveControlsTimer);
-		await saveControls();
-		loading = true;
+	const initEmbeddedDraft = guardOfficeAction(
+		() => $chatId,
+		async () => {
+			clearTimeout(saveControlsTimer);
+			await saveControls();
 
-		prompt = '';
-		messageInput?.setText('');
+			if ($chatId && !$temporaryChatEnabled) {
+				updateLastReadAt($chatId);
+			}
 
-		files = [];
-		selectedToolIds = [];
-		selectedSkillIds = [];
-		selectedFilterIds = [];
-		webSearchEnabled = false;
-		imageGenerationEnabled = false;
+			loading = true;
+			loadedChatIdProp = '';
+			chat = null;
+			tags = [];
+			taskIds = null;
+			chatTasks = [];
+			serverContextUsage = null;
+			history = {
+				messages: {},
+				currentId: null
+			};
+			params = {};
+			chatVariables = {};
+			chatFiles = [];
+			files = [];
+			selectedToolIds = [];
+			selectedSkillIds = [];
+			selectedFilterIds = [];
+			webSearchEnabled = false;
+			imageGenerationEnabled = false;
+			codeInterpreterEnabled = false;
+			prompt = '';
+			messageInput?.setText('');
+			await chatId.set('');
+			await chatTitle.set('');
 
-		const storageChatInput = sessionStorage.getItem(
-			`chat-input${chatIdProp ? `-${chatIdProp}` : ''}`
-		);
-
-		const loaded = chatIdProp ? await loadChat() : false;
-		noteChatDebug('loadChat completed inside navigateHandler', { loaded });
-		if (loaded) {
-			await tick();
+			await setDefaults();
 			loading = false;
-			noteChatDebug('embedded chat loading false');
-			window.setTimeout(() => scrollToBottom(), 0);
-
 			await tick();
-
-			// Mark chat read when initially loading it
-			if (chatIdProp && !$temporaryChatEnabled) {
-				updateLastReadAt(chatIdProp);
-			}
-
-			// Process any queued requests if the chat is idle
-			const lastMessage = history.currentId ? history.messages[history.currentId] : null;
-			const isIdle = !lastMessage || lastMessage.role !== 'assistant' || lastMessage.done;
-			if (isIdle) {
-				await processNextInQueue(chatIdProp);
-			}
-
-			if (!(await restoreChatInput(storageChatInput))) {
-				await setDefaults();
-			}
-
 			messageInput?.focus({ preventScroll: true });
-		} else if (!embedded) {
-			await goto('/');
-		} else {
-			loading = false;
-			console.warn('[note-chat] embedded load failed; clearing spinner', {
-				chatIdProp,
-				activeChatId: $chatId
-			});
 		}
-	};
-
-	const initEmbeddedDraft = async () => {
-		clearTimeout(saveControlsTimer);
-		await saveControls();
-
-		if ($chatId && !$temporaryChatEnabled) {
-			updateLastReadAt($chatId);
-		}
-
-		loading = true;
-		loadedChatIdProp = '';
-		chat = null;
-		tags = [];
-		taskIds = null;
-		chatTasks = [];
-		serverContextUsage = null;
-		history = {
-			messages: {},
-			currentId: null
-		};
-		params = {};
-		chatVariables = {};
-		chatFiles = [];
-		files = [];
-		selectedToolIds = [];
-		selectedSkillIds = [];
-		selectedFilterIds = [];
-		webSearchEnabled = false;
-		imageGenerationEnabled = false;
-		codeInterpreterEnabled = false;
-		prompt = '';
-		messageInput?.setText('');
-		await chatId.set('');
-		await chatTitle.set('');
-
-		await setDefaults();
-		loading = false;
-		await tick();
-		messageInput?.focus({ preventScroll: true });
-	};
+	);
 
 	const onSelect = async (e) => {
 		const { type, data } = e;
@@ -2018,252 +2031,258 @@
 		}, 0);
 	};
 
-	const initNewChat = async () => {
-		workspaceChat.retire();
-		workspaceReconciliation.retire();
-		console.log('initNewChat');
-		resetWebSearchConfirmation();
+	const initNewChat = guardOfficeAction(
+		() => $chatId,
+		async () => {
+			workspaceChat.retire();
+			workspaceReconciliation.retire();
+			console.log('initNewChat');
+			resetWebSearchConfirmation();
 
-		// Mark the outgoing chat as read before resetting; in-place created chats
-		// keep chatIdProp undefined, so navigateHandler never marks them read.
-		if ($chatId && !$temporaryChatEnabled) {
-			updateLastReadAt($chatId);
-		}
+			// Mark the outgoing chat as read before resetting; in-place created chats
+			// keep chatIdProp undefined, so navigateHandler never marks them read.
+			if ($chatId && !$temporaryChatEnabled) {
+				updateLastReadAt($chatId);
+			}
 
-		if ($user?.role !== 'admin' && $user?.permissions?.chat?.temporary_enforced) {
-			await temporaryChatEnabled.set(true);
-		}
-
-		if ($settings?.temporaryChatByDefault ?? false) {
-			if ($temporaryChatEnabled === false) {
+			if ($user?.role !== 'admin' && $user?.permissions?.chat?.temporary_enforced) {
 				await temporaryChatEnabled.set(true);
-			} else if ($temporaryChatEnabled === null) {
-				// if set to null set to false; refer to temp chat toggle click handler
+			}
+
+			if ($settings?.temporaryChatByDefault ?? false) {
+				if ($temporaryChatEnabled === false) {
+					await temporaryChatEnabled.set(true);
+				} else if ($temporaryChatEnabled === null) {
+					// if set to null set to false; refer to temp chat toggle click handler
+					await temporaryChatEnabled.set(false);
+				}
+			}
+
+			if ($user?.role !== 'admin' && !$user?.permissions?.chat?.temporary) {
 				await temporaryChatEnabled.set(false);
 			}
-		}
 
-		if ($user?.role !== 'admin' && !$user?.permissions?.chat?.temporary) {
-			await temporaryChatEnabled.set(false);
-		}
+			const availableModels = $models
+				.filter((m) => !(m?.info?.meta?.hidden ?? false))
+				.map((m) => m.id);
 
-		const availableModels = $models
-			.filter((m) => !(m?.info?.meta?.hidden ?? false))
-			.map((m) => m.id);
+			const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
 
-		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
+			const openModelSelectorWithSearch = async (modelId: string) => {
+				const modelSelectorButton = document.getElementById('model-selector-model-button');
+				modelSelectorButton?.click();
 
-		const openModelSelectorWithSearch = async (modelId: string) => {
-			const modelSelectorButton = document.getElementById('model-selector-model-button');
-			modelSelectorButton?.click();
+				await tick();
 
-			await tick();
+				const modelSelectorInput = document.getElementById(
+					'model-search-input'
+				) as HTMLInputElement | null;
+				if (modelSelectorInput) {
+					modelSelectorInput.focus();
+					modelSelectorInput.value = modelId;
+					modelSelectorInput.dispatchEvent(new Event('input', { bubbles: true }));
+				}
+			};
 
-			const modelSelectorInput = document.getElementById(
-				'model-search-input'
-			) as HTMLInputElement | null;
-			if (modelSelectorInput) {
-				modelSelectorInput.focus();
-				modelSelectorInput.value = modelId;
-				modelSelectorInput.dispatchEvent(new Event('input', { bubbles: true }));
-			}
-		};
+			if ($page.url.searchParams.get('models') || $page.url.searchParams.get('model')) {
+				const urlModels = (
+					$page.url.searchParams.get('models') ||
+					$page.url.searchParams.get('model') ||
+					''
+				)?.split(',');
 
-		if ($page.url.searchParams.get('models') || $page.url.searchParams.get('model')) {
-			const urlModels = (
-				$page.url.searchParams.get('models') ||
-				$page.url.searchParams.get('model') ||
-				''
-			)?.split(',');
-
-			if (urlModels.length === 1) {
-				if (!$models.find((m) => m.id === urlModels[0])) {
-					// Model not found; open model selector and prefill
-					await openModelSelectorWithSearch(urlModels[0]);
+				if (urlModels.length === 1) {
+					if (!$models.find((m) => m.id === urlModels[0])) {
+						// Model not found; open model selector and prefill
+						await openModelSelectorWithSearch(urlModels[0]);
+					} else {
+						// Model found; set it as selected
+						selectedModels = urlModels;
+					}
 				} else {
-					// Model found; set it as selected
+					// Multiple models; set as selected
 					selectedModels = urlModels;
 				}
-			} else {
-				// Multiple models; set as selected
-				selectedModels = urlModels;
-			}
 
-			// Unavailable models filtering
-			selectedModels = selectedModels.filter((modelId) =>
-				$models.map((m) => m.id).includes(modelId)
-			);
-		} else {
-			if ($selectedFolder?.data?.model_ids) {
-				// Set from folder model IDs
-				selectedModels = $selectedFolder?.data?.model_ids;
+				// Unavailable models filtering
+				selectedModels = selectedModels.filter((modelId) =>
+					$models.map((m) => m.id).includes(modelId)
+				);
 			} else {
-				if (sessionStorage.selectedModels) {
-					// Set from session storage (temporary selection)
-					selectedModels = JSON.parse(sessionStorage.selectedModels);
-					sessionStorage.removeItem('selectedModels');
+				if ($selectedFolder?.data?.model_ids) {
+					// Set from folder model IDs
+					selectedModels = $selectedFolder?.data?.model_ids;
 				} else {
-					if ($settings?.models) {
-						// Set from user settings
-						selectedModels = $settings?.models;
-					} else if (defaultModels && defaultModels.length > 0) {
-						// Set from default models
-						selectedModels = defaultModels;
+					if (sessionStorage.selectedModels) {
+						// Set from session storage (temporary selection)
+						selectedModels = JSON.parse(sessionStorage.selectedModels);
+						sessionStorage.removeItem('selectedModels');
+					} else {
+						if ($settings?.models) {
+							// Set from user settings
+							selectedModels = $settings?.models;
+						} else if (defaultModels && defaultModels.length > 0) {
+							// Set from default models
+							selectedModels = defaultModels;
+						}
 					}
 				}
+
+				// Unavailable & hidden models filtering
+				selectedModels = selectedModels.filter((modelId) => availableModels.includes(modelId));
 			}
 
-			// Unavailable & hidden models filtering
-			selectedModels = selectedModels.filter((modelId) => availableModels.includes(modelId));
-		}
+			// Ensure at least one model is selected
+			if (
+				selectedModels.length === 0 ||
+				(selectedModels.length === 1 && selectedModels[0] === '')
+			) {
+				if (availableModels.length > 0) {
+					if (defaultModels && defaultModels.length > 0) {
+						selectedModels = defaultModels.filter((modelId) => availableModels.includes(modelId));
+					}
 
-		// Ensure at least one model is selected
-		if (selectedModels.length === 0 || (selectedModels.length === 1 && selectedModels[0] === '')) {
-			if (availableModels.length > 0) {
-				if (defaultModels && defaultModels.length > 0) {
-					selectedModels = defaultModels.filter((modelId) => availableModels.includes(modelId));
+					if (
+						selectedModels.length === 0 ||
+						(selectedModels.length === 1 && selectedModels[0] === '')
+					) {
+						// Only fall back to first available model if default models didn't resolve
+						selectedModels = [availableModels?.at(0) ?? ''];
+					}
+				} else {
+					selectedModels = [''];
 				}
+			}
 
-				if (
-					selectedModels.length === 0 ||
-					(selectedModels.length === 1 && selectedModels[0] === '')
-				) {
-					// Only fall back to first available model if default models didn't resolve
-					selectedModels = [availableModels?.at(0) ?? ''];
+			if ($mobile) {
+				await showControls.set(false);
+			}
+			await showCallOverlay.set(false);
+			await showArtifacts.set(false);
+
+			if (!embedded && $page.url.pathname.includes('/c/')) {
+				window.history.replaceState(history.state, '', `/`);
+			}
+
+			autoScroll = true;
+
+			// resetInput() must stay last: the selected model's defaults override the draft's selection.
+			await restoreChatInput(sessionStorage.getItem('chat-input'));
+			await resetInput();
+			await chatId.set('');
+			await chatTitle.set('');
+
+			history = {
+				messages: {},
+				currentId: null
+			};
+
+			chatFiles = [];
+			params = {};
+			chatVariables = {};
+			taskIds = null;
+			chatTasks = [];
+
+			if ($page.url.searchParams.get('youtube')) {
+				await uploadWeb(`https://www.youtube.com/watch?v=${$page.url.searchParams.get('youtube')}`);
+			}
+
+			if ($page.url.searchParams.get('load-url')) {
+				await uploadWeb($page.url.searchParams.get('load-url'));
+			}
+
+			if ($page.url.searchParams.get('web-search') === 'true') {
+				webSearchEnabled = true;
+			}
+
+			if ($page.url.searchParams.get('image-generation') === 'true') {
+				imageGenerationEnabled = true;
+			}
+
+			if ($page.url.searchParams.get('code-interpreter') === 'true') {
+				codeInterpreterEnabled = true;
+			}
+
+			if ($page.url.searchParams.get('tools')) {
+				selectedToolIds = $page.url.searchParams
+					.get('tools')
+					?.split(',')
+					.map((id) => id.trim())
+					.filter((id) => id);
+			} else if ($page.url.searchParams.get('tool-ids')) {
+				selectedToolIds = $page.url.searchParams
+					.get('tool-ids')
+					?.split(',')
+					.map((id) => id.trim())
+					.filter((id) => id);
+			}
+
+			// Restore tool selection after OAuth redirect
+			const pendingToolId = sessionStorage.getItem('pendingOAuthToolId');
+			if (pendingToolId) {
+				sessionStorage.removeItem('pendingOAuthToolId');
+				if (!selectedToolIds.includes(pendingToolId)) {
+					selectedToolIds = [...selectedToolIds, pendingToolId];
 				}
-			} else {
-				selectedModels = [''];
 			}
-		}
 
-		if ($mobile) {
-			await showControls.set(false);
-		}
-		await showCallOverlay.set(false);
-		await showArtifacts.set(false);
-
-		if (!embedded && $page.url.pathname.includes('/c/')) {
-			window.history.replaceState(history.state, '', `/`);
-		}
-
-		autoScroll = true;
-
-		// resetInput() must stay last: the selected model's defaults override the draft's selection.
-		await restoreChatInput(sessionStorage.getItem('chat-input'));
-		await resetInput();
-		await chatId.set('');
-		await chatTitle.set('');
-
-		history = {
-			messages: {},
-			currentId: null
-		};
-
-		chatFiles = [];
-		params = {};
-		chatVariables = {};
-		taskIds = null;
-		chatTasks = [];
-
-		if ($page.url.searchParams.get('youtube')) {
-			await uploadWeb(`https://www.youtube.com/watch?v=${$page.url.searchParams.get('youtube')}`);
-		}
-
-		if ($page.url.searchParams.get('load-url')) {
-			await uploadWeb($page.url.searchParams.get('load-url'));
-		}
-
-		if ($page.url.searchParams.get('web-search') === 'true') {
-			webSearchEnabled = true;
-		}
-
-		if ($page.url.searchParams.get('image-generation') === 'true') {
-			imageGenerationEnabled = true;
-		}
-
-		if ($page.url.searchParams.get('code-interpreter') === 'true') {
-			codeInterpreterEnabled = true;
-		}
-
-		if ($page.url.searchParams.get('tools')) {
-			selectedToolIds = $page.url.searchParams
-				.get('tools')
-				?.split(',')
-				.map((id) => id.trim())
-				.filter((id) => id);
-		} else if ($page.url.searchParams.get('tool-ids')) {
-			selectedToolIds = $page.url.searchParams
-				.get('tool-ids')
-				?.split(',')
-				.map((id) => id.trim())
-				.filter((id) => id);
-		}
-
-		// Restore tool selection after OAuth redirect
-		const pendingToolId = sessionStorage.getItem('pendingOAuthToolId');
-		if (pendingToolId) {
-			sessionStorage.removeItem('pendingOAuthToolId');
-			if (!selectedToolIds.includes(pendingToolId)) {
-				selectedToolIds = [...selectedToolIds, pendingToolId];
-			}
-		}
-
-		if ($page.url.searchParams.get('call') === 'true') {
-			openCallOverlay();
-		}
-
-		// Consume one-shot desktop event (e.g. Spotlight query, call shortcut)
-		if ($desktopEvent) {
-			const event = $desktopEvent;
-			desktopEvent.set(null);
-
-			if (event.type === 'call') {
+			if ($page.url.searchParams.get('call') === 'true') {
 				openCallOverlay();
-			} else if (event.type === 'query') {
-				const query = event.data?.query;
-				const eventFiles = event.data?.files;
+			}
 
-				// Attach screenshot images from desktop (e.g. Spotlight region capture)
-				if (eventFiles?.length) {
-					for (const ef of eventFiles) {
-						files = [
-							...files,
-							{
-								type: 'image',
-								url: ef.dataUrl,
-								name: ef.name
-							}
-						];
+			// Consume one-shot desktop event (e.g. Spotlight query, call shortcut)
+			if ($desktopEvent) {
+				const event = $desktopEvent;
+				desktopEvent.set(null);
+
+				if (event.type === 'call') {
+					openCallOverlay();
+				} else if (event.type === 'query') {
+					const query = event.data?.query;
+					const eventFiles = event.data?.files;
+
+					// Attach screenshot images from desktop (e.g. Spotlight region capture)
+					if (eventFiles?.length) {
+						for (const ef of eventFiles) {
+							files = [
+								...files,
+								{
+									type: 'image',
+									url: ef.dataUrl,
+									name: ef.name
+								}
+							];
+						}
+					}
+
+					if (query || eventFiles?.length) {
+						if (query) {
+							messageInput?.setText(query);
+						}
+						await tick();
+						submitHandler(query || '');
 					}
 				}
+			} else if ($page.url.searchParams.get('q')) {
+				const q = $page.url.searchParams.get('q') ?? '';
+				messageInput?.setText(q);
 
-				if (query || eventFiles?.length) {
-					if (query) {
-						messageInput?.setText(query);
+				if (q) {
+					if (($page.url.searchParams.get('submit') ?? 'true') === 'true') {
+						await tick();
+						submitHandler(q);
 					}
-					await tick();
-					submitHandler(query || '');
 				}
 			}
-		} else if ($page.url.searchParams.get('q')) {
-			const q = $page.url.searchParams.get('q') ?? '';
-			messageInput?.setText(q);
 
-			if (q) {
-				if (($page.url.searchParams.get('submit') ?? 'true') === 'true') {
-					await tick();
-					submitHandler(q);
-				}
-			}
+			selectedModels = selectedModels.map((modelId) =>
+				$models.map((m) => m.id).includes(modelId) ? modelId : ''
+			);
+
+			await tick();
+			messageInput?.focus({ preventScroll: true });
 		}
-
-		selectedModels = selectedModels.map((modelId) =>
-			$models.map((m) => m.id).includes(modelId) ? modelId : ''
-		);
-
-		await tick();
-		messageInput?.focus({ preventScroll: true });
-	};
+	);
 
 	const loadChat = async () => {
 		noteChatDebug('loadChat start');

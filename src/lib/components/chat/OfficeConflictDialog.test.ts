@@ -7,6 +7,7 @@ import { config } from '$lib/stores';
 import { ocuWorkspaces, selectWorkspaceView } from '$lib/stores/ocu';
 import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 import { WORKSPACE_RECONCILIATION } from './workspace-reconciliation';
+import { officeLeaveGuard } from './office-leave-guard';
 import { ocuOffice } from '$lib/stores/ocu-office';
 import { chat, i18n, json, listing } from '../../../../test/ocu-workspace-fixtures';
 import {
@@ -62,10 +63,7 @@ async function releaseResolve(release: (response: Response) => void, response: R
 }
 
 async function openConflict(reason = 'baseline_mismatch') {
-	await harness.open();
-	await harness.ready('report.docx');
-	const frame = await harness.selectAndEdit('report.docx');
-	const handshake = await harness.acceptEditing(frame);
+	const { frame, ...handshake } = await harness.openAcceptedEditor();
 	postOfficeState(frame, handshake.openMessage.generation, {
 		state: 'conflict',
 		dirty: true,
@@ -84,7 +82,10 @@ async function openConflict(reason = 'baseline_mismatch') {
 }
 
 beforeEach(() => harness.install());
-afterEach(() => harness.cleanup());
+afterEach(() => {
+	officeLeaveGuard.dispose();
+	return harness.cleanup();
+});
 
 describe('Office conflict dialog', () => {
 	it('offers Save as new file for the accepted conflict and sends one save_as resolve', async () => {
@@ -444,11 +445,28 @@ describe('Office conflict choices and lifetime', () => {
 			});
 			respondToResolve(response);
 			const { frame, openMessage } = await openConflict();
+			const fallback = harness.scenario;
+			harness.scenario = (url, init) =>
+				url.endsWith('/sessions/sess-1')
+					? json({
+							session_id: 'sess-1',
+							file_id: 'report.docx',
+							document_key: 'doc-key',
+							state: 'closing',
+							reason: null,
+							save_seq: 2,
+							last_committed_seq: 1,
+							last_published_seq: 1,
+							workspace_changed: false,
+							saved_as: null
+						})
+					: fallback(url, init);
 			const saveAs = namedButton('Save as new file');
 			saveAs.click();
 			if (cause === 'selection') namedButton('page.html').click();
 			if (cause === 'generation') {
 				namedButton('Edit').click();
+				await vi.waitFor(() => expect(editorFrame('report.docx')).not.toBe(frame));
 				await readyEditorFrame('report.docx');
 				const replacement = editorFrame('report.docx')!;
 				const { openMessage: next } = await harness.acceptEditing(replacement, 'sess-2');
@@ -467,6 +485,9 @@ describe('Office conflict choices and lifetime', () => {
 			}
 			saveAs.click();
 			await tick();
+			if (cause === 'selection' || cause === 'view') {
+				await vi.waitFor(() => expect(frame.isConnected).toBe(false));
+			}
 			const before = get(ocuOffice)[chat];
 			const selectedBefore = get(ocuWorkspaces)[chat].selectedFileId;
 			await releaseResolve(release, json({ reason: 'workspace_missing' }, 409));
