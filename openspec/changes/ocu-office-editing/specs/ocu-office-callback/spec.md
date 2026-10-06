@@ -144,6 +144,13 @@ A status 2 or 4 callback SHALL end the session whether or not a close was reques
 - **WHEN** a status 4 callback arrives for a session whose latest stored version is an unpublished `autosave` version
 - **THEN** that version is published and the session is `closed`, or `conflict` when the workspace file no longer matches the baseline
 
+#### Scenario: Status 4 commits and replays its publication obligation
+
+- **WHEN** status 4 is durably recorded for an unpublished latest version and the worker dies before publication
+- **THEN** the same successor contains the contentless final receipt and an obligation bound to that version, session, document and allocated sequence, without a new version or blob
+- **AND** a retried final callback drives that stored binding without downloading or allocating again; completion leaves the session closed, conflict or error according to Publish outcomes
+- **AND** another completed replay leaves workspace bytes and listing revision unchanged
+
 #### Scenario: Status 6 with intent publish (B-T04)
 
 - **WHEN** a status 6 callback carries the `save_seq` of a save recorded with intent `publish`

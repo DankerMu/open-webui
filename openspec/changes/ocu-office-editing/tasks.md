@@ -636,12 +636,37 @@ Issue #137 source evidence: the existing Office sweep tracer failed before imple
 ## 16. [ocu] Persist-to-publish wiring (spec: ocu-office-callback, ocu-office-sessions, ocu-office-publish)
 
 - [x] 16.1 A callback with publish intent writes the version, the receipt and the journal entry in one state update and then publishes; the outcome sets the session as design D11's table says — the published or failed outcome of a save that is not the outstanding one leaves the state as it is — and `last_published_seq` advances as D9 defines; a duplicate of the callback drives an entry that survived a crash; a conflict met by a status 6 result while the session is `closing` leaves it `closing` until the final callback meets the conflict again; and a journal entry is driven to its outcome before its session is marked `orphaned`, on a request and in the sweep, the orphaning then applying to the state the outcome left. Verify: tests through the callback route for save, close, conflict and each failure reason; a crash after the version is durable and before the publish ends published or in conflict after the retry; the late callback of `save_seq` 3 published while `save_seq` 4 is outstanding leaves the session `saving`; a status 6 conflict in a `closing` session followed by the final callback ending in `conflict`; a session with a surviving save entry found forgotten by DocumentServer has the entry driven first, holds none afterwards and is `orphaned`, while one whose surviving entry followed a final callback ends `closed`, `conflict` or `error` and is not orphaned.
-- [ ] 16.2 Nothing new to save: a publishing save for which DocumentServer reports nothing new, and a status-4 callback, publish the session's latest stored version when it is unpublished; a save of either intent that finds nothing new while the latest version is already published advances `last_published_seq`. Verify: tests for save after an auto-save with no further edits, a second save with no change, status 4 after an unpublished auto-save, an auto-save equal to the published content, an auto-save that finds nothing new after a publish (both sequence values advance), and one that finds nothing new while a version is unpublished (`last_published_seq` unchanged).
+- [x] 16.2 Nothing new to save: a publishing save for which DocumentServer reports nothing new, and a status-4 callback, publish the session's latest stored version when it is unpublished; a save of either intent that finds nothing new while the latest version is already published advances `last_published_seq`. Verify: tests for save after an auto-save with no further edits, a second save with no change, status 4 after an unpublished auto-save, an auto-save equal to the published content, an auto-save that finds nothing new after a publish (both sequence values advance), and one that finds nothing new while a version is unpublished (`last_published_seq` unchanged).
 - [ ] 16.3 Unattended outcomes at close: `path_missing` is resolved at once by saving the version as a new deduplicated file, claimed with the no-replace helper of 1.1; a missing workspace files directory ends the session `error` with `workspace_missing` and creates nothing; `baseline_mismatch` stays a `conflict` for the next open. Verify: tests for each, including the new file's `file_id`, its first version's source and the Files listing.
 
 Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 → 11 → 3 → 2 → 1).
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
+
+### No-change publication risk coverage
+
+- Public API / script entry — selected: real save route with DocumentServer nothing-new response and authenticated status-4 callback; preserve 202 acceptance and callback durable ACK.
+- Config / project setup — not selected: existing feature configuration, clients and dependencies are unchanged.
+- File IO / path safety / overwrite — selected: publish the retained autosave bytes through the existing fence; conflict preserves workspace, failed pause leaves the version retryable; no new file protocol.
+- Schema / field names — selected: save completion plus bound journal, or status-4 contentless receipt plus bound journal, in one successor; no new version/blob, stable receipt schema and monotonic counters.
+- Auth / permissions / secrets — selected for preservation: existing route admission and verified callback payload; no download from status 4 or final replay, no credential or gateway changes.
+- Concurrency / shared state / ordering — selected: pending/key/terminal guards, delayed nothing-new after callback or newer allocation, concurrent close, final-receipt replay and frozen journal version; no stale publication or second allocation from a callback retry.
+- Resource limits / discovery — selected for preservation: existing bounded commands, synchronous publication and startup/poll recovery. No new timer, detached worker or discovery policy.
+- Legacy compatibility / examples — selected: all seven issue cases, already-published metadata-only completion, equal-content deduplication, persist-only unpublished no journal and no later recovery publication; existing save failure/orphan policies remain.
+- Error handling / rollback / partial outputs — selected: pause-failed version is retried by a nothing-new publish save; conflict/failed/unresolved outcomes retain existing semantics; persist/receipt commit failure cannot lose an obligation or falsely acknowledge completion.
+- Release / packaging — selected for preservation: full test discovery and existing package/reload inventories; no dependency, image or deployment change.
+- Documentation / migration notes — selected: D8 owns this boundary, D9/D11/D13 retain sequence/outcome/cache ownership; strict OpenSpec and companion doc/decision gates.
+
+Required parent evidence: one real save-after-autosave semantic RED before source
+changes; the seven acceptance cases through save/callback routes; an observed
+atomic obligation successor at each entry point and crash/fresh-process recovery
+without duplicate history. A status-4 retry performs no download and no new
+receipt/allocation/version. Demonstrate that already-published nothing-new
+completion and persist-only unpublished completion cannot change workspace or
+revision, including later recovery. Preserve stale/closing/final outcome guards
+and the prior callback publication/notice regressions. Run owning and affected
+unit discovery plus actual HTTP no-change save/status-4 and owned-process crash
+smoke. Real engine/image/LAN and final missing-path behavior remain excluded.
 
 ### Callback publication risk coverage
 

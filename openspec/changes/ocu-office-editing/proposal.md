@@ -435,3 +435,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risks: callback API, persisted bindings, file overwrite, authentication preservation, shared-state ordering, partial failure, compatibility, runtime integration and documentation.
 - Evidence floor: real callback-route semantic RED; save/final outcome matrix; commit and completion conservation; replay validation; late-save/closing precedence; request/sweep orphan ordering; killed-worker/fresh-process callback recovery with real workspace and broker observations.
 - No new routes, callback credentials, fence mechanism, no-change/status-4 publication, final missing-path copy, UI or deployment work. Shared Office change remains open.
+
+## No-change publication fixture
+
+- Issue type: feature; fixture level: expanded, matching task 16.2 and publication of already-stored user content.
+- Scope: nothing-new save completion, unpublished status-4 publication, their atomic obligations and the specified sequence updates.
+- Governing invariant: no new content is needed to fulfill a publish intent, and a durable obligation cannot be separated from the save completion or final receipt that owns it.
+- Selected risks: save/callback API, journal and receipt bindings, file overwrite, stale-command ordering, errors, compatibility, recovery integration and documentation.
+- Evidence floor: real save-after-autosave route RED; all seven task cases; atomic commit and crash recovery for both entry points; metadata-only no-change controls; stale/final/closing guards; real HTTP and fresh-process recovery.
+- Preserve content deduplication, contentless status-4 receipts, existing outcome/fence/recovery and authentication policies. Final missing-path handling, UI and deployment remain outside this slice.

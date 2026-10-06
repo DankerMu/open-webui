@@ -263,6 +263,18 @@ A session SHALL leave `saving` in one of these ways: the callback of the outstan
 - **WHEN** the latest version of the session is an unpublished `autosave` version, a save with intent `publish` is accepted and DocumentServer reports nothing new to save
 - **THEN** that version is published, becomes `published` true, and `last_published_seq` equals the returned `save_seq`
 
+#### Scenario: Nothing-new save retains publication responsibility across a crash
+
+- **WHEN** a publishing save finds an unpublished latest version and its nothing-new completion commits before the worker dies
+- **THEN** the committed sequence and a journal obligation bound to that existing version and save allocation are present in the same successor, without a new version or callback receipt
+- **AND** fresh-process recovery publishes or records the existing conflict/failure outcome, applies outstanding-save ordering and consumes the obligation atomically
+
+#### Scenario: Metadata-only nothing-new completion cannot publish later
+
+- **WHEN** a nothing-new save of either intent finds the latest version already published, or a persist-only nothing-new save finds it unpublished
+- **THEN** no publication obligation is created and subsequent recovery cannot publish on behalf of that completion
+- **AND** version history, workspace bytes and listing revision remain unchanged, with sequence values following the save's intent and publication flag
+
 #### Scenario: Save again with no change
 
 - **WHEN** a save with intent `publish` has been committed and published, and a second save with intent `publish` is accepted for which DocumentServer reports nothing new to save

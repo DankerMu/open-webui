@@ -353,6 +353,47 @@ A save or a close that finds nothing new since an auto-save still publishes: whe
 
 Alternative rejected: the plan's two-level model (save persists, a separate action publishes). A user who saves and then asks the Agent to continue would have the Agent read the old file.
 
+#### No-change publication boundary
+
+Task 16.2 extends the existing guarded command reconciliation and status-4
+receipt transaction. A nothing-new save with intent `publish` selects the
+latest stored version under the canonical lock. If it is unpublished, its
+completion commits a bound save obligation without adding a version or blob;
+the existing publisher then owns the terminal outcome. Keep the save's
+identity available until that completion, without consuming a newer allocation.
+An already-published latest version needs no publication: saves of either
+intent advance both sequence values monotonically and leave bytes/revision
+unchanged. A persist-only save with an unpublished latest version advances only
+the committed sequence and leaves no obligation.
+
+Status 4 freezes the latest unpublished version in a final obligation in the
+same update as its existing contentless receipt. It downloads nothing and adds
+no version. Final receipt replay drives that persisted binding, not whichever
+version happens to be latest at replay time. The contentless receipt retains
+null hash/version fields; the journal supplies the publication version.
+Completed replay performs no publication, allocation or revision change.
+
+Equal-content callbacks retain the existing latest-version deduplication and
+advance the published sequence when that selected version is already published.
+Do not add a second counter or journal implementation. Reuse the existing
+atomic completion, including baseline notice-cache invalidation, outcome table
+and classified unresolved-publication handling; unexpected faults stay visible.
+
+Governing invariant: completion/receipt and publication responsibility share
+one durable successor, and each stale command result can affect only its own
+still-owned allocation. Sibling surfaces are save admission/reconciliation,
+status-4/final-receipt callbacks, equal-content persist, publisher completion,
+startup/poll/request recovery and the public status projection. Preserve late
+callback, closing, final-state and epoch guards. A repeated save request is a
+new operation, not an idempotency-keyed retry.
+
+Required evidence observes versions/blobs, receipt/journal, state/counters,
+workspace bytes, baseline and broker revision across both routes, atomic
+commit cuts and fresh-process recovery. No-change paths with published content
+must demonstrate no publisher write or revision advance; persist-only paths
+must demonstrate no deferred publication. Final missing-path policy remains
+task 16.3, and the existing status-4 path needing no publication is unchanged.
+
 ### D9. Session, key, ordering, callback statuses
 
 Session states: `opening → editing ⇄ saving`, `closing → closed`, plus `conflict`, `error`, `orphaned`. `closed`, `error` and `orphaned` are final. One open session per document; a second tab of the same user joins it with the same `document.key`. The key is stable for the life of the session and a new session gets a new key. A join returns a freshly signed editor configuration with a new source ticket, so a session whose first tab died before the editor loaded can still be opened. A session records the restore epoch current at its creation (D18); a mismatch makes it `orphaned`.
