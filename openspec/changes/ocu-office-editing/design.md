@@ -592,6 +592,14 @@ receipt remain final. A create request that actually orphans a session and
 finds its newest version unpublished returns `unpublished_version` without
 creating a session or workspace version.
 
+Epoch admission still precedes callback receipt processing. Its orphan decision
+drives only obligations already stored before this request; it does not download,
+persist or publish the rejected callback's supplied content. Thus an old-epoch
+request may recover prior durable content before refusing the callback, even
+when that envelope would fail the later status/hash rule. Current-epoch replay
+rejected by that rule cannot drive an obligation. With no prior obligation,
+the old-epoch callback preserves the no-publication restore behavior.
+
 The sweep's ordinary exclusion of conflict sessions remains. The specific
 surviving-entry rule also covers a session eligible for the sweep whose recovered
 save reaches conflict: apply its due unknown-key orphan decision to that result.
