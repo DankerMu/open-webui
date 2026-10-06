@@ -175,7 +175,7 @@ export function officeStatusPath(pathname: string, chatId: string) {
 	if (!remainder || remainder.includes('/')) return null;
 	return decodeURIComponent(remainder);
 }
-type OfficeFrameIdentity = {
+export type OfficeFrameIdentity = {
 	sameNode: boolean;
 	sameDocument: boolean;
 	sameSurface: boolean;

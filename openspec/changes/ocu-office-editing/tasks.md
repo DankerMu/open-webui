@@ -959,7 +959,7 @@ Required evidence for 26.2: one semantic mounted preflight RED before implementa
 ## 27. [webui] Unsaved-state guard (spec: ocu-office-workspace-ui)
 
 - [x] 27.1 A guard module: `beforeunload` only while unpublished changes exist; chat switch and sidebar close send `close`, follow the session status after the frame is gone until a final state or the progress timeout (the B1 item "close-to-status-2 delay"), report how the close ended (saved, saved as a new file with its name, conflict at the next open, failed, unconfirmed), and never apply a late result to another chat; `ChatControls.svelte` and `Chat.svelte` gain only calls into the module. Verify: Vitest covers each trigger, each reported ending and the late-result case; the diff of the two upstream files contains no Office logic; `make verify-ui-ocu` passes.
-- [ ] 27.2 Extend `e2e/ocu-office.e2e.ts` with B-T12 — switch chat, close the sidebar, refresh, reopen the old chat — and with a close that ends saved as a new file (the stub's `office_save_as` scenario). Verify: `make verify-ui-ocu` passes with screenshots and the cases named in its output.
+- [x] 27.2 Extend `e2e/ocu-office.e2e.ts` with B-T12 — switch chat, close the sidebar, refresh, reopen the old chat — and with a close that ends saved as a new file (the stub's `office_save_as` scenario). Verify: `make verify-ui-ocu` passes with screenshots and the cases named in its output.
 
 Depends on: 26 (both extend the same browser spec file and the same component).
 Suggested fixture level: expanded - hooks in upstream spine components listed as Critical Paths.
@@ -977,6 +977,17 @@ Minimal mergeable slice: 27.1 (module and hooks) - green alone because it is cov
 - File IO / server authorization / deployment / dependency / runtime configuration — Not selected: unchanged broker enforcement, gateway and fixed frame policy; tests preserve their consumer contracts and do not certify real DocumentServer or LAN behavior.
 
 Required evidence for 27.1: all eleven issue acceptance criteria and each five-trigger/five-outcome case at real mounted/module boundaries; dirty/clean/absent/refused native prompt lifetime; delayed A outcome leaves B unchanged and appears on return; duplicate and stale responses do no additional work. Test pre-existing conflict versus ended conflict and close-response delay so posting alone cannot satisfy delivery. Run affected Vitest with per-file coverage, scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict, `make verify-ui` and the complete existing Office suite. Parent-owned disposable browser smoke proves actual close arrival, retained document until acceptance, removed frame afterward and owner-bound report. Permanent e2e/stub/harness files remain untouched; 27.2 remains unchecked.
+
+### Leave-browser risk coverage
+
+- Lifecycle / ordering — Selected: dirty close and actual chat navigation, progress before broker arrival, original frame retention, captured-session terminal reads, frame-free return until explicit Edit.
+- Native browser behavior — Selected: real user activation, dirty beforeunload dismissal preserves the document, clean and absent-editor reloads produce no prompt.
+- Data identity / reconciliation — Selected: original id/bytes captured before editing; recorded direct-close or persist branch determines independent expected published bytes, and fetched/listing/published-version hashes match. Automatic save-as listing id/path must equal the captured session's terminal saved_as and use a distinct id, its bytes follow the delivered transformation, and the old name is not resurrected.
+- Owner isolation — Selected: B's files, selection, Office surface and dialogs remain its own. Stub synchronous-close limitation is explicit in design; task 27.1 remains the delayed-terminal-after-switch mounted proof.
+- Oracle / evidence / compatibility — Selected: semantic negative qualification in a disposable browser boundary, restored GREEN, screenshots per observed step, zero unexpected diagnostics, named cases and unchanged original 31-case discovery through `make verify-ui-ocu`.
+- Server auth/storage, production configuration, dependencies, deployment — Not changed: real authenticated gateway observations are consumed; no guard/component/stub/harness or scenario rewrite, no real DocumentServer claim.
+
+Required evidence for 27.2: all seven issue criteria mapped to permanent cases; `make verify-ui-ocu` names B-T12 and B-T13 and passes with original cases intact. Parent inspects screenshots, captured session/close/status records and bytes/hash assertions, qualifies semantic negative controls outside candidate code, then runs restoration GREEN. Run changed-file formatting, scoped lint/typecheck/anti-drift and docs/decision/strict validation. Keep the shared Office change open while other task groups remain.
 
 ## 28. [deploy] Release inventory: DocumentServer role and font bundle (spec: ocu-offline-image-delivery, ocu-backup-rollback)
 
