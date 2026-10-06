@@ -643,6 +643,34 @@ Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 �
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
 
+### Unattended-close publication risk coverage
+
+- Public API / script entry — selected: authenticated final status 2 and unpublished status 4; observe callback ACK, session status, Files new identity and next-create pending conflict.
+- Config / project setup — not selected: no settings, dependency or setup change.
+- File IO / path safety / overwrite — selected: missing file, occupied first numbered name, occupied symlink, missing and symlinked ancestors, absent/unsafe outputs root and late parent replacement; no foreign write, old basename or directory recreation.
+- Schema / field names — selected: copy journal recovery, new file_id/document/version1 with conflict source, unchanged source history/receipt/key, atomic saved_as/closed successor and notice invalidation.
+- Auth / permissions / secrets — selected for preservation: existing callback and browser admission, no reads through links or unsafe roots, private immutable blobs never exposed as writable workspace inodes.
+- Concurrency / shared state / ordering — selected: canonical lock/fence, concurrent callback/recovery, owned claim before returned-name persistence, registration before Office completion and foreign replacement conservation.
+- Resource limits / discovery — selected for preservation: existing byte/index limits and safe-boundary pause budget; no directory creation, reconcile, detached worker or unbounded content scan.
+- Legacy compatibility / examples — selected: normal save path_missing stays conflict; leaf-symlink conflict, no-change publication, final ACK/replay and pending-conflict create remain unchanged. The final parent-symlink exception is the user-approved D13 policy.
+- Error handling / rollback / partial outputs — selected: claim, registration, state durability and release failures cannot lose content or ownership; fresh-worker recovery yields one copy, one new document and one registration increment.
+- Release / packaging — selected for preservation: normal package/reload discovery includes any owning module; source CI and existing package regressions, no image or deployment certification.
+- Documentation / migration notes — selected: D13 owns the exception and recovery boundary; source Office documentation, strict OpenSpec, doc and decision gates.
+
+Required parent evidence: real callback semantic RED, then every issue criterion
+through callback/status/list/create boundaries. Cover missing paths with active
+and tombstoned identities, known collisions and an unlocked claim competitor,
+missing nested directory and parent symlink without Files refresh, unsafe root
+and leaf controls, status-4 retained autosave and repeated final receipts.
+Observe unchanged source history and immutable blobs, distinct new identity,
+version1/source/published values, saved_as and monotonic counters.
+Inject crashes before/after claim, before returned-name persistence, after
+registration and around Office successor durability; verify fresh-process
+completion without duplicate copy/index increment or foreign-file deletion.
+Run owning and affected OCU units with full tests discovery, actual HTTP plus
+killed-worker recovery, targeted negative controls and four-seat cross-review.
+The existing claim helper and broker registration are called, not modified.
+
 ### No-change publication risk coverage
 
 - Public API / script entry — selected: real save route with DocumentServer nothing-new response and authenticated status-4 callback; preserve 202 acceptance and callback durable ACK.
