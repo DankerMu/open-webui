@@ -30,6 +30,12 @@ import {
 	workspaceFilesPanel,
 	type OfficeRecord
 } from './ocu-office-fixtures';
+import {
+	walkAutomaticSaveAs,
+	walkDirtyChatSwitch,
+	walkDirtySidebarClose,
+	walkOfficeRefresh
+} from './ocu-office-leave-fixtures';
 
 function collectDiagnostics(page: Page) {
 	const diagnostics: Array<{ kind: string; text: string; url: string }> = [];
@@ -678,6 +684,64 @@ test('Office stale session rechecks unpublished content once before starting fro
 					)
 			)
 		).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('B-T12 refresh prompts only for a dirty editor and dismissal preserves it', async ({
+	page
+}) => {
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office');
+		await walkOfficeRefresh(page, chatId);
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('B-T12 dirty sidebar close publishes with progress and a saved report', async ({ page }) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office');
+		await walkDirtySidebarClose(page, chatId, recordOffset);
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('B-T12 dirty chat switch isolates B and returns A saved until explicit Edit', async ({
+	page
+}) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatA = await createScenarioChat(page, 'office');
+		const chatB = await createScenarioChat(page, 'empty');
+		await walkDirtyChatSwitch(page, chatA, chatB, recordOffset);
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('B-T13 automatic close saves as report (2).docx with distinct published identity', async ({
+	page
+}) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office_save_as');
+		await walkAutomaticSaveAs(page, chatId, recordOffset);
+		expect(observed.diagnostics).toEqual([]);
 	} finally {
 		observed.dispose();
 	}

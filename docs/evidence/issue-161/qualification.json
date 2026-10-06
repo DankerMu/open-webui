@@ -1,0 +1,52 @@
+{
+	"issue": 161,
+	"base": "63752b3686fc76524025942d3fc828653e2e8a99",
+	"mode": "characterization",
+	"environment": {
+		"platform": "darwin arm64",
+		"node": "22.23.2",
+		"playwright": "1.63.0",
+		"surface": "local authenticated proxy and deterministic Office stub"
+	},
+	"candidate_files": {
+		"e2e/ocu-office.e2e.ts": "d1c1bab707b1d6c34de21f430dabf926699159d0cdad4dda54c07f389cf23f9a",
+		"e2e/ocu-office-fixtures.ts": "8002bf5f202f60800d4f3085e3d09ca787baf9809dd64d7462b7c4433954c61e",
+		"e2e/ocu-office-leave-fixtures.ts": "7310389fea4488f58a1c0b3f6cd2f87bdbd1160c6ff5074d152b5f9b388297a3"
+	},
+	"known_good": {
+		"command": "make verify-ui-ocu",
+		"discovered": 35,
+		"passed": 35,
+		"unexpected_errors": 0
+	},
+	"controls": [
+		{
+			"control": "wrong-saved-as-path",
+			"qualification_exit": 0,
+			"playwright_exit": 1,
+			"case": "B-T13 automatic close saves as report (2).docx with distinct published identity",
+			"failure": "saved_as.path report-wrong.docx differs from report (2).docx",
+			"result_sha256": "9badac4ba1ab4404dfa8ec6c40baded627103cf2989fc4c527d4c674c43f0fa5",
+			"mutation_sha256": "745956c7944496889f89f8db8ad2a75ecd5945fbdc5794593ef861b09a064c45"
+		},
+		{
+			"control": "stale-file-bytes",
+			"qualification_exit": 0,
+			"playwright_exit": 1,
+			"case": "B-T12 dirty sidebar close publishes with progress and a saved report",
+			"failure": "fetched baseline bytes do not equal independently expected published bytes",
+			"result_sha256": "78041947bbc076299569cf407b8a7aae6f1ee0e263b1d1c4045fcb346a0894c0",
+			"mutation_sha256": "f5fcd8f84b5fdcf89e1d82421445c57a3509223204de033ccfd8cbecc4cf364f"
+		}
+	],
+	"restoration": {
+		"command": "make verify-ui-ocu",
+		"discovered": 35,
+		"passed": 35,
+		"exit": 0
+	},
+	"limits": [
+		"No real DocumentServer persistence or LAN certification.",
+		"Synchronous-close stub does not generate terminal-after-navigation timing; task 27.1 mounted tests own that proof."
+	]
+}

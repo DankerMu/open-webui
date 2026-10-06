@@ -456,3 +456,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - No parent create/save/close HTTP API, protocol extension, broker/stub/browser-harness change, Plan 1 module change, persisted Office report or production deployment certification.
 - User-authorized gate exception: only Chat.svelte may use an exact, documented line ceiling for the required minimal guard hooks. Constraints and scoped-lint enforcement change together with executable boundary tests; eslint, complexity, all other files and the global baseline remain enforced.
 - User-authorized common-component seam: optional user-close admission for Drawer and, if needed, ResizableSidePanel. Disposal/layout replacement is not a user close; unconfigured callers retain their behavior. No appearance or unrelated common-component refactor.
+
+## Office leave-browser fixture
+
+- Issue type: test; fixture level: expanded, retaining task 27.2's suggested level for browser lifecycle and saved-content evidence.
+- Scope: permanent B-T12/B-T13 cases in the existing Office spec and shared e2e helpers; owning documentation. Guard, components, stub, harness, discovery and prior cases remain unchanged.
+- Governing invariant: user-visible close progress/outcomes, saved bytes and owner isolation must agree with the captured session's real gateway/stub observations.
+- Selected risks: lifecycle/ordering, native browser interaction, session/file identity, reconciliation, oracle discrimination, diagnostics and compatibility.
+- Evidence floor: named permanent cases under `make verify-ui-ocu`, all seven issue criteria, screenshots at each observed step, zero unexpected errors, original 31-case coverage preserved, controlled semantic negative qualification and restoration GREEN.
+- Must preserve: actual user actions, original live editor until close acceptance, normal workspace reconciliation, explicit Edit after return, genuine response bodies and private authenticated arrival records.
+- No production behavior change, fake success response, store mutation, dependency change, real DocumentServer certification or automatic archive of the shared change.
