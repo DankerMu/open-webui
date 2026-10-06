@@ -433,3 +433,15 @@ The sweep SHALL NOT change a session in `conflict` or in a final state, SHALL NO
 
 - **WHEN** the poll finds a chat with a journal entry left by a crash whose session DocumentServer no longer knows
 - **THEN** the entry is driven to its outcome first, the session is `orphaned` afterwards, and the journal holds no entry
+
+#### Scenario: Recovered save conflict receives the due orphan decision
+
+- **WHEN** an otherwise eligible overdue session has a surviving save obligation, recovery leaves it in conflict without a final receipt, and DocumentServer reports its key unknown
+- **THEN** the sweep applies the orphan decision to the recovered state, preserving the unpublished version and leaving no journal entry
+- **AND** ordinary pre-existing conflict sessions without a recovered obligation remain excluded from the sweep
+
+#### Scenario: Recovery of a final callback prevents orphaning
+
+- **WHEN** a request or sweep drives a surviving final-callback obligation before an orphan decision
+- **THEN** its resulting closed or error state, or conflict with a final receipt, remains unchanged by orphaning
+- **AND** unresolved recovery retains the obligation and never marks its session orphaned

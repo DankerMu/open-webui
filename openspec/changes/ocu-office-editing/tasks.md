@@ -635,13 +635,38 @@ Issue #137 source evidence: the existing Office sweep tracer failed before imple
 
 ## 16. [ocu] Persist-to-publish wiring (spec: ocu-office-callback, ocu-office-sessions, ocu-office-publish)
 
-- [ ] 16.1 A callback with publish intent writes the version, the receipt and the journal entry in one state update and then publishes; the outcome sets the session as design D11's table says — the published or failed outcome of a save that is not the outstanding one leaves the state as it is — and `last_published_seq` advances as D9 defines; a duplicate of the callback drives an entry that survived a crash; a conflict met by a status 6 result while the session is `closing` leaves it `closing` until the final callback meets the conflict again; and a journal entry is driven to its outcome before its session is marked `orphaned`, on a request and in the sweep, the orphaning then applying to the state the outcome left. Verify: tests through the callback route for save, close, conflict and each failure reason; a crash after the version is durable and before the publish ends published or in conflict after the retry; the late callback of `save_seq` 3 published while `save_seq` 4 is outstanding leaves the session `saving`; a status 6 conflict in a `closing` session followed by the final callback ending in `conflict`; a session with a surviving save entry found forgotten by DocumentServer has the entry driven first, holds none afterwards and is `orphaned`, while one whose surviving entry followed a final callback ends `closed`, `conflict` or `error` and is not orphaned.
+- [x] 16.1 A callback with publish intent writes the version, the receipt and the journal entry in one state update and then publishes; the outcome sets the session as design D11's table says — the published or failed outcome of a save that is not the outstanding one leaves the state as it is — and `last_published_seq` advances as D9 defines; a duplicate of the callback drives an entry that survived a crash; a conflict met by a status 6 result while the session is `closing` leaves it `closing` until the final callback meets the conflict again; and a journal entry is driven to its outcome before its session is marked `orphaned`, on a request and in the sweep, the orphaning then applying to the state the outcome left. Verify: tests through the callback route for save, close, conflict and each failure reason; a crash after the version is durable and before the publish ends published or in conflict after the retry; the late callback of `save_seq` 3 published while `save_seq` 4 is outstanding leaves the session `saving`; a status 6 conflict in a `closing` session followed by the final callback ending in `conflict`; a session with a surviving save entry found forgotten by DocumentServer has the entry driven first, holds none afterwards and is `orphaned`, while one whose surviving entry followed a final callback ends `closed`, `conflict` or `error` and is not orphaned.
 - [ ] 16.2 Nothing new to save: a publishing save for which DocumentServer reports nothing new, and a status-4 callback, publish the session's latest stored version when it is unpublished; a save of either intent that finds nothing new while the latest version is already published advances `last_published_seq`. Verify: tests for save after an auto-save with no further edits, a second save with no change, status 4 after an unpublished auto-save, an auto-save equal to the published content, an auto-save that finds nothing new after a publish (both sequence values advance), and one that finds nothing new while a version is unpublished (`last_published_seq` unchanged).
 - [ ] 16.3 Unattended outcomes at close: `path_missing` is resolved at once by saving the version as a new deduplicated file, claimed with the no-replace helper of 1.1; a missing workspace files directory ends the session `error` with `workspace_missing` and creates nothing; `baseline_mismatch` stays a `conflict` for the next open. Verify: tests for each, including the new file's `file_id`, its first version's source and the Files listing.
 
 Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 → 11 → 3 → 2 → 1).
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
+
+### Callback publication risk coverage
+
+- Public API / script entry — selected: authenticated status 6 publish and status 2 through the callback route; each terminal outcome still returns HTTP 200 `{"error": 0}` after durable persist.
+- Config / project setup — not selected: existing configuration and dependency set are unchanged.
+- File IO / path safety / overwrite — selected: real workspace/hash/revision assertions for published, mismatched and missing paths; reuse the existing fenced publisher without changing its file protocol.
+- Schema / field names — selected: observe version, receipt and fully bound journal in one persisted successor before publication; observe lifecycle/sequence/publication metadata and journal removal in one terminal successor.
+- Auth / permissions / secrets — selected for preservation: invalid credentials and mismatched duplicate status/hash never publish; final receipt replay fetches nothing. No credential or gateway changes.
+- Concurrency / shared state / ordering — selected: late sequence 3 while 4 is pending; closing/conflict guards; startup, duplicate, create, save, close, epoch/status and sweep recovery before orphaning; final outcomes cannot be orphaned.
+- Resource limits / discovery — selected for preservation: existing bounded download and publisher behavior; metadata-free startup/poll recovery remains covered. No new discovery or background execution.
+- Legacy compatibility / examples — selected: persist-only callbacks retain behavior and no journal; duplicate callbacks without obligations retain version/receipt/sequence/revision identity; migrate persist-only expectations only where publication changes the contract.
+- Error handling / rollback / partial outputs — selected: save/final matrix for all four failed reasons, conflict cases, interrupted obligation retention and unresolved-recovery orphan refusal. No successful response before durable persist.
+- Release / packaging — selected for preservation: existing package/reload inventory and full-discovery pytest command; no dependency or deployment changes.
+- Documentation / migration notes — selected: D11 owns completion and orphan ordering; strict fixture validation and companion doc/decision gates. No schema migration.
+
+Required parent evidence: one real-route semantic RED before production edits;
+owning callback/publish/session/sweep regressions and affected unit discovery;
+independent HTTP callback smoke plus SIGKILL after durable persist, fresh-process
+duplicate/recovery, and inspection of workspace bytes, broker listing and Office
+state. Status 6 replay checks hash before driving; status 2 replay performs no
+download or second version. The startup path leaves a recovered save editing.
+Create/sweep cover recovered save success, conflict and failure with an unknown
+key; final outcomes stay closed/conflict/error. The sweep preserves ordinary
+pre-existing-conflict exclusion and existing liveness/timeout thresholds.
+Final path-missing copy and workspace-missing policy remain task 16.3.
 
 ## 17. [ocu] Resolve, versions and restore (spec: ocu-office-publish, ocu-office-sessions)
 
