@@ -643,6 +643,31 @@ Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 �
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
 
+### No-change publication risk coverage
+
+- Public API / script entry — selected: real save route with DocumentServer nothing-new response and authenticated status-4 callback; preserve 202 acceptance and callback durable ACK.
+- Config / project setup — not selected: existing feature configuration, clients and dependencies are unchanged.
+- File IO / path safety / overwrite — selected: publish the retained autosave bytes through the existing fence; conflict preserves workspace, failed pause leaves the version retryable; no new file protocol.
+- Schema / field names — selected: save completion plus bound journal, or status-4 contentless receipt plus bound journal, in one successor; no new version/blob, stable receipt schema and monotonic counters.
+- Auth / permissions / secrets — selected for preservation: existing route admission and verified callback payload; no download from status 4 or final replay, no credential or gateway changes.
+- Concurrency / shared state / ordering — selected: pending/key/terminal guards, delayed nothing-new after callback or newer allocation, concurrent close, final-receipt replay and frozen journal version; no stale publication or second allocation from a callback retry.
+- Resource limits / discovery — selected for preservation: existing bounded commands, synchronous publication and startup/poll recovery. No new timer, detached worker or discovery policy.
+- Legacy compatibility / examples — selected: all seven issue cases, already-published metadata-only completion, equal-content deduplication, persist-only unpublished no journal and no later recovery publication; existing save failure/orphan policies remain.
+- Error handling / rollback / partial outputs — selected: pause-failed version is retried by a nothing-new publish save; conflict/failed/unresolved outcomes retain existing semantics; persist/receipt commit failure cannot lose an obligation or falsely acknowledge completion.
+- Release / packaging — selected for preservation: full test discovery and existing package/reload inventories; no dependency, image or deployment change.
+- Documentation / migration notes — selected: D8 owns this boundary, D9/D11/D13 retain sequence/outcome/cache ownership; strict OpenSpec and companion doc/decision gates.
+
+Required parent evidence: one real save-after-autosave semantic RED before source
+changes; the seven acceptance cases through save/callback routes; an observed
+atomic obligation successor at each entry point and crash/fresh-process recovery
+without duplicate history. A status-4 retry performs no download and no new
+receipt/allocation/version. Demonstrate that already-published nothing-new
+completion and persist-only unpublished completion cannot change workspace or
+revision, including later recovery. Preserve stale/closing/final outcome guards
+and the prior callback publication/notice regressions. Run owning and affected
+unit discovery plus actual HTTP no-change save/status-4 and owned-process crash
+smoke. Real engine/image/LAN and final missing-path behavior remain excluded.
+
 ### Callback publication risk coverage
 
 - Public API / script entry — selected: authenticated status 6 publish and status 2 through the callback route; each terminal outcome still returns HTTP 200 `{"error": 0}` after durable persist.
