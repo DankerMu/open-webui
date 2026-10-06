@@ -3,15 +3,30 @@
 	import { get, type Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { WorkspaceRequestError } from '$lib/apis/ocu';
-	import { resolveOfficeConflict, type OfficeResolveAction } from '$lib/apis/ocu/office';
+	import {
+		resolveOfficeConflict,
+		type OfficeOpenSession,
+		type OfficeResolveAction
+	} from '$lib/apis/ocu/office';
 	import { ocuOffice, type OcuOfficeState } from '$lib/stores/ocu-office';
 
 	export let chatId: string;
 	export let fileId: string;
-	export let generation: number;
-	export let expectedSessionId: string;
-	export let admitted: (chat: string, file: string, generation: number) => boolean;
+	export let authority:
+		| {
+				kind: 'editor';
+				generation: number;
+				sessionId: string;
+				admitted: (chat: string, file: string, generation: number) => boolean;
+		  }
+		| {
+				kind: 'preflight';
+				session: OfficeOpenSession;
+				admitted: () => boolean;
+				onResolved: () => void;
+		  };
 	const i18n: Writable<i18nType> = getContext('i18n');
+	const binding = { chat: chatId, file: fileId, authority };
 	let active = true;
 	let sessionId = '';
 	let epoch = 0;
@@ -25,12 +40,15 @@
 	let error = '';
 
 	function synchronize(state: OcuOfficeState | undefined) {
+		if (!active) return;
 		const nextSession =
-			state?.fileId === fileId &&
-			state.generation === generation &&
-			state.sessionId === expectedSessionId
-				? (state.sessionId ?? '')
-				: '';
+			binding.authority.kind === 'preflight'
+				? binding.authority.session.session_id
+				: state?.fileId === binding.file &&
+					  state.generation === binding.authority.generation &&
+					  state.sessionId === binding.authority.sessionId
+					? (state.sessionId ?? '')
+					: '';
 		if (nextSession !== sessionId) {
 			sessionId = nextSession;
 			epoch++;
@@ -42,7 +60,8 @@
 			terminal = false;
 			error = '';
 		}
-		const nextConflict = !!sessionId && state?.state === 'conflict';
+		const status = binding.authority.kind === 'preflight' ? binding.authority.session : state;
+		const nextConflict = !!sessionId && status?.state === 'conflict';
 		if (nextConflict !== conflict) {
 			epoch++;
 			confirmation = false;
@@ -50,14 +69,21 @@
 			open = nextConflict && !terminal;
 			conflict = nextConflict;
 		}
-		pathMissing = state?.reason === 'path_missing';
+		pathMissing = status?.reason === 'path_missing';
 		if (pathMissing) confirmation = false;
 	}
-	const unsubscribe = ocuOffice.subscribe((states) => synchronize(states[chatId]));
+	const unsubscribe = ocuOffice.subscribe((states) => synchronize(states[binding.chat]));
+
+	function admitted() {
+		return binding.authority.kind === 'preflight'
+			? binding.authority.admitted()
+			: binding.authority.admitted(binding.chat, binding.file, binding.authority.generation);
+	}
 
 	function current() {
-		synchronize(get(ocuOffice)[chatId]);
-		return active && admitted(chatId, fileId, generation) && conflict && !!sessionId && !terminal;
+		if (!active || !admitted()) return false;
+		synchronize(get(ocuOffice)[binding.chat]);
+		return conflict && !!sessionId && !terminal;
 	}
 	function dismiss() {
 		if (!current()) return;
@@ -73,13 +99,14 @@
 	async function resolve(action: OfficeResolveAction) {
 		if (!current() || !open || pending) return;
 		if (action === 'overwrite' && (pathMissing || !confirmation)) return;
-		const request = { chatId, sessionId, epoch, id: ++requestId };
+		const request = { chatId: binding.chat, sessionId, epoch, id: ++requestId };
 		pending = true;
 		error = '';
 		const ownsPending = () => active && request.id === requestId && request.sessionId === sessionId;
 		const ownsIdentity = () => {
+			if (!ownsPending() || !admitted()) return false;
 			synchronize(get(ocuOffice)[request.chatId]);
-			return ownsPending() && admitted(chatId, fileId, generation);
+			return ownsPending();
 		};
 		const ownsRequest = () => ownsIdentity() && conflict && !terminal && request.epoch === epoch;
 		try {
@@ -87,6 +114,7 @@
 			if (ownsRequest()) {
 				open = false;
 				confirmation = false;
+				if (binding.authority.kind === 'preflight') binding.authority.onResolved();
 			}
 		} catch (failure) {
 			if (!ownsIdentity()) return;

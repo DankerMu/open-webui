@@ -146,6 +146,8 @@ describe('Selected workspace file presentation', () => {
 			[...bar().querySelectorAll('button')].map((button) => button.textContent?.trim())
 		).toContain('Version history');
 		expect(download().getAttribute('href')).toBe('/ocu/files/owner-chat/report.docx?download=1');
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', '/ocu/api/office/owner-chat/documents/report.docx/versions']
+		]);
 	});
 });

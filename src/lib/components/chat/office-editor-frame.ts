@@ -74,6 +74,12 @@ function stateMessage(data: Record<string, unknown>): data is StateMessage {
 	);
 }
 
+function isUnpublishedCreationRefusal(data: StateMessage) {
+	return (
+		data.state === 'refused' && data.reason === 'unpublished_version' && data.session_id === null
+	);
+}
+
 const exactKeys = (data: object, expected: string) =>
 	Object.keys(data).sort().join(',') === expected;
 
@@ -87,12 +93,14 @@ export type OfficeEditorController = {
 	attach: (frame: HTMLIFrameElement) => void;
 	detach: (frame: HTMLIFrameElement) => void;
 	save: () => void;
+	admits: (generation: number) => boolean;
 	dispose: () => void;
 };
 
 export const createOfficeEditorController = (options: {
 	origin: () => string;
 	onTimeout: () => void;
+	onUnpublishedRefusal?: (generation: number) => boolean;
 }): OfficeEditorController => {
 	let token = 0;
 	let chatId = '';
@@ -173,6 +181,7 @@ export const createOfficeEditorController = (options: {
 		}
 		if (!opened || !stateMessage(data)) return;
 		if (data.file_id !== fileId || data.generation !== generation) return;
+		if (isUnpublishedCreationRefusal(data) && options.onUnpublishedRefusal?.(generation)) return;
 		applyState(data);
 	};
 
@@ -225,6 +234,15 @@ export const createOfficeEditorController = (options: {
 			bound.contentWindow.postMessage(
 				{ type: COMMAND_TYPE, chat_id: chatId, generation, command: 'save' },
 				options.origin()
+			);
+		},
+		admits(expectedGeneration) {
+			return (
+				!!frame?.contentWindow &&
+				opened &&
+				generation === expectedGeneration &&
+				frame.src === expectedSrc &&
+				isCurrentOfficeGeneration(chatId, generation)
 			);
 		},
 		dispose() {

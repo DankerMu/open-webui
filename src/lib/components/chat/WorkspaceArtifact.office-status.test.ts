@@ -22,6 +22,7 @@ import {
 	previewFrame,
 	restoreControl,
 	reopenControl,
+	readyEditorFrame,
 	saveControl,
 	selectedFileSurface
 } from './workspace-artifact-office-test';
@@ -115,7 +116,9 @@ describe('Office editor status bar', () => {
 		postOfficeState(frame, openMessage.generation, { state: 'editing', dirty: false });
 		await tick();
 		expect(document.body.textContent).toContain('Saved');
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 	});
 
 	it('never shows Saved when a save ends in error or conflict', async () => {
@@ -206,7 +209,9 @@ describe('Office editor status bar', () => {
 			expect(
 				sent.mock.calls.some((call) => isOfficeCommand(call[0]) && call[0].command === 'close')
 			).toBe(false);
-			expect(harness.officeRequests()).toEqual([]);
+			expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+				['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+			]);
 		}
 	);
 
@@ -230,9 +235,11 @@ describe('Office editor status bar', () => {
 		expect(editorFrame('report.docx')).toBeNull();
 		expect(previewFrame('report.docx')).not.toBeNull();
 		expect(officeCommandCalls(sent)).toHaveLength(0);
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		expect(editorFrame('report.docx')).not.toBeNull();
 		expect(document.body.textContent).not.toContain('This file type cannot be edited');
 		expect(get(ocuOffice)[chat].state).toBeUndefined();
@@ -269,7 +276,7 @@ describe('Office editor status bar', () => {
 		);
 		expect(editorFrame('report.docx.bak')).toBe(frame);
 		reopenControl()!.click();
-		await tick();
+		await readyEditorFrame('report.docx.bak');
 		const next = editorFrame('report.docx.bak');
 		expect(next).not.toBeNull();
 		expect(next).not.toBe(frame);
@@ -484,7 +491,9 @@ describe('Office editor status bar', () => {
 			expect(officeCommandCalls(sent)).toHaveLength(1);
 			expect(requestFullscreen).not.toHaveBeenCalled();
 			expect(exitFullscreen).not.toHaveBeenCalled();
-			expect(harness.officeRequests()).toEqual([]);
+			expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+				['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+			]);
 		} finally {
 			targets.forEach(([target, key], index) => {
 				const descriptor = descriptors[index];
@@ -501,7 +510,7 @@ describe('Office editor status bar', () => {
 		namedButton('report.docx').click();
 		await tick();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		maximizeControl()!.click();
 		await tick();
 		await vi.advanceTimersByTimeAsync(10_000);
@@ -509,7 +518,7 @@ describe('Office editor status bar', () => {
 		expect(overlayLayout()).toBe(false);
 		vi.useRealTimers();
 		namedButton('Retry').click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		expect(overlayLayout()).toBe(false);
 		const frame = editorFrame('report.docx')!;
 		const { openMessage } = await harness.acceptEditing(frame);
@@ -518,7 +527,7 @@ describe('Office editor status bar', () => {
 		postOfficeState(frame, openMessage.generation, { state: 'orphaned', reason: 'editor_lost' });
 		await tick();
 		namedButton('Open again').click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		expect(editorFrame('report.docx')).not.toBe(frame);
 		expect(overlayLayout()).toBe(false);
 		expect(maximizeControl()).toBeDefined();

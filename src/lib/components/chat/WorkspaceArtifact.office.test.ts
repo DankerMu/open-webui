@@ -18,6 +18,7 @@ import {
 	legacyDoc,
 	namedButton,
 	officeConfig,
+	readyEditorFrame,
 	officeDocx,
 	officePptx,
 	officeXlsx,
@@ -38,14 +39,16 @@ describe('Office edit entry', () => {
 		await tick();
 		expect(editAction()).toBeDefined();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		const editor = editorFrame('report.docx');
 		expect(editor).not.toBeNull();
 		expect(editor!.getAttribute('src')).toBe(`/ocu/preview/${chat}?embed=office`);
 		expect(editor!.getAttribute('sandbox')).toBe(OFFICE_EDITOR_SANDBOX);
 		expect(editor!.getAttribute('allow')).toBe(OFFICE_EDITOR_ALLOW);
 		expect(previewFrame('report.docx')).toBeNull();
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 		expect(harness.launchRequests()).toEqual([]);
 	});
 
@@ -95,7 +98,9 @@ describe('Office edit entry', () => {
 	});
 
 	it('opens the editor on a stopped workspace without issuing launch', async () => {
+		const workspaceScenario = harness.scenario;
 		harness.scenario = (input, init) => {
+			if (input.includes('/ocu/api/office/')) return workspaceScenario(input, init);
 			if (input.endsWith('/launch') && init?.method === 'POST') return json({ state: 'running' });
 			if (input.endsWith('/prefs') && init?.method === 'PUT')
 				return json({ prefs: JSON.parse(String(init.body)) });
@@ -194,7 +199,7 @@ describe('Office edit entry', () => {
 		await tick();
 		expect(editorFrame('renamed.docx')).toBe(frame);
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('renamed.docx');
 		const retry = editorFrame('renamed.docx');
 		expect(retry).not.toBeNull();
 		expect(retry).not.toBe(frame);
@@ -208,7 +213,7 @@ describe('Office edit entry', () => {
 		namedButton('report.docx').click();
 		await tick();
 		editAction()!.click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		const retired = editorFrame('report.docx');
 		expect(retired).not.toBeNull();
 		const retiredWindow = retired!.contentWindow;
@@ -235,7 +240,7 @@ describe('Office edit entry', () => {
 		expect(get(ocuOffice)[chat].generation).toBeGreaterThan(generation);
 		vi.useRealTimers();
 		namedButton('Retry').click();
-		await tick();
+		await readyEditorFrame('report.docx');
 		const retry = editorFrame('report.docx');
 		expect(retry).not.toBeNull();
 		expect(retry).not.toBe(retired);
@@ -318,7 +323,9 @@ describe('Office edit entry', () => {
 			await vi.advanceTimersByTimeAsync(10_000);
 			await tick();
 			expect(document.body.textContent).not.toContain('Office editor did not become ready');
-			expect(harness.officeRequests()).toEqual([]);
+			expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+				['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+			]);
 			expect(harness.launchRequests()).toEqual([]);
 		}
 	);
@@ -402,7 +409,9 @@ describe('Office edit entry', () => {
 		const accepted = get(ocuOffice);
 		dispatch(data);
 		expect(get(ocuOffice)).toBe(accepted);
-		expect(harness.officeRequests()).toEqual([]);
+		expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+			['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+		]);
 		expect(harness.launchRequests()).toEqual([]);
 		sibling.remove();
 	});
@@ -475,7 +484,9 @@ describe('Office edit entry', () => {
 				);
 				expect(sent).toHaveBeenCalledTimes(1);
 				expect(get(ocuOffice)).toBe(snapshot);
-				expect(harness.officeRequests()).toEqual([]);
+				expect(harness.officeRequests().map(({ url, init }) => [init?.method, url])).toEqual([
+					['GET', `/ocu/api/office/${chat}/documents/report.docx/versions`]
+				]);
 			} finally {
 				mounted.$destroy();
 			}

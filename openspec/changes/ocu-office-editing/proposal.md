@@ -405,3 +405,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: semantic mounted conflict-dialog RED; every issue branch plus stale/duplicate/confirmation invalidation; real gateway conflict-to-save-as with unchanged live document, preserved original and deduplicated Files entry.
 - Keep WorkspaceArtifact below its unchanged size gate by extracting its existing selected-file action bar as one presentation responsibility; preserve markup, eligibility, callbacks and all existing editor/preview behavior. No ancestor, broker, stub, client/store/controller or dependency change.
 - Pending pre-open conflicts, unpublished choices and leave guards remain later tasks. Runtime certification remains stub/gateway, not real DocumentServer or LAN.
+
+## Office open-time fixture
+
+- Issue type: feature; fixture level: expanded, matching task 26.2 and its multi-path exception.
+- Scope: parent preflight between explicit Edit and frame creation, reuse of the conflict dialog for an ended session, bounded unpublished-version recovery, paired tests, two permanent browser cases and generated localization.
+- Governing invariant: only a fresh broker versions response or an explicit choice made from that response admits the captured current activation; no stale completion or remembered browser state may skip unpublished content.
+- Selected risk packs: API/schema, restore/overwrite authority, ordering and lifecycle, error conservation, compatibility, browser discovery and documentation.
+- Evidence floor: mounted semantic RED; all seven issue criteria plus stale/duplicate boundaries; real office_unpublished and office_stale request ordering, prompts, screenshots and zero unexpected errors, with existing Office cases preserved.
+- Keep editor generation authority in the delivered controller/store, not the preflight owner. Do not manufacture a live generation or write a frame-less conflict into ocuOffice.
+- Post-resolution choice: return to the file entry without creating or selecting an editor; a subsequent explicit Edit reads versions anew. This conservative interpretation follows D13's ordinary new-session rule and does not auto-open a save-as result.
+- No ancestor, broker, stub, gateway, dependency, message-schema or leave-guard change; shared Office change remains open.

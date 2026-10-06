@@ -858,7 +858,7 @@ Required evidence for 25.2: meaningful mounted entry RED, then all six issue acc
 ## 26. [webui] Conflict dialog and the open-time prompt (spec: ocu-office-workspace-ui)
 
 - [x] 26.1 Conflict dialog: `save as new file` as default, `overwrite` behind a second confirmation, only `save as` when the reason is `path_missing`, and a resolve refused with `workspace_missing` closing the dialog with its message. Verify: Vitest for each branch and a browser case in `e2e/ocu-office.e2e.ts` driven by the stub's `office_conflict` scenario, named in the `make verify-ui-ocu` output.
-- [ ] 26.2 Before the editor frame is created: a pending close-time conflict (`open_session` in `conflict` with `editor_ended` true) is presented first; otherwise, when no session is open and the document's newest version is unpublished, offer to restore it or to start from the current file; and when the host page reports the creation refused with `unpublished_version`, retire the frame and repeat the check once. Verify: Vitest for the pending conflict, both choices, no prompt when nothing is unpublished, and the refusal leading to the prompt; browser cases driven by the stub's `office_unpublished` and `office_stale` scenarios.
+- [x] 26.2 Before the editor frame is created: a pending close-time conflict (`open_session` in `conflict` with `editor_ended` true) is presented first; otherwise, when no session is open and the document's newest version is unpublished, offer to restore it or to start from the current file; and when the host page reports the creation refused with `unpublished_version`, retire the frame and repeat the check once. Verify: Vitest for the pending conflict, both choices, no prompt when nothing is unpublished, and the refusal leading to the prompt; browser cases driven by the stub's `office_unpublished` and `office_stale` scenarios.
 
 Depends on: 25 (the restore call and the versions client state).
 Suggested fixture level: expanded - overwrite and restore requests on user content behind confirmations.
@@ -875,6 +875,18 @@ Minimal mergeable slice: 26.1 (conflict dialog) - green alone because it reacts 
 - Config / release / dependencies / server fence and path safety — Not selected: unchanged; broker enforcement remains server-owned and actual DocumentServer certification remains acceptance work.
 
 Required evidence for 26.1: mounted semantic RED before source; all eight issue criteria and the lifecycle/confirmation cases above, paired component coverage and existing Office/selected-file/history regressions. Run scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict and `make verify-ui` including the named permanent conflict case. Parent accepts actual saved screenshot, message/state/listing continuity and authenticated request observations before marking 26.1. Task26.2, leave guards and shared change stay open.
+
+### Open-time admission risk coverage
+
+- API / schema / ordering — Selected: versions precedes frame/session creation; pending ended conflict takes precedence; restore uses the captured newest number and opens only after success; default/published/other-open-session branches need no choice.
+- Authority / restore — Selected: explicit restore or start-current, no automatic restore, no history deletion; pending conflict reuses all existing safe-default/confirmation/refusal rules and uses open_session.session_id without a live generation.
+- Lifecycle / concurrency — Selected: one activation token across replacement frames, one automatic unpublished_version recheck, explicit retry resets the budget, old refused snapshots cannot replay; duplicate actions and delayed responses after chat/file/view/flag/base/dismissal retirement do no work.
+- Compatibility — Selected: same-ID metadata does not restart the check; captured Retry/Open again and all existing frame policies, live conflict, history and Files behavior remain. Update common test responses for the added versions call, preserving their oracles.
+- Errors / partial output — Selected: failed read means error/Retry and no frame/session; refused restore keeps choices and no frame; first special refusal has no refusal banner, second has visible error/Retry; resolved pending conflict returns without an editor and a new Edit checks afresh.
+- Discovery / resources / documentation — Selected: paired preflight tests, existing suite plus two named permanent office_unpublished/office_stale browser cases, real request order/history/editor state, screenshots and diagnostics; no discovery, retry, timeout or gate changes.
+- Server storage / auth enforcement / configuration / deployment / dependencies — Not selected: delivered contracts unchanged; browser proof retains real owner gateway authentication, not real DocumentServer certification.
+
+Required evidence for 26.2: one semantic mounted preflight RED before implementation; all seven issue criteria and the lifecycle cases above; affected-file coverage, existing Office and selected-file regressions; scoped lint/typecheck/anti-drift, generated-i18n/format, doc/decision/strict, and make verify-ui with the complete Office browser suite. Parent independently accepts screenshots, real versions/restore/create ordering and bounded stale-session recovery before checking 26.2. Keep 27.1/27.2 and the shared change open.
 
 ## 27. [webui] Unsaved-state guard (spec: ocu-office-workspace-ui)
 

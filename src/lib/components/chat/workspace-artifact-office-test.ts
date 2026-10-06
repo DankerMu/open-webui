@@ -19,6 +19,7 @@ import {
 	type WorkspaceReconciliation
 } from './workspace-reconciliation';
 import type { WorkspaceFile } from '$lib/apis/ocu';
+import type { OfficeVersions } from '$lib/apis/ocu/office';
 
 export type OfficeOpenMessage = {
 	type: string;
@@ -91,6 +92,31 @@ export function previewFrame(name: string) {
 	return document.querySelector(
 		`iframe[title="Office preview: ${name}"]`
 	) as HTMLIFrameElement | null;
+}
+
+export async function readyEditorFrame(name: string) {
+	await tick();
+	await vi.waitFor(() => expect(editorFrame(name)).not.toBeNull());
+	return editorFrame(name)!;
+}
+
+export function publishedOfficeVersions(fileId = 'report.docx'): OfficeVersions {
+	return {
+		file_id: fileId,
+		published_version: 1,
+		open_session: null,
+		versions: [
+			{
+				number: 1,
+				parent: null,
+				source: 'workspace',
+				sha256: 'a'.repeat(64),
+				size: 1024,
+				created_at: '2026-10-01T09:00:00Z',
+				published: true
+			}
+		]
+	};
 }
 
 export const saveControl = () => namedControl('Save');
@@ -191,12 +217,16 @@ export class OfficeArtifactHarness {
 	}
 
 	setListing(files: WorkspaceFile[], describe = describeBody, revision = 1) {
-		this.scenario = (input, init) =>
-			input.endsWith('/prefs') && init?.method === 'PUT'
+		this.scenario = (input, init) => {
+			const versions = input.match(/^\/ocu\/api\/office\/[^/]+\/documents\/([^/]+)\/versions$/);
+			if (versions && init?.method === 'GET')
+				return json(publishedOfficeVersions(decodeURIComponent(versions[1])));
+			return input.endsWith('/prefs') && init?.method === 'PUT'
 				? json({ prefs: JSON.parse(String(init.body)) })
 				: input.includes('/workspaces/')
 					? json(describe)
 					: json(listing(files, null, revision));
+		};
 	}
 
 	install() {
@@ -272,10 +302,7 @@ export class OfficeArtifactHarness {
 		await tick();
 		expect(editAction()).toBeDefined();
 		editAction()!.click();
-		await tick();
-		const frame = editorFrame(name);
-		expect(frame).not.toBeNull();
-		return frame as HTMLIFrameElement;
+		return readyEditorFrame(name);
 	}
 
 	handshake(frame: HTMLIFrameElement): OfficeHandshake {
