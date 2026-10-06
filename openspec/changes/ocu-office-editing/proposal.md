@@ -396,6 +396,16 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: real filesystem transactions under a stateful fake engine, exact-five-second and delayed-operation cases, retained postreplace journal, marker/engine fault matrix and a process writer that quiesces only while paused.
 - User ruling: [「接受安全边界超时」](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072) permits blocking operations to extend actual pause duration; no hard wall-clock, real-engine or image/LAN certification is claimed.
 
+## Publish recovery fixture
+
+- Issue type: feature; fixture level: expanded, matching task 15.3 and crash-state/file-ownership risk.
+- Scope: stale owned fences and surviving journal entries at startup, before each poll's session read and before a new publish, including the user-approved minimal durable staging-ownership prerequisite; no callback/request outcome mapping, retention lease or deployment changes.
+- Governing invariant: recovery acts on observed durable state under the canonical lock, never loses an undecided obligation, never resumes an unowned container and never rewrites a workspace successor merely to acknowledge it.
+- Selected risks: internal API/schema, path/file ownership, identity compatibility, concurrency/state, discovery/integration, error/resource handling and evidence/documentation.
+- Evidence floor: semantic existing-callable RED, complete crash-point conservation matrix, metadata-free Office discovery, prior-before-new ordering, no-second-write completion, exact marker age and release uncertainty, actual killed-process/fresh-process recovery and worker lock exclusion.
+- Preserve the user-approved live safe-boundary timing policy. Real-engine/image/LAN, power-loss certification and later session-result integration remain outside this slice; shared OpenSpec stays open.
+- [User scope ruling](https://github.com/DankerMu/open-webui/issues/137#issuecomment-6007445205): include the publisher staging prerequisite in #137 and preserve automatic recovery at every ordinary crash boundary. Do not substitute manual intervention for the creation-to-ownership-persistence window or delete foreign content from a journaled name alone.
+
 ## Office conflict-resolution fixture
 
 - Issue type: feature; fixture level: expanded, matching task 26.1 and its explicit multi-path width exception.

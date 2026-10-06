@@ -244,6 +244,60 @@ A journal entry that survives a crash SHALL be driven again under the per-chat l
 - **WHEN** a chat has a journal entry left by a crash and a new publish is requested before any restart or poll has driven it
 - **THEN** the old entry is driven to its outcome first and the new publish compares against the resulting baseline
 
+#### Scenario: Recovery visits an Office-only chat
+
+- **WHEN** a canonical chat has a surviving publication obligation but neither sandbox metadata nor idle state
+- **THEN** startup and the existing idle poll discover its Office state and drive the obligation without creating a sandbox
+- **AND** a missing or linked chat/control directory is not recreated or followed
+
+#### Scenario: Registration already happened before the crash
+
+- **WHEN** the workspace equals the verified version and registration committed before the worker died, but the journal outcome did not
+- **THEN** recovery completes registration and Office publication metadata without another workspace write
+- **AND** the active file identity and version hash agree, the revision does not regress and the obligation is removed only with the outcome
+- **WHEN** recovery runs again after that durable completion
+- **THEN** it changes no workspace bytes, revision or publication state
+
+#### Scenario: Unresolved recovery cannot precede session orphaning
+
+- **WHEN** a poll encounters a malformed obligation, unsafe recorded temporary path, uncertain fence release or another interrupted publication for a chat
+- **THEN** that obligation remains recorded and the poll does not read or key-check that chat's sessions
+- **AND** later chats and sandbox reclamation still run
+
+#### Scenario: Prepared replay retains responsibility across another crash
+
+- **WHEN** recovery drives a prepared obligation and is interrupted again before recording an outcome
+- **THEN** the obligation remains present, the workspace contains only complete old or successor bytes and later recovery can inspect the observed durable state
+- **AND** recovery never removes the obligation merely to re-enter the fresh-publication path
+
+#### Scenario: Genuine abandoned temporary has durable deletion authority
+
+- **WHEN** a worker dies after exposing its workspace temporary and a fresh process recovers the obligation
+- **THEN** durable private-anchor ownership and journal binding identify the temporary before it is removed
+- **AND** recovery completes the obligation without losing the stored version or modifying unrelated content
+
+#### Scenario: Journaled name collides with foreign content
+
+- **WHEN** exclusive workspace exposure failed because the recorded temporary name already held a foreign regular file or symlink, or the owned entry was later substituted
+- **THEN** fresh-process recovery preserves the foreign entry and any symlink target
+- **AND** unproven ownership retains the journal and refuses dependent publication/session transitions; a valid name, equal content or stale inode number does not authorize deletion
+- **WHEN** the recorded workspace temporary is already absent
+- **THEN** recovery continues without requiring deletion of an entry that does not exist
+
+#### Scenario: Private staging preparation has no ordinary manual-recovery window
+
+- **WHEN** the worker is killed before or after private-anchor creation, anchor durability, journal binding, workspace exposure, or final anchor cleanup
+- **THEN** a fresh process can automatically drive the original obligation to an outcome without adopting a foreign private entry or losing responsibility
+- **AND** harmless private leftovers do not block publication forever or authorize deletion of unrelated content
+- **WHEN** recovery is killed again during owned cleanup
+- **THEN** the next recovery retains the same ownership guarantees and converges after the interruption stops
+
+#### Scenario: Workspace exposure cannot hard-link the private anchor
+
+- **WHEN** the validated private anchor and workspace parent cannot support the required no-clobber hard link, including a cross-device boundary
+- **THEN** publication refuses before shared exposure, preserves the original workspace and foreign entries, and retains recoverable responsibility
+- **AND** it does not silently substitute a copying or overwrite operation
+
 #### Scenario: Entry is driven before its session is orphaned (B-T11)
 
 - **WHEN** a session has a journal entry left by a crash, DocumentServer has since forgotten the session's key, and a create request for the document makes the key check before any restart or poll has driven the entry
@@ -281,6 +335,27 @@ OCU's startup sweep and its idle-reclamation poll SHALL, under the per-chat lock
 
 - **WHEN** the retention guard stops the sandbox while a publish holds it paused
 - **THEN** the workspace file equals the published version in full, the publish is recorded as published, `fence.json` is absent and the sandbox is stopped or running, never paused
+
+#### Scenario: Stale marker age is a strict wall-clock boundary
+
+- **WHEN** startup or the poll observes a valid marker aged exactly five seconds or younger
+- **THEN** it leaves that marker and its owned pause for a later attempt
+- **WHEN** the marker is older than five seconds and the chat lock is available
+- **THEN** it attempts release of the recorded original container and removes the marker only after positive release observation
+
+#### Scenario: Recovery cannot resume a replacement or external pause
+
+- **WHEN** a stale marker names an original container but another container now occupies the chat name
+- **THEN** recovery never unpauses the replacement merely because it has that name
+- **AND** it removes the owned marker only after observing the original unpaused, stopped or absent
+- **WHEN** the marker is malformed or original-container state is uncertain
+- **THEN** recovery retains the marker rather than inferring ownership or successful release
+
+#### Scenario: Live publisher retains its fence beyond the nominal budget
+
+- **WHEN** a live publisher holds the canonical chat lock while an indivisible operation exceeds five seconds and another worker starts recovery
+- **THEN** recovery cannot unpause the sandbox or alter the journal until the publisher releases the lock
+- **AND** recovery then acts on the persisted successor it observes, not the stale state from before lock acquisition
 
 ### Requirement: Conflict resolution
 
