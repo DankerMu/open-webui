@@ -864,6 +864,57 @@ after the same owned copy and Office successor complete. A two-worker lock barri
 proves no publication can enter between recovery and scan. Retain no-Office,
 normal-rename, auth, conditional refusal, undecided recovery and corrupt-state cases.
 
+#### Explicit conflict-resolution boundary
+
+Task 17.1 adds the resolve request owner and concrete route before the existing
+fallback. Keep guard-first, disabled/absent-chat behavior, worker-thread store IO
+and the canonical chat lock. An empty body or object without `action` selects
+`save_as`; malformed JSON, non-object bodies and other actions return 422.
+Session validation and epoch admission precede any new resolve obligation.
+Pre-existing obligations retain D11's recovery-before-orphan ordering.
+
+Freeze the session's latest stored user version and committed sequence under
+the lock before capturing workspace content. Resolve allocates neither a new
+`save_seq` nor a callback receipt. Its accepted journal binds action, source
+version and sequence; request retries recover that responsibility before
+considering a new action. A completed session cannot produce a second copy.
+
+Explicit save-as uses the existing destination planner, no-replace claim,
+private inode witness and atomic document/session successor even when the
+original still exists. It leaves original bytes and history unchanged.
+For overwrite, the same writer-excluded fence contains the safe read, durable
+workspace capture and replacement. Reuse a matching historical workspace hash;
+otherwise preserve it as a published `workspace` version.
+
+Under the [lineage ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6036933329),
+append the frozen user content as a `restore` version after capture, reusing
+the immutable blob and the canonical latest-hash deduplication. The restore
+parent names the selected user version. Never renumber history. A durable
+capture-only phase must not become the user version selected by retry, join or
+final callback: commit the version metadata and journal binding together, or
+retain a validated incomplete obligation that blocks those consumers until
+the user-content successor is established. Recovery must not duplicate either
+capture or restore, nor overwrite intervening workspace bytes without retaining
+them. No separate session latest-version pointer or version constructor.
+
+Successful completion marks the selected user content published, points the
+document at the restore version (or creates the save-as document), updates
+baseline/cache/sequence, sets `closed` iff a final receipt exists and otherwise
+`editing`, and removes the obligation in one Office successor.
+Ordinary publish failures retain `conflict`; missing workspace is the specified
+`error` exception. Preserve no-recreation, symlink refusal, free-space floor,
+safe-boundary timeout and visible-successor durability semantics.
+
+Sibling surfaces: source tickets and join, no-change save/status 4, callbacks,
+epoch/orphan admission, startup/poll/Files recovery, status and broker listing.
+Required evidence exercises those consumers after overwrite, double resolve
+under separate processes, running/stopped fencing, every refusal and fresh
+recovery after durable intent, version capture, replacement, registration and
+save-as claim. Scope excludes the versions/restore routes, broker/upload
+primitives, gateway, UI and deployment. Rollback requires draining accepted
+resolve obligations before downgrading their reader.
+
+
 #### Targeted status notice boundary
 
 Task 13.2 adds an advisory observation, not a conflict decision. After the existing identity, projection and epoch checks, only a still-open session is inspected. An epoch orphan or final record receives no workspace IO or notice write. The notice never changes `state`, `reason`, baseline, sequence counters, pending allocations, versions, receipts, journal or workspace bytes, and never prevents save admission.

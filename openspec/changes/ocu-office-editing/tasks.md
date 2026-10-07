@@ -742,6 +742,31 @@ Depends on: 16.
 Suggested fixture level: expanded - overwrite and restore decisions on user data, new public routes.
 Minimal mergeable slice: 17.1 (resolve) - green alone because it adds one route on the publish path; 17.2 adds two independent routes.
 
+### Resolve slice risk coverage
+
+- Public API / script entry — selected: default/explicit save-as and overwrite return actual session state, identity and path; malformed/non-object bodies or invalid actions 422, unknown session 404, non-conflict 409.
+- Config / project setup — not selected: existing enabled configuration, dependencies and startup remain unchanged.
+- File IO / path safety / overwrite — selected: original conservation, collision-safe new identity, missing/linked parent root fallback, safe overwrite capture, leaf/parent/root symlink refusal and no old-path/root recreation.
+- Schema / field names — selected: action/source/sequence journal binding, workspace and restore version lineage under the approved ruling, stable key, saved_as and atomic publication/lifecycle completion.
+- Auth / permissions / secrets — selected for preservation: inherited guard/disabled/absent-chat checks precede the route; no secret in response, no gateway change.
+- Concurrency / shared state / ordering — selected: two-worker double resolve yields one result, latest final version wins, capture/replace share the fence, prior recovery precedes new admission, epoch blocks new resolve authority.
+- Resource limits / discovery — selected: free-space and bounded safe-read failures; reuse existing copy capacity checks, discovery and recovery triggers without a new worker.
+- Legacy compatibility / examples — selected: join/source and no-change save/status 4 read the chosen user content after overwrite; existing save/final copy and receipt replay retain their contracts.
+- Error handling / rollback / partial outputs — selected: pause/timeout/unsafe/index/storage errors preserve conflict and history; workspace_missing ends error; acceptance, capture, replacement, registration and copy-claim crash cuts retain or complete one obligation.
+- Release / packaging / dependency compatibility — selected for preservation: paired module tests, package/reload inventory and full-discovery pytest; no dependency, image or deploy change.
+- Documentation / migration notes — selected: D13 owns resolve and the approved restore-source lineage; strict fixture validation and doc/decision gates. Drain live resolve journals before reader rollback.
+
+Parent verification: one public-route semantic RED before implementation, then
+all task 17.1 acceptance cases and the named sibling regressions via the OCU unit
+command with full `tests/` discovery and affected-module selection. Independent
+actual HTTP proves both actions, refusal byte conservation, latest final content
+and subsequent source/no-change behavior. Fresh workers recover real process
+cuts and observe workspace bytes, both version histories, receipts, journal,
+listing identity/revision and lifecycle. Qualify capture/selection/idempotence
+oracles with controlled bad behavior, then restore GREEN. No local fake-engine
+result certifies LAN, DocumentServer images or power-loss durability.
+
+
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
 - [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
