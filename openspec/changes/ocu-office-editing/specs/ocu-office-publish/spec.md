@@ -497,6 +497,8 @@ The journal and private ownership evidence SHALL support recovery across a succe
 
 The listing SHALL apply the restore-epoch check of `ocu-office-store` to the document's open session before it answers, so a session invalidated by a backup restore is reported as no open session. The listing SHALL NOT contact DocumentServer: a session whose key DocumentServer has forgotten is still reported as open until a create request, a restore request, a save, a close or the session sweep checks the key. The offer of unpublished content does not depend on the listing alone for that case; the create request refuses with `unpublished_version` (`ocu-office-sessions`, requirement "Orphaned sessions").
 
+The listing SHALL create no publication intent and SHALL otherwise leave versions and workspace content unchanged. Under the [approved recovery priority](https://github.com/DankerMu/open-webui/issues/142#issuecomment-6048481919), epoch invalidation SHALL first complete any already accepted publication through the existing journal recovery contract before applying its orphan rule. That recovery MAY change workspace content or version history. The listing SHALL then reread the requested document and its open session; a session moved to another document by save-as SHALL NOT appear on the original document. Unresolved recovery SHALL retain its obligation and refuse the listing with 503 `publish_pending`, not report a fabricated orphan or partial successful list. The existing protection for final publication outcomes remains unchanged.
+
 `POST /api/office/{chat}/documents/{file}/restore` SHALL be a mutating gateway row guarded like the other Office POST rows and SHALL take a body `{"number": n}`. Before it decides whether the document has an open session it SHALL make the checks a create request makes on reopening — the restore-epoch check and, for a session whose editor is still expected (`editing`, `saving`, `closing`, or `conflict` without the receipt of a final callback), the DocumentServer key check — so a session that DocumentServer has forgotten is `orphaned` and does not block the restore; when DocumentServer cannot be reached for that check the restore SHALL be refused with 502 `documentserver_unavailable` and change nothing. It SHALL be refused with 409 `session_open` while the document has an open session, 404 `unknown_version` for a number the document does not have, 404 `unknown_file` for a tombstoned `file_id` and 409 `path_missing` when the workspace file is gone but its `file_id` is still active. Otherwise it SHALL, inside one fence: store the current workspace content as a `workspace` version unless it is already a version; add a new version with `source` `restore` and the content of version n; and publish that new version. The capture of the current content follows the safe-read rule of `ocu-office-store`: when the file fails that check, restore SHALL be refused with 503 `unsafe_path` and SHALL add no version and write nothing. A successful restore SHALL return 200 with `file_id`, `number` of the new version and `published` true. Restore SHALL NOT remove, renumber or rewrite any existing version. A restore whose publish fails SHALL return 503 with the publish reason and leave the new version stored with `published` false.
 
 #### Scenario: Listing shows source and published flag
@@ -560,6 +562,14 @@ The listing SHALL apply the restore-epoch check of `ocu-office-store` to the doc
 
 - **WHEN** a session was created before a backup restore wrote a new restore epoch, and the versions listing is requested afterwards
 - **THEN** the session is `orphaned` with reason `restore_epoch_changed` and `open_session` is null
+
+#### Scenario: Listing invalidates an epoch with an accepted publication
+
+- **WHEN** the requested document has an old-epoch open session with an accepted publication interrupted before completion
+- **THEN** the listing completes that existing obligation before applying the journal contract's orphan rule and returns the resulting history and open session for the requested file identity
+- **AND** it creates no new publication intent and makes no DocumentServer request
+- **AND** after save-as transfers the session, the original document's listing has no open session
+- **AND** if recovery remains unresolved the listing returns 503 `publish_pending`, retains the obligation and does not falsely report orphaning
 
 #### Scenario: Restore after DocumentServer forgot the session (B-T11)
 

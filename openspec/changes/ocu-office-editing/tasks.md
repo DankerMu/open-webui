@@ -766,6 +766,33 @@ listing identity/revision and lifecycle. Qualify capture/selection/idempotence
 oracles with controlled bad behavior, then restore GREEN. No local fake-engine
 result certifies LAN, DocumentServer images or power-loss durability.
 
+### Version-listing slice risk coverage
+
+- [ ] 17.2a Add the versions GET and its open-session/epoch projection. Verify the seven listing acceptance criteria and the accepted-publication epoch exception below. Task 17.2 remains incomplete until its restore half also ships.
+
+- Public API / script entry — selected: ordered exact version fields, published pointer and nullable exact open-session fields; empty active history; unknown/malformed/tombstoned/foreign file 404.
+- Config / project setup — not selected: no configuration or startup policy change.
+- File IO / path safety — selected: active index lookup and safe state/epoch reads; ordinary reads preserve workspace, index, blobs and state. No file capture, reconcile or history creation on an empty read.
+- Schema / field names — selected: reuse persisted version/session/receipt validation and document published pointer; exclude keys, private paths, callback receipts and source tickets from responses.
+- Auth / permissions / secrets — selected for preservation: inherited internal-token/canonical-chat guard, disabled and absent-chat 404; no mutation or disclosure for refused identities.
+- Concurrency / ordering — selected: one canonical lock covers the snapshot and epoch transition; after accepted save-as recovery reselect the original document's session. Reuse recovery-before-orphan and final-outcome protection.
+- Resource limits / discovery — not selected for changes: reuse existing state bounds; no pagination, blob reads or new background work.
+- Legacy compatibility / examples — selected: same-epoch and forgotten-key reads make zero DocumentServer calls, do not update activity/notice and do not opportunistically recover unrelated obligations; existing status/create/callback/sweep consumers keep their contracts.
+- Error handling / partial outputs — selected: unreadable epoch, corrupt state and durability failures are explicit; unresolved accepted recovery returns 503 `publish_pending` with obligation intact. Terminal sessions remain terminal.
+- Release / packaging / dependency compatibility — selected for preservation: module/reload inventory and existing package tests; no image, dependency, gateway or deployment change.
+- Documentation / migration notes — selected: D13 and the publish spec own the user-approved recovery exception; update the Office README, strict OpenSpec and doc/decision gates. No schema migration.
+
+Parent verification: observe a semantic public-route RED before implementation,
+then the OCU full-discovery unit command selecting the history handler and affected
+router, store, sessions, callbacks, epoch, publish/recovery, outputs, package and
+guard consumers. Actual HTTP verifies history/open-session responses, no secret
+fields, zero DocumentServer requests and ordinary snapshot conservation. A real
+killed-worker obligation followed by an epoch change proves recovery and original
+file-id reselection. Accepted save, resolve and final outcomes cover the orphan
+precedence; pending recovery refusal preserves responsibility. Qualify field,
+contact and identity oracles with controlled wrong behavior and restore GREEN.
+No source-only check certifies real DocumentServer, gateway or LAN deployment.
+
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
 - [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
