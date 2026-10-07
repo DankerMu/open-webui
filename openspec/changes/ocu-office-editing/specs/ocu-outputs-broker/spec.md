@@ -79,3 +79,43 @@ The broker SHALL offer an operation that registers a write made by the OCU serve
 
 - **WHEN** registration is requested for a path at which no regular file exists
 - **THEN** it fails explicitly and the index is unchanged
+
+### Requirement: Files reconciliation follows pending publication
+
+The production Files entrypoint SHALL complete existing Office publication recovery
+before invoking broker reconciliation, holding the same canonical per-chat lock
+continuously across both operations. It SHALL NOT expose a partially published
+copy to fingerprint-based rename matching. An absent Office tree SHALL not be
+created by this admission. The broker's scan/register primitives and ordinary
+rename semantics SHALL remain unchanged; all production reconciliation callers
+SHALL use the coordinated entrypoint.
+
+Undecided recovery SHALL fail the Files request with the existing sanitized 503
+and Retry-After response before scanning or writing the index. Corrupt Office state
+SHALL fail explicitly with sanitized 500. A matching conditional request SHALL
+NOT bypass recovery or turn either refusal into 304.
+
+#### Scenario: Files arrives after an interrupted equal-content claim
+
+- **WHEN** an automatic copy equal to the original content was claimed, the publisher stopped before registration, and Files is the first request in another worker
+- **THEN** recovery completes the proven-owned copy and new document before reconciliation
+- **AND** Files returns a new file_id, not the original or another removed document's identity, with the session closed and saved_as naming that copy
+- **AND** the source histories are unchanged and no extra copy or publication registration is produced
+
+#### Scenario: Publication cannot enter the recovery-to-scan gap
+
+- **WHEN** one worker has completed recovery inside a Files request and another worker attempts publication before the first scans
+- **THEN** the second worker waits for the same chat lock until reconciliation completes
+- **AND** no newly interrupted copy can be scanned between the first worker's recovery and scan
+
+#### Scenario: Unresolved publication refuses even a conditional listing
+
+- **WHEN** recovery cannot establish writer exclusion or ownership, or its fence is too young, and Files has a matching If-None-Match header
+- **THEN** the response is sanitized 503 with Retry-After, not 200 or 304
+- **AND** no scan or index mutation occurs and publication responsibility remains durable
+
+#### Scenario: Ordinary Files behavior without Office work
+
+- **WHEN** Files lists a chat with no Office state or no pending publication
+- **THEN** normal rename identity, revision, pagination and conditional response behavior is preserved
+- **AND** no Office directory or session is created

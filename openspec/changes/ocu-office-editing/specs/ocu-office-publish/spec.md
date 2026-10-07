@@ -442,6 +442,13 @@ The journal and private ownership evidence SHALL support recovery across a succe
 - **THEN** a fresh worker proves ownership and completes the same copy, new identity and closed session without a second claim or registration increment
 - **AND** a foreign file substituted at the target is preserved, never accepted merely because its bytes equal the saved version
 
+#### Scenario: Files drives the copy before fingerprint reconciliation
+
+- **WHEN** a claimed automatic copy equals the source or another removed document's content and Files arrives before startup, poll or callback recovery
+- **THEN** the Files entrypoint drives the existing obligation under the same lock before any scan can infer a rename
+- **AND** the copy's new document receives a distinct file_id, source histories remain unchanged and no duplicate copy is written
+- **AND** undecided recovery refuses the listing instead of allowing identity reassignment
+
 #### Scenario: Resolve after the workspace files directory was removed (B-T10)
 
 - **WHEN** a session is in `conflict`, the chat's workspace files directory has since been removed, and resolve is requested with `save_as` or with `overwrite`

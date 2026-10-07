@@ -651,7 +651,7 @@ Minimal mergeable slice: 16.1 (callback to publish) - green alone because it use
 - Schema / field names — selected: copy journal recovery, new file_id/document/version1 with conflict source, unchanged source history/receipt/key, atomic saved_as/closed successor and notice invalidation.
 - Auth / permissions / secrets — selected for preservation: existing callback and browser admission, no reads through links or unsafe roots, private immutable blobs never exposed as writable workspace inodes.
 - Concurrency / shared state / ordering — selected: canonical lock/fence, concurrent callback/recovery, owned claim before returned-name persistence, registration before Office completion and foreign replacement conservation.
-- Resource limits / discovery — selected for preservation: existing byte/index limits and safe-boundary pause budget; no directory creation, reconcile, detached worker or unbounded content scan.
+- Resource limits / discovery — selected for preservation: existing byte/index limits and safe-boundary pause budget; no Office directory creation for Files, no reconciliation inside publication, detached worker or unbounded content scan.
 - Legacy compatibility / examples — selected: normal save path_missing stays conflict; leaf-symlink conflict, no-change publication, final ACK/replay and pending-conflict create remain unchanged. The final parent-symlink exception is the user-approved D13 policy.
 - Error handling / rollback / partial outputs — selected: claim, registration, state durability and release failures cannot lose content or ownership; fresh-worker recovery yields one copy, one new document and one registration increment.
 - Release / packaging — selected for preservation: normal package/reload discovery includes any owning module; source CI and existing package regressions, no image or deployment certification.
@@ -670,6 +670,18 @@ completion without duplicate copy/index increment or foreign-file deletion.
 Run owning and affected OCU units with full tests discovery, actual HTTP plus
 killed-worker recovery, targeted negative controls and four-seat cross-review.
 The existing claim helper and broker registration are called, not modified.
+
+The approved Files identity handoff additionally requires recovery and subsequent
+reconciliation under one uninterrupted canonical lock at every production Files
+entrypoint. First capture an endpoint semantic RED: equal-content copy claim
+interrupted, then Files before recovery must not assign the original identity.
+Verify content matching another removed document, source-history conservation,
+fresh-worker Files-first recovery with lifespan disabled and no callback replay,
+and a two-worker barrier at the recovery/scan boundary. Undecided recovery yields
+sanitized 503 with Retry-After and no scan/index change; corruption yields 500.
+No-Office listing creates no Office tree; ordinary rename, auth, cursor and ETag
+contracts remain. Reuse the existing publisher recovery and broker primitives;
+do not introduce a reservation schema or broker-to-Office dependency.
 
 ### No-change publication risk coverage
 

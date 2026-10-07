@@ -838,7 +838,31 @@ fence budget/release and ordered recovery. Sibling seams: claim helper, outputs
 index/listing, version blobs, callback receipts, status notice, create and sweep.
 Tests and actual HTTP/killed-worker smoke observe those files and public responses;
 claim, registration and final-state crash cuts include fresh-process replay.
-Resolve/restore APIs, UI, upload/broker changes and deployment are non-goals.
+Resolve/restore APIs, UI, upload-helper and broker index/rename/register primitive
+changes, and deployment are non-goals.
+
+The [approved identity handoff](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6027936626)
+orders pending Office recovery before Files reconciliation. The Files composition
+entrypoint holds the canonical chat lock continuously across both operations.
+A separate recovery call followed by an unlocked gap is insufficient: another
+publisher could expose a copy and crash before the scan acquires the lock.
+Reuse the existing recovery engine; an absent Office tree is a no-op for this
+peripheral caller, not permission to create Office state or weaken strict callers.
+
+If publication remains undecided, Files returns the existing sanitized unstable-read
+503 with Retry-After and does not scan or mutate the index, including conditional
+requests. Corrupt Office state fails explicitly with sanitized 500. Ordinary
+rename, revision, cursor and ETag behavior is unchanged without pending publication.
+The broker stays an Office-independent scan/register primitive; every production
+Files reconciliation caller goes through the coordinated composition seam.
+No persistent reservation, identity migration, second index writer or retry loop.
+
+Evidence includes equal-content copy interruption followed by Files as the first
+request in a fresh worker with startup recovery disabled, and content matching
+another removed document with history. Files exposes a distinct new identity only
+after the same owned copy and Office successor complete. A two-worker lock barrier
+proves no publication can enter between recovery and scan. Retain no-Office,
+normal-rename, auth, conditional refusal, undecided recovery and corrupt-state cases.
 
 #### Targeted status notice boundary
 
