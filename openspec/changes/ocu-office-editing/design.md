@@ -587,6 +587,8 @@ Always under `_combined_lock(chat)`:
 7. `unpause`. Remove `fence.json` only after the sandbox is observed not paused, or not running at all; if it is still paused the marker stays and the stale-fence poll (D12) retries the unpause.
 8. In one state update: mark the version published, set the session baseline to the published hash, advance `last_published_seq`, remove the journal entry.
 
+The final-callback parent-symlink exception in D13 takes precedence over step 4's generic conflict classification. It never permits reading through a link or writing through an unsafe workspace root.
+
 A rename that no listing has recorded yet is not followed: the file is missing at the indexed path and the publish is a conflict, which is safe. The WebUI sidebar reconciles on every listing poll, so the index is normally current.
 
 Target window under pause: below 1 second. The [user-approved timing ruling](https://github.com/DankerMu/open-webui/issues/136#issuecomment-5997477072) defines five seconds as a safe-boundary publication budget, not a hard wall-clock unpause guarantee. When elapsed monotonic time is at least five seconds at a safe boundary, start no further publication mutation; let an in-flight indivisible operation settle before cleanup. Before workspace replacement, timeout preserves the prior file; after replacement, incomplete registration/completion retains the journal instead of claiming rollback. A visible completed successor is never rewritten as a fabricated timeout failure. Slow engine/filesystem calls can extend actual pause duration. Stopped or externally paused sandboxes do not acquire this attempt's pause budget; `launch` still waits for the shared lock.
@@ -792,6 +794,7 @@ Nobody is present when the publish at close meets a conflict, so the content mus
 
 - **The file still exists but changed** (`baseline_mismatch`): the conflict is kept on the document and the conflict dialog is shown the next time that file is opened.
 - **The file is gone** (`path_missing`): there is no entry to open, and `save_as` is the only action the rules allow anyway. The broker performs it at once: the version is published as a new file under a deduplicated name and the session is `closed`. The new file appears in the Files listing. If the workspace files directory itself no longer exists, nothing is created; the session is `error` with reason `workspace_missing` and the version is kept.
+- **An original parent below the workspace root is a symlink**: under the [user ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6017088624), the final callback automatically saves a new copy in the safe workspace root, even if the persisted index still contains the original identity. This does not follow the link to test the leaf. A symlink at the leaf itself still yields a pending conflict; ordinary saves retain step 4's generic rule.
 - **The publish failed, or the session was orphaned with auto-saved content** (DocumentServer restarted): the document's newest version is unpublished. When a file is opened for editing and its newest version is unpublished while no session is open, the UI offers to restore that content or to start from the current file. Restoring uses the restore route; starting from the current file leaves the unpublished versions in history, and the new session's `workspace` version becomes the newest one, so the offer is not repeated. This is what makes the 5-minute loss bound hold in practice.
 
   After a DocumentServer restart the old session is still stored as `editing` until something checks its key, so the versions read reports it as open and no offer is made. The create request is where the key is checked (D9), and it is therefore where the offer is guaranteed: a create that orphans the session while the newest version is unpublished is refused with `unpublished_version`, the host page reports the refusal, and the parent runs the open check again, which now finds no open session and makes the offer. Restore makes the same key check before it refuses with `session_open`, so history can restore the content without opening the editor first. The versions read itself never contacts DocumentServer; it applies the restore-epoch check, which is a local file read.
@@ -799,6 +802,67 @@ Nobody is present when the publish at close meets a conflict, so the content mus
 The guard that follows a session after its frame is gone (D15) tells the user how the close ended: saved, saved as a new file with its name, conflict waiting at the next open, or failed. The session status carries `saved_as`, the `file_id` and path of the new document a `save_as` created for the session (manual or automatic), or null.
 
 While a session is open, `GET .../sessions/{session}` checks the one file being edited: `stat` first, hash only if size or mtime changed since the last check, and reports `workspace_changed` when the hash differs from the baseline. The last-checked size and mtime are cached in the session record; that bookkeeping is not a user-visible change, so the row stays non-mutating in the proxy table. The notice is a convenience. Safety comes from step 4 of D11, which always hashes. Hashing happens only at session creation, at publish and in this poll; the regular reconcile is unchanged, so the Plan 1 blind spot for same-size edits in the sidebar preview remains.
+
+#### Unattended-close publication boundary
+
+Task 16.3 extends the existing publisher and its final obligations from status 2
+and unpublished status 4. Deleted paths use the original safe directory; removed
+or symlinked original parents use the workspace root. Never recreate the old
+basename or a missing directory. An absent outputs root yields
+`error` / `workspace_missing`, retaining the unpublished source version.
+
+The claim uses the existing upload no-replace helper. Select an unoccupied,
+unindexed name starting at `name (2).ext`; an already occupied first candidate
+selects the next free number. Registration must create a new identity, not inherit
+a stale active entry. No reconcile runs inside publication.
+
+Keep the source document, selected version and receipt bound throughout recovery.
+The final Office successor creates the new document's version 1 with parent null,
+source `conflict` and published true, updates the session's file_id, baseline,
+monotonic publication sequence and `saved_as`, closes it and removes its obligation.
+Preserve the old document's history, receipt identity and document_key. Invalidate
+the notice cache on the identity change; share immutable content, not its inode
+with the mutable workspace.
+
+Durable copy intent and private ownership precede visible claim. Recovery must
+cover a claim that succeeds before its name is returned or journaled, and a
+registration that commits before Office completion. Reuse the owned copy without
+another file, history entry or registration increment. Equal bytes alone never
+prove ownership. Revalidate pinned parents and retain ownership until the atomic
+successor is durable; preserve foreign replacements and unresolved obligations.
+Ordinary process crashes recover automatically, not by a manual-repair fallback.
+
+Must preserve: callback admission/ACK, final receipt replay, ordinary save and
+leaf-symlink conflicts, missing-chat no-create, pending conflict create responses,
+fence budget/release and ordered recovery. Sibling seams: claim helper, outputs
+index/listing, version blobs, callback receipts, status notice, create and sweep.
+Tests and actual HTTP/killed-worker smoke observe those files and public responses;
+claim, registration and final-state crash cuts include fresh-process replay.
+Resolve/restore APIs, UI, upload-helper and broker index/rename/register primitive
+changes, and deployment are non-goals.
+
+The [approved identity handoff](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6027936626)
+orders pending Office recovery before Files reconciliation. The Files composition
+entrypoint holds the canonical chat lock continuously across both operations.
+A separate recovery call followed by an unlocked gap is insufficient: another
+publisher could expose a copy and crash before the scan acquires the lock.
+Reuse the existing recovery engine; an absent Office tree is a no-op for this
+peripheral caller, not permission to create Office state or weaken strict callers.
+
+If publication remains undecided, Files returns the existing sanitized unstable-read
+503 with Retry-After and does not scan or mutate the index, including conditional
+requests. Corrupt Office state fails explicitly with sanitized 500. Ordinary
+rename, revision, cursor and ETag behavior is unchanged without pending publication.
+The broker stays an Office-independent scan/register primitive; every production
+Files reconciliation caller goes through the coordinated composition seam.
+No persistent reservation, identity migration, second index writer or retry loop.
+
+Evidence includes equal-content copy interruption followed by Files as the first
+request in a fresh worker with startup recovery disabled, and content matching
+another removed document with history. Files exposes a distinct new identity only
+after the same owned copy and Office successor complete. A two-worker lock barrier
+proves no publication can enter between recovery and scan. Retain no-Office,
+normal-rename, auth, conditional refusal, undecided recovery and corrupt-state cases.
 
 #### Targeted status notice boundary
 

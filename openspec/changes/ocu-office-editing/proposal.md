@@ -445,6 +445,17 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: real save-after-autosave route RED; all seven task cases; atomic commit and crash recovery for both entry points; metadata-only no-change controls; stale/final/closing guards; real HTTP and fresh-process recovery.
 - Preserve content deduplication, contentless status-4 receipts, existing outcome/fence/recovery and authentication policies. Final missing-path handling, UI and deployment remain outside this slice.
 
+## Unattended-close publication fixture
+
+- Issue type: feature; fixture level: expanded, matching task 16.3.
+- Scope: automatic final-callback save-as, missing-workspace failure and retained next-open conflict.
+- Governing invariant: one durable final obligation yields one owned copy and one atomic document/session successor, or an explicit retained-content outcome; no original or foreign entry is overwritten.
+- Selected risks: callback/status/list API, file IO, persisted identity, fencing and recovery ordering, resource bounds, compatibility, partial failures, packaging and documentation.
+- Evidence floor: callback-route RED; deleted file, collisions, missing/unsafe parents and workspace root; status/list/create projections; claim and registration crash cuts with fresh-process recovery and duplicate conservation.
+- Parent-symlink precedence follows the [user ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6017088624): final callbacks copy to the safe workspace root without a prior Files refresh. Ordinary saves and symlinked leaves retain their conflict policy.
+- The [identity-handoff ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6027936626) includes coordination of pending publication with the Files entrypoint: recover before scanning under one continuous chat lock, so a crashed equal-content copy cannot be mistaken for a rename.
+- No resolve route, upload-helper or broker index/rename/register primitive change, UI, dependencies, deployment or archive of this shared change.
+
 ## Office leave-guard fixture
 
 - Issue type: feature; fixture level: expanded, agreeing with task 27.1 because it crosses upstream lifecycle hooks and shared asynchronous session state.

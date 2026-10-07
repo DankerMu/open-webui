@@ -133,6 +133,8 @@ When a session is created the broker SHALL hash the document's workspace file un
 
 Every host-side read of the edited workspace file — the capture at session creation, the hash taken by the status request, the hash inside the publish fence, and the captures before an `overwrite` and before a restore — SHALL open the file without following a symlink and SHALL read it only when it is a regular file inside the chat's workspace files directory and no parent component of its path is a symlink. A file that fails this check SHALL never be read, and no byte of a link's target SHALL reach `versions/`, `staging/` or a response. The consequence is fixed per caller: session creation SHALL be refused with HTTP 422 and reason `unsafe_path`, creating no session, document record or version; the status request reports `workspace_changed` true (`ocu-office-sessions`); a publish treats the file as a baseline mismatch, and `overwrite` and restore are refused with `unsafe_path` (`ocu-office-publish`).
 
+The final-callback parent-symlink exception in `ocu-office-publish` changes only the outcome to an automatic copy in the safe workspace root. It does not permit a read of the unsafe original path or apply to ordinary saves, symlinked leaves or an unsafe workspace root.
+
 #### Scenario: Edited file replaced by a symlink before a session is created (B-T13)
 
 - **WHEN** the workspace file of an indexed document was replaced, since the last listing, by a symlink to a file outside the chat's workspace files directory, and a session is requested for its `file_id`

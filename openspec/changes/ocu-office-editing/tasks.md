@@ -637,11 +637,51 @@ Issue #137 source evidence: the existing Office sweep tracer failed before imple
 
 - [x] 16.1 A callback with publish intent writes the version, the receipt and the journal entry in one state update and then publishes; the outcome sets the session as design D11's table says — the published or failed outcome of a save that is not the outstanding one leaves the state as it is — and `last_published_seq` advances as D9 defines; a duplicate of the callback drives an entry that survived a crash; a conflict met by a status 6 result while the session is `closing` leaves it `closing` until the final callback meets the conflict again; and a journal entry is driven to its outcome before its session is marked `orphaned`, on a request and in the sweep, the orphaning then applying to the state the outcome left. Verify: tests through the callback route for save, close, conflict and each failure reason; a crash after the version is durable and before the publish ends published or in conflict after the retry; the late callback of `save_seq` 3 published while `save_seq` 4 is outstanding leaves the session `saving`; a status 6 conflict in a `closing` session followed by the final callback ending in `conflict`; a session with a surviving save entry found forgotten by DocumentServer has the entry driven first, holds none afterwards and is `orphaned`, while one whose surviving entry followed a final callback ends `closed`, `conflict` or `error` and is not orphaned.
 - [x] 16.2 Nothing new to save: a publishing save for which DocumentServer reports nothing new, and a status-4 callback, publish the session's latest stored version when it is unpublished; a save of either intent that finds nothing new while the latest version is already published advances `last_published_seq`. Verify: tests for save after an auto-save with no further edits, a second save with no change, status 4 after an unpublished auto-save, an auto-save equal to the published content, an auto-save that finds nothing new after a publish (both sequence values advance), and one that finds nothing new while a version is unpublished (`last_published_seq` unchanged).
-- [ ] 16.3 Unattended outcomes at close: `path_missing` is resolved at once by saving the version as a new deduplicated file, claimed with the no-replace helper of 1.1; a missing workspace files directory ends the session `error` with `workspace_missing` and creates nothing; `baseline_mismatch` stays a `conflict` for the next open. Verify: tests for each, including the new file's `file_id`, its first version's source and the Files listing.
+- [x] 16.3 Unattended outcomes at close: `path_missing` is resolved at once by saving the version as a new deduplicated file, claimed with the no-replace helper of 1.1; a missing workspace files directory ends the session `error` with `workspace_missing` and creates nothing; `baseline_mismatch` stays a `conflict` for the next open. Verify: tests for each, including the new file's `file_id`, its first version's source and the Files listing.
 
 Depends on: 14, 15 (group 1's claim helper is reached through 15 → 13 → 12 → 11 → 3 → 2 → 1).
 Suggested fixture level: expanded - publish decisions on user data across a crash boundary.
 Minimal mergeable slice: 16.1 (callback to publish) - green alone because it uses only the callback route and group 15; 16.2 and 16.3 add cases on the same path.
+
+### Unattended-close publication risk coverage
+
+- Public API / script entry — selected: authenticated final status 2 and unpublished status 4; observe callback ACK, session status, Files new identity and next-create pending conflict.
+- Config / project setup — not selected: no settings, dependency or setup change.
+- File IO / path safety / overwrite — selected: missing file, occupied first numbered name, occupied symlink, missing and symlinked ancestors, absent/unsafe outputs root and late parent replacement; no foreign write, old basename or directory recreation.
+- Schema / field names — selected: copy journal recovery, new file_id/document/version1 with conflict source, unchanged source history/receipt/key, atomic saved_as/closed successor and notice invalidation.
+- Auth / permissions / secrets — selected for preservation: existing callback and browser admission, no reads through links or unsafe roots, private immutable blobs never exposed as writable workspace inodes.
+- Concurrency / shared state / ordering — selected: canonical lock/fence, concurrent callback/recovery, owned claim before returned-name persistence, registration before Office completion and foreign replacement conservation.
+- Resource limits / discovery — selected for preservation: existing byte/index limits and safe-boundary pause budget; no Office directory creation for Files, no reconciliation inside publication, detached worker or unbounded content scan.
+- Legacy compatibility / examples — selected: normal save path_missing stays conflict; leaf-symlink conflict, no-change publication, final ACK/replay and pending-conflict create remain unchanged. The final parent-symlink exception is the user-approved D13 policy.
+- Error handling / rollback / partial outputs — selected: claim, registration, state durability and release failures cannot lose content or ownership; fresh-worker recovery yields one copy, one new document and one registration increment.
+- Release / packaging — selected for preservation: normal package/reload discovery includes any owning module; source CI and existing package regressions, no image or deployment certification.
+- Documentation / migration notes — selected: D13 owns the exception and recovery boundary; source Office documentation, strict OpenSpec, doc and decision gates.
+
+Required parent evidence: real callback semantic RED, then every issue criterion
+through callback/status/list/create boundaries. Cover missing paths with active
+and tombstoned identities, known collisions and an unlocked claim competitor,
+missing nested directory and parent symlink without Files refresh, unsafe root
+and leaf controls, status-4 retained autosave and repeated final receipts.
+Observe unchanged source history and immutable blobs, distinct new identity,
+version1/source/published values, saved_as and monotonic counters.
+Inject crashes before/after claim, before returned-name persistence, after
+registration and around Office successor durability; verify fresh-process
+completion without duplicate copy/index increment or foreign-file deletion.
+Run owning and affected OCU units with full tests discovery, actual HTTP plus
+killed-worker recovery, targeted negative controls and four-seat cross-review.
+The existing claim helper and broker registration are called, not modified.
+
+The approved Files identity handoff additionally requires recovery and subsequent
+reconciliation under one uninterrupted canonical lock at every production Files
+entrypoint. First capture an endpoint semantic RED: equal-content copy claim
+interrupted, then Files before recovery must not assign the original identity.
+Verify content matching another removed document, source-history conservation,
+fresh-worker Files-first recovery with lifespan disabled and no callback replay,
+and a two-worker barrier at the recovery/scan boundary. Undecided recovery yields
+sanitized 503 with Retry-After and no scan/index change; corruption yields 500.
+No-Office listing creates no Office tree; ordinary rename, auth, cursor and ETag
+contracts remain. Reuse the existing publisher recovery and broker primitives;
+do not introduce a reservation schema or broker-to-Office dependency.
 
 ### No-change publication risk coverage
 

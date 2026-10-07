@@ -77,6 +77,8 @@ Under the lock and before pausing, the broker SHALL resolve the document's curre
 
 Inside the fence the broker SHALL hash the workspace file at the resolved path on every publish, whatever size and mtime say, reading it as the safe-read rule of `ocu-office-store` prescribes. It SHALL replace the file only when that hash equals the session baseline. A different hash, or a file that fails the safe-read check and is therefore not read — the file itself or any parent directory of it is a symlink, or it is not a regular file inside the chat's workspace files directory — SHALL be a conflict with reason `baseline_mismatch`; a resolved path at which no file exists SHALL be a conflict with reason `path_missing`, and the path SHALL NOT be recreated. Whatever this step observes decides the outcome: `unsafe_path` is never the outcome for a state of the path that the hash step saw. On a conflict nothing SHALL be written to the workspace and the user's content SHALL already be stored as a version. The broker SHALL never apply last-writer-wins. After a completed publish the session baseline SHALL be the published version's hash.
 
+For a final callback only, a symlinked original parent below the workspace root SHALL instead invoke the automatic root copy specified by "Conflict resolution". This exception needs no prior listing or tombstone and never follows the link. A symlinked leaf, an unsafe workspace root and ordinary saves do not receive this exception.
+
 #### Scenario: Agent wrote the file during the edit (B-T06)
 
 - **WHEN** the user saves after a sandbox tool, background process or terminal changed the edited file
@@ -370,6 +372,11 @@ Nobody is present when the publish that follows the final callback meets a confl
 
 - With reason `baseline_mismatch` — the file still exists but changed — the conflict SHALL stay on the session across restarts and SHALL be offered the next time the file is opened: the session create request returns that session in `conflict` with `editor_config` null until it is resolved.
 - With reason `path_missing` — the file is gone, so there is no entry to open and `save_as` is the only action allowed — the broker SHALL perform the `save_as` above at once, without a request: the version is published as a new file under a deduplicated name, as the first version, with `source` `conflict` and `published` true, of a new document; the session's `file_id` becomes that of the new document and the session SHALL be `closed`. When the workspace files directory itself no longer exists, nothing SHALL be created, the version SHALL be kept and the session SHALL be `error` with reason `workspace_missing`.
+- When an original parent below the workspace root is a symlink, the final callback SHALL perform that automatic copy in the safe workspace root without requiring a prior Files reconcile, as fixed by the [user ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6017088624). It SHALL NOT follow the link to determine whether the old leaf exists. A symlinked leaf itself SHALL remain a conflict, and an unsafe workspace root SHALL never be used for publication.
+
+An automatic copy SHALL retain its source document/version/receipt binding until one atomic Office successor creates the new document and its published conflict version, moves and closes the session, fills `saved_as` with the actual new file_id and path, invalidates its notice cache and clears the obligation. The source history and document_key SHALL remain unchanged. The workspace copy SHALL NOT share the immutable blob's inode.
+
+The journal and private ownership evidence SHALL support recovery across a successful claim before returned-name persistence, broker registration before Office completion, and completion durability errors. Recovery SHALL reuse a proven owned copy without another file, new document or registration increment; equal content alone SHALL NOT prove ownership. Foreign entries SHALL never be deleted or adopted as the copy. A pre-existing active index entry at an otherwise free candidate path SHALL NOT supply the new file's identity.
 
 #### Scenario: Save as a new file (B-T06)
 
@@ -409,6 +416,38 @@ Nobody is present when the publish that follows the final callback meets a confl
 - **WHEN** the edited file `report.docx` was deleted during the session, the user left the editor, and the final callback delivers changes
 - **THEN** a new file with a deduplicated name holds the callback's content, the listing shows it under a new `file_id`, and no file exists at the path `report.docx`
 - **AND** the new document's first version has `source` `conflict` and `published` true, and the session is `closed`
+
+#### Scenario: Automatic copy skips occupied names
+
+- **WHEN** the final callback publishes deleted `report.docx` and `report (2).docx` already exists
+- **THEN** `report (3).docx` holds the retained content with a new file_id and the occupied entry is unchanged
+- **AND** the old basename is never created, even temporarily
+
+#### Scenario: Final callback uses the root after parent removal or symlink substitution
+
+- **WHEN** `nested/report.docx` was edited, its parent was removed or replaced by a symlink, and the final callback arrives before any Files refresh
+- **THEN** a new deduplicated copy appears directly in the safe workspace root and the session is closed with matching saved_as
+- **AND** no directory is recreated and no link target is read or written
+- **AND** a symlinked leaf alone still yields baseline_mismatch rather than an automatic copy
+
+#### Scenario: Status 4 copies retained autosave content
+
+- **WHEN** the original file is gone, the session has unpublished autosave content and the final callback is status 4
+- **THEN** that retained content becomes the new document's published conflict version without a download or another source version
+- **AND** repeating the final callback adds no file, document, receipt or broker revision
+
+#### Scenario: Interrupted automatic copy resumes without duplication
+
+- **WHEN** a worker dies after the no-replace claim, including before the helper returns its chosen name, or after registration but before Office completion
+- **THEN** a fresh worker proves ownership and completes the same copy, new identity and closed session without a second claim or registration increment
+- **AND** a foreign file substituted at the target is preserved, never accepted merely because its bytes equal the saved version
+
+#### Scenario: Files drives the copy before fingerprint reconciliation
+
+- **WHEN** a claimed automatic copy equals the source or another removed document's content and Files arrives before startup, poll or callback recovery
+- **THEN** the Files entrypoint drives the existing obligation under the same lock before any scan can infer a rename
+- **AND** the copy's new document receives a distinct file_id, source histories remain unchanged and no duplicate copy is written
+- **AND** undecided recovery refuses the listing instead of allowing identity reassignment
 
 #### Scenario: Resolve after the workspace files directory was removed (B-T10)
 
