@@ -366,6 +366,8 @@ OCU's startup sweep and its idle-reclamation poll SHALL, under the per-chat lock
 - `save_as` SHALL publish the version to a new file in the directory of the original, under a deduplicated name of the form `name (2).ext` that differs from the original name and from every existing name and is claimed without replacing an existing entry (the no-replace claim of `ocu-unified-files`); when that directory no longer exists, or it or one of its parents is a symlink, the new file SHALL be placed in the workspace root, so nothing is written through a link. The new file SHALL get its own `file_id` and document, whose first version has `source` `conflict` and `published` true; the session SHALL continue on the new document with the same `document_key`. The original file SHALL NOT be changed.
 - `overwrite` SHALL, inside the same fence, store the current workspace content as a version with `source` `workspace` unless that content is already a version, and then replace the file with the user's version. The capture follows the safe-read rule of `ocu-office-store`: when the file fails that check, `overwrite` SHALL be refused with 503 `unsafe_path`, nothing SHALL be stored or written and the session SHALL stay `conflict`.
 
+Under the [approved lineage rule](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6036933329), overwrite SHALL freeze the selected user version before workspace capture and then append its content as a `restore` version, reusing the content-addressed blob and existing latest-hash deduplication. The restore record's parent SHALL name the selected user version. On success the document's `published_version` SHALL name that latest user-content record, and the selected original user version SHALL also be marked published. Resolve SHALL NOT allocate another `save_seq` or rewrite callback receipts. A capture-only intermediate state SHALL NOT be usable as the session's latest user content by join, save, final callback or another resolve. The journal and version metadata SHALL preserve the frozen selection across failure and restart; recovery SHALL NOT duplicate captures or restore records for the same settled workspace content.
+
 When the original path no longer exists, `overwrite` SHALL be refused with 409 `path_missing`; a deleted path SHALL never be recreated under its old name. When the chat's workspace files directory itself no longer exists, neither action can place a file: the resolve SHALL be refused with 409 `workspace_missing`, nothing SHALL be created, the version SHALL be kept and the session SHALL become `error` with reason `workspace_missing`, the same end an unattended close reaches, so that a `conflict` session is never left without an exit. A successful resolve SHALL return 200 with `session_id`, `state`, `file_id` and `path` of the file written; the session SHALL become `closed` when it holds the receipt of a final callback, which means its editor has ended, and SHALL return to `editing` otherwise. A resolve whose publish fails SHALL return 503 with the publish reason and leave the session in `conflict`.
 
 Nobody is present when the publish that follows the final callback meets a conflict, so the content SHALL come back to the user without a request at that moment:
@@ -388,6 +390,30 @@ The journal and private ownership evidence SHALL support recovery across a succe
 
 - **WHEN** resolve is requested with `overwrite`
 - **THEN** the content the Agent had written is listed as a `workspace` version, the workspace file equals the user's version and that version is `published` true
+
+#### Scenario: Overwrite preserves the user-content latest version
+
+- **GIVEN** user version 2 is in conflict and the workspace holds different Agent bytes not yet in history
+- **WHEN** overwrite succeeds
+- **THEN** version 3 retains the Agent bytes with source `workspace`, version 4 has the user's bytes with source `restore` and parent 2, both are published, and `published_version` is 4
+- **AND** joining the same session returns a source ticket for user content, a no-change save and status 4 do not select the Agent capture, and the original version and receipt identities remain intact
+
+#### Scenario: Overwrite reuses captured history
+
+- **GIVEN** the workspace content already exists in an older version and the latest version holds the user's conflict content
+- **WHEN** overwrite succeeds
+- **THEN** no duplicate workspace capture is appended, the latest record still holds the user's content under the canonical latest-hash rule, and the workspace equals it
+
+#### Scenario: Resolve survives acceptance and publication crashes
+
+- **WHEN** a worker dies after accepting resolve, committing overwrite capture and user-content lineage, replacing the file, registering the write, or claiming a save-as name, before the final Office successor
+- **THEN** a fresh worker drives the same bound action and user version through the canonical publication engine, retaining intervening workspace content before any overwrite
+- **AND** one completed resolve leaves the same lifecycle, sequence and file identity as uninterrupted success, without a second copy, repeated capture/restore records or changed callback receipts
+
+#### Scenario: Concurrent resolve cannot duplicate the action
+
+- **WHEN** two workers resolve the same conflict and the first completes successfully
+- **THEN** the second observes the completed non-conflict state and returns 409 `not_in_conflict`, with no second copy or version mutation
 
 #### Scenario: Only save_as when the path is gone (B-T13)
 

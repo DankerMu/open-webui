@@ -456,6 +456,16 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - The [identity-handoff ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6027936626) includes coordination of pending publication with the Files entrypoint: recover before scanning under one continuous chat lock, so a crashed equal-content copy cannot be mistaken for a rename.
 - No resolve route, upload-helper or broker index/rename/register primitive change, UI, dependencies, deployment or archive of this shared change.
 
+## Conflict-resolution route fixture
+
+- Issue type: feature; fixture level: expanded, matching task 17.1.
+- Scope: guarded resolve admission, explicit save-as through the canonical copy transaction, fenced overwrite capture and atomic resolve outcomes.
+- Governing invariant: resolution publishes the frozen latest user content, retains replaced workspace content, and durably settles exactly one bound obligation without losing either history.
+- Selected risks: API/admission, file IO, version/journal schema, inherited authorization, concurrency/order, storage limits, sibling compatibility, partial failures, packaging and documentation.
+- Evidence floor: real-route RED; all eleven issue criteria; overwrite followed by join/source, no-change save and final callback; real HTTP plus fresh-process recovery after acceptance, capture, replacement and copy claim.
+- The [user ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6036933329) makes overwrite append the chosen user content as a `restore` version after workspace capture, preserving the shared latest-version rule.
+- No versions/restore routes, new publisher, gateway, broker/upload primitives, UI, deployment or archive of this shared change.
+
 ## Office leave-guard fixture
 
 - Issue type: feature; fixture level: expanded, agreeing with task 27.1 because it crosses upstream lifecycle hooks and shared asynchronous session state.

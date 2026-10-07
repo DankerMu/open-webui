@@ -735,12 +735,36 @@ Final path-missing copy and workspace-missing policy remain task 16.3.
 
 ## 17. [ocu] Resolve, versions and restore (spec: ocu-office-publish, ocu-office-sessions)
 
-- [ ] 17.1 `POST .../resolve`: publishes the session's latest stored version; `save_as` under a deduplicated name claimed with the no-replace helper of 1.1, in the original directory or in the workspace root when that directory is gone or not safe, with the session continuing on the new document; `overwrite` after storing the current workspace content as a version; only `save_as` when the path is gone; a missing workspace files directory refused with `workspace_missing` and the session ending `error`; a session whose editor has ended closed by the resolve. Verify: tests for each action, the two-conflict case, the refused `overwrite`, an `overwrite` of a symlinked file refused, a `save_as` after a symlinked parent landing in the workspace root, the removed workspace directory, and `last_published_seq` after a success.
+- [x] 17.1 `POST .../resolve`: publishes the session's latest stored version; `save_as` under a deduplicated name claimed with the no-replace helper of 1.1, in the original directory or in the workspace root when that directory is gone or not safe, with the session continuing on the new document; `overwrite` after storing the current workspace content as a version; only `save_as` when the path is gone; a missing workspace files directory refused with `workspace_missing` and the session ending `error`; a session whose editor has ended closed by the resolve. Verify: tests for each action, the two-conflict case, the refused `overwrite`, an `overwrite` of a symlinked file refused, a `save_as` after a symlinked parent landing in the workspace root, the removed workspace directory, and `last_published_seq` after a success.
 - [ ] 17.2 `GET .../versions` and `POST .../restore`: list with source, published flag, the published version and `open_session` (`session_id`, `state`, `reason`, `editor_ended`), applying the epoch check and never contacting DocumentServer; restore makes the reopen check of 12.3 first, stores the current workspace content when it is not a version, creates a new version and publishes it, and is refused while a session is open, while DocumentServer is unreachable for the check, or when the path is gone. Verify: tests for the listing after an orphaned session left unpublished auto-saves, the listing of a pending conflict and of a joinable session, the listing after a changed epoch, a restore that first ends a session DocumentServer forgot, the 502 case, and each refusal (B-T14 at source level).
 
 Depends on: 16.
 Suggested fixture level: expanded - overwrite and restore decisions on user data, new public routes.
 Minimal mergeable slice: 17.1 (resolve) - green alone because it adds one route on the publish path; 17.2 adds two independent routes.
+
+### Resolve slice risk coverage
+
+- Public API / script entry — selected: default/explicit save-as and overwrite return actual session state, identity and path; malformed/non-object bodies or invalid actions 422, unknown session 404, non-conflict 409.
+- Config / project setup — not selected: existing enabled configuration, dependencies and startup remain unchanged.
+- File IO / path safety / overwrite — selected: original conservation, collision-safe new identity, missing/linked parent root fallback, safe overwrite capture, leaf/parent/root symlink refusal and no old-path/root recreation.
+- Schema / field names — selected: action/source/sequence journal binding, workspace and restore version lineage under the approved ruling, stable key, saved_as and atomic publication/lifecycle completion.
+- Auth / permissions / secrets — selected for preservation: inherited guard/disabled/absent-chat checks precede the route; no secret in response, no gateway change.
+- Concurrency / shared state / ordering — selected: two-worker double resolve yields one result, latest final version wins, capture/replace share the fence, prior recovery precedes new admission, epoch blocks new resolve authority.
+- Resource limits / discovery — selected: free-space and bounded safe-read failures; reuse existing copy capacity checks, discovery and recovery triggers without a new worker.
+- Legacy compatibility / examples — selected: join/source and no-change save/status 4 read the chosen user content after overwrite; existing save/final copy and receipt replay retain their contracts.
+- Error handling / rollback / partial outputs — selected: pause/timeout/unsafe/index/storage errors preserve conflict and history; workspace_missing ends error; acceptance, capture, replacement, registration and copy-claim crash cuts retain or complete one obligation.
+- Release / packaging / dependency compatibility — selected for preservation: paired module tests, package/reload inventory and full-discovery pytest; no dependency, image or deploy change.
+- Documentation / migration notes — selected: D13 owns resolve and the approved restore-source lineage; strict fixture validation and doc/decision gates. Drain live resolve journals before reader rollback.
+
+Parent verification: one public-route semantic RED before implementation, then
+all task 17.1 acceptance cases and the named sibling regressions via the OCU unit
+command with full `tests/` discovery and affected-module selection. Independent
+actual HTTP proves both actions, refusal byte conservation, latest final content
+and subsequent source/no-change behavior. Fresh workers recover real process
+cuts and observe workspace bytes, both version histories, receipts, journal,
+listing identity/revision and lifecycle. Qualify capture/selection/idempotence
+oracles with controlled bad behavior, then restore GREEN. No local fake-engine
+result certifies LAN, DocumentServer images or power-loss durability.
 
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
