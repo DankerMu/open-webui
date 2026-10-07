@@ -914,7 +914,6 @@ save-as claim. Scope excludes the versions/restore routes, broker/upload
 primitives, gateway, UI and deployment. Rollback requires draining accepted
 resolve obligations before downgrading their reader.
 
-
 #### Targeted status notice boundary
 
 Task 13.2 adds an advisory observation, not a conflict decision. After the existing identity, projection and epoch checks, only a still-open session is inspected. An epoch orphan or final record receives no workspace IO or notice write. The notice never changes `state`, `reason`, baseline, sequence counters, pending allocations, versions, receipts, journal or workspace bytes, and never prevents save admission.

@@ -766,7 +766,6 @@ listing identity/revision and lifecycle. Qualify capture/selection/idempotence
 oracles with controlled bad behavior, then restore GREEN. No local fake-engine
 result certifies LAN, DocumentServer images or power-loss durability.
 
-
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
 - [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.

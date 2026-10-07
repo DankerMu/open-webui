@@ -466,7 +466,6 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - The [user ruling](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6036933329) makes overwrite append the chosen user content as a `restore` version after workspace capture, preserving the shared latest-version rule.
 - No versions/restore routes, new publisher, gateway, broker/upload primitives, UI, deployment or archive of this shared change.
 
-
 ## Office leave-guard fixture
 
 - Issue type: feature; fixture level: expanded, agreeing with task 27.1 because it crosses upstream lifecycle hooks and shared asynchronous session state.
