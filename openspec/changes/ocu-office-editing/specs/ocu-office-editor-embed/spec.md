@@ -10,6 +10,13 @@ The OCU-served editor host page: a framed `embed=office` mode of the preview pag
 
 The authenticated preview page SHALL support a framed `embed=office` mode that renders only the editor surface and the page's own status or error text: no Files listing, view tabs, runtime view, upload control, CLI badge, heartbeat or runtime discovery. The mode SHALL require exactly one `embed` query parameter whose value is `office` and a parent frame. A repeated `embed` parameter, an unrecognised value, or `embed=office` opened without a parent frame SHALL render the visible invalid-embedding error, SHALL issue no Office, listing or runtime request, SHALL load no DocumentServer script and SHALL post no message. Until a valid `ocu:office-open` is accepted the page SHALL issue no Office request.
 
+Office mode admission SHALL follow the server's existing Office enablement. When the
+server-to-server DocumentServer address is absent or blank, the preview SHALL retain
+its visible invalid-embedding behavior for `embed=office`, SHALL expose no DocumentServer
+origin or Office-specific content policy, and SHALL issue no Office, listing or runtime
+request and post no message. This SHALL NOT change the other preview modes or introduce
+a separate enablement switch.
+
 #### Scenario: Framed mode renders only the editor surface
 
 - **WHEN** a same-origin parent frames `/preview/{chat}?embed=office` and opens a DOCX `file_id`
@@ -26,6 +33,12 @@ The authenticated preview page SHALL support a framed `embed=office` mode that r
 
 - **WHEN** the framed page has loaded and has not yet accepted an `ocu:office-open`
 - **THEN** no request to `/api/office/` has been issued and no editor instance exists
+
+#### Scenario: Office is not configured
+
+- **WHEN** the enabling DocumentServer server-to-server address is absent or blank and a parent frames `embed=office`
+- **THEN** the existing preview response renders the visible invalid-embedding error without an Office origin or Office-specific policy
+- **AND** no Office, listing or runtime request is issued and no message is posted
 
 ### Requirement: Editor API origin and signed configuration
 
@@ -249,7 +262,7 @@ When the framed page is removed or unloaded it SHALL release its status poll, it
 
 ### Requirement: Dedicated content policy for the Office mode
 
-The `embed=office` response SHALL carry a Content-Security-Policy that restricts scripts to the page's own assets, its nonce-bound configuration script and the configured DocumentServer browser origin; restricts nested frames to the configured DocumentServer browser origin; restricts connections to the page's own origin; keeps styles, fonts and images to the same-origin and inline/data/blob allowances of the runtime embedding policy; and allows framing only by the same origin. No other external origin SHALL be permitted for script, frame, connection, object or form targets.
+When Office is enabled and the request has exactly one `embed=office` value, its response SHALL carry a Content-Security-Policy that restricts scripts to the page's own assets, its nonce-bound configuration script and the configured DocumentServer browser origin; restricts nested frames to the configured DocumentServer browser origin; restricts connections to the page's own origin; keeps styles, fonts and images to the same-origin and inline/data/blob allowances of the runtime embedding policy; and allows framing only by the same origin. No other external origin SHALL be permitted for script, frame, connection, object or form targets.
 
 #### Scenario: DocumentServer admitted, everything else denied
 

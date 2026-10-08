@@ -1041,6 +1041,43 @@ A page instance accepts one `ocu:office-open`; a command must carry that open's 
 
 The host page owns session creation, the status poll, the 5-minute auto-save timer and the save/close calls. On `close` it also destroys the editor instance, because DocumentServer sends the final callback only after the participant has left. The parent owns versions, restore and resolve calls and the status display. When the frame is destroyed before the session has ended (chat switch, sidebar close), the parent's guard module keeps the session id and reads the session status through its own client until a final state or the progress timeout. The read-only Files embedding and its protocol are not changed.
 
+#### Office host-shell slice boundary
+
+Tasks19.1/19.2 add the framed Office shell and its own policy to the existing preview
+mode switch and response builder. A single `embed=office` receives Office configuration
+only when `office.config.enabled()` is true. With Office disabled, preserve the ordinary
+preview response and visible invalid-embedding behavior; the Office-prefix404 gate does
+not classify `/preview`. Other modes and repeated/unknown values receive no Office origin.
+
+The shell renders only its editor container and own status/error text. It mounts none of
+the Files/runtime components, starts no request or timer, and installs no parent protocol
+in this slice. It ignores both message families. Files-only keeps its existing protocol
+and ignores Office messages. Unframed Office and invalid modes visibly refuse without
+requests or messages. Loading the existing local shell assets is not an Office request.
+
+Only the configuration module's browser-origin name constant supplies the external
+authority. Treat its value as one HTTP(S) origin, not an arbitrary CSP or HTML fragment;
+malformed configured authority fails explicitly without reflecting credentials or
+loosening the policy. This is the new serialization boundary, not a change to Office
+startup validation. Expose neither service/model/MCP credentials nor signing material.
+
+For enabled Office responses, bind the configuration script to a fresh response nonce.
+Scripts admit self, that nonce and the configured origin; nested frames admit only that
+origin; connections remain self. Keep the runtime style/image/font allowances and deny
+base/object/form targets, with same-origin ancestors. Runtime policies remain unchanged.
+
+The browser harness must serve captured production headers and HTML, not reconstruct a
+policy. A local allowed origin supplies a positive script/frame canary; a distinct origin
+supplies blocked script/frame/connection probes with observed CSP violations and no
+server arrivals. Observe idle and cross-protocol silence, invalid/top-level errors and
+screenshots without accepting unrelated console errors. Preserve all existing cases.
+
+The decision record `ocu-office-editor-frame` records the third trust class: trusted
+host code may load the explicitly configured editor API, while nested document rendering
+uses the separate DocumentServer origin. Generated documents remain opaque and existing
+read-only/runtime frames keep their policies. No gateway or parent sandbox change belongs
+to this slice; rollback reverts shell and policy together, with no persisted-state change.
+
 #### Editor entry and frame slice boundary
 
 Tasks 24.1 and 24.2 implement the parent authority boundary and its executable browser path together. The selected-file action area is the entry seam; file rows and their existing accessible names remain unchanged. A saved chat, enabled workspace and literal true Office feature flag admit only broker types docx/xlsx/pptx. Display classification never grants edit eligibility. Editing does not call launch, including for stopped workspaces.
