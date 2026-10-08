@@ -501,6 +501,10 @@ The listing SHALL create no publication intent and SHALL otherwise leave version
 
 `POST /api/office/{chat}/documents/{file}/restore` SHALL be a mutating gateway row guarded like the other Office POST rows and SHALL take a body `{"number": n}`. Before it decides whether the document has an open session it SHALL make the checks a create request makes on reopening — the restore-epoch check and, for a session whose editor is still expected (`editing`, `saving`, `closing`, or `conflict` without the receipt of a final callback), the DocumentServer key check — so a session that DocumentServer has forgotten is `orphaned` and does not block the restore; when DocumentServer cannot be reached for that check the restore SHALL be refused with 502 `documentserver_unavailable` and change nothing. It SHALL be refused with 409 `session_open` while the document has an open session, 404 `unknown_version` for a number the document does not have, 404 `unknown_file` for a tombstoned `file_id` and 409 `path_missing` when the workspace file is gone but its `file_id` is still active. Otherwise it SHALL, inside one fence: store the current workspace content as a `workspace` version unless it is already a version; add a new version with `source` `restore` and the content of version n; and publish that new version. The capture of the current content follows the safe-read rule of `ocu-office-store`: when the file fails that check, restore SHALL be refused with 503 `unsafe_path` and SHALL add no version and write nothing. A successful restore SHALL return 200 with `file_id`, `number` of the new version and `published` true. Restore SHALL NOT remove, renumber or rewrite any existing version. A restore whose publish fails SHALL return 503 with the publish reason and leave the new version stored with `published` false.
 
+History restore SHALL append a new version record even when the requested content equals the document's latest version; it SHALL share the immutable blob and keep every existing record unchanged. The accepted restore obligation SHALL bind the requested source version so canonical recovery can perform any unfinished capture and restore preparation. Replaying unchanged preparation SHALL NOT append another restore record or repeat a completed registration. An intervening workspace change after a crash SHALL be preserved before replacement, with the requested restored content remaining the latest version.
+
+As the explicit pause-failure exception in design D11 specifies, a failed attempt to pause SHALL retain a new unpublished `restore` record for the already stored requested content without reading/capturing or modifying workspace content. This exception SHALL NOT permit unsafe-path reads or create a missing path. Successful capture, restore-record creation and publication SHALL remain inside the same canonical fence.
+
 #### Scenario: Listing shows source and published flag
 
 - **WHEN** a document has a `workspace` version, an unpublished `autosave` version and a published `save` version
@@ -516,6 +520,25 @@ The listing SHALL create no publication intent and SHALL otherwise leave version
 
 - **WHEN** version 2 of a document with five versions is restored and no session is open
 - **THEN** a version 6 with `source` `restore` and the SHA-256 of version 2 exists with `published` true, the workspace file equals it, the listing `revision` increased, and versions 1 to 5 are unchanged
+
+#### Scenario: Restore of the latest equal-content version
+
+- **WHEN** the requested version is the document's newest version, whether published or unpublished, and no session remains open after the reopen check
+- **THEN** restore appends a new record with source `restore`, parent equal to the requested number and the same immutable content hash
+- **AND** it publishes that new record without changing any existing version or duplicating the blob
+
+#### Scenario: Restore cannot pause the sandbox
+
+- **WHEN** a valid restore is accepted but the running sandbox cannot be paused
+- **THEN** the response is 503 `pause_failed` and a new `restore` version for the requested content is stored with `published` false
+- **AND** no workspace content is read, captured or changed and no old version or session record is rewritten
+
+#### Scenario: Restore resumes after accepted preparation is interrupted
+
+- **WHEN** OCU stops after accepting a restore or after capture, replacement or registration but before durable completion
+- **THEN** a fresh worker drives the original obligation through the canonical recovery owner and publishes the bound requested content
+- **AND** unchanged replay duplicates no version, file or completed registration and retains no obligation after durable completion
+- **AND** if the Agent changed workspace content after the interruption, that content is preserved before it is replaced
 
 #### Scenario: Restore keeps content the Agent wrote since
 

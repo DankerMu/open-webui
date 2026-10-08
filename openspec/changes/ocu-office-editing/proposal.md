@@ -497,3 +497,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: seven listing acceptance criteria, no-DocumentServer/no-content-mutation reads, canonical epoch recovery and identity reselection; affected full-discovery units and actual HTTP/killed-worker evidence.
 - Scope: task 17.2a only. Restore remains separate; the shared change stays open.
 - Approved priority: epoch invalidation completes existing publication obligations before orphaning, even when that recovery changes files/history; the GET creates no new publication intent.
+
+## History-restore fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with the restore slice's suggested level.
+- Blast radius: workspace overwrite, immutable history, accepted journal recovery and reopen authority.
+- Selected risk packs: API, file IO, schema, inherited auth, concurrency, resource limits, compatibility, partial failure, packaging and documentation.
+- Evidence floor: ten restore criteria plus equal-latest forced append, pause-failure history retention and fresh-process capture/replace/register recovery; affected units and independent actual HTTP.
+- Approved scope: minimally extend canonical publisher/versions and extract the unchanged reopen decision for create/restore, rather than introducing parallel implementations.
+- Approved failure priority: pause failure leaves a new unpublished restore of stored content without workspace capture or mutation; successful capture and publication share one fence.
+- Scope: task17.2b completes the restore half; gateway/UI/pruning/dependencies/deployment remain separate, and the shared change stays open.

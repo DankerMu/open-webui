@@ -82,6 +82,8 @@ Version content SHALL be stored once per SHA-256 at `versions/{sha256}` and SHAL
 
 `restore` also covers the user-content version appended by conflict overwrite under the [approved lineage rule](https://github.com/DankerMu/open-webui/issues/107#issuecomment-6036933329). That record SHALL follow any required workspace capture so the session's latest version remains the user's content; it SHALL reuse the immutable blob, preserve the selected user version as its parent and obey the same latest-hash deduplication. This does not change the source or identity of any existing record.
 
+A history-restore request SHALL create a new `restore` record even when its content equals the latest record, with the requested historical number as parent. This is distinct from callback and conflict-overwrite latest-hash deduplication. The immutable blob remains shared; the new record and its accepted publication binding SHALL be committed together, and unchanged recovery SHALL reuse that binding.
+
 #### Scenario: Equal content is stored once
 
 - **WHEN** two versions of one document, or of two documents of the same chat, have the same SHA-256

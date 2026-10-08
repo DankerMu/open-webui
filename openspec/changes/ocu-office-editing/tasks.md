@@ -793,6 +793,35 @@ precedence; pending recovery refusal preserves responsibility. Qualify field,
 contact and identity oracles with controlled wrong behavior and restore GREEN.
 No source-only check certifies real DocumentServer, gateway or LAN deployment.
 
+### History-restore slice risk coverage
+
+- [ ] 17.2b Add the restore POST using the canonical reopen, version and publication owners, including the approved minimal owner extensions and pause-failure exception. Verify all ten restore criteria and the recovery matrix below. Only then mark combined task 17.2 complete.
+
+- Public API / script entry — selected: exact success fields, integer-number selection, malformed/type errors422, unknown number404, session409, DS502 and publication/storage503 responses; no partial success body.
+- Config / project setup — not selected: existing enabled flags, timeouts and storage floor remain unchanged.
+- File IO / path safety / overwrite — selected: capture Agent bytes before replacement, nofollow leaf/parent/root checks, unsafe and missing paths add no version or recreated file; noncreating chat admission and outside-directory conservation.
+- Schema / field names — selected: sessionless source-bound restore journal, forced new restore number/parent with shared blob, immutable old records and atomically completed document pointer/journal. Callback/resolve deduplication remains unchanged.
+- Auth / permissions / secrets — selected for preservation: existing internal-token/canonical-chat/disabled/missing-chat guards and foreign file/version isolation; no key/ticket/private metadata in responses.
+- Concurrency / shared state / ordering — selected: one canonical lock/fence from capture through publish, shared reopen decision with epoch/key/final-receipt precedence, no restore while an editor remains open; accepted recovery before new publication and coherent concurrent create/restore.
+- Resource limits / discovery — selected: existing bounded safe-read and free-space floor, ENOSPC before/after acceptance; no pruning, new retry worker, raised limit or discovery mechanism.
+- Legacy compatibility / examples — selected: create/join, callback receipts, resolve overwrite/copy, versions GET and startup/poll recovery retain semantics; restore of latest published/unpublished content still appends a new record.
+- Error handling / rollback / partial outputs — selected: known/unavailable/forgotten key, unchanged/changed/unreadable epoch, pause failure retains only new unpublished restore without capture; capture/replace/register/durable-completion cuts preserve ownership and replay. No orphan can abandon a prior obligation.
+- Release / packaging / dependency compatibility — selected for preservation: module/reload inventory and full-discovery unit selection; existing package inclusion, no dependency/image/deploy change.
+- Documentation / migration notes — selected: D11 owns the approved owner extensions and failure timing; update Office README, strict OpenSpec/doc/decision gates. Drain accepted restore journals before reader rollback; no data/schema migration.
+
+Sequence: review/validate this fixture; run one public restore tracer semantic
+RED; implement the canonical owner extensions and route atomically, preserving
+existing public interfaces or migrating all callers; run focused then affected
+full-discovery OCU tests. Parent real HTTP proves restore2-of5, Agent capture,
+latest-autosave restoration, key-check refusals/orphaning, unsafe/missing paths
+and pause failure. Separate workers prove serialized create/restore and
+SIGKILL recovery after acceptance, capture, replacement and registration.
+Observe immutable old history/blob bytes, workspace content, published pointer,
+index revision, sessions, receipts and journal, not only HTTP status.
+Qualify new content-selection, capture and recovery-idempotence oracles with
+controlled wrong behavior and restore GREEN. No local fake-engine result
+certifies real DocumentServer, image, gateway, LAN or power-loss durability.
+
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
 - [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
