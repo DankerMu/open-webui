@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-08
 supersedes: none
-references: 2026-09-27-ocu-selected-runtime-embedding, 2026-09-27-ocu-restricted-office-embedding, issue-145
+references: ocu-office-editing D15, 2026-09-27-ocu-selected-runtime-embedding, 2026-09-27-ocu-restricted-office-embedding, issue-145, issue-146
 ---
 
 # Office editor host has a dedicated trust class and CSP
@@ -22,10 +22,18 @@ API JavaScript loaded into the host executes with the host document's privileges
 Use a third trust class for the authenticated `/preview/{chat_id}?embed=office`
 host. A single Office parameter with server-side Office enablement receives the
 Office configuration and policy; the client additionally requires a parent frame.
-The delivered surface is only `#office-editor` with the status `Office editor idle`.
-It mounts no Files/runtime controller, handles no preview-selection or Office
-protocol, and starts no API-script load, session, polling or save behavior. Those
-behaviors have a separate implementation owner; this shell is not a ready editor.
+The host installs its parent-message listener before announcing readiness and
+admits one validated open per page. It creates or joins through the canonical
+request wrapper and reads one initial session-status snapshot before deriving
+publication and change-notice state. The abbreviated create response is not a
+substitute for that snapshot. It mounts no Files/runtime controller and ignores
+preview-selection messages.
+
+The editor API loads only from the configured origin. Broker-signed document,
+editorConfig and token fields are not rewritten; local event callbacks do not
+alter those fields. Validation refusal is final, while request/API/editor failures
+report error without closing another tab's session. Editor readiness and internal
+modification acknowledgements do not establish persisted editing or saved state.
 
 `officeDocserverOrigin` comes only from the server-owned
 `OCU_OFFICE_DOCSERVER_ORIGIN` setting. Parent messages, query values and user
@@ -40,8 +48,8 @@ Each eligible response has a fresh configuration-script nonce and this policy:
 `form-action 'none'`; `frame-ancestors 'self'`.
 Style, image and font allowances match the runtime policy, not a new resource grant.
 
-The configured API JavaScript is trusted code on the host origin if its behavior
-owner loads it. Only the cross-origin nested DocumentServer document is separated
+The configured API JavaScript is trusted code executing on the host origin.
+Only the cross-origin nested DocumentServer document is separated
 by the same-origin policy; the external API script itself is neither opaque nor
 SOP-isolated. Generated HTML/SVG/XML retains opaque-origin isolation. The existing
 Files and runtime contracts, CSPs and fixed sandbox tokens remain unchanged; user
@@ -80,9 +88,13 @@ CSP validation does not add URL-format startup validation.
 Trust in the configured DocumentServer includes its host-executed API code; CSP
 limits sources, not that code's host privileges. Host connections remain same-origin
 while the nested DocumentServer document owns its own origin and connection policy.
-The shell introduces no editor session or persisted-state migration.
+The host consumes existing broker APIs without a persisted-schema migration.
+Save/close execution, recurring status polling and auto-save remain outside this
+protocol owner's delivered behavior.
 
 Local actual-HTTP/Chromium evidence covers the [idle host](../../../evidence/issue-145/office-shell.png), [local CSP canary](../../../evidence/issue-145/office-policy-canary.png) and [disabled invalid surface](../../../evidence/issue-145/office-disabled.png), not real DocumentServer editing or LAN acceptance.
+
+Local protocol evidence covers a [joined session](../../../evidence/issue-146/office-session.png), [pending conflict](../../../evidence/issue-146/office-conflict.png) and [API timeout](../../../evidence/issue-146/office-api-error.png) through the actual host with controlled broker replies and a local editor API fixture. These captures do not certify real DocumentServer editing or deployment.
 
 The [selected-runtime](2026-09-27-ocu-selected-runtime-embedding.md) and
 [restricted read-only Office](2026-09-27-ocu-restricted-office-embedding.md) decisions
