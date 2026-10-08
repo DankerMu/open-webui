@@ -768,7 +768,7 @@ result certifies LAN, DocumentServer images or power-loss durability.
 
 ### Version-listing slice risk coverage
 
-- [ ] 17.2a Add the versions GET and its open-session/epoch projection. Verify the seven listing acceptance criteria and the accepted-publication epoch exception below. Task 17.2 remains incomplete until its restore half also ships.
+- [x] 17.2a Add the versions GET and its open-session/epoch projection. Verify the seven listing acceptance criteria and the accepted-publication epoch exception below. Task 17.2 remains incomplete until its restore half also ships.
 
 - Public API / script entry — selected: ordered exact version fields, published pointer and nullable exact open-session fields; empty active history; unknown/malformed/tombstoned/foreign file 404.
 - Config / project setup — not selected: no configuration or startup policy change.
