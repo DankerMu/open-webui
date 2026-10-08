@@ -487,3 +487,13 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: named permanent cases under `make verify-ui-ocu`, all seven issue criteria, screenshots at each observed step, zero unexpected errors, original 31-case coverage preserved, controlled semantic negative qualification and restoration GREEN.
 - Must preserve: actual user actions, original live editor until close acceptance, normal workspace reconciliation, explicit Edit after return, genuine response bodies and private authenticated arrival records.
 - No production behavior change, fake success response, store mutation, dependency change, real DocumentServer certification or automatic archive of the shared change.
+
+## Version-listing fixture
+
+- Issue type: feature.
+- Fixture level: expanded; agrees with the public persisted-state reader slice.
+- Blast radius: history disclosure, published-content selection and epoch/session identity after accepted publication recovery.
+- Selected risk packs: API, file IO, schema, inherited auth, concurrency, compatibility, partial failure, packaging and documentation.
+- Evidence floor: seven listing acceptance criteria, no-DocumentServer/no-content-mutation reads, canonical epoch recovery and identity reselection; affected full-discovery units and actual HTTP/killed-worker evidence.
+- Scope: task 17.2a only. Restore remains separate; the shared change stays open.
+- Approved priority: epoch invalidation completes existing publication obligations before orphaning, even when that recovery changes files/history; the GET creates no new publication intent.

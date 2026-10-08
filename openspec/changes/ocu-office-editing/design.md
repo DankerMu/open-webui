@@ -799,6 +799,39 @@ Nobody is present when the publish at close meets a conflict, so the content mus
 
   After a DocumentServer restart the old session is still stored as `editing` until something checks its key, so the versions read reports it as open and no offer is made. The create request is where the key is checked (D9), and it is therefore where the offer is guaranteed: a create that orphans the session while the newest version is unpublished is refused with `unpublished_version`, the host page reports the refusal, and the parent runs the open check again, which now finds no open session and makes the offer. Restore makes the same key check before it refuses with `session_open`, so history can restore the content without opening the editor first. The versions read itself never contacts DocumentServer; it applies the restore-epoch check, which is a local file read.
 
+#### Version-listing boundary
+
+Task 17.2's listing slice adds only the authenticated GET. Use the guard's
+canonical chat identity and the outputs broker's active file-id lookup; do not
+reconcile, hash workspace bytes or create Office history for an empty document.
+An active non-Office workspace file also has an empty history, not a type error.
+Unknown, malformed, tombstoned and other-chat identities reveal no history.
+
+Hold the existing chat lock across identity validation, state read, epoch handling
+and response projection. Reuse the version validator, published pointer and open
+session/final receipt owners. Return only the specified public fields, never
+document keys, receipt bodies, paths to private storage or source tickets.
+Published flags are historical; the currently published number comes from the
+document pointer, not from the highest true flag. No pagination or new limit is
+introduced; existing store bounds apply.
+
+The [approved priority](https://github.com/DankerMu/open-webui/issues/142#issuecomment-6048481919)
+permits already accepted publication recovery before epoch orphaning. It creates
+no new intent and contacts no DocumentServer. Reuse the canonical recovery and
+orphan owners, including final-outcome protection; reread the requested identity
+after recovery because save-as may move its session. Unresolved recovery returns
+503 `publish_pending` with its responsibility intact. Ordinary same-epoch reads
+do not drive unrelated obligations, refresh activity or perform workspace notice
+checks. Corrupt state, unreadable epoch and durability failures remain explicit.
+
+Evidence covers ordered history/flags, empty and rejected identities, live and
+ended conflicts, orphaned unpublished content, forgotten-key zero-contact,
+changed/unchanged/unreadable epochs, final states and accepted save/resolve/final
+recovery. Real HTTP reads observe persisted state and workspace conservation,
+then a killed-worker obligation and changed epoch demonstrate the narrow recovery
+exception. Sibling status/create/callback/sweep/publication contracts stay intact.
+Restore, gateway, UI, key lookup, dependency and deployment changes are non-goals.
+
 The guard that follows a session after its frame is gone (D15) tells the user how the close ended: saved, saved as a new file with its name, conflict waiting at the next open, or failed. The session status carries `saved_as`, the `file_id` and path of the new document a `save_as` created for the session (manual or automatic), or null.
 
 While a session is open, `GET .../sessions/{session}` checks the one file being edited: `stat` first, hash only if size or mtime changed since the last check, and reports `workspace_changed` when the hash differs from the baseline. The last-checked size and mtime are cached in the session record; that bookkeeping is not a user-visible change, so the row stays non-mutating in the proxy table. The notice is a convenience. Safety comes from step 4 of D11, which always hashes. Hashing happens only at session creation, at publish and in this poll; the regular reconcile is unchanged, so the Plan 1 blind spot for same-size edits in the sidebar preview remains.
