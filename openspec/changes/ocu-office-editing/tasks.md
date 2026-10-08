@@ -736,7 +736,7 @@ Final path-missing copy and workspace-missing policy remain task 16.3.
 ## 17. [ocu] Resolve, versions and restore (spec: ocu-office-publish, ocu-office-sessions)
 
 - [x] 17.1 `POST .../resolve`: publishes the session's latest stored version; `save_as` under a deduplicated name claimed with the no-replace helper of 1.1, in the original directory or in the workspace root when that directory is gone or not safe, with the session continuing on the new document; `overwrite` after storing the current workspace content as a version; only `save_as` when the path is gone; a missing workspace files directory refused with `workspace_missing` and the session ending `error`; a session whose editor has ended closed by the resolve. Verify: tests for each action, the two-conflict case, the refused `overwrite`, an `overwrite` of a symlinked file refused, a `save_as` after a symlinked parent landing in the workspace root, the removed workspace directory, and `last_published_seq` after a success.
-- [ ] 17.2 `GET .../versions` and `POST .../restore`: list with source, published flag, the published version and `open_session` (`session_id`, `state`, `reason`, `editor_ended`), applying the epoch check and never contacting DocumentServer; restore makes the reopen check of 12.3 first, stores the current workspace content when it is not a version, creates a new version and publishes it, and is refused while a session is open, while DocumentServer is unreachable for the check, or when the path is gone. Verify: tests for the listing after an orphaned session left unpublished auto-saves, the listing of a pending conflict and of a joinable session, the listing after a changed epoch, a restore that first ends a session DocumentServer forgot, the 502 case, and each refusal (B-T14 at source level).
+- [x] 17.2 `GET .../versions` and `POST .../restore`: list with source, published flag, the published version and `open_session` (`session_id`, `state`, `reason`, `editor_ended`), applying the epoch check and never contacting DocumentServer; restore makes the reopen check of 12.3 first, stores the current workspace content when it is not a version, creates a new version and publishes it, and is refused while a session is open, while DocumentServer is unreachable for the check, or when the path is gone. Verify: tests for the listing after an orphaned session left unpublished auto-saves, the listing of a pending conflict and of a joinable session, the listing after a changed epoch, a restore that first ends a session DocumentServer forgot, the 502 case, and each refusal (B-T14 at source level).
 
 Depends on: 16.
 Suggested fixture level: expanded - overwrite and restore decisions on user data, new public routes.
@@ -792,6 +792,35 @@ file-id reselection. Accepted save, resolve and final outcomes cover the orphan
 precedence; pending recovery refusal preserves responsibility. Qualify field,
 contact and identity oracles with controlled wrong behavior and restore GREEN.
 No source-only check certifies real DocumentServer, gateway or LAN deployment.
+
+### History-restore slice risk coverage
+
+- [x] 17.2b Add the restore POST using the canonical reopen, version and publication owners, including the approved minimal owner extensions and pause-failure exception. Verify all ten restore criteria and the recovery matrix below. Only then mark combined task 17.2 complete.
+
+- Public API / script entry — selected: exact success fields, integer-number selection, malformed/type errors422, unknown number404, session409, DS502 and publication/storage503 responses; no partial success body.
+- Config / project setup — not selected: existing enabled flags, timeouts and storage floor remain unchanged.
+- File IO / path safety / overwrite — selected: capture Agent bytes before replacement, nofollow leaf/parent/root checks, unsafe and missing paths add no version or recreated file; noncreating chat admission and outside-directory conservation.
+- Schema / field names — selected: sessionless source-bound restore journal, forced new restore number/parent with shared blob, immutable old records and atomically completed document pointer/journal. Callback/resolve deduplication remains unchanged.
+- Auth / permissions / secrets — selected for preservation: existing internal-token/canonical-chat/disabled/missing-chat guards and foreign file/version isolation; no key/ticket/private metadata in responses.
+- Concurrency / shared state / ordering — selected: one canonical lock/fence from capture through publish, shared reopen decision with epoch/key/final-receipt precedence, no restore while an editor remains open; accepted recovery before new publication and coherent concurrent create/restore.
+- Resource limits / discovery — selected: existing bounded safe-read and free-space floor, ENOSPC before/after acceptance; no pruning, new retry worker, raised limit or discovery mechanism.
+- Legacy compatibility / examples — selected: create/join, callback receipts, resolve overwrite/copy, versions GET and startup/poll recovery retain semantics; restore of latest published/unpublished content still appends a new record.
+- Error handling / rollback / partial outputs — selected: known/unavailable/forgotten key, unchanged/changed/unreadable epoch, pause failure retains only new unpublished restore without capture; capture/replace/register/durable-completion cuts preserve ownership and replay. No orphan can abandon a prior obligation.
+- Release / packaging / dependency compatibility — selected for preservation: module/reload inventory and full-discovery unit selection; existing package inclusion, no dependency/image/deploy change.
+- Documentation / migration notes — selected: D11 owns the approved owner extensions and failure timing; update Office README, strict OpenSpec/doc/decision gates. Drain accepted restore journals before reader rollback; no data/schema migration.
+
+Sequence: review/validate this fixture; run one public restore tracer semantic
+RED; implement the canonical owner extensions and route atomically, preserving
+existing public interfaces or migrating all callers; run focused then affected
+full-discovery OCU tests. Parent real HTTP proves restore2-of5, Agent capture,
+latest-autosave restoration, key-check refusals/orphaning, unsafe/missing paths
+and pause failure. Separate workers prove serialized create/restore and
+SIGKILL recovery after acceptance, capture, replacement and registration.
+Observe immutable old history/blob bytes, workspace content, published pointer,
+index revision, sessions, receipts and journal, not only HTTP status.
+Qualify new content-selection, capture and recovery-idempotence oracles with
+controlled wrong behavior and restore GREEN. No local fake-engine result
+certifies real DocumentServer, image, gateway, LAN or power-loss durability.
 
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 

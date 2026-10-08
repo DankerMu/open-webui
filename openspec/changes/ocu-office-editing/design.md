@@ -609,6 +609,55 @@ There is no retry route. After a failed publish the version stays stored. Follow
 
 Restore runs the same fence. It first stores the current workspace content as a `workspace` version if that content is not yet a version, then publishes the chosen one as a new version. It is refused while a session is open on the document and when the path no longer exists.
 
+#### History-restore transaction boundary
+
+Task 17.2's restore slice uses the existing request router, version store,
+publisher and reopen checks. The [approved scope and failure ruling](https://github.com/DankerMu/open-webui/issues/143#issuecomment-6050261065)
+permits minimal extensions of those owners and extraction of the unchanged
+reopen decision for create and restore. There is no second publisher, fake edit
+session, route-owned fence or parallel version constructor.
+
+Validate the body and active file/version identity before mutating session
+state. A non-integer number, including a boolean, is 422 `invalid_request`;
+an integer that names no version is 404 `unknown_version`. Reuse safe,
+noncreating root admission and one canonical chat lock. Reopen checks preserve
+epoch precedence, opening/final-receipt exclusions, explicit key unavailability
+and recovery-before-orphan. Reselect the requested document after recovery.
+Any remaining open session refuses with `session_open`; restore creates none.
+
+Acceptance binds the requested immutable version and a sessionless restore
+obligation durably. The canonical publisher owns every later preparation,
+fence, capture, replacement, registration and completion, including recovery
+after a crash immediately following acceptance. Under writer exclusion, capture
+current workspace content only if its hash is absent from that document's
+history, then append a new `restore` record with the requested version as parent.
+History restore always creates a new record, even for the latest equal hash;
+blob sharing and callback/resolve latest-hash deduplication remain unchanged.
+Do not repoint, renumber or mark an older selected record as this new restore.
+
+Pause failure has one explicit timing exception: retain a new unpublished
+restore record referring to the already stored requested content, without
+reading/capturing or modifying the workspace. Successful capture and restore
+remain in one fence. Missing/unsafe-path admission adds no version and never
+recreates a path. Other terminal publication failures retain the prepared
+restore record unpublished; interrupted/uncertain publication retains its
+obligation rather than fabricating completion or rolling back visible state.
+
+Without a new workspace change, recovery reuses the accepted preparation and
+owned replacement/registration instead of duplicating records or publication.
+If a crash released the writer and new Agent content appears, preserve it before
+replacing it and leave the requested restored content as the latest version.
+Success atomically marks the restored record published, updates the document
+pointer and retires the journal; session histories/receipts remain unchanged
+except the canonical reopen transition that admitted the request.
+
+Evidence covers all ten restore criteria, equal-latest forced append, safe-read
+refusals, real pause ownership, immutable history, low space, sibling callback/
+resolve behavior and fresh-process acceptance/capture/replace/register recovery.
+Rollback closes new Office requests and drains accepted restore obligations
+before downgrading the reader. Gateway, UI, pruning, dependencies and deployment
+remain outside this slice.
+
 #### Callback publication boundary
 
 Task 16.1 uses the existing version transaction's state mutator to bind
