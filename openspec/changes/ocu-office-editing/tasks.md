@@ -874,6 +874,18 @@ Depends on: 13, 19.
 Suggested fixture level: expanded - a cross-frame protocol on the trusted origin that drives saves.
 Minimal mergeable slice: 20.1 (protocol and state) - green alone because the page opens a session and reports state without sending saves; 20.2 adds the loop.
 
+### Office host-protocol slice risk coverage
+
+- API / authorization — exact message envelopes, parent source, own origin, chat and safe generation; synchronous one-open latch, unchanged original file identity, no sibling/nested/cross-origin authority.
+- State / ordering — all nine report keys, deduplicated reports, actual initial status snapshot, dirty/change-notice semantics, final refused, synchronous editor callbacks and duplicate-open races.
+- Errors — named admission refusals versus creation502/transport/server failures; initial status failure retains session id; script error/timeout/no constructor/throw and -18 produce visible error without closing a joined session.
+- Configuration / secrets — configured-origin API script only, canonical wrapper prefix/header, signed fields unmodified, new module included in served-script canary checks.
+- Compatibility — retain full Files/runtime/standalone and CSP harness; migrate only valid Office's obsolete no-ready/no-listener expectations. Invalid/disabled/top-level modes remain silent.
+- Evidence — paired module tests in `tests/orchestrator/test_office_editor.py` use the real module and request wrapper with controlled external dependencies; existing `test_preview_prefix.py` keeps HTTP/policy/secret checks. Full-discovery Python3.12 selection and the complete pinned browser harness must pass.
+- Runtime — parent-owned actual framed-page proof observes listener-before-ready/open, one creation plus initial status read, configured API load, unaltered signed fields, wrong-message silence, refusal and visible API/editor failure. Qualify a semantic missing-ready RED and wrong-authority/false-success controls; retain screenshots and zero unrelated console errors.
+- Documentation — refresh the existing README and frame decision's current implementation facts; strict OpenSpec, doc-gate and decisions-verify. No new decision, dependency, setting, route, policy or parent component.
+- Out of scope — save/close execution, recurring polling, auto-save, full teardown, persisted schema, broker mutation and real DocumentServer/image/LAN acceptance. Task20.2 remains unchecked.
+
 ## 21. [deploy] Proxy table: Office rows (spec: ocu-reverse-proxy)
 
 - [x] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.

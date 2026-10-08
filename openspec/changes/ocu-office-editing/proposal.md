@@ -525,3 +525,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Evidence floor: eight shell criteria, all three public prefixes, nonce uniqueness/binding, disabled-state compatibility, actual Chromium allow/deny origin canaries, cross-protocol silence and the unchanged full preview browser harness.
 - Scope: tasks19.1/19.2 only. The shell intentionally performs no Office protocol, session creation, editor API load, polling or save/close work; those are separate tasks, not substitutes for this slice's complete shell/policy behavior.
 - D7 compatibility interpretation: without the enabling server-to-server address, `embed=office` retains the existing visible invalid-preview behavior and emits no Office origin/policy. No new switch or preview-wide404 is introduced.
+
+## Office host-protocol fixture
+
+- Issue type: feature; fixture level: expanded, matching the cross-frame protocol and broker-session consumer.
+- Blast radius: parent message authority, one-open ownership, signed editor configuration, truthful state and failure reporting.
+- Selected risk packs: API, auth/secrets, asynchronous ordering, state transitions, legacy compatibility, error handling, browser dependency compatibility and documentation.
+- Evidence floor: all eight task20.1 criteria; actual production module plus canonical request wrapper; real browser message delivery, HTTP requests, configured API script and visible error surfaces.
+- Scope: task20.1 only. Task20.2 owns save/close execution, recurring polling, auto-save and full teardown; no backend, gateway, parent UI or CSP changes.
+- Initial snapshot: one status GET after successful creation supplies fields absent from the create response, including conflict reason and publication sequences. It is not a polling loop.
+- Failure classification: named broker admission refusals are final refused; creation transport/server failures and initial-status/API/editor failures are error, never a cap refusal or successful save.
+- Compatibility: valid Office gains ready/listener behavior; invalid/disabled/top-level silence, Files/runtime behavior, secret exclusion and existing policy proofs remain.
