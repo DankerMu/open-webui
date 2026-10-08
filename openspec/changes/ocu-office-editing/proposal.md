@@ -516,3 +516,12 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: public API, inherited file IO/auth boundaries, legacy compatibility, errors and documentation.
 - Evidence floor: all six criteria in the existing header module, all five active MIME types, same-size/same-mtime replacement with prior validators, unchanged archive/401/404; independent socket HTTP before/after proof.
 - Scope: task18.1 only. Existing D22 owns the decision; no new configuration, state, dependency, gateway or UI behavior.
+
+## Office host-shell fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with the new framed trusted-origin entrypoint and its external-origin CSP boundary.
+- Blast radius: script/frame authority, secret-free page configuration, idle request/message isolation and existing preview modes.
+- Selected risk packs: API, existing configuration, auth/secrets, lifecycle ordering, compatibility, errors, browser dependency compatibility and documentation.
+- Evidence floor: eight shell criteria, all three public prefixes, nonce uniqueness/binding, disabled-state compatibility, actual Chromium allow/deny origin canaries, cross-protocol silence and the unchanged full preview browser harness.
+- Scope: tasks19.1/19.2 only. The shell intentionally performs no Office protocol, session creation, editor API load, polling or save/close work; those are separate tasks, not substitutes for this slice's complete shell/policy behavior.
+- D7 compatibility interpretation: without the enabling server-to-server address, `embed=office` retains the existing visible invalid-preview behavior and emits no Office origin/policy. No new switch or preview-wide404 is introduced.

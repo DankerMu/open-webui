@@ -844,12 +844,26 @@ Use the existing full-discovery Python3.12 unit command with the affected module
 
 ## 19. [ocu] Editor host page shell (spec: ocu-office-editor-embed)
 
-- [ ] 19.1 The preview page's `embed=office` mode (`static/preview.js` embed-mode list and the embed and content-policy branch of the preview route): requires a parent frame, renders only the editor container, carries a content policy that admits the configured DocumentServer browser origin and no other external origin, exposes no token or secret, and shows a visible error for an invalid, repeated or unframed embed value. Verify: preview shell tests for the emitted HTML, policy and each error case, in the existing preview test files (`tests/orchestrator/preview_embedding_browser.cjs`, `tests/orchestrator/_preview_capture.py`, `tests/orchestrator/test_preview_prefix.py`); the Files and runtime embed tests still pass.
-- [ ] 19.2 Decision record `ocu-office-editor-frame` (design D15: a third iframe class hosting an OCU page whose policy admits the DocumentServer origin). Verify: `make decisions-verify` passes.
+- [x] 19.1 The preview page's `embed=office` mode (`static/preview.js` embed-mode list and the embed and content-policy branch of the preview route): requires a parent frame, renders only the editor container, carries a content policy that admits the configured DocumentServer browser origin and no other external origin, exposes no token or secret, and shows a visible error for an invalid, repeated or unframed embed value. Verify: preview shell tests for the emitted HTML, policy and each error case, in the existing preview test files (`tests/orchestrator/preview_embedding_browser.cjs`, `tests/orchestrator/_preview_capture.py`, `tests/orchestrator/test_preview_prefix.py`); the Files and runtime embed tests still pass.
+- [x] 19.2 Decision record `ocu-office-editor-frame` (design D15: a third iframe class hosting an OCU page whose policy admits the DocumentServer origin). Verify: `make decisions-verify` passes.
 
 Depends on: 11 (the DocumentServer browser origin comes from its configuration; group 11 also brings group 4, which edits the same preview script and tests).
 Suggested fixture level: expanded - a new embedded entrypoint on the trusted origin with its own content policy.
 Minimal mergeable slice: atomic - the mode and its policy are one response; a mode without its policy would load an external origin under the default policy. 19.2 is documentation in the same PR.
+
+### Office host-shell slice risk coverage
+
+- Public API — selected: server tests for Office policy/config under empty, `/ocu` and nested public prefixes; nonce binds the inline configuration and changes between responses.
+- Configuration — selected as consumption: read enabled state and browser-origin name constant only; absent/blank enabling URL preserves invalid-preview behavior and exposes no configured origin. Invalid authority fails closed at serialization without changing startup configuration rules.
+- Auth / secrets — selected: inherited preview guard unchanged; synthetic service/JWT/ticket/model/MCP canaries absent from HTML, configuration and served scripts. Real browser admits only the configured external script/frame origin, never external connections.
+- Ordering / lifecycle — selected: framed shell mounts no Files/runtime owner, makes no API/heartbeat/discovery request and posts no message; repeated/unknown/unframed modes are visibly invalid. Cross-protocol messages do no work.
+- Legacy compatibility — selected: existing Files, Browser, Terminal and standalone policy/configuration and full browser cases remain; no source implementation of those modes changes.
+- Error handling — selected: wrong embedding and unusable configuration are explicit failures, never a permissive policy or unintended standalone fallback.
+- Release / dependency compatibility — selected as verification: use the existing Playwright1.62.1/Chromium harness and Python3.12 capture; no dependency or deployment changes.
+- Documentation — selected: decision record `ocu-office-editor-frame`, referencing retained preview/runtime trust decisions; `make decisions-verify` and `make doc-gate`.
+- File IO, persisted schema and resource-limit policy — not selected: no stored state, file publication, editor session, new background resource or storage migration.
+
+First qualify an emitted-policy or rendered-shell semantic RED. Then run the affected preview/header/auth/Office-config modules and the complete existing `preview_embedding_browser.cjs` with captured production responses, including the new eight acceptance criteria. Retain screenshots and zero unexpected console/network errors. Parent-owned actual-page proof must independently observe the Office shell, allowed/blocked origin behavior and silence. Tasks20.1/20.2 remain separate; this shell does not load the real editor API or claim DocumentServer/deployment acceptance.
 
 ## 20. [ocu] Editor host page behaviour (spec: ocu-office-editor-embed)
 
