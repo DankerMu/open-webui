@@ -543,7 +543,8 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Blast radius: false saved reports, missed or duplicate publishing saves, auto-save starvation, premature participant release and work surviving a retired frame.
 - Selected risk packs: API, inherited authorization, concurrency/state ordering, errors/partial failure, resource lifecycle, compatibility and documentation.
 - Evidence floor: all ten task20.2 criteria; production-module tests with deterministic timers/deferred responses; actual framed-host HTTP save/close/removal proof and the complete existing preview browser harness.
-- Scope: extend the existing host and paired tests; the existing Office effect only wires its disposer. No shell/mode/CSP/parent-policy, broker, gateway, dependency or persisted-state change.
+- Scope: extend the existing host and paired tests; the existing Office effect only wires its disposer. The approved broker extension adds save-error allocation correlation through the existing session owner and HTTP responses. No shell/mode/CSP/parent-policy, gateway, dependency or persisted-state change.
 - Must preserve: one open, original report identity, signed configuration, canonical wrapper, refused/error distinction, all other preview modes and secret exclusion.
 - Critical ordering: a save acknowledges only modifications observed before that request, and only after its returned allocation is committed; command acceptance alone is not publication.
+- Retry attribution: a saving-state refusal returns the blocking allocation captured by its locked admission check; a post-allocation unavailable response returns that request's own allocation. The host matches these identities instead of inferring causality from response timing or a later status snapshot.
 - Cleanup: component retirement and page lifecycle share one idempotent disposer; aborting or destroying cannot revive effects or implicitly close a broker session.

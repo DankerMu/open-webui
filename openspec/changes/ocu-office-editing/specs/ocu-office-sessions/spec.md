@@ -236,6 +236,15 @@ When DocumentServer answers that there is nothing new to save, the request SHALL
 
 A session SHALL leave `saving` in one of these ways: the callback of the outstanding save is committed, or reports a forcesave failure, or is answered with an error (all three specified by `ocu-office-callback`); or the save timeout of the session sweep passes (requirement "Session sweep").
 
+For a save rejected at admission because the session is `saving`, the 409
+`session_not_editing` response SHALL include `blocking_save_seq`, identifying
+the pending save observed by that rejecting check under the canonical chat
+lock. Other not-editing refusals SHALL omit this field. A save response of
+502 `documentserver_unavailable` after allocation SHALL include `save_seq`
+identifying that request's allocated save, not a later current allocation.
+These error fields SHALL NOT indicate acceptance, commitment or publication.
+Creation and restore error response shapes SHALL remain unchanged.
+
 #### Scenario: User save persists and publishes (B-T04)
 
 - **WHEN** a save with intent `publish` is accepted and its callback is committed without conflict
@@ -285,6 +294,7 @@ A session SHALL leave `saving` in one of these ways: the callback of the outstan
 
 - **WHEN** a save is requested for a session in `opening`, `saving`, `closing`, `conflict`, `closed`, `error` or `orphaned`
 - **THEN** the response is 409 with reason `session_not_editing` and no `save_seq` is allocated
+- **AND** a refusal caused by `saving` carries its actual pending allocation as `blocking_save_seq`; other not-editing refusals carry no blocking allocation
 
 #### Scenario: Invalid intent
 
@@ -295,6 +305,19 @@ A session SHALL leave `saving` in one of these ways: the callback of the outstan
 
 - **WHEN** a save is requested and DocumentServer cannot be reached
 - **THEN** the response is 502 with reason `documentserver_unavailable`, the session is `editing` and no version is stored
+- **AND** `save_seq` identifies this failed request's actual allocation, including when the response is delayed until after a newer save starts
+
+#### Scenario: Refusal correlation survives a newer allocation
+
+- **WHEN** save admission refuses a request while allocation N is saving, and the session advances before the refusal is delivered
+- **THEN** the response still carries `blocking_save_seq: N`, captured by the rejecting locked check
+- **AND** no allocation or command is issued for the refused request
+
+#### Scenario: Delayed failure retains its own allocation identity
+
+- **WHEN** a command for allocated save N fails after N completed and a later save N+1 started
+- **THEN** the failed request's 502 carries `save_seq: N`, not N+1
+- **AND** failure reconciliation does not overwrite the newer save's state or allocation
 
 ### Requirement: Close records intent only
 

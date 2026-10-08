@@ -1159,6 +1159,23 @@ queues a publishing retry; keep one queued intent and dispatch it once editing
 resumes. Repeated polls cannot multiply that request. Close supersedes queued
 publishing intent. Do not add generic mutation retries or idempotency claims.
 
+Save-error correlation stays in the existing broker session owner. A 409
+session_not_editing caused by a saving session includes `blocking_save_seq`
+from its pending save at the rejecting admission check, under the canonical
+chat lock. Other not-editing refusals omit that field. A save502
+documentserver_unavailable includes the actual request's allocated `save_seq`,
+even when a newer mutation has superseded it before response delivery.
+Creation and restore errors retain their existing response shape.
+
+The host provisionally binds a publishing refusal to its local auto-save
+attempt, then requires the refusal's positive safe `blocking_save_seq` to
+equal that attempt's actual sequence from its202 or502 response. Missing,
+malformed or mismatched evidence cannot authorize an automatic retry.
+Only202 acceptance binds modification coverage; a502 allocation does not.
+Once matched, the queued user intent survives later foreign allocations
+until editing resumes, unless close, final state or retirement supersedes it.
+No allocation is predicted from a baseline or inferred from a later status.
+
 A rejected save/close is a recoverable command failure, not the host's terminal
 localError latch. Surface a non-null reason with the broker's current state,
 retain dirty and the editor, and keep the reason across ordinary successful
