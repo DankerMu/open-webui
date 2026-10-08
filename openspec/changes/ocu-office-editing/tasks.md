@@ -824,7 +824,7 @@ certifies real DocumentServer, image, gateway, LAN or power-loss durability.
 
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
-- [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
+- [x] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
 
 Depends on: none beyond group 8.
 Suggested fixture level: compact - one response header on an existing route.
