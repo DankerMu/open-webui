@@ -160,6 +160,18 @@ In every other case `dirty` SHALL be `false`, whatever made `last_published_seq`
 - **WHEN** the editor reports a modification, a save is accepted with `save_seq` N, and the session status reports `last_committed_seq` below N — while the save is outstanding, or after the session returned to `editing` with a non-null `reason`
 - **THEN** every state the page posts carries `dirty: true`
 
+#### Scenario: Save coverage does not acknowledge later edits
+
+- **WHEN** a save is requested after modification A, modification B is reported before that save completes, and status confirms the returned save sequence committed and published
+- **THEN** only A is covered and the host still reports dirty because B is not covered
+- **AND** a sequence allocated by another tab cannot by itself acknowledge B
+
+#### Scenario: Commit observation precedes the save reply
+
+- **WHEN** a status already proves a save allocation committed before its accepted HTTP reply supplies that allocation's sequence
+- **THEN** the host reconciles coverage using the modification generation captured at request dispatch
+- **AND** it neither loses that committed coverage nor acknowledges a later modification
+
 #### Scenario: Connection failure is not a cap refusal (B-T15)
 
 - **WHEN** the editor reports connection-loss error `-18`
@@ -259,6 +271,18 @@ When the session status reports `orphaned`, `closed` or `error` the page SHALL s
 - **WHEN** the session status reports `orphaned`, `closed` or `error`
 - **THEN** the page reports that state, and afterwards no status poll and no auto-save timer is running and no save or close request is issued
 
+#### Scenario: Polling cannot starve auto-save or multiply a queued save
+
+- **WHEN** repeated status reads keep reporting editing without changing the document
+- **THEN** there is at most one status request in flight and ordinary polls do not restart the five-minute auto-save deadline
+- **AND** repeated editing observations after an attributable auto-save refusal dispatch a queued publishing intent only once
+
+#### Scenario: Rejected close retains an editable session
+
+- **WHEN** a close request fails and the following status confirms the session remains editing
+- **THEN** the editor has not been destroyed, dirty is unchanged and the close failure reason remains visible through ordinary successful polls
+- **AND** the editing auto-save timer resumes, and a later accepted command may clear the command failure reason
+
 ### Requirement: Teardown releases owned resources
 
 When the framed page is removed or unloaded it SHALL release its status poll, its auto-save timer, its message listener, its pending requests and the editor instance. A response or timer that completes after teardown SHALL NOT create an editor instance, start a timer, issue a request or post a message.
@@ -272,6 +296,13 @@ When the framed page is removed or unloaded it SHALL release its status poll, it
 
 - **WHEN** the Office frame is opened and removed 20 times, including removal while editing and while saving
 - **THEN** every removed frame leaves zero active timers, listeners and pending polls after its in-flight work settles
+
+#### Scenario: Teardown wins deferred completion and constructor callbacks
+
+- **WHEN** the host is disposed during an outstanding request, response-body decoding, API loading or synchronous editor construction
+- **THEN** later completion posts no message, starts no timer and issues no request
+- **AND** an editor returned after disposal is destroyed once rather than retained
+- **AND** repeated disposal sends no broker close and leaves no owned listener, timer or request
 
 ### Requirement: Dedicated content policy for the Office mode
 

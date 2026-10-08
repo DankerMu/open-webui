@@ -536,3 +536,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Initial snapshot: one status GET after successful creation supplies fields absent from the create response, including conflict reason and publication sequences. It is not a polling loop.
 - Failure classification: named broker admission refusals are final refused; creation transport/server failures and initial-status/API/editor failures are error, never a cap refusal or successful save.
 - Compatibility: valid Office gains ready/listener behavior; invalid/disabled/top-level silence, Files/runtime behavior, secret exclusion and existing policy proofs remain.
+
+## Office host-lifecycle fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with the cross-frame save protocol, asynchronous status observation and resource lifecycle.
+- Blast radius: false saved reports, missed or duplicate publishing saves, auto-save starvation, premature participant release and work surviving a retired frame.
+- Selected risk packs: API, inherited authorization, concurrency/state ordering, errors/partial failure, resource lifecycle, compatibility and documentation.
+- Evidence floor: all ten task20.2 criteria; production-module tests with deterministic timers/deferred responses; actual framed-host HTTP save/close/removal proof and the complete existing preview browser harness.
+- Scope: extend the existing host and paired tests; the existing Office effect only wires its disposer. No shell/mode/CSP/parent-policy, broker, gateway, dependency or persisted-state change.
+- Must preserve: one open, original report identity, signed configuration, canonical wrapper, refused/error distinction, all other preview modes and secret exclusion.
+- Critical ordering: a save acknowledges only modifications observed before that request, and only after its returned allocation is committed; command acceptance alone is not publication.
+- Cleanup: component retirement and page lifecycle share one idempotent disposer; aborting or destroying cannot revive effects or implicitly close a broker session.

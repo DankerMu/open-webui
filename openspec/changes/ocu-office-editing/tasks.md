@@ -886,6 +886,18 @@ Minimal mergeable slice: 20.1 (protocol and state) - green alone because the pag
 - Documentation — refresh the existing README and frame decision's current implementation facts; strict OpenSpec, doc-gate and decisions-verify. No new decision, dependency, setting, route, policy or parent component.
 - Out of scope — save/close execution, recurring polling, auto-save, full teardown, persisted schema, broker mutation and real DocumentServer/image/LAN acceptance. Task20.2 remains unchecked.
 
+### Office host-lifecycle slice risk coverage
+
+- API / authority — exact bound save/close messages, original identity, all Office requests through the unchanged wrapper, no versions/restore/resolve calls and no command after final/refused.
+- State / ordering — generation-to-returned-save-sequence coverage, late modifications, commit-before-reply, another tab's allocation, persist versus publish, no-change and conflict resolution; no stale status resurrection.
+- Concurrency / resources — one non-overlapping status-read owner, one non-starved five-minute editing timer, one attributable queued publish retry, close superseding the retry, bounded request/listener/editor ownership.
+- Errors — rejected/failed mutation retains dirty and usable editor with a sticky failure reason; unreadable status is error; save_timeout/refused callback remain retryable; rejected close never destroys the editor.
+- Teardown — existing Office effect cleanup plus pagehide share the same disposer; abort creation/status/save/API work, including pending JSON decoding and constructor-time disposal; twenty mount/remove cycles leave no live owned resources.
+- Compatibility — preserve all task20.1 authority/configuration/refusal/state tests and existing Files/runtime/standalone/CSP/secret proofs; migrate only obsolete no-poll/no-command expectations, not their underlying guarantees.
+- Evidence — first publish-command tracer reaches semantic RED on the merged protocol-only host. Extend `tests/orchestrator/test_office_editor.py` with deterministic clocks and deferred dependencies; run the affected full-discovery Python3.12 selection and complete pinned browser harness.
+- Runtime — actual framed-host save/close and real iframe-removal smoke; qualify false-save-acknowledgement and retired-owner-late-effect controls, observe screenshots and zero unrelated errors. Controlled SDK/broker responses are not real DocumentServer acceptance.
+- Documentation / rollback — update existing README and frame decision facts in place, strict OpenSpec/doc-gate/decisions checks; no new decision or schema. Revert host lifecycle and its cleanup wiring together; broker-owned persisted sessions are not deleted or implicitly closed.
+
 ## 21. [deploy] Proxy table: Office rows (spec: ocu-reverse-proxy)
 
 - [x] 21.1 Add the seven Office rows of design D7 to `routes.json`, the `{file}` and `{session}` single-segment placeholders to the renderer, and the new row count and pin. Verify: `deploy/proxy/tests/` cover owner forwarding of each row with the internal credential and chat identity, the mutation guard on the five POST rows, placeholder rejection of traversal and encoded separators, and 404 without upstream contact for `/office/source/…`, `/office/callback/…` and the imports route.
