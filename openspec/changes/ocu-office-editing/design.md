@@ -1127,7 +1127,6 @@ Office shell's ready/listener assertions rather than weakening invalid-mode
 silence or its policy/secret checks. Refresh the existing frame decision's
 implementation facts and README after runtime proof; no new decision is needed.
 
-
 #### Editor entry and frame slice boundary
 
 Tasks 24.1 and 24.2 implement the parent authority boundary and its executable browser path together. The selected-file action area is the entry seam; file rows and their existing accessible names remain unchanged. A saved chat, enabled workspace and literal true Office feature flag admit only broker types docx/xlsx/pptx. Display classification never grants edit eligibility. Editing does not call launch, including for stopped workspaces.
