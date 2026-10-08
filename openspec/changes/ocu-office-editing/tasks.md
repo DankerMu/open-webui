@@ -830,6 +830,18 @@ Depends on: none beyond group 8.
 Suggested fixture level: compact - one response header on an existing route.
 Minimal mergeable slice: atomic - one header and its test.
 
+### File cache-header slice risk coverage
+
+- Public API — selected: `tests/test_files_headers.py` checks exactly one no-store header on inline DOCX/PNG/text, all five active MIME types and forced downloads; bytes, MIME and disposition remain unchanged.
+- File IO / path safety — selected as preservation: same-size replacement with restored mtime must return full200/new bytes even with prior validators; no path algorithm or file publication change.
+- Auth / permissions — selected as preservation: existing guard and 401 response remain unchanged; no new credential or authorization policy.
+- Legacy compatibility — selected: retain exact active-inline CSP/nosniff, their absence on passive/download responses, both host XML variants and encoded filenames; run existing header/auth/upload/listing/preview consumers.
+- Error handling — selected: compare status/body/headers for denied and missing files and successful archive against pre-change observations; the cache header must not leak onto those surfaces.
+- Documentation — selected: update the existing file-serving description after runtime proof; shared change stays open.
+- Config, schema, concurrency, resource limits and release/dependency policy — not selected: no changes on these surfaces and no new filesystem reads or allocation-heavy cache layer.
+
+Use the existing full-discovery Python3.12 unit command with the affected module selection. Parent-owned local socket HTTP must observe one cache header, preserved isolation and same-size/mtime freshness, and compare archive/error observations before and after. Header omission is the pre-change semantic RED. No browser cache implementation, publisher, gateway, UI or deployment certification is claimed.
+
 ## 19. [ocu] Editor host page shell (spec: ocu-office-editor-embed)
 
 - [ ] 19.1 The preview page's `embed=office` mode (`static/preview.js` embed-mode list and the embed and content-policy branch of the preview route): requires a parent frame, renders only the editor container, carries a content policy that admits the configured DocumentServer browser origin and no other external origin, exposes no token or secret, and shows a visible error for an invalid, repeated or unframed embed value. Verify: preview shell tests for the emitted HTML, policy and each error case, in the existing preview test files (`tests/orchestrator/preview_embedding_browser.cjs`, `tests/orchestrator/_preview_capture.py`, `tests/orchestrator/test_preview_prefix.py`); the Files and runtime embed tests still pass.
