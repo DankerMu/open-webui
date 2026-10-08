@@ -1057,9 +1057,11 @@ requests or messages. Loading the existing local shell assets is not an Office r
 
 Only the configuration module's browser-origin name constant supplies the external
 authority. Treat its value as one HTTP(S) origin, not an arbitrary CSP or HTML fragment;
-malformed configured authority fails explicitly without reflecting credentials or
-loosening the policy. This is the new serialization boundary, not a change to Office
-startup validation. Expose neither service/model/MCP credentials nor signing material.
+malformed or CSP-inexpressible configured authority fails explicitly without reflecting
+credentials or loosening the policy. Bracketed IPv6 literals are valid URLs but are not
+supported CSP host sources; a DNS origin resolving to IPv6 remains eligible. This is
+the new serialization boundary, not a change to Office startup validation. Expose
+neither service/model/MCP credentials nor signing material.
 
 For enabled Office responses, bind the configuration script to a fresh response nonce.
 Scripts admit self, that nonce and the configured origin; nested frames admit only that
