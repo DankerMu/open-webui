@@ -867,12 +867,24 @@ First qualify an emitted-policy or rendered-shell semantic RED. Then run the aff
 
 ## 20. [ocu] Editor host page behaviour (spec: ocu-office-editor-embed)
 
-- [ ] 20.1 `static/office-editor.js`, protocol and state: the four messages with exact key sets and origin, chat and generation checks; session creation through the request wrapper; editor creation from the signed configuration; state reporting including `dirty`, `workspace_changed`, `reason` and broker `refused`. No cap-event mapping is added for the pinned release. Verify: module tests with a fake editor API cover a valid open, each rejected message, each reported state, a creation refused with a validation reason or `unpublished_version` (each reported as `refused` with no second create), and failed API loading or editor connection loss reported as `error`, without closing another tab's joined session.
+- [x] 20.1 `static/office-editor.js`, protocol and state: the four messages with exact key sets and origin, chat and generation checks; session creation through the request wrapper; editor creation from the signed configuration; state reporting including `dirty`, `workspace_changed`, `reason` and broker `refused`. No cap-event mapping is added for the pinned release. Verify: module tests with a fake editor API cover a valid open, each rejected message, each reported state, a creation refused with a validation reason or `unpublished_version` (each reported as `refused` with no second create), and failed API loading or editor connection loss reported as `error`, without closing another tab's joined session.
 - [ ] 20.2 The save / close / auto-save loop and teardown: `save` and `close` commands, the retry of a save refused while an auto-save is outstanding, status polling, the 5-minute auto-save when the editor reported a modification, the editor destroyed only after the close was accepted, and teardown that releases timers, listeners, pending requests and the editor. Verify: module tests cover each command, the auto-save timer, a second save with no change ending not dirty, a failed request never reported as success, and no late effect after teardown.
 
 Depends on: 13, 19.
 Suggested fixture level: expanded - a cross-frame protocol on the trusted origin that drives saves.
 Minimal mergeable slice: 20.1 (protocol and state) - green alone because the page opens a session and reports state without sending saves; 20.2 adds the loop.
+
+### Office host-protocol slice risk coverage
+
+- API / authorization — exact message envelopes, parent source, own origin, chat and safe generation; synchronous one-open latch, unchanged original file identity, no sibling/nested/cross-origin authority.
+- State / ordering — all nine report keys, deduplicated reports, actual initial status snapshot, dirty/change-notice semantics, final refused, synchronous editor callbacks and duplicate-open races.
+- Errors — named admission refusals versus creation502/transport/server failures; initial status failure retains session id; script error/timeout/no constructor/throw and -18 produce visible error without closing a joined session.
+- Configuration / secrets — configured-origin API script only, canonical wrapper prefix/header, signed fields unmodified, new module included in served-script canary checks.
+- Compatibility — retain full Files/runtime/standalone and CSP harness; migrate only valid Office's obsolete no-ready/no-listener expectations. Invalid/disabled/top-level modes remain silent.
+- Evidence — paired module tests in `tests/orchestrator/test_office_editor.py` use the real module and request wrapper with controlled external dependencies; existing `test_preview_prefix.py` keeps HTTP/policy/secret checks. Full-discovery Python3.12 selection and the complete pinned browser harness must pass.
+- Runtime — parent-owned actual framed-page proof observes listener-before-ready/open, one creation plus initial status read, configured API load, unaltered signed fields, wrong-message silence, refusal and visible API/editor failure. Qualify a semantic missing-ready RED and wrong-authority/false-success controls; retain screenshots and zero unrelated console errors.
+- Documentation — refresh the existing README and frame decision's current implementation facts; strict OpenSpec, doc-gate and decisions-verify. No new decision, dependency, setting, route, policy or parent component.
+- Out of scope — save/close execution, recurring polling, auto-save, full teardown, persisted schema, broker mutation and real DocumentServer/image/LAN acceptance. Task20.2 remains unchecked.
 
 ## 21. [deploy] Proxy table: Office rows (spec: ocu-reverse-proxy)
 

@@ -1080,6 +1080,53 @@ uses the separate DocumentServer origin. Generated documents remain opaque and e
 read-only/runtime frames keep their policies. No gateway or parent sandbox change belongs
 to this slice; rollback reverts shell and policy together, with no persisted-state change.
 
+#### Office host-protocol slice boundary
+
+Task20.1 mounts `static/office-editor.js` only as the valid Office mode's behavior
+owner. Install its listener before posting one exact `ocu:office-ready` to the page
+origin. Validate source, origin, chat, exact keys, file identity and safe-integer
+generation before synchronously accepting the one open; latch ownership before
+any await. No second open, including after refusal or error, creates a session.
+The original opened file and generation remain the report identity.
+
+Create once through `ocuFetch`, encoding chat/file as path segments and retaining
+its prefix/header behavior. The create response lacks reason, publication sequences
+and `workspace_changed`; read the returned session once through its status GET
+before deriving those values. This initial snapshot is not a recurring poll.
+The same status-application path consumes supplied persisted status; task20.2 owns
+the later polling loop. Do not fabricate a clean join or a conflict reason from
+the abbreviated create response. A failed snapshot reports error with the known
+session id; a final snapshot does not open an editor.
+
+Only the existing admission pairs are final refusal: unknown_file404,
+unsupported_type415, file_too_large413, unsafe_path/corrupt_document422,
+storage_low503 and unpublished_version409. Other creation failures, including
+documentserver_unavailable502, transport and malformed replies, report error.
+Preserve the broker's nonempty reason where available; absent response information
+gets a fixed local failure reason. Neither failure nor refusal closes another tab.
+
+Load `/web-apps/apps/api/documents/api.js` from the server-provided browser origin,
+never from a message, query or broker-supplied script URL. Preserve the signed
+document, editorConfig, key, callback, permissions and token fields; attach local
+event callbacks without rewriting those fields. A bounded API-load deadline,
+failed request, missing constructor or throwing constructor reports a visible
+error. A late script completion cannot turn that failure into an editor.
+
+Editor readiness does not synthesize a broker state. A modification event marks
+uncommitted local content; the editor's false modification event only means data
+reached its editing service and cannot clear workspace dirty state. Persisted
+states, publication sequences and change notices come from the status snapshot.
+Closed is never dirty; conflict remains dirty. Synchronous constructor error
+callbacks, including measured connection-loss code -18, cannot be overwritten by
+a later success path or mapped to refused.
+
+Save/close execution, save-sequence coverage tracking, recurring status polling,
+auto-save and full teardown remain task20.2. No successful no-op command handler,
+retry, new broker behavior or timer loop belongs to task20.1. Update the valid
+Office shell's ready/listener assertions rather than weakening invalid-mode
+silence or its policy/secret checks. Refresh the existing frame decision's
+implementation facts and README after runtime proof; no new decision is needed.
+
 #### Editor entry and frame slice boundary
 
 Tasks 24.1 and 24.2 implement the parent authority boundary and its executable browser path together. The selected-file action area is the entry seam; file rows and their existing accessible names remain unchanged. A saved chat, enabled workspace and literal true Office feature flag admit only broker types docx/xlsx/pptx. Display classification never grants edit eligibility. Editing does not call launch, including for stopped workspaces.

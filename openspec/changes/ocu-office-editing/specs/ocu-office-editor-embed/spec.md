@@ -61,6 +61,13 @@ The page SHALL load the DocumentServer JS API only from the configured DocumentS
 - **WHEN** session creation returns the document's session in `conflict` with no editor configuration
 - **THEN** the page creates no editor instance and reports `conflict` with that session's id and reason
 
+#### Scenario: Initial session snapshot supplies persisted state
+
+- **WHEN** creation or joining returns a session without the full status fields
+- **THEN** the host reads that session's status once before deriving its reason, publication-sequence dirty state and workspace change notice
+- **AND** the initial read uses the request wrapper and does not create a recurring poll loop by itself
+- **AND** a failed status read reports `error` with the returned session id and a non-empty reason, never a fabricated clean or conflict state
+
 #### Scenario: No secret in page configuration
 
 - **WHEN** the HTML, the inline configuration and the scripts served for `embed=office` are inspected
@@ -168,6 +175,12 @@ In every other case `dirty` SHALL be `false`, whatever made `last_published_seq`
 
 - **WHEN** session creation is refused with 409 and reason `unpublished_version`
 - **THEN** the page reports `refused` with `session_id: null` and `reason: "unpublished_version"`, creates no editor instance and issues no second create request
+
+#### Scenario: Creation unavailable is an error, not an admission refusal
+
+- **WHEN** creation fails with 502 `documentserver_unavailable`, a transport failure or another non-admission server failure
+- **THEN** the host reports `error` with `session_id: null` and the broker's non-empty reason when available, otherwise a fixed local failure reason
+- **AND** it creates no editor, issues no second creation request and sends no close for another tab's session
 
 #### Scenario: Workspace file changed during editing (B-T07)
 
