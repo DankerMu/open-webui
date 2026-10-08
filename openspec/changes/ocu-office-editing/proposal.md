@@ -508,3 +508,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Approved scope: minimally extend canonical publisher/versions and extract the unchanged reopen decision for create/restore, rather than introducing parallel implementations.
 - Approved failure priority: pause failure leaves a new unpublished restore of stored content without workspace capture or mutation; successful capture and publication share one fence.
 - Scope: task17.2b completes the restore half; gateway/UI/pruning/dependencies/deployment remain separate, and the shared change stays open.
+
+## File cache-header fixture
+
+- Issue type: bugfix; fixture level: expanded, overriding the suggested compact level because the shared file entrypoint must preserve generated-content isolation and error contracts.
+- Blast radius: cache freshness of inline/download file bytes; no publisher, path-resolution, authorization or archive change.
+- Selected risk packs: public API, inherited file IO/auth boundaries, legacy compatibility, errors and documentation.
+- Evidence floor: all six criteria in the existing header module, all five active MIME types, same-size/same-mtime replacement with prior validators, unchanged archive/401/404; independent socket HTTP before/after proof.
+- Scope: task18.1 only. Existing D22 owns the decision; no new configuration, state, dependency, gateway or UI behavior.

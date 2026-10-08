@@ -1426,6 +1426,28 @@ turning scratch mutants into permanent source or weakening the passing oracle.
 
 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`, so a preview after a publish cannot come from a cache keyed on mtime and size.
 
+Task18.1 changes only successful file responses at the existing download handler:
+inline and forced-download branches each emit exactly one `Cache-Control: no-store`.
+It does not introduce middleware that would also change archives or denials.
+
+Preserve body bytes, MIME inference, active-type inline filename encoding, passive
+disposition behavior and forced attachment semantics. All five active inline MIME
+types retain exactly the fixed CSP and nosniff; passive and forced-download
+responses retain absence of those isolation headers. Preserve file path admission,
+authorization, archive payload/headers, 401 and 404 responses without new cache policy.
+
+The governing invariant is fresh successful file bytes without weakening inherited
+isolation or changing unrelated response surfaces. Sibling surfaces under evidence
+are the separate archive handler, auth denial, missing-file handling, both XML MIME
+variants and Files listing/preview consumers; their implementations remain unchanged.
+
+Extend the existing header tests, not a second header suite. Record RED for the
+missing cache policy before changing the handler. Verify exact raw header count,
+current bytes after same-size replacement and restored mtime, including requests
+carrying the first response's validators. Capture unchanged archive/error behavior
+before implementation and compare it afterward through an actual local HTTP server.
+No real editor or deployment is required for this isolated response contract.
+
 ## Risks / Trade-offs
 
 - **B1 can invalidate the editor choice after the specs are written.** → B1 is a DAG root and gates every Office task; B0 is independent and still delivers value.

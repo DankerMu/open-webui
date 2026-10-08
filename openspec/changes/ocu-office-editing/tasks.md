@@ -824,11 +824,23 @@ certifies real DocumentServer, image, gateway, LAN or power-loss durability.
 
 ## 18. [ocu] File responses are not cached (spec: ocu-file-headers)
 
-- [ ] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
+- [x] 18.1 `GET /files/{chat_id}/{path}` responses carry `Cache-Control: no-store`; the existing content-security and MIME behaviour is unchanged. Verify: `tests/test_files_headers.py` asserts the header on active and passive types and the unchanged headers.
 
 Depends on: none beyond group 8.
 Suggested fixture level: compact - one response header on an existing route.
 Minimal mergeable slice: atomic - one header and its test.
+
+### File cache-header slice risk coverage
+
+- Public API — selected: `tests/test_files_headers.py` checks exactly one no-store header on inline DOCX/PNG/text, all five active MIME types and forced downloads; bytes, MIME and disposition remain unchanged.
+- File IO / path safety — selected as preservation: same-size replacement with restored mtime must return full200/new bytes even with prior validators; no path algorithm or file publication change.
+- Auth / permissions — selected as preservation: existing guard and 401 response remain unchanged; no new credential or authorization policy.
+- Legacy compatibility — selected: retain exact active-inline CSP/nosniff, their absence on passive/download responses, both host XML variants and encoded filenames; run existing header/auth/upload/listing/preview consumers.
+- Error handling — selected: compare status/body/headers for denied and missing files and successful archive against pre-change observations; the cache header must not leak onto those surfaces.
+- Documentation — selected: update the existing file-serving description after runtime proof; shared change stays open.
+- Config, schema, concurrency, resource limits and release/dependency policy — not selected: no changes on these surfaces and no new filesystem reads or allocation-heavy cache layer.
+
+Use the existing full-discovery Python3.12 unit command with the affected module selection. Parent-owned local socket HTTP must observe one cache header, preserved isolation and same-size/mtime freshness, and compare archive/error observations before and after. Header omission is the pre-change semantic RED. No browser cache implementation, publisher, gateway, UI or deployment certification is claimed.
 
 ## 19. [ocu] Editor host page shell (spec: ocu-office-editor-embed)
 
