@@ -1524,7 +1524,7 @@ One-version rollback verifies the seven images that the selected release's own i
 
 The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK SC, SIL Open Font License 1.1) in a directory mounted into DocumentServer. DocumentServer is a pulled image with no build step, so the fonts cannot be a build material of a role the way Draw.io and Pyodide are. They travel as a font bundle, a second non-image member of the release package beside the source bundle:
 
-- **Pin.** `deploy/fonts/fonts.json`, tracked in the OCU repository, names each upstream archive (URL and SHA-256), the font files taken from it (name, SHA-256, size) and the licence file. No font file is tracked: font files exceed the repository's 500 KB limit.
+- **Pin.** `deploy/fonts/fonts.json`, tracked in the OCU repository, names each upstream archive (URL and SHA-256), the font files taken from it (name, SHA-256, size) and the licence file. The pinned release fonts are not tracked: they exceed the repository's 500 KB limit. Existing unrelated font assets are preserved; this change adds no font binary.
 - **Build.** `release.py build` runs `deploy/fonts/prepare_fonts.py`, which downloads the pinned archives, checks every SHA-256 and writes `fonts.tar` holding exactly the listed files and the licence text. The inventory records it in the top-level field `font_bundle` (`path`, `sha256`), the shape `source_bundle` already has.
 - **Import.** `import_release` copies `fonts.tar` into the stage, checks its SHA-256 against the inventory, extracts regular files only into `fonts/` in the install root, checks each file against `fonts.json` of the release's source, and removes the archive.
 - **Start.** The release font directory is always `fonts` beside the installed inventory that `OCU_RELEASE_MANIFEST` names. The deployment entry derives `OCU_RELEASE_FONTS_DIR` from that at every start and exports it for compose, which mounts it read-only; it is not a stored setting, so nothing has to be remapped when a restore or a rollback selects another release root. The release check that `deploy/up.sh` already runs before any service starts (source, runtime binding, local images) also checks that this directory holds exactly the files of `fonts.json` with their SHA-256. A missing directory would otherwise be mounted empty and Chinese text would silently render in a fallback font.
@@ -1533,6 +1533,22 @@ The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK S
 A second, operator-owned directory (`OCU_OFFICE_FONTS_DIR`) holds fonts supplied by the deploying organisation (仿宋\_GB2312, 方正小标宋简体, 楷体\_GB2312; licences held by that organisation, recorded by B1 as stated) and is mounted the same way. Bootstrap creates it empty; the operator copies the supplied fonts into it. DocumentServer regenerates its font list at start. Neither repository nor the release package contains the supplied fonts. 宋体 and 黑体 are substituted by the two shipped families; substitution effects are recorded as fidelity notes.
 
 Alternative rejected: a derived DocumentServer image with the fonts in a layer. It would reuse the existing build-material path, but the plan fixes the upstream image as unmodified, and the role would stop being a pulled image.
+
+#### Font package cutover
+
+Task28.2 completes the version2 contract: `font_bundle` is required everywhere an inventory is loaded. There is no fontless version2 compatibility path and no version3.
+
+The pin contains an `archives` list. Each archive records its HTTPS release URL, SHA-256, byte size and selected `files`; each file records its archive member, flat installed name, SHA-256 and byte size. Selected installed names are unique across archives. Sans2.004 and Serif2.003 provide Regular/Bold SC OTFs and their licence texts, preserving common Office bold formatting without shipping every weight. Each family retains a separately named licence file.
+
+`prepare_fonts.py` owns pin parsing and archive-to-bundle preparation. The build uses the selected committed pin, not the executing checkout's pin. Downloads and decompressed selected members are bounded by their pinned sizes. Only selected regular ZIP members enter the bundle; output TAR member order and ownership/timestamps are deterministic. The release's existing private publication stage contains failures.
+
+Import verifies the copied bundle before Docker loads, using the pin from the reconstructed, verified source. Installed members must be regular files with exact names, sizes and hashes; duplicates, extras, directories, links and escaping names are rejected. The successful installation retains `fonts/`, not the bundle archive. Delivery verification checks this same material contract, rather than merely accepting the new inventory field.
+
+Startup reads the pin from the already verified executing source and checks the `fonts` entry beside the manifest before deployment mutation. A plain directory is valid for an ordinary installation. A recovery link is valid only when it names the verified selected source root's sibling `fonts` directory; following an unrelated link with identical bytes does not establish ownership. Files inside the directory may not be links. The shell exports the lexical manifest-adjacent path after successful checking; Python-child environment changes cannot supply the export.
+
+Recovery reuses the selected-root receipt and private inventory publication. It checks existing `fonts` entries before publishing or replacing anything, never overwrites a foreign directory/link, and verifies selected fonts when reusing an already imported release. Interrupted owned selection can resume; no second ownership receipt or release identity is introduced.
+
+Verification uses small locally served archives and separately measured real upstream inputs. The synthetic pin is committed before fixture source identities are computed. Every source/delivery builder, including retained and hybrid builders, receives the same mandatory material contract. The tracked-file oracle rejects the pinned release-font names anywhere in either repository and font binaries under `deploy/fonts/`; change-scope verification rejects newly added font binaries elsewhere, without requiring deletion of existing assets.
 
 ### D20. Acceptance machine
 

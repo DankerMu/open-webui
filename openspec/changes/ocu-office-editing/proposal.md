@@ -559,3 +559,15 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Must preserve: existing image/source/archive verification, no build or pull at startup, pre-mutation refusal, non-overwriting publication, credential exclusion, existing six-service compose acceptance and recovery ownership.
 - Non-goals: font bundles, DocumentServer compose/service mapping, bootstrap Office settings, ports/proxy, writer/container lists, overlay smoke requirements and OCU server code. Real image build/import/start and deployment acceptance remain deferred.
 - Declaration ownership: the existing release role planner and pulled-image path own DocumentServer selection and provenance; no parallel builder, format-1 compatibility path or new deployment entrypoint.
+
+## Release font-bundle fixture
+
+- Issue type: feature; fixture level: expanded, matching the required inventory field, archive import and selected-release filesystem boundary.
+- Blast radius: incomplete offline fonts, archive escape, accepting altered fonts, starting with an unrelated font directory or losing recovery ownership.
+- Selected risk packs: schema/CLI, file IO/path safety, selected-source provenance, resource lifecycle, compatibility, partial failure and packaging.
+- Scope: task28.2 only; version2 gains mandatory `font_bundle`. The existing release publication, deployment preflight and recovery selection remain the owners.
+- Must preserve: seven-role identity, source/archive checks, private non-overwriting publication, no network/download/build at startup, credentials and the current compose/service set.
+- Evidence floor: all nine issue criteria, the complete deploy suite, real CLI/filesystem execution with locally served synthetic archives, and a separately measured upstream pin. Real image/platform/DocumentServer acceptance remains with its existing owner.
+- Non-goals: font mounts, operator fonts, bootstrap/settings, compose/ports/proxy, format-version changes, alternate installers or compatibility with fontless inventories.
+- Pin choice: Sans2.004 and Serif2.003 official SC ZIP assets; Regular and Bold plus each archive's unchanged OFL1.1 licence. Hashes and byte sizes are measured from downloaded bytes, never invented or copied from an agent assertion.
+- Approved scope ruling: the no-tracked-font constraint covers this release bundle and new font binaries introduced by the change, not removal of existing unrelated fonts. Preserve the existing assets and enforce the scoped packaging oracle consistently in the issue, specs, tasks and tests.
