@@ -1524,6 +1524,45 @@ or image identity. Native resolution proves configuration and stable named-volum
 bindings, not a running editor or data surviving actual container recreation;
 those deployment gates remain with the real-image acceptance owner.
 
+#### JWT preflight slice contract
+
+Task30.2 uses the upstream image's canonical `JWT_ENABLED: "true"` and
+`JWT_SECRET` populated from `OCU_OFFICE_JWT_SECRET`. The pinned
+[Community entrypoint](https://github.com/ONLYOFFICE/Docker-DocumentServer/blob/8da03c96b1eaa13be94bdbe46c530b3109aea99e/run-document-server.sh#L385-L399)
+applies that one enable control to browser, inbox and outbox and that one secret
+to their signing/validation settings. There are no independent direction-specific
+environment controls to configure or emulate.
+
+Deployment preflight requires all eight stored names: `DOCUMENTSERVER_IMAGE`,
+`OCU_OFFICE_JWT_SECRET`, `OCU_OFFICE_DOCSERVER_URL`,
+`OCU_OFFICE_DOCSERVER_ORIGIN`, `OCU_OFFICE_SELF_URL`, `OCU_OFFICE_PROXY_PORT`,
+`OCU_OFFICE_FONTS_DIR` and `ENABLE_OCU_OFFICE_EDIT`, with either flag value.
+Existing required-setting diagnostics and their relative order remain intact.
+The flag accepts only `true` or `false`; the port is decimal in 1–65535 and the
+browser origin follows the bootstrap absolute-origin rule. Image identity remains
+owned by the existing release binding; no image default is introduced at startup.
+Font-directory existence and listener inputs remain tasks30.3 and31.
+
+Bootstrap and deployment admission share one implementation of the existing
+origin and port validators. Extract them atomically without changing bootstrap's
+accepted spellings, effective-port equality, defaults, error messages, secret
+generation or output ownership. The proxy renderer's separate grammar is untouched.
+Copied-source fixtures carry the helper so imported checkout execution remains
+self-contained.
+
+After resolving the actual Compose documents and before provisioning or starting
+anything, require DocumentServer's resolved `JWT_ENABLED` to equal the string
+`true`. Its resolved `JWT_SECRET` must be nonblank and equal both the supplied
+bootstrap secret and OCU's resolved `OCU_OFFICE_JWT_SECRET`. Missing, disabled,
+malformed or divergent values are admission failures. Check the documents whose
+frozen snapshots are used for startup; do not re-resolve after admission. Errors
+name the setting without echoing any input value or dumping environment blocks.
+On refusal, retain existing engine state and remove only owned temporary snapshots.
+
+Native Compose and controlled-engine entrypoint evidence prove configuration and
+admission, not actual image JWT enforcement. Signed-request/image acceptance stays
+with the real-image verification owner.
+
 ### D18. Release and backup
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
