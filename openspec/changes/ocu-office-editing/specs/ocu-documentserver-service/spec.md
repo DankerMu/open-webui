@@ -145,6 +145,7 @@ The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Seri
 
 - **WHEN** the resolved compose configuration of the DocumentServer service is inspected
 - **THEN** it mounts the directory in `OCU_RELEASE_FONTS_DIR` and the directory in `OCU_OFFICE_FONTS_DIR`, both read-only, at two different font paths inside the container, and no other host path
+- **AND** neither bind automatically creates a missing host source, and the existing own-data named volumes remain attached
 
 #### Scenario: Release font directory follows the installed inventory
 
@@ -155,6 +156,24 @@ The release SHALL carry open-source CJK fonts — Noto Sans CJK SC and Noto Seri
 
 - **WHEN** the deployment is bootstrapped and started without any operator-supplied font
 - **THEN** the operator-owned directory exists and is empty, DocumentServer starts, and the editor offers the shipped CJK fonts
+
+#### Scenario: Missing or non-directory operator font source
+
+- **WHEN** the configured operator font source is absent, a dangling link or a regular file
+- **THEN** deployment admission exits nonzero naming `OCU_OFFICE_FONTS_DIR` before engine mutation or service startup
+- **AND** it does not create the source, alter operator files or retain owned temporary snapshots
+
+#### Scenario: Relative operator path with a different Compose project directory
+
+- **WHEN** the operator configures a relative font-directory path and invokes deployment outside the core Compose project directory
+- **THEN** admission checks that path relative to the invocation working directory and Compose receives an absolute source naming the same directory
+- **AND** the stored configuration is unchanged; an existing directory symlink remains eligible
+
+#### Scenario: Operator fonts after restore
+
+- **WHEN** recovery activates a selected release on a host where the retained operator-font path is available
+- **THEN** the executed core configuration mounts that operator directory read-only alongside the selected release fonts
+- **AND** recovery does not capture, remap or create the operator directory
 
 ### Requirement: Always part of the deployment
 

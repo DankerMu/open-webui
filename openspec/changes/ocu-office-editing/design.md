@@ -1652,6 +1652,38 @@ Recovery reuses the selected-root receipt and private inventory publication. It 
 
 Verification uses small locally served archives and separately measured real upstream inputs. The synthetic pin is committed before fixture source identities are computed. Every source/delivery builder, including retained and hybrid builders, receives the same mandatory material contract. The tracked-file oracle rejects the pinned release-font names anywhere in either repository and font binaries under `deploy/fonts/`; change-scope verification rejects newly added font binaries elsewhere, without requiring deletion of existing assets.
 
+#### Font mount slice contract
+
+Task30.3 mounts release fonts at `/usr/share/fonts/truetype/ocu-release` and
+operator fonts at `/usr/share/fonts/truetype/ocu-operator`. Both are long-syntax
+binds with `read_only: true` and `bind.create_host_path: false`; neither hides
+the upstream font tree or overlaps the other. Preserve the three named
+DocumentServer data/cache/log volumes and allow no additional configured host bind.
+The pinned Community Dockerfile places fonts under `/usr/share/fonts/truetype`;
+the [official font instructions](https://helpcenter.onlyoffice.com/docs/installation/docs-install-fonts-docker.aspx)
+use `/usr/share/fonts/`, and the pinned entrypoint regenerates fonts at startup.
+This selects mount destinations without claiming actual renderer acceptance.
+
+Resolve a relative `OCU_OFFICE_FONTS_DIR` against the deployment entry's invocation
+working directory and export an absolute path before checking it or resolving
+Compose. This keeps the checked and mounted source identical when the Compose
+project directory differs. Preserve the stored spelling; do not infer bootstrap's
+historical cwd or introduce an absolute-only restriction. Existing directory
+symlinks remain accepted. Absolute stored paths avoid cwd-dependent activation.
+
+Before engine mutation, require the operator source to be an existing directory;
+missing, dangling and regular-file paths fail naming the setting. Empty directories
+are valid. Do not create the source, modify its contents/metadata or auto-create it
+during bind mounting. The operator makes this directory available on a restored
+host at the retained configured path; it is not captured, remapped or recreated
+by recovery.
+
+Release-font derivation and ownership stay with task28.2. Verify a real restore
+and activation using the selected release's manifest-adjacent `fonts` link and
+inspect the executed frozen core mount sources. No stored configuration carries
+`OCU_RELEASE_FONTS_DIR`. Native Compose checks the actual mount structure; controlled
+engine startup proves configuration selection, not font loading in a running image.
+
 ### D20. Acceptance machine
 
 The existing 4 vCPU / 7.4 GiB / 33 GiB machine. Whether swap is configured is the operator's choice at deployment; B1 records the memory and swap actually present (user decision: recorded, not a gate). Its memory plan assumes one running sandbox at a time instead of two. OCU has no setting that limits concurrent sandboxes and this change adds none: the figure is an operating constraint of the acceptance run, recorded with the deviation, not an enforced limit. The machine is below DocumentServer's official minimum; B1 records both figures. It is an acceptance environment, not a capacity proof.
