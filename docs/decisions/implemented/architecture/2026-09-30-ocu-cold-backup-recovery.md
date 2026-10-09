@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-34, issue-36, 2026-09-20-ocu-chat-state-table, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-30-ocu-offline-image-delivery
+references: issue-34, issue-36, 2026-09-20-ocu-chat-state-table, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-30-ocu-offline-image-delivery, 2026-10-09-ocu-office-backup-restore
 ---
 
 # Full cold backup and isolated release recovery
@@ -17,6 +17,11 @@ Database cursors and broker revision identity span separate persistent stores. L
 ## Decision
 
 Take a full cold backup after attributed application and sandbox writers are stopped and verified quiescent. Include the logical database, WebUI data and initializer marker, chat/skills trees, detached or stopped workspace volumes, protected configuration and release/version identity. Publish only a complete checked set. Keep sandboxes stopped after success or failure.
+
+The [Office backup and restore decision](2026-10-09-ocu-office-backup-restore.md)
+partially supersedes the backup-readiness sequence and adds restore-session
+invalidation. The isolated-target, complete-set and compatibility guarantees here
+remain in force.
 
 Restore only to a distinct empty local daemon and new deployment root. Require the standard socket topology used by runtime consumers, pin helpers and startup to that identity, and refuse collisions rather than remove resources. Partial restore leaves explicitly identified owned resources without readiness; retry requires an operator-selected fresh target or deliberate disposal outside the procedure.
 
