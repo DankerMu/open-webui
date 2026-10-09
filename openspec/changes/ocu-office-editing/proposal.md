@@ -579,3 +579,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: configuration names and strict parsing; secret generation/disclosure; filesystem ownership and no-overwrite; flag parity; downstream caller compatibility.
 - Evidence floor: real bootstrap CLI with flag on/off, exact non-generated-value parity, JWT freshness and secret-free version output, missing/invalid input and failed/empty generation refusal, untouched existing font contents and outputs, focused bootstrap suite plus copied-release integration, and an independent CLI smoke with semantic negative controls.
 - Input choices and defaults live in D17's bootstrap slice contract. The WebUI application's default-false flag does not make the bootstrap operator choice implicit.
+
+## DocumentServer service fixture
+
+- Issue type: feature; fixture level: expanded for task30.1's topology, service identity and required port-guard membership.
+- Scope: core/WebUI compose overrides, release service-image map, port guard, resolved-document fixtures and fake service tables. JWT settings/preflight, fonts, second listener, smoke membership and backup writers stay in their later slices.
+- Selected risk packs: cross-component environment names; network/publication isolation; release identity before mutation; flag-independent service/volume identity; complete fixture migration; secret-free diagnostics.
+- Evidence floor: native Compose v2 resolution of the actual three stacks with sealed synthetic inputs and no operator dotenv/config access; port-guard CLI negative matrix; real startup refusal on a mismatched DocumentServer image; the complete deploy suite with collection/JUnit reconciliation; independent resolver-to-guard/startup smoke and private semantic controls.
+- Storage follows the pinned upstream Community layout recorded in D17: separate named data, cache and log volumes, not a certificates-only claim of full persistence. No image execution or container-recreation result is inferred from configuration.

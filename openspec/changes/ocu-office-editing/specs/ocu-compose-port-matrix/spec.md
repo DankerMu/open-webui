@@ -16,6 +16,11 @@ The deployment port check SHALL treat DocumentServer as a required service wheth
 - **WHEN** the resolved DocumentServer service joins the sandbox bridge, alone or in addition to the control-plane bridge
 - **THEN** the deployment port check exits nonzero naming the service and no service is started
 
+#### Scenario: DocumentServer joins another network
+
+- **WHEN** DocumentServer is attached to the control-plane bridge and an additional network other than the sandbox bridge
+- **THEN** the deployment port check exits nonzero naming DocumentServer and no service is started
+
 #### Scenario: DocumentServer missing or duplicated
 
 - **WHEN** the resolved stacks contain no DocumentServer service, or contain it twice

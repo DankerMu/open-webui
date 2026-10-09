@@ -1490,6 +1490,40 @@ bootstrap publication and cleanup protocol. The copied-bootstrap integration
 caller receives the two new required inputs; no other deployment consumer is
 changed. Compose wiring, preflight and font mounts remain tasks30.1–30.3.
 
+#### Compose service slice contract
+
+Task30.1 adds the always-present `documentserver` service to the existing core
+stack, using `DOCUMENTSERVER_IMAGE` without a build, profile, host publication
+or host/shared network mode. Its only network is the existing control-plane
+default network; the control-plane URL remains `http://documentserver` (port80).
+The port guard requires this service exactly once and rejects any additional
+network, not only the sandbox bridge. The proxy still publishes one port.
+
+Use three project-scoped named volumes: `documentserver-data` at
+`/var/www/onlyoffice/Data`, `documentserver-cache` at `/var/lib/onlyoffice`, and
+`documentserver-logs` at `/var/log/onlyoffice`. The pinned upstream
+[9.4.0.129 storage guidance](https://github.com/ONLYOFFICE/Docker-DocumentServer/blob/8da03c96b1eaa13be94bdbe46c530b3109aea99e/README.md#storing-data)
+and its Community Dockerfile distinguish certificates, document cache and logs;
+persisting only the certificates path would not preserve the cache. These are
+DocumentServer-owned data volumes, not host binds or broker workspace volumes.
+Database/message-broker volumes from the upstream Enterprise layout are not
+added. Font mounts remain task30.3; backup membership remains task33.
+
+Native Compose v2 resolves the actual base-plus-overlay files with the same
+three project directories and file ordering as `up.sh`. Verification supplies an
+empty explicit env file, a temporary HOME/DOCKER_CONFIG and a synthetic
+environment allowlist; no operator `.env`, credential config, daemon, image pull
+or image build is needed. Missing Compose is a failed prerequisite, not a skip.
+Tests compare resolved OCU keys to the four existing `office/config.py`
+constants and check the WebUI flag, in both flag states.
+
+The release map, intended documents (including custom-image variants) and fake
+engine core-service table migrate together. Actual guard/startup refusal tests
+observe no service start or network/firewall/image mutation on invalid topology
+or image identity. Native resolution proves configuration and stable named-volume
+bindings, not a running editor or data surviving actual container recreation;
+those deployment gates remain with the real-image acceptance owner.
+
 ### D18. Release and backup
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
