@@ -548,3 +548,14 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Critical ordering: a save acknowledges only modifications observed before that request, and only after its returned allocation is committed; command acceptance alone is not publication.
 - Retry attribution: a saving-state refusal returns the blocking allocation captured by its locked admission check; a post-allocation unavailable response returns that request's own allocation. The host matches these identities instead of inferring causality from response timing or a later status snapshot.
 - Cleanup: component retirement and page lifecycle share one idempotent disposer; aborting or destroying cannot revive effects or implicitly close a broker session.
+
+## DocumentServer release-role fixture
+
+- Issue type: feature; fixture level: expanded, agreeing with the inventory-format, offline startup and retained-release identity boundaries.
+- Blast radius: importing an incomplete release, starting mismatched images, restoring stale runtime identity or silently accepting the unsupported format.
+- Selected risk packs: schema/public CLI, file IO, source/image provenance, compatibility, partial failure, configuration, inherited secrets and documentation.
+- Evidence floor: all twelve task28.1 criteria through actual release/bootstrap/deployment/recovery entrypoints with controlled Docker dependencies; the complete deploy test suite and an independent subprocess CLI proof.
+- Scope: task28.1 only. One version-2 inventory with seven roles; DocumentServer is an unmodified pulled image. All identity consumers change atomically. Recovery-set format stays unchanged.
+- Must preserve: existing image/source/archive verification, no build or pull at startup, pre-mutation refusal, non-overwriting publication, credential exclusion, existing six-service compose acceptance and recovery ownership.
+- Non-goals: font bundles, DocumentServer compose/service mapping, bootstrap Office settings, ports/proxy, writer/container lists, overlay smoke requirements and OCU server code. Real image build/import/start and deployment acceptance remain deferred.
+- Declaration ownership: the existing release role planner and pulled-image path own DocumentServer selection and provenance; no parallel builder, format-1 compatibility path or new deployment entrypoint.

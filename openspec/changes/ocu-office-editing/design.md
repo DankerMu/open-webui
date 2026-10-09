@@ -1467,6 +1467,38 @@ DocumentServer is the seventh role in the release inventory, of kind `pull` like
 
 The inventory's `format_version` rises to 2. A version-2 inventory has seven roles and the `font_bundle` field (D19); every inventory load — the release command line (build, import, verify), the deployment entry, and recovery when it restores or activates a retained release — requires version 2 and refuses a version-1 inventory (six roles, no font bundle) by naming the format version. No second format is carried. The only release with a version-1 inventory is the Plan 1 release, which never went live (user decision, 2026-10-02), so no retained release and no recovery set of that format exists.
 
+#### Release-role cutover
+
+Task28.1 uses the role key `documentserver` and runtime identity
+`DOCUMENTSERVER_IMAGE`. The existing pulled-image planner/exporter owns it.
+Its default is the selected upstream9.4.0 OCI index reference
+`onlyoffice/documentserver@sha256:e3da62a847b9a5d51a11f73cfea1d9c13c3be3809614490d4edddcf01dcf919b`;
+the index is not an image configuration digest. The existing linux/amd64 pull
+and inspection path obtains the platform-specific configuration identity.
+
+The tracked release module declares the default; planning reads that literal
+from the selected committed source snapshot, not the running checkout.
+Reuse the existing literal-assignment parser and pulled provenance fields:
+the declaration file occupies the existing `build.dockerfile` field, as the
+PostgreSQL compose declaration does. No fake Dockerfile or new inventory field
+is introduced. DocumentServer provenance must identify that declaration,
+its sole image-reference argument/default, no build overrides, and the matching
+`upstream-image` material. Built-image provenance is rejected. Registry digests
+remain optional metadata, never a substitute for configuration/archive identity.
+
+The role order and runtime-variable map include all seven images. The service
+map deliberately remains unchanged until the DocumentServer compose service
+lands: a valid seven-image inventory must start with the existing compose set.
+Bootstrap writes the seventh release assignment into its protected runtime
+output; recovery clears stale captured identity and persists the selected
+reference through its existing identity-key owner. The recovery-set format
+number, writer/container inventory and deployment entry remain unchanged.
+
+Task28.1 accepts the seven-role version2 inventory without a font bundle;
+task28.2 adds that required field before any release deployment. Version1 is
+rejected by every loader in both slices. Rollback uses another supported
+complete release, not a format1 compatibility path or an in-place downgrade.
+
 Backup quiesces editing before it stops writers, in this order:
 
 1. Stop the proxy. No browser can reach WebUI, OCU or DocumentServer, so no session can start.

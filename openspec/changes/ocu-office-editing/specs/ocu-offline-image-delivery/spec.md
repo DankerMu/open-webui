@@ -25,6 +25,19 @@ A release SHALL also carry the open-source CJK fonts DocumentServer needs as a f
 - **THEN** the DocumentServer image is the selected upstream image, exported unmodified and recorded by configuration digest and archive SHA-256
 - **AND** an inventory that lacks the DocumentServer role, or that records it as a built image, is rejected
 
+#### Scenario: Selected release identity reaches runtime consumers
+
+- **WHEN** bootstrap or restore selects a valid version2 release with seven image roles
+- **THEN** the runtime configuration records `DOCUMENTSERVER_IMAGE` from that inventory alongside the other six references
+- **AND** a stale captured DocumentServer reference cannot override the selected release
+- **AND** the deployment version record includes its inspected runtime configuration digest without exposing credentials
+
+#### Scenario: Image identity is independent of service introduction
+
+- **WHEN** task28.1 verifies a valid seven-role release before the DocumentServer compose service is introduced
+- **THEN** all seven local image identities are checked, while the existing compose service set remains accepted
+- **AND** a missing or replaced DocumentServer image fails before deployment mutation without building or pulling
+
 #### Scenario: Font bundle is built from the pin
 
 - **WHEN** a release is built
