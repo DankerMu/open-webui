@@ -21,6 +21,13 @@ DocumentServer SHALL run as a compose service of the deployment, attached to the
 - **WHEN** the running DocumentServer container's image is compared with the release inventory
 - **THEN** its configuration digest equals the inventory's DocumentServer entry and no derived or locally built image is in use
 
+#### Scenario: Resolved service is independent of the editing flag
+
+- **WHEN** the actual core and WebUI stacks are resolved with the Office flag on and off
+- **THEN** DocumentServer remains present in core without a profile or build, using the release-selected image and only the control-plane network
+- **AND** it has no publication or non-font host bind, and its named data, cache and log volume bindings remain identical
+- **AND** the OCU environment carries the four existing configuration-module names with nonempty values, while WebUI carries the selected flag
+
 ### Requirement: Own browser origin behind the proxy's second listener
 
 Browsers SHALL reach DocumentServer only through the reverse proxy's second listener, which is published on its own host port. The browser-facing DocumentServer origin SHALL therefore differ from the WebUI origin, so that script running in the editor origin cannot read WebUI's origin-scoped storage. Every request on that listener, HTTP and WebSocket handshake alike, SHALL require a valid WebUI session; a request without one SHALL receive 401 and SHALL NOT reach DocumentServer.
