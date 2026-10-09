@@ -34,6 +34,11 @@ Bootstrap SHALL always provision the settings that the DocumentServer service an
 - **WHEN** bootstrap runs and the operator-owned font directory already holds fonts
 - **THEN** the directory and its contents are unchanged and its path is carried in the generated configuration
 
+#### Scenario: Font directory is absent
+
+- **WHEN** the selected operator-font directory does not exist and the other bootstrap inputs are valid
+- **THEN** bootstrap creates it empty and records its path without adding a font
+
 ### Requirement: Office configuration consistency
 
 Bootstrap SHALL reject, without publishing either output, a configuration in which the DocumentServer image reference is absent or empty, one in which the JWT secret could not be generated, and one in which the browser-facing DocumentServer origin equals the WebUI origin. The browser-facing DocumentServer origin SHALL pass the same absolute-origin validation as the WebUI origin. The Office editing flag input SHALL accept only an explicit true or false; any other value SHALL be rejected rather than treated as off.
@@ -57,3 +62,20 @@ Bootstrap SHALL reject, without publishing either output, a configuration in whi
 
 - **WHEN** the Office editing flag input is neither true nor false, or the DocumentServer origin carries a path, credentials, query, fragment or trailing slash
 - **THEN** bootstrap fails nonzero naming the input without publishing either output
+
+#### Scenario: Required bootstrap choices are absent
+
+- **WHEN** `ENABLE_OCU_OFFICE_EDIT` or `OCU_OFFICE_DOCSERVER_ORIGIN` is absent or empty
+- **THEN** bootstrap refuses naming the input, without publishing either output
+- **AND** it does not infer a flag value from the WebUI application's default
+
+#### Scenario: Equivalent origin spelling
+
+- **WHEN** the DocumentServer origin names the WebUI scheme and hostname with an explicit default port, while WebUI omits that port
+- **THEN** bootstrap treats them as the same origin and refuses without publishing either output
+
+#### Scenario: Invalid optional Office inputs
+
+- **WHEN** `OCU_OFFICE_PROXY_PORT` is explicitly empty or is not a decimal port in 1–65535, or `OCU_OFFICE_FONTS_DIR` is explicitly empty
+- **THEN** bootstrap fails nonzero naming the input without publishing either output
+
