@@ -78,4 +78,3 @@ Bootstrap SHALL reject, without publishing either output, a configuration in whi
 
 - **WHEN** `OCU_OFFICE_PROXY_PORT` is explicitly empty or is not a decimal port in 1–65535, or `OCU_OFFICE_FONTS_DIR` is explicitly empty
 - **THEN** bootstrap fails nonzero naming the input without publishing either output
-

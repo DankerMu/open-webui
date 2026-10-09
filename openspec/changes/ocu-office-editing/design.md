@@ -1490,7 +1490,6 @@ bootstrap publication and cleanup protocol. The copied-bootstrap integration
 caller receives the two new required inputs; no other deployment consumer is
 changed. Compose wiring, preflight and font mounts remain tasks30.1–30.3.
 
-
 ### D18. Release and backup
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
