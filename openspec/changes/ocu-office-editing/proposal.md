@@ -571,3 +571,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Non-goals: font mounts, operator fonts, bootstrap/settings, compose/ports/proxy, format-version changes, alternate installers or compatibility with fontless inventories.
 - Pin choice: Sans2.004 and Serif2.003 official SC ZIP assets; Regular and Bold plus each archive's unchanged OFL1.1 licence. Hashes and byte sizes are measured from downloaded bytes, never invented or copied from an agent assertion.
 - Approved scope ruling: the no-tracked-font constraint covers this release bundle and new font binaries introduced by the change, not removal of existing unrelated fonts. Preserve the existing assets and enforce the scoped packaging oracle consistently in the issue, specs, tasks and tests.
+
+## Office bootstrap fixture
+
+- Issue type: feature; fixture level: expanded, matching task29.1.
+- Scope: bootstrap settings and its behavioral tests; update the copied-bootstrap caller's inputs in the existing offline-release integration test. No release, compose, startup, port-guard or proxy behavior changes.
+- Selected risk packs: configuration names and strict parsing; secret generation/disclosure; filesystem ownership and no-overwrite; flag parity; downstream caller compatibility.
+- Evidence floor: real bootstrap CLI with flag on/off, exact non-generated-value parity, JWT freshness and secret-free version output, missing/invalid input and failed/empty generation refusal, untouched existing font contents and outputs, focused bootstrap suite plus copied-release integration, and an independent CLI smoke with semantic negative controls.
+- Input choices and defaults live in D17's bootstrap slice contract. The WebUI application's default-false flag does not make the bootstrap operator choice implicit.

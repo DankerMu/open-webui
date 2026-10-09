@@ -1461,6 +1461,35 @@ The module's positive integer defaults are `MIN_FREE_BYTES = 1024**3`, `SOURCE_T
 
 Alternatives rejected: a same-origin path prefix (the editor frontend, which renders documents an injected Agent can craft, would share WebUI's origin); a subdomain (needs LAN DNS, which the deployment does not have).
 
+#### Bootstrap slice contract
+
+Task29.1 requires explicit operator inputs `ENABLE_OCU_OFFICE_EDIT` (`true` or
+`false`, case-sensitive) and `OCU_OFFICE_DOCSERVER_ORIGIN`. Missing or empty inputs
+are errors; the WebUI application's default-false flag is a separate boundary.
+The origin uses the existing WebUI absolute-origin validator. Origin equality
+compares scheme, hostname and effective port, including implicit HTTP/HTTPS ports.
+Diagnostics name the input without echoing its value.
+
+`OCU_OFFICE_PROXY_PORT` defaults to `8083` when unset; an explicit value must be a
+decimal port in 1–65535. `OCU_OFFICE_FONTS_DIR` defaults to
+`<DEPLOY_ROOT>/data/office-fonts` when unset and accepts an explicit directory path.
+Explicit empty values are refused. Both pass the existing dotenv-safety check.
+The fixed control-plane addresses are `http://documentserver` and
+`http://computer-use-server:8081`; task30.1 uses the service name `documentserver`.
+The browser origin is an operator input, not inferred from the WebUI address.
+
+Generate the JWT with `openssl rand -hex 32` after the existing output-occupancy
+guard, independently of the five existing secrets. A command failure or empty
+result names `OCU_OFFICE_JWT_SECRET` and publishes neither output. The secret
+appears only in the protected runtime file, never the admin file, logs or version
+report. Flag on/off changes only the flag among non-generated values.
+
+Create an absent operator-font directory without adding any font; leave an
+existing directory's bytes and metadata untouched. Preserve the existing
+bootstrap publication and cleanup protocol. The copied-bootstrap integration
+caller receives the two new required inputs; no other deployment consumer is
+changed. Compose wiring, preflight and font mounts remain tasks30.1–30.3.
+
 ### D18. Release and backup
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
