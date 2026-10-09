@@ -595,3 +595,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: auth/secrets, resolved-versus-input configuration identity, strict input validation, flag parity, pre-mutation ordering, source packaging and existing deployment/recovery compatibility.
 - Evidence floor: native Compose in both flag states; actual deployment CLI missing/empty/invalid inputs and resolved JWT mutations; bootstrap equivalence and copied/imported source execution; complete deploy-suite reconciliation; independent native-resolution-to-entry smoke with semantic negative controls.
 - Non-goals: font-directory existence or mounts, proxy listeners, release policy, recovery behavior, real image execution and deployment certification.
+
+## DocumentServer font-mount fixture
+
+- Issue type: feature; fixture level: expanded for task30.3's host-path identity, mount permissions and selected-release activation boundary.
+- Scope: two DocumentServer font binds, operator-directory admission and deploy fixtures. Release-font installation/verification, bootstrap, recovery policy, JWT controls and proxy remain unchanged.
+- Selected risk packs: path identity and relative bases, read-only mounts, operator ownership, selected-release restore integration, flag parity, missing-input refusal and complete fixture migration.
+- Evidence floor: actual native Compose mount inspection; real entry refusal/acceptance with state conservation; restored activation's executed frozen mount sources; full deploy-suite reconciliation and independent native-resolution/CLI smoke with semantic controls.
+- Restore ownership: operator fonts remain outside the recovery set, at the stored path made available by the operator. Relative paths are invocation-cwd-relative and exported absolute for Compose; no historical bootstrap directory is inferred.
