@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-33, issue-34, issue-36, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery
+references: issue-33, issue-34, issue-36, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery, 2026-10-03-ocu-office-editor-selection
 ---
 
 # Offline image archives with mandatory content verification
@@ -16,9 +16,14 @@ Startup rebuilds locally named images, while image export/import does not guaran
 
 ## Decision
 
-Deliver named image archives with mandatory configuration-digest and archive SHA-256 verification. These digests have distinct meanings and are not registry manifest digests. Content-derived names preserve the workspace naming contract. Verify all six roles on import and before deployment mutation; forbid build and pull at startup.
+Deliver named image archives with mandatory configuration-digest and archive SHA-256 verification. These digests have distinct meanings and are not registry manifest digests. Content-derived names preserve the workspace naming contract. Verify all seven roles on import and before deployment mutation; forbid build and pull at startup.
 
 One machine release inventory binds both repository commits, target platform, image/archive identities, non-secret build arguments and material input provenance. The existing deployment-version report renders that inventory alongside runtime policy. Required tracked OCU source and initializer bind assets travel with the release; credentials and untracked worktree files do not.
+
+The [Office selection](2026-10-03-ocu-office-editor-selection.md) partially
+supersedes the six-role inventory shape: version2 includes the unmodified pulled
+DocumentServer image and every loader refuses version1. This record's archive,
+source, publication and offline-startup guarantees remain in force.
 
 Online build-time materialization remains permitted. Local Pyodide and Draw.io closures remain enabled, as do configured LAN model/RAG endpoints. User-authored remote content and explicitly selected external integrations are not silently disabled or misrepresented as bundled material.
 
