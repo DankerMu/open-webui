@@ -603,3 +603,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: path identity and relative bases, read-only mounts, operator ownership, selected-release restore integration, flag parity, missing-input refusal and complete fixture migration.
 - Evidence floor: actual native Compose mount inspection; real entry refusal/acceptance with state conservation; restored activation's executed frozen mount sources; full deploy-suite reconciliation and independent native-resolution/CLI smoke with semantic controls.
 - Restore ownership: operator fonts remain outside the recovery set, at the stored path made available by the operator. Relative paths are invocation-cwd-relative and exported absolute for Compose; no historical bootstrap directory is inferred.
+
+## DocumentServer listener fixture
+
+- Issue type: feature; fixture level: expanded for task31's authenticated origin and atomic two-publication cutover.
+- Scope: proxy renderer/template/image/tests, proxy Compose service, port guard, smoke publication judge and fixtures, deployment report/runbook, and the origin decision record. Preserve the route table and pin, core/WebUI stacks, bootstrap, preflight, recovery and smoke service membership.
+- Selected risk packs: cookie-only admission, credential/identity containment, listener separation, raw request and WebSocket forwarding, required-input rendering, publication identity and dual-stack counting, consumer migration, private config lifecycle.
+- Evidence floor: semantic RED/GREEN native nginx with private recording peers; authenticated HTTP/body/query and WebSocket including idle beyond60seconds; denial/no-contact matrix and header observations; native Compose plus real guard CLI and smoke publication failures; existing proxy/entrypoint and complete deploy suites with discovery reconciliation; independent fault-qualified runtime probes.
+- Source evidence is not image/deployment acceptance. The measured B1 cookie-withholding result is recorded in `2026-10-03-ocu-office-editor-selection`; real-image acceptance and the WebUI pinned harness migration remain separate.

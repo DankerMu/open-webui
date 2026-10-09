@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-25
 supersedes: none
-references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-24-ocu-sandbox-network-membership, 2026-09-25-ocu-cookie-gateway-and-paired-smoke, 2026-09-25-ocu-sandbox-egress-guard, 2026-09-26-ocu-private-runtime-provisioning, issue-24
+references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-24-ocu-sandbox-network-membership, 2026-09-25-ocu-cookie-gateway-and-paired-smoke, 2026-09-25-ocu-sandbox-egress-guard, 2026-09-26-ocu-private-runtime-provisioning, 2026-10-09-ocu-documentserver-origin, issue-24
 ---
 
 # Proxy-only Compose entry with independent sandbox bridge
@@ -16,7 +16,7 @@ Application overlays that publish WebUI or OCU directly bypass the cookie gatewa
 
 ## Decision
 
-The production-like core and WebUI overrides use `ports: !override []`; only the separate proxy service publishes TCP 8082 through its configured host port. All services use one named control-plane bridge; no control-plane service joins the sandbox bridge. OCU receives the dedicated bridge's name, subnet and gateway from required deployment variables. The gateway also sets `SANDBOX_HOST_BIND_IP`.
+The production-like core and WebUI overrides use `ports: !override []`; only the separate proxy service publishes host ports. The one-publication clause is partially superseded by [DocumentServer's separate origin](2026-10-09-ocu-documentserver-origin.md): container8082 serves WebUI/OCU and container8083 serves DocumentServer, each through its configured host port. All services use one named control-plane bridge; no control-plane service joins the sandbox bridge. OCU receives the dedicated bridge's name, subnet and gateway from required deployment variables. The gateway also sets `SANDBOX_HOST_BIND_IP`.
 
 `deploy/up.sh` resolves all three Compose stacks to private JSON before start, using the checkout root as the core/WebUI project directory and the overlay directory for proxy so `../proxy` stays valid. `deploy/check-ports.sh` checks the complete resolved service set for non-proxy publications, network-mode bypasses including Docker `bridge`, sandbox membership, proxy mapping and application reachability. Startup executes the already-checked documents rather than rereading mutable YAML, and forces `COMPOSE_REMOVE_ORPHANS=false` plus an empty `COMPOSE_PROFILES` so sibling stacks survive and the cleanup profile cannot activate. `deploy/provision-networks.sh` validates both IPv4 topologies and inspects existing bridges; it creates only a missing sandbox bridge and validates the result after creation or a concurrent-create conflict. It neither deletes nor migrates an incompatible network. Application stacks start before the proxy because nginx resolves their service names when the canonical renderer validates its configuration. Open WebUI receives `ENABLE_OCU_WORKSPACE=true` and `OCU_INTERNAL_URL=http://computer-use-server:8081` in addition to the internal token.
 
