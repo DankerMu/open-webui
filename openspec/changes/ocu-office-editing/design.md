@@ -1167,13 +1167,17 @@ documentserver_unavailable includes the actual request's allocated `save_seq`,
 even when a newer mutation has superseded it before response delivery.
 Creation and restore errors retain their existing response shape.
 
-The host provisionally binds a publishing refusal to its local auto-save
-attempt, then requires the refusal's positive safe `blocking_save_seq` to
-equal that attempt's actual sequence from its202 or502 response. Missing,
-malformed or mismatched evidence cannot authorize an automatic retry.
+One explicit publishing intent retains candidate local auto-save attempts that
+were outstanding at dispatch or started while its response is unresolved. The
+refusal's positive safe `blocking_save_seq` must equal a candidate's actual
+sequence from its202 or502 response. Pending identity is not permission to
+retry; missing, malformed or mismatched evidence fails closed.
 Only202 acceptance binds modification coverage; a502 allocation does not.
-Once matched, the queued user intent survives later foreign allocations
-until editing resumes, unless close, final state or retirement supersedes it.
+A newer explicit Save replaces any older intent, including an installed queue.
+Background persistence does not advance explicit-command authority. A matched
+intent survives later foreign allocations until editing resumes, unless a newer
+explicit command, final state or retirement supersedes it. Candidate references
+belong only to that unresolved or queued intent, not a session-wide history.
 No allocation is predicted from a baseline or inferred from a later status.
 
 A rejected save/close is a recoverable command failure, not the host's terminal

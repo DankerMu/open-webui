@@ -222,7 +222,8 @@ MAY retain a provisional queued intent while that identity is pending.
 Missing, malformed or mismatched allocation evidence SHALL NOT authorize a
 retry. A502 allocation SHALL NOT acknowledge local modifications. Once the
 identities match, subsequent foreign allocations SHALL NOT revoke that
-queued user intent; close, final state and retirement still supersede it.
+queued user intent; a newer explicit save or close, final state and retirement
+still supersede it. Automatic persistence SHALL NOT supersede an explicit intent.
 
 A rejected or failed save or close request SHALL never be reported as success: the page SHALL keep `dirty` unchanged and SHALL report the failure as a non-null `reason` — with the session state the broker still holds, or with `error` when the session status cannot be read — until a later save or close request is accepted.
 
@@ -274,6 +275,18 @@ When the session status reports `orphaned`, `closed` or `error` the page SHALL s
 - **WHEN** the publishing refusal identifies the local auto-save N, and a foreign save starts after that refusal but before the queued publication can run
 - **THEN** the host retains the confirmed user intent and retries it once editing resumes
 - **AND** it never infers refusal ownership from the newer observed status
+
+#### Scenario: A newer explicit Save replaces an installed retry
+
+- **WHEN** a correlated publishing retry is queued and the parent sends a newer explicit `save` command
+- **THEN** the newer command supersedes the older queued intent, including while its candidate allocation identity is pending
+- **AND** the old queue cannot issue another publish or overwrite the newer command's reason after that command succeeds
+
+#### Scenario: A local auto-save overtakes a publishing request
+
+- **WHEN** a local auto-save starts during a publishing request's flight and reaches broker admission first, causing a correlated publishing409
+- **THEN** the host retains that local attempt as a candidate and retries the publishing intent once its identity matches and the session becomes editing
+- **AND** replacing the current auto-save reference or delaying its202/502 body does not lose the candidate identity, while foreign or malformed correlation still cannot authorize a retry
 
 #### Scenario: Save timed out and is retried (B-T11)
 
