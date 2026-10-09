@@ -31,9 +31,11 @@ preview-selection messages.
 
 The editor API loads only from the configured origin. Broker-signed document,
 editorConfig and token fields are not rewritten; local event callbacks do not
-alter those fields. Validation refusal is final, while request/API/editor failures
-report error without closing another tab's session. Editor readiness and internal
-modification acknowledgements do not establish persisted editing or saved state.
+alter those fields. Validation refusal is final; creation, status, API and editor
+failures report error without closing another tab's session. Rejected save/close
+requests instead retain the usable session and surface their reason. Editor
+readiness and internal modification acknowledgements establish neither persisted
+editing nor publication.
 
 `officeDocserverOrigin` comes only from the server-owned
 `OCU_OFFICE_DOCSERVER_ORIGIN` setting. Parent messages, query values and user
@@ -88,13 +90,37 @@ CSP validation does not add URL-format startup validation.
 Trust in the configured DocumentServer includes its host-executed API code; CSP
 limits sources, not that code's host privileges. Host connections remain same-origin
 while the nested DocumentServer document owns its own origin and connection policy.
-The host consumes existing broker APIs without a persisted-schema migration.
-Save/close execution, recurring status polling and auto-save remain outside this
-protocol owner's delivered behavior.
+The host uses the existing broker routes without a persisted-schema migration.
+One status-read owner serves hydration, polling and command refresh; one editing
+timer persists uncovered reported modifications every five minutes. Save coverage
+binds the local modification generation at dispatch to the returned allocation
+and the broker's cumulative committed watermark. It is not per-receipt proof.
+Publication, not acceptance or the editor's own save shortcut, clears dirty state.
+
+Retry attribution uses broker allocation identities, not response timing or a
+later status snapshot. Saving-state admission409 carries the blocking allocation
+captured under its rejecting lock; save502 retains that failed request's own
+allocation. A matched local auto-save permits one queued publishing intent to
+survive later foreign saves. Error allocation metadata never establishes
+modification coverage; creation and restore errors keep their existing shape.
+
+An explicit close releases the editor only after broker acceptance. Component
+cleanup and pagehide retire the host before aborting its work and releasing its
+editor; neither cleanup path invents a broker close. These lifecycle hooks do not
+change the shell, mode selection, policy or other preview classes.
 
 Local actual-HTTP/Chromium evidence covers the [idle host](../../../evidence/issue-145/office-shell.png), [local CSP canary](../../../evidence/issue-145/office-policy-canary.png) and [disabled invalid surface](../../../evidence/issue-145/office-disabled.png), not real DocumentServer editing or LAN acceptance.
 
 Local protocol evidence covers a [joined session](../../../evidence/issue-146/office-session.png), [pending conflict](../../../evidence/issue-146/office-conflict.png) and [API timeout](../../../evidence/issue-146/office-api-error.png) through the actual host with controlled broker replies and a local editor API fixture. These captures do not certify real DocumentServer editing or deployment.
+
+Local lifecycle captures show a [published clean report](../../../evidence/issue-147/office-saved.png) and a [recoverable save failure](../../../evidence/issue-147/office-save-failure.png). Actual framed-host HTTP proof covers save/close, browser-clock auto-save, effect cleanup, native frame removal and repeated retirement. The parent, broker replies and editor API are controlled fixtures, not a combined production-parent or real DocumentServer acceptance run.
+
+Separate actual-broker/browser correlation proof exercises real save admission,
+reconciliation and HTTP responses against the production host, including a
+[retained owned retry](../../../evidence/issue-147/office-retry-owned.png) and a
+[foreign refusal without retry](../../../evidence/issue-147/office-retry-foreign.png).
+Its SDK, command service and completion transitions are controlled; it does not
+certify real DocumentServer callbacks or persisted document content.
 
 The [selected-runtime](2026-09-27-ocu-selected-runtime-embedding.md) and
 [restricted read-only Office](2026-09-27-ocu-restricted-office-embedding.md) decisions

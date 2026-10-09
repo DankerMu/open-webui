@@ -160,6 +160,18 @@ In every other case `dirty` SHALL be `false`, whatever made `last_published_seq`
 - **WHEN** the editor reports a modification, a save is accepted with `save_seq` N, and the session status reports `last_committed_seq` below N — while the save is outstanding, or after the session returned to `editing` with a non-null `reason`
 - **THEN** every state the page posts carries `dirty: true`
 
+#### Scenario: Save coverage does not acknowledge later edits
+
+- **WHEN** a save is requested after modification A, modification B is reported before that save completes, and status confirms the returned save sequence committed and published
+- **THEN** only A is covered and the host still reports dirty because B is not covered
+- **AND** a sequence allocated by another tab cannot by itself acknowledge B
+
+#### Scenario: Commit observation precedes the save reply
+
+- **WHEN** a status already proves a save allocation committed before its accepted HTTP reply supplies that allocation's sequence
+- **THEN** the host reconciles coverage using the modification generation captured at request dispatch
+- **AND** it neither loses that committed coverage nor acknowledges a later modification
+
 #### Scenario: Connection failure is not a cap refusal (B-T15)
 
 - **WHEN** the editor reports connection-loss error `-18`
@@ -203,6 +215,16 @@ The host page SHALL own session creation, the session status poll, the auto-save
 
 While the session is `editing` the page SHALL keep exactly one 5-minute auto-save timer; on each tick it SHALL request a save with intent `persist` through `POST /api/office/{chat}/sessions/{session}/save` while the editor holds a modification that no committed save covers, and SHALL do nothing otherwise, so an auto-save that failed is requested again at the next tick. A `save` command SHALL issue one save with intent `publish` through the same route. The editor's own save command is not a save in this model: the page SHALL NOT treat it as one, and `dirty` SHALL stay `true` after it. A save that the broker refuses with `session_not_editing` because an auto-save is still outstanding SHALL be retried once the session is `editing` again, not reported as an error. A `close` command SHALL issue `POST /api/office/{chat}/sessions/{session}/close`, stop the auto-save timer, release the editor instance only after that request was accepted so that DocumentServer sees the participant leave after the close is recorded, and keep reporting the persisted session state until it is `closed`, `error` or `orphaned` or the page is torn down.
 
+Automatic publishing retry SHALL require the refusal's positive safe integer
+`blocking_save_seq` to equal the local auto-save attempt's actual `save_seq`
+from its accepted202 or post-allocation502 response. An unresolved attempt
+MAY retain a provisional queued intent while that identity is pending.
+Missing, malformed or mismatched allocation evidence SHALL NOT authorize a
+retry. A502 allocation SHALL NOT acknowledge local modifications. Once the
+identities match, subsequent foreign allocations SHALL NOT revoke that
+queued user intent; a newer explicit save or close, final state and retirement
+still supersede it. Automatic persistence SHALL NOT supersede an explicit intent.
+
 A rejected or failed save or close request SHALL never be reported as success: the page SHALL keep `dirty` unchanged and SHALL report the failure as a non-null `reason` — with the session state the broker still holds, or with `error` when the session status cannot be read — until a later save or close request is accepted.
 
 A save that was accepted and then failed SHALL be reported the same way. When the session status reports `editing` with a non-null `reason` — `save_timeout`, or the reason with which the broker refused the save's callback (storage floor, invalid content, size limit, failed download) — the page SHALL report `editing` with that `reason` and with `dirty` unchanged, SHALL keep the editor, the status poll and the auto-save timer, and SHALL issue a new save request for a later `save` command, so the failed save can be retried.
@@ -242,6 +264,30 @@ When the session status reports `orphaned`, `closed` or `error` the page SHALL s
 - **WHEN** a `save` command arrives while the session is `saving` because of an auto-save, and the save request is refused with `session_not_editing`
 - **THEN** the page reports no error, and issues the publishing save once the session status is `editing` again
 
+#### Scenario: A foreign save caused the refusal
+
+- **WHEN** an older local auto-save N has an accepted or delayed response, but the publishing refusal identifies a foreign blocking allocation N+1
+- **THEN** the page reports `session_not_editing` and does not automatically retry that publishing request
+- **AND** later delivery of the local202 or502 cannot give it ownership of N+1
+
+#### Scenario: A confirmed queued intent survives a foreign successor
+
+- **WHEN** the publishing refusal identifies the local auto-save N, and a foreign save starts after that refusal but before the queued publication can run
+- **THEN** the host retains the confirmed user intent and retries it once editing resumes
+- **AND** it never infers refusal ownership from the newer observed status
+
+#### Scenario: A newer explicit Save replaces an installed retry
+
+- **WHEN** a correlated publishing retry is queued and the parent sends a newer explicit `save` command
+- **THEN** the newer command supersedes the older queued intent, including while its candidate allocation identity is pending
+- **AND** the old queue cannot issue another publish or overwrite the newer command's reason after that command succeeds
+
+#### Scenario: A local auto-save overtakes a publishing request
+
+- **WHEN** a local auto-save starts during a publishing request's flight and reaches broker admission first, causing a correlated publishing409
+- **THEN** the host retains that local attempt as a candidate and retries the publishing intent once its identity matches and the session becomes editing
+- **AND** replacing the current auto-save reference or delaying its202/502 body does not lose the candidate identity, while foreign or malformed correlation still cannot authorize a retry
+
 #### Scenario: Save timed out and is retried (B-T11)
 
 - **WHEN** a save was accepted for a modified document and the session status later reports `editing` with reason `save_timeout`
@@ -259,6 +305,18 @@ When the session status reports `orphaned`, `closed` or `error` the page SHALL s
 - **WHEN** the session status reports `orphaned`, `closed` or `error`
 - **THEN** the page reports that state, and afterwards no status poll and no auto-save timer is running and no save or close request is issued
 
+#### Scenario: Polling cannot starve auto-save or multiply a queued save
+
+- **WHEN** repeated status reads keep reporting editing without changing the document
+- **THEN** there is at most one status request in flight and ordinary polls do not restart the five-minute auto-save deadline
+- **AND** repeated editing observations after an attributable auto-save refusal dispatch a queued publishing intent only once
+
+#### Scenario: Rejected close retains an editable session
+
+- **WHEN** a close request fails and the following status confirms the session remains editing
+- **THEN** the editor has not been destroyed, dirty is unchanged and the close failure reason remains visible through ordinary successful polls
+- **AND** the editing auto-save timer resumes, and a later accepted command may clear the command failure reason
+
 ### Requirement: Teardown releases owned resources
 
 When the framed page is removed or unloaded it SHALL release its status poll, its auto-save timer, its message listener, its pending requests and the editor instance. A response or timer that completes after teardown SHALL NOT create an editor instance, start a timer, issue a request or post a message.
@@ -272,6 +330,13 @@ When the framed page is removed or unloaded it SHALL release its status poll, it
 
 - **WHEN** the Office frame is opened and removed 20 times, including removal while editing and while saving
 - **THEN** every removed frame leaves zero active timers, listeners and pending polls after its in-flight work settles
+
+#### Scenario: Teardown wins deferred completion and constructor callbacks
+
+- **WHEN** the host is disposed during an outstanding request, response-body decoding, API loading or synchronous editor construction
+- **THEN** later completion posts no message, starts no timer and issues no request
+- **AND** an editor returned after disposal is destroyed once rather than retained
+- **AND** repeated disposal sends no broker close and leaves no owned listener, timer or request
 
 ### Requirement: Dedicated content policy for the Office mode
 

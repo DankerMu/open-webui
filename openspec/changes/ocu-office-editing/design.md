@@ -1127,6 +1127,90 @@ Office shell's ready/listener assertions rather than weakening invalid-mode
 silence or its policy/secret checks. Refresh the existing frame decision's
 implementation facts and README after runtime proof; no new decision is needed.
 
+#### Office host-lifecycle slice boundary
+
+Task20.2 extends the same host owner. Keep exact command source/origin/chat/key
+validation and require the accepted open's generation. A page still creates
+only one session. The existing Office component effect returns the host's
+disposer; that is lifecycle wiring, not a shell, mode or policy change.
+
+One status-read owner serves initial hydration, periodic observation and
+post-command refresh. Reads do not overlap; an older in-flight observation
+cannot overwrite a later accepted mutation or revive a final/disposed host.
+Use a one-second poll delay after completion, not overlapping intervals.
+Keep one five-minute auto-save timer while editing. Ordinary editing polls
+must not reset its deadline; leaving editing or requesting close stops it.
+An unsuccessful close retains the editor and restores eligibility for the
+editing timer after status confirms that state.
+
+Track local modification generations separately from publication sequences.
+Capture the generation at save dispatch and bind it to the broker-returned
+save sequence only after acceptance. A status whose committed sequence covers
+that allocation acknowledges only that captured generation, not later edits.
+Reconcile the same rule if the committed status arrives before the save reply.
+Another tab's sequence advancement alone cannot acknowledge this tab's edits.
+No-change saves do not manufacture dirty state; committed persist-only content
+remains dirty while committed is above published. Keep failed or outstanding
+coverage conservative and preserve the existing closed/conflict rules.
+
+Publishing and persist-only requests retain their actual intent. Only the
+specified session_not_editing refusal attributable to an outstanding auto-save
+queues a publishing retry; keep one queued intent and dispatch it once editing
+resumes. Repeated polls cannot multiply that request. Close supersedes queued
+publishing intent. Do not add generic mutation retries or idempotency claims.
+
+Save-error correlation stays in the existing broker session owner. A 409
+session_not_editing caused by a saving session includes `blocking_save_seq`
+from its pending save at the rejecting admission check, under the canonical
+chat lock. Other not-editing refusals omit that field. A save502
+documentserver_unavailable includes the actual request's allocated `save_seq`,
+even when a newer mutation has superseded it before response delivery.
+Creation and restore errors retain their existing response shape.
+
+One explicit publishing intent retains candidate local auto-save attempts that
+were outstanding at dispatch or started while its response is unresolved. The
+refusal's positive safe `blocking_save_seq` must equal a candidate's actual
+sequence from its202 or502 response. Pending identity is not permission to
+retry; missing, malformed or mismatched evidence fails closed.
+Only202 acceptance binds modification coverage; a502 allocation does not.
+A newer explicit Save replaces any older intent, including an installed queue.
+Background persistence does not advance explicit-command authority. A matched
+intent survives later foreign allocations until editing resumes, unless a newer
+explicit command, final state or retirement supersedes it. Candidate references
+belong only to that unresolved or queued intent, not a session-wide history.
+No allocation is predicted from a baseline or inferred from a later status.
+
+A rejected save/close is a recoverable command failure, not the host's terminal
+localError latch. Surface a non-null reason with the broker's current state,
+retain dirty and the editor, and keep the reason across ordinary successful
+polls until another command is accepted. A failed status read is terminal
+error. Persisted save_timeout or callback refusal remains usable editing;
+uncommitted modifications remain eligible at the next auto-save tick.
+
+Close stops auto-save immediately but destroys the editor only after a valid
+accepted close response. Poll thereafter until a final persisted state.
+Opening may close directly to closed; ended conflict may remain conflict:
+consume actual broker status rather than fabricate closing from a click.
+Final closed/error/orphaned or terminal host failure stops both timers and
+future commands. Teardown is not a close request.
+
+The idempotent disposer marks the owner retired before releasing anything,
+then removes its listeners/timers, aborts all owned requests and API loading,
+and destroys its editor once. Every await continuation and SDK callback checks
+retirement. If disposal occurs synchronously inside the editor constructor,
+destroy the returned instance instead of retaining it. Component cleanup and
+pagehide call this same path; late responses, decoded bodies, scripts and
+timers cannot create an editor, request, timer or message after retirement.
+
+Verification extends the existing real-module harness and inherited browser
+harness, not a second state-machine implementation. Cover ten issue criteria,
+edits arriving during saves, commit-before-reply ordering, stale observations,
+retry attribution/deduplication, rejected close and constructor-time disposal.
+The parent-owned smoke uses the actual host/static modules and native framed
+messages/HTTP with controlled broker/SDK dependencies, then removes real frames
+with pending work and observes silence. Retain full preview/CSP/secret checks.
+Real DocumentServer persistence and deployment acceptance remain separate.
+
 #### Editor entry and frame slice boundary
 
 Tasks 24.1 and 24.2 implement the parent authority boundary and its executable browser path together. The selected-file action area is the entry seam; file rows and their existing accessible names remain unchanged. A saved chat, enabled workspace and literal true Office feature flag admit only broker types docx/xlsx/pptx. Display classification never grants edit eligibility. Editing does not call launch, including for stopped workspaces.
