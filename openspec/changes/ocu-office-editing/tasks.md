@@ -1257,6 +1257,16 @@ Depends on: 21 (both edit the proxy renderer), 30.
 Suggested fixture level: expanded - a new authenticated listener in the gateway and a changed port guard.
 Minimal mergeable slice: atomic - the listener, its authentication, the published port, the guard's count, the smoke's count and the fixtures that describe them are one cut: a listener without authentication is an open path to DocumentServer, a published port without a listener or a listener without its port fails the guard, and neither the guard nor the smoke can accept both one and two publications. 31.2 is documentation in the same PR.
 
+### Second-listener risk coverage
+
+- Auth/secrets and listener identity: native recording peers prove cookie-only bodyless admission, anonymous401 and unexpected/unreachable-auth denial with zero DocumentServer contact, forged credential/identity removal and cross-listener separation. Preserve all existing gateway cases.
+- Forwarding and liveness: native HTTP method/body/raw-query observations and upgraded WebSocket ping/pong after more than60seconds idle; browser Host retains its public port, forwarded scheme/address overwrite client forgeries.
+- Configuration and partial output: missing/empty/malformed required inputs fail with variable-only diagnostics and byte-identical previous private config; native nginx validation and the existing entrypoint smoke cover image launcher inputs.
+- Publication contract and compatibility: native Compose in both flag states binds the proxy upstream to the same DocumentServer URL; actual guard CLI rejects one/three/duplicate/wrong mappings or absent/wrong listener wiring before mutation. Smoke CLI cases cover two ports with mixed/single/dual-stack entries and reject wrong or missing mappings.
+- Packaging and documentation: EXPOSE both container ports; retain route-table bytes/pin, application Compose stacks and smoke required-service membership. Update the deployment report, proxy README, network runbook and partially superseding origin decision.
+- Verification: proxy unittest discovery plus `run-entrypoint-smoke.sh`; complete `tests/deploy/` using the canonical OCU unit command with collected/executed-case reconciliation; independent native proxy/Compose-to-guard and smoke CLI probes with private auth-bypass/header-leak/port-count negative controls. No Docker image build/pull/run or LAN access.
+- WebUI companion gates: strict OpenSpec validation, `make doc-gate`, `make decisions-verify` and scoped formatting. Source review uses four high-risk seats; fixture review uses design, completeness and executability seats. The shared change stays open.
+
 ## 32. [deploy] Overlay smoke with DocumentServer (spec: ocu-overlay-smoke)
 
 - [ ] 32.1 `smoke_deployment.py`: DocumentServer among the required running services, and a refused connection on a direct DocumentServer address. Verify: `tests/deploy/test_deployment_smoke.py` cases with the fake engine for each assertion, including a stopped DocumentServer failing the smoke and a timeout that is not accepted as a refusal.

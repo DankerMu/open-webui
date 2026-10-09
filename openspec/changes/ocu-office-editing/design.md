@@ -1563,6 +1563,43 @@ Native Compose and controlled-engine entrypoint evidence prove configuration and
 admission, not actual image JWT enforcement. Signed-request/image acceptance stays
 with the real-image verification owner.
 
+#### DocumentServer listener slice contract
+
+Task31 uses container port8083, published through the required
+`OCU_OFFICE_PROXY_PORT`, independently of the editing flag. The proxy reads
+`OCU_OFFICE_PROXY_UPSTREAM` from `OCU_OFFICE_DOCSERVER_URL`; the canonical
+`http://documentserver` origin means HTTP port80. Only this new upstream input
+may omit the port; existing renderer input grammars remain unchanged.
+
+The separate server uses cookie-only, bodyless authentication at an internal
+location, then forwards the original request URI to its fixed DocumentServer
+upstream. Auth401 remains401, auth403 denies403 and other failures deny500.
+The internal auth location cannot be requested directly. Clear Authorization,
+Cookie, X-OCU-Internal-Token, X-Chat-Id, X-User-Id and X-User-Email on the
+DocumentServer hop, including client forgeries. Overwrite Host and
+X-Forwarded-Host with the browser Host (including its published port),
+X-Forwarded-Proto with the listener scheme, and X-Forwarded-For with the client
+address. Do not trust client-supplied forwarding headers. The forwarded host
+contains the public port rather than nginx's container listen port.
+
+Preserve method, body, raw path/query and WebSocket upgrade; use explicit
+3600-second read/send idle timeouts. Native evidence includes a connection
+idle for more than60seconds followed by a successful ping/pong. The listener
+does not interpret OCU paths: they still go only to DocumentServer. Neither
+the gateway route table nor its existing owner/mutation policy changes.
+
+The guard requires two distinct host-port mappings to container8082/8083 and
+both fixed listener/upstream pairs. The smoke judges the two distinct TCP
+port mappings, requiring one wildcardIPv4 entry per mapping and accepting
+one optional wildcardIPv6 twin, not counting address-family entries as separate
+ports. Missing, extra,
+duplicated-family, wrong-target, wrong-host-port and non-proxy publications
+remain failures. Every in-repo single-publication fixture migrates atomically.
+
+Rollback is the paired source revision, not a dual-policy compatibility mode.
+Rendering failures retain the prior private configuration; guard failures
+precede startup. No image is built or run by source verification.
+
 ### D18. Release and backup
 
 DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
