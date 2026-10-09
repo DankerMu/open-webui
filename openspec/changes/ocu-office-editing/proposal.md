@@ -587,3 +587,11 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - Selected risk packs: cross-component environment names; network/publication isolation; release identity before mutation; flag-independent service/volume identity; complete fixture migration; secret-free diagnostics.
 - Evidence floor: native Compose v2 resolution of the actual three stacks with sealed synthetic inputs and no operator dotenv/config access; port-guard CLI negative matrix; real startup refusal on a mismatched DocumentServer image; the complete deploy suite with collection/JUnit reconciliation; independent resolver-to-guard/startup smoke and private semantic controls.
 - Storage follows the pinned upstream Community layout recorded in D17: separate named data, cache and log volumes, not a certificates-only claim of full persistence. No image execution or container-recreation result is inferred from configuration.
+
+## DocumentServer JWT preflight fixture
+
+- Issue type: feature; fixture level: expanded for task30.2's authentication and pre-mutation admission boundary.
+- Scope: DocumentServer JWT environment, deployment entry and deploy fixtures. Approved supporting extraction moves the existing bootstrap origin/port validators into one shared deployment helper; bootstrap inputs, defaults, diagnostics and publication behavior remain unchanged.
+- Selected risk packs: auth/secrets, resolved-versus-input configuration identity, strict input validation, flag parity, pre-mutation ordering, source packaging and existing deployment/recovery compatibility.
+- Evidence floor: native Compose in both flag states; actual deployment CLI missing/empty/invalid inputs and resolved JWT mutations; bootstrap equivalence and copied/imported source execution; complete deploy-suite reconciliation; independent native-resolution-to-entry smoke with semantic negative controls.
+- Non-goals: font-directory existence or mounts, proxy listeners, release policy, recovery behavior, real image execution and deployment certification.

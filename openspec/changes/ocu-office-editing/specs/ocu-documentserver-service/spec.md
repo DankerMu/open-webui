@@ -61,6 +61,12 @@ DocumentServer SHALL run with JWT validation enabled for browser requests, for i
 - **WHEN** the resolved configuration disables JWT for browser requests, for the inbox or for the outbox, or its secret is empty
 - **THEN** the deployment entry exits nonzero naming the setting, starts no service and prints no credential value
 
+#### Scenario: Resolved secret differs from its consumers
+
+- **WHEN** the resolved DocumentServer secret differs from the supplied bootstrap secret or from the OCU service's resolved secret, including a missing or blank value
+- **THEN** deployment preflight exits nonzero naming the setting before provisioning or service startup, without printing any of the secret values
+- **AND** existing engine state remains unchanged and the entry removes its owned temporary configuration snapshots
+
 #### Scenario: Unsigned or wrongly signed request
 
 - **WHEN** an editor configuration or a command-service request reaches DocumentServer without a token, or with a token signed by a different secret
@@ -163,6 +169,17 @@ The DocumentServer service, the proxy's second listener and its published port S
 
 - **WHEN** any one of the DocumentServer image reference, the JWT secret, DocumentServer's control-plane address, its browser-facing origin, OCU's own control-plane address, the second proxy port, the release font directory or the operator-owned font directory is missing, empty or invalid, with the Office editing flag on or off
 - **THEN** the deployment entry's preflight exits nonzero naming that setting, before any service starts, and prints no credential value
+
+#### Scenario: Invalid stored deployment inputs
+
+- **WHEN** the stored Office flag is neither `true` nor `false`, the Office proxy port is not a decimal port in 1–65535, or the DocumentServer browser origin violates the bootstrap absolute-origin rule
+- **THEN** deployment preflight refuses naming the invalid setting without printing its value or starting a service
+- **AND** the same origin and port validation implementation is used by bootstrap and deployment admission without changing bootstrap's accepted inputs
+
+#### Scenario: Required flag is absent
+
+- **WHEN** `ENABLE_OCU_OFFICE_EDIT` is missing or empty at deployment admission
+- **THEN** preflight refuses naming it rather than defaulting editing to off
 
 ### Requirement: Setting names shared across components
 
