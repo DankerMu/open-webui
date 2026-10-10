@@ -20,6 +20,8 @@ Use `{BASE_DATA_DIR}/{chat_id}/outputs` as the single workspace files directory,
 
 Uploads publish into the shared directory using the existing per-chat lock and no-replace hard-link claim. Attachment receipts prevent repeated synchronization from overwriting edits or resurrecting renamed/deleted files. The outputs broker assigns file identity through its existing reconciliation path. MCP retains its `file://uploads/{chat_id}/...` URI shape while sourcing visible workspace files and excluding hidden paths.
 
+Uploads and Office copies share the numbered-name policy: query `PC_NAME_MAX` on the pinned destination directory, reserve filesystem-encoded bytes for the complete last suffix and current ` (N)`, and retain the longest whole-character stem prefix. Use `_` only when no original stem character fits. A legal free upload name is attempted unchanged. Insufficient capacity fails explicitly (upload HTTP400); an unavailable limit remains an IO failure, never a guessed255-byte limit. Atomic claims still choose the winner, and Office recovery recognizes owned copies by identity rather than spelling.
+
 The server mount map, recovery attribution, prompt/tool/skill guidance and sandbox image configuration change together. The host directory and HTTP interface names stay fixed. This accepts a permanent divergence from upstream OCU in the consumers of sandbox paths.
 
 ## Alternatives considered
