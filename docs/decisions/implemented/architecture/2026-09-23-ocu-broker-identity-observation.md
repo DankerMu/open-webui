@@ -24,15 +24,18 @@ The persisted broker index is authoritative under the existing per-chat RLock+fl
 
 A missing outputs root with active indexed entries fails retryably instead of mass-tombstoning. First-use or an already-empty index can still observe an empty root. Unsupported filesystem names fail explicitly before serialization, preserving the predecessor.
 
+Discovery has lowerable constructor ceilings of 50,000 enumerated entries, 10,000 visited directories including the outputs root, and 256 simultaneous scan directory descriptors. Count entries before filtering, including hidden and nonregular names, without traversing hidden subtrees. Descriptor accounting includes the borrowed root, held children and the iterator duplicate; reject before excess inspection or acquisition.
+
+Scan budget exhaustion and directory-open/enumeration EMFILE or ENFILE are resource-limit failures, using the existing HTTP413 mapping rather than retryable instability. Failed discovery preserves the predecessor index and releases owned descriptors without closing a borrowed root. These per-scan bounds do not promise wall-clock latency, global process capacity or success when the OS has fewer resources available.
+
 ## Alternatives considered
 
 - **Lazy old hashing only during rename** — old bytes are unavailable; it cannot support the guaranteed first rename without prior evidence.
 - **Use size alone as rename evidence** — assigns an unrelated file the old identity when content differs.
 - **Filesystem event tracking** — expands runtime and lost-event/restart semantics; not selected by the user.
 - **Resurrect matching tombstones** — violates observed path reuse and may restore stale file history.
+- **Bound only visible files or directory descriptors** — hidden/special entries and directory work can still exhaust CPU while staying below the remaining limits.
 
 ## Consequences
 
 Initial/detected-change scans perform content I/O; unchanged5000-file scans do not. Content-equality rename matching is a deterministic heuristic, not an event log. Counter/tombstone persistence and bounded index errors must preserve history rather than silently reset it. Endpoint/describe wiring landed in issue16; HTTP validator rationale lives in `2026-09-23-ocu-outputs-http-validators`. This decision does not claim complete detection of every write.
-
-Implemented by OCU PR9, merged at `2726fd5`. Configured active-file limits do not bound empty directories or nonregular entries; scan-resource policy is tracked in WebUI issue68.
