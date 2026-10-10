@@ -7,7 +7,7 @@
 - [x] 1.3 Preserve shared non-scan consumers and owned-resource unwind; verify EMFILE/ENFILE classification at root/child open and iterator creation/advance, real constrained-RLIMIT behavior, borrowed-root usability and no descriptor/lock leak.
 - [x] 1.4 Verify failed scans retain index bytes, counter, ids and revisions and later valid reconcile succeeds; run the owning broker/endpoint modules including 80-deep and5000 unchanged compatibility controls.
 - [x] 1.5 Exercise actual reconcile plus the existing HTTP413 mapping against temporary data; preserve measured output and remove probes; update the existing broker decision record with the approved policy.
-- [ ] 1.6 Complete expanded source cross-review and exact-head local CI; attach evidence to the paired source/fixture PRs. Archive this fixture only after both PRs merge.
+- [x] 1.6 Complete expanded source cross-review and exact-head local CI; attach evidence to the paired source/fixture PRs. Archive this fixture only after both PRs merge.
 
 ## 2. Risk packs
 
