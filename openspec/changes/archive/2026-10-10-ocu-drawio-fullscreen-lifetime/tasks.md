@@ -16,7 +16,7 @@
 - [x] 3.1 Parent runs the complete `tests/orchestrator/preview_embedding_browser.cjs` in the active Python3.12 requirements environment with installed Playwright/Chromium; retain real screenshots, exact tool/source identities, RED/GREEN and existing Office/Markdown/Drawio controls.
 - [x] 3.2 Parent runs the owning preview regression modules through the source repository's pytest command, source commit hooks and scoped gitleaks; explicitly identify any unchanged-input evidence reuse.
 - [x] 3.3 Update the existing local-Drawio architecture decision, remove its resolved issue-99 pending note, and pass central `make doc-gate decisions-verify`, changed-document formatting and strict validation. Separate WebUI UI smoke is not a substitute for the modified source browser proof.
-- [ ] 3.4 Complete expanded cross-review and exact-head user-approved local CI, normal paired merges and fixture archive; preserve all required outcomes and disclose pointer-access/host-platform limits.
+- [x] 3.4 Complete expanded cross-review and exact-head user-approved local CI, normal paired merges and fixture archive; preserve all required outcomes and disclose pointer-access/host-platform limits.
 
 ## Risk packs
 
