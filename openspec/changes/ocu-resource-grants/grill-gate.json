@@ -1,0 +1,32 @@
+{
+	"status": "passed",
+	"branches": [
+		{
+			"branch": "resource mechanism",
+			"decision": "Short-lived signed read-only resource URLs rather than server-side bundling; preserve relative CSS/images/fonts/scripts/modules/fetch.",
+			"decidedBy": "user"
+		},
+		{
+			"branch": "read authority",
+			"decision": "All ordinary workspace files of the current chat; not other chats, private Office data, directory enumeration, archive, terminal, control-plane or writes. The page and URL holders can read this scope.",
+			"decidedBy": "user"
+		},
+		{
+			"branch": "expiry",
+			"decision": "Maximum600seconds, capped by issuing-session expiry when present; no background renewal; reopen from canonical message/sidebar URL.",
+			"decidedBy": "user"
+		},
+		{
+			"branch": "revocation",
+			"decision": "Bind the issuing session and reuse existing revocation checks; Redis-backed revocation when present; without Redis no immediate logout-revocation promise. Recheck user eligibility and ownership each request.",
+			"decidedBy": "user"
+		},
+		{
+			"branch": "isolation and stage boundary",
+			"decision": "Keep opaque-origin generated documents and existing non-file authority. Prepare and review this change; do not bypass PR293 CI or start another implementation PR.",
+			"decidedBy": "user"
+		}
+	],
+	"openItems": [],
+	"userConfirmed": true
+}
