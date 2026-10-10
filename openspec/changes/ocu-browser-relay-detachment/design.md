@@ -20,6 +20,8 @@ The historical isolated-container failure (exit 124) is the accepted semantic RE
 
 Build only tracked source in a clean exported context. Do not send the user's untracked `.run/` into Docker. Full image-build failure is a blocker, not permission to substitute a wrapper-only overlay for the required image evidence.
 
+Run both the scoped relay regression and the complete default image harness against the same immutable candidate; default invocation must retain the merged runtime/tool checks as well as the relay check. Distinguish Docker's invocation ID and OCI index/manifest/configuration digests when recording build provenance. The merged approved runtime is the build baseline, not an additional dependency change in this relay repair.
+
 ## Risks and migration
 
 Relay diagnostics intentionally leave the tool's captured output stream, as required by independent lifetime. Existing launch-failure semantics are unchanged. Fresh image construction may expose unrelated packaging failures; preserve their evidence and route them without silently broadening this repair.
