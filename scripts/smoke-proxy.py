@@ -642,43 +642,62 @@ class Smoke:
     def _owned_user_emails(self) -> set[str]:
         return {email for email in (self.owner_email_raw, self.foreign_email_raw) if email}
 
-    def _require_gone(self, method: str, url: str, auth: dict[str, str], label: str) -> None:
-        status, _, _, _ = http_json(method, url, headers=auth)
-        if status not in {200, 204, 404}:
-            fail(f'{label} cleanup HTTP {status}')
+    def _cleanup_request(
+        self,
+        method: str,
+        url: str,
+        auth: dict[str, str],
+        kind: str,
+        failures: list[str],
+        success: tuple[int, ...] = (200, 204, 404),
+    ) -> dict | None:
+        try:
+            status, payload, _, _ = http_json(method, url, headers=auth)
+        except Exception as exc:
+            failures.append(f'{kind} {type(exc).__name__}')
+            return None
+        if status not in success:
+            failures.append(f'{kind} HTTP {status}')
+            return None
+        return payload
 
-    def _delete_exact_email(self, email: str, auth: dict[str, str]) -> None:
-        status, payload, _, _ = http_json(
+    def _delete_exact_email(self, email: str, auth: dict[str, str], failures: list[str]) -> None:
+        payload = self._cleanup_request(
             'GET',
             f'{self.webui}/api/v1/users/?query={quote(email)}',
-            headers=auth,
+            auth,
+            'email lookup',
+            failures,
+            success=(200, 404),
         )
-        if status not in {200, 404}:
-            fail(f'cleanup email lookup HTTP {status}')
         users = payload.get('users', []) if isinstance(payload, dict) else []
         for user in users:
             uid = user.get('id')
             if uid and user.get('email') == email:
-                self._require_gone('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, f'user {email}')
+                self._cleanup_request('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, 'user delete', failures)
 
     def cleanup_data(self) -> None:
         if not self.admin_cookie:
             return
         admin_token = self.admin_cookie.split('=', 1)[-1]
         auth = {'Authorization': f'Bearer {admin_token}'}
+        failures: list[str] = []
         for key in ('chat', 'foreign_chat', 'office_chat'):
             if key in self.created:
-                self._require_gone(
+                self._cleanup_request(
                     'DELETE',
                     f'{self.webui}/api/v1/chats/{self.created[key]}',
                     auth,
-                    f'chat {key}',
+                    'chat delete',
+                    failures,
                 )
         owned_ids = self._owned_user_ids()
         for uid in owned_ids:
-            self._require_gone('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, f'user {uid}')
+            self._cleanup_request('DELETE', f'{self.webui}/api/v1/users/{uid}', auth, 'user delete', failures)
         for email in self._owned_user_emails():
-            self._delete_exact_email(email, auth)
+            self._delete_exact_email(email, auth, failures)
+        if failures:
+            fail('owned data cleanup failed: ' + '; '.join(failures))
 
     def assert_sentinel(self) -> None:
         if not self.admin_cookie or not self.sentinel_id:
