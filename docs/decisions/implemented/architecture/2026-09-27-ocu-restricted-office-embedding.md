@@ -22,14 +22,17 @@ Files-only embedded mode has no runtime views, heartbeat, independent polling or
 
 User-approved DOMPurify3.4.16 is vendored locally with license and verified registry integrity. DOCX and SheetJS converted HTML share one sanitization boundary in standalone and embedded modes. The allowed content subset preserves text, tables, formatting and inline raster images while excluding executable markup, document styling, event attributes, unsafe schemes and remote image sources. Safe HTTP(S) links use opener/referrer isolation; bookmarks use namespaced IDs. Mammoth document-supplied style maps are disabled. PPTX remains canvas-based.
 
+Standalone Markdown uses the same owned DOMPurify loader with an independent per-call policy. Marked output is sanitized into a detached fragment before trusted insertion; active markup, document styling and controls are excluded. Relative resources, HTTP(S) links/images, mailto, raster data images and namespaced heading fragments remain usable. Highlight, Mermaid and KaTeX process only sanitized content. Sanitizer failure shows a load error without document content, and retired selections cannot attach pending output. Office and Drawio retain their separate policies and sanitizer ownership in either load order.
+
 ## Alternatives considered
 
 - **Copy Office rendering into WebUI** — duplicates format handling and failure semantics.
 - **Trust MIME or sanitize messages only** — protects selection, not script-bearing document conversion.
 - **Block only javascript hyperlinks** — fixes one payload instead of the untrusted HTML boundary.
+- **Insert Markdown and remove unsafe nodes afterward** — allows executable content to cross the trusted DOM boundary before cleanup.
 - **Allow iframe downloads or scripts in generated content** — widens the fixed sandbox contract; WebUI owns download links.
 - **Accept a partial listing as missing** — clears preferences for files beyond the current page.
 
 ## Consequences
 
-Content-preview fidelity is intentionally narrower than Office layout fidelity. Raw BIFF2/3/4, CFB and OOXML remain accepted by the shared spreadsheet parser after format checks. Browser evidence uses real SPA/renderers and fixed sandbox; synthetic converted-markup resource tests are not full DOCX remote-image conversion proof. WebUI issue29 consumes the interface; issue36 verifies the deployed image. Standalone Markdown raw-HTML handling is separately tracked in issue85 and is not admitted by Office-only embedding.
+Content-preview fidelity is intentionally narrower than Office layout fidelity. Raw BIFF2/3/4, CFB and OOXML remain accepted by the shared spreadsheet parser after format checks. Browser evidence uses real SPA/renderers and fixed sandbox; synthetic converted-markup resource tests are not full DOCX remote-image conversion proof. WebUI issue29 consumes the interface; issue36 verifies the deployed image. Markdown remains unsupported in Office-only embedding without fetching its content.
