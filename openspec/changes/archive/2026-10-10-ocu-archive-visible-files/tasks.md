@@ -12,8 +12,8 @@
 ## 3. Documentation and delivery
 
 - [x] 3.1 After runtime proof, update source changelog and existing workspace-files decision; central docs/decision/strict-spec/changed-format checks pass.
-- [ ] 3.2 Expanded correctness, test-evidence/spec-compliance and integration review close at the exact source head; publish scoped local CI and complete reports.
-- [ ] 3.3 Merge paired source/fixture, close the issue and archive the capability after every acceptance criterion is evidenced.
+- [x] 3.2 Expanded correctness, test-evidence/spec-compliance and integration review close at the exact source head; publish scoped local CI and complete reports.
+- [x] 3.3 Merge paired source/fixture, close the issue and archive the capability after every acceptance criterion is evidenced.
 
 ## Risk packs
 
