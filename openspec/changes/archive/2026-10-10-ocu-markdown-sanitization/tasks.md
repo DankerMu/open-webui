@@ -16,7 +16,7 @@
 - [x] 3.1 Parent runs `node tests/orchestrator/preview_embedding_browser.cjs` with `OCU_PREVIEW_PYTHON` inside the Python 3.12 requirements environment and installed Playwright/Chromium; retain exact versions, screenshots, red/green logs and all existing controls.
 - [x] 3.2 Parent runs `uv run --offline --python 3.12 --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/orchestrator/test_preview_prefix.py tests/security/test_xss_preview.py -q --import-mode=importlib`; commit hooks and scoped secret scan pass.
 - [x] 3.3 Update the existing preview architecture decision; central `make doc-gate decisions-verify`, changed-doc formatting and strict validation pass. WebUI baseline UI smoke is separate from source-preview proof; do not claim its pinned OCU assets exercise this source change.
-- [ ] 3.4 Complete correctness, test-evidence/spec and security cross-review; publish exact-head local CI evidence and satisfy normal merge protection before paired merge and fixture archive.
+- [x] 3.4 Complete correctness, test-evidence/spec and security cross-review; publish exact-head local CI evidence and satisfy normal merge protection before paired merge and fixture archive.
 
 ## Risk packs
 
