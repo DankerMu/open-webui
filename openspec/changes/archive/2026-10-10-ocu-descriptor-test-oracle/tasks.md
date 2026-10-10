@@ -11,9 +11,9 @@
 
 ## 3. Qualification and delivery
 
-- [ ] 3.1 Parent runs the four cases and whole broker module; all pass. A temporary native-iterator nonclosure fault must fail the EBADF/closure oracle, then restoring the test returns GREEN. Do not commit the fault variant.
-- [ ] 3.2 Proxy-clean complete `pytest tests/orchestrator/ -v` passes apart from unchanged pre-existing live-CLI skips; no exclusion of the failing cases or increased timeout.
-- [ ] 3.3 Compact correctness/test-evidence review and exact-head local CI pass; merge source and central fixture, close the corrective issue, archive, and resume #186 on the integrated base.
+- [x] 3.1 Parent runs the four cases and whole broker module; all pass. A temporary native-iterator nonclosure fault must fail the EBADF/closure oracle, then restoring the test returns GREEN. Do not commit the fault variant.
+- [x] 3.2 Proxy-clean complete `pytest tests/orchestrator/ -v` passes apart from unchanged pre-existing live-CLI skips; no exclusion of the failing cases or increased timeout.
+- [x] 3.3 Compact correctness/test-evidence review and exact-head local CI pass; merge source and central fixture, close the corrective issue, archive, and resume #186 on the integrated base.
 
 ## Risk packs
 
