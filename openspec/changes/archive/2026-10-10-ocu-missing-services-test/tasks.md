@@ -11,8 +11,8 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Complete compact correctness/test-evidence review at the frozen source head and publish local CI evidence.
-- [ ] 3.2 Merge source and central fixture PRs, close the issue, and archive the fixture.
+- [x] 3.1 Complete compact correctness/test-evidence review at the frozen source head and publish local CI evidence.
+- [x] 3.2 Merge source and central fixture PRs, close the issue, and archive the fixture.
 
 ## Risk packs
 
