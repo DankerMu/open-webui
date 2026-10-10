@@ -20,8 +20,8 @@
 ## 4. Documentation and delivery
 
 - [x] 4.1 Update the owning workspace-files decision and source changelog after runtime proof. Run central docs/decision gates and strict spec validation; verify no archived decision/change was modified.
-- [ ] 4.2 Expanded correctness, test-evidence/spec-compliance and invariant-state cross-review close at the frozen source head; publish exact-head scoped local CI and complete reports.
-- [ ] 4.3 Merge source and central fixture, close the issue, and archive the independent change into its shared naming capability.
+- [x] 4.2 Expanded correctness, test-evidence/spec-compliance and invariant-state cross-review close at the frozen source head; publish exact-head scoped local CI and complete reports.
+- [x] 4.3 Merge source and central fixture, close the issue, and archive the independent change into its shared naming capability.
 
 ## Risk packs
 
