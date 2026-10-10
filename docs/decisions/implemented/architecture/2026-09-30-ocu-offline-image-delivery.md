@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-33, issue-34, issue-36, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery, 2026-10-03-ocu-office-editor-selection
+references: issue-33, issue-34, issue-36, issue-196, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery, 2026-10-03-ocu-office-editor-selection
 ---
 
 # Offline image archives with mandatory content verification
@@ -26,6 +26,10 @@ DocumentServer image and every loader refuses version1. This record's archive,
 source, publication and offline-startup guarantees remain in force.
 
 Online build-time materialization remains permitted. Local Pyodide and Draw.io closures remain enabled, as do configured LAN model/RAG endpoints. User-authored remote content and explicitly selected external integrations are not silently disabled or misrepresented as bundled material.
+
+The workspace uses the approved official linux-x64 Node.js 22.23.2 distribution with bundled npm 10.9.8. Manifest engine floors and business dependency ranges remain unchanged; no separately floating npm is installed. The default image harness checks both installed dependency trees and runs Mermaid, typed tsx/tsc and local PDF probes as the assistant user without network access. Mermaid selects the image's Python Playwright Chromium explicitly, with container-required `--no-sandbox`; this does not certify unconfigured browser discovery.
+
+A runtime-pin change requires a complete linux/amd64 build and the full default image harness against its immutable image identity, with retained build logs and source-input provenance. These tool checks do not substitute for release-wide offline, workspace lifecycle or deployment acceptance.
 
 ## Alternatives considered
 
