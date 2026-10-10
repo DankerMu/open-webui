@@ -6,8 +6,8 @@
 ## 2. Runtime equivalence and delivery
 
 - [x] 2.1 Run existing tests/orchestrator/test_outputs_endpoint.py before and after deletion. Exercise actual native HTTP upload/listing/download with independently expected classifications and complete bytes; remove the disposable smoke and stop its owned server.
-- [ ] 2.2 Keep tests and production contracts unchanged; run central docs/decision/strict-fixture/changed-format gates and compact correctness+test-evidence review at the exact source head. Publish scoped local CI and full evidence.
-- [ ] 2.3 Merge paired source/fixture, close the issue and archive the maintenance fixture without modifying canonical production specs.
+- [x] 2.2 Keep tests and production contracts unchanged; run central docs/decision/strict-fixture/changed-format gates and compact correctness+test-evidence review at the exact source head. Publish scoped local CI and full evidence.
+- [x] 2.3 Merge paired source/fixture, close the issue and archive the maintenance fixture without modifying canonical production specs.
 
 ## Risk packs
 
