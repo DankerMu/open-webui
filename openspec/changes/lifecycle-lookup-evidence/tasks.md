@@ -6,7 +6,7 @@
 - [x] 1.2 Prove the lookup case rejects a disposable missing-translation mutant; preserve the red output and canonical green result without mutating committed source.
 - [x] 1.3 Add direct launch retirement-APIError refusal controls for both running and restarting-after-ready branches, asserting status409/reason migration_required and no deletion. Remove only the two unreachable retirement APIError catches after confirming the callee translation; preserve existing retirement controls.
 - [x] 1.4 Run the focused lifecycle module and a throwaway real-route lookup-refusal smoke with mutation counters. Remove the probe after preserving evidence; update existing lifecycle documentation.
-- [ ] 1.5 Complete scoped source/fixture checks and the prescribed expanded cross-review; use the owner-approved local-CI path with exact-head evidence and explicit provenance.
+- [x] 1.5 Complete scoped source/fixture checks and the prescribed expanded cross-review; use the owner-approved local-CI path with exact-head evidence and explicit provenance.
 
 ## 2. Risk packs
 
