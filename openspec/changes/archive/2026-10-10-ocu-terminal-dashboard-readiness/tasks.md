@@ -6,8 +6,8 @@
 ## 2. Verification and delivery
 
 - [x] 2.1 Run the real Chromium preview harness; require its final success footer, existing exact post-refresh controls and zero unexpected console/page/network errors. Report the static risk without claiming a reproduced flake.
-- [ ] 2.2 Run central docs/decision/changed-format/strict-fixture checks; compact correctness+test-evidence review and exact-head local CI close cleanly.
-- [ ] 2.3 Merge paired source/fixture, close the issue and archive the test-only fixture without changing canonical production specs.
+- [x] 2.2 Run central docs/decision/changed-format/strict-fixture checks; compact correctness+test-evidence review and exact-head local CI close cleanly.
+- [x] 2.3 Merge paired source/fixture, close the issue and archive the test-only fixture without changing canonical production specs.
 
 ## Risk packs
 
