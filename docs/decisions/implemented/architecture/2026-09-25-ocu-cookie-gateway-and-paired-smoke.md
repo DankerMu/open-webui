@@ -37,3 +37,5 @@ The user selected paired cross-repository acceptance: review and freeze OCU with
 ## Consequences
 
 The verification command requires a Git checkout, native nginx, Hurl and a healthy WebUI harness. Its processes, credentials and test-created data have explicit ownership and cleanup; failure cannot be reported as green when cleanup fails. CI checks out the public pinned source without persisting checkout credentials. Native evidence does not establish Docker routing or deployment firewall behavior, which remain consolidated deployment acceptance responsibilities.
+
+Owned-data cleanup attempts every recorded run-owned chat/user ID and every exact owner/foreign email result after HTTP or transport failures, without retries or prefix-based deletion. It reports one aggregate containing only operation kinds and HTTP statuses or exception classes; cleanup failure makes a successful run nonzero and preserves an existing nonzero verdict. Process cleanup precedes owned-data cleanup, followed by the sentinel assertion and scratch removal.
