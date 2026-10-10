@@ -12,8 +12,8 @@
 ## 3. Documentation and delivery
 
 - [x] 3.1 Update source changelog and owning runtime-embedding decision after UI proof; central docs/decision/strict-spec/changed-format gates pass.
-- [ ] 3.2 Expanded correctness, test-evidence/spec-compliance and invariant-state reviews close at the exact source head; publish scoped local CI and complete reports.
-- [ ] 3.3 Merge paired source/fixture, close the issue and archive the preview capability delta after every criterion is evidenced.
+- [x] 3.2 Expanded correctness, test-evidence/spec-compliance and invariant-state reviews close at the exact source head; publish scoped local CI and complete reports.
+- [x] 3.3 Merge paired source/fixture, close the issue and archive the preview capability delta after every criterion is evidenced.
 
 ## Risk packs
 
