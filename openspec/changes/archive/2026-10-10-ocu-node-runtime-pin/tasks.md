@@ -12,8 +12,8 @@
 ## 3. Documentation and delivery
 
 - [x] 3.1 After image proof, update source changelog and owning image-delivery decision; bind final source head to actual consumed image inputs and observed installed versions, then pass central docs/decision/strict-spec/changed-format checks.
-- [ ] 3.2 Expanded correctness, test-evidence/spec-compliance and integration cross-review close at the frozen source head; publish complete exact-image evidence and scoped local CI.
-- [ ] 3.3 Merge paired source/fixture, close this issue and archive the capability delta only after every full-image/tool criterion passes; do not close unrelated release or relay acceptance.
+- [x] 3.2 Expanded correctness, test-evidence/spec-compliance and integration cross-review close at the frozen source head; publish complete exact-image evidence and scoped local CI.
+- [x] 3.3 Merge paired source/fixture, close this issue and archive the capability delta only after every full-image/tool criterion passes; do not close unrelated release or relay acceptance.
 
 ## Risk packs
 
