@@ -11,9 +11,9 @@
 
 ## 3. Integration and delivery
 
-- [ ] 3.1 Run the full project unit commands from `.github/workflows/build.yml`: `pytest tests/orchestrator/ -v`, `pytest tests/test_auth_guard.py -v`, and `python -m unittest discover -s tests/deploy -v`; record actual counts and any failures without weakening or skipping tests.
-- [ ] 3.2 Complete compact correctness/test-evidence review at the frozen head; publish scoped local CI and central doc/decision evidence.
-- [ ] 3.3 Merge source and central fixture PRs, close the issue, and archive the fixture.
+- [x] 3.1 Run the full project unit commands from `.github/workflows/build.yml`: `pytest tests/orchestrator/ -v`, `pytest tests/test_auth_guard.py -v`, and `python -m unittest discover -s tests/deploy -v`; record actual counts and any failures without weakening or skipping tests.
+- [x] 3.2 Complete compact correctness/test-evidence review at the frozen head; publish scoped local CI and central doc/decision evidence.
+- [x] 3.3 Merge source and central fixture PRs, close the issue, and archive the fixture.
 
 ## Risk packs
 
