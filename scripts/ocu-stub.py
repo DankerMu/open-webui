@@ -138,8 +138,8 @@ _OFFICE = OfficeStore(
     prefix=PREFIX,
     fixture_file=lambda chat_id, name, revision=1: _fixture_file(chat_id, name, revision),
     fixture_outputs=lambda chat_id: _fixture_outputs(chat_id),
-    occupied_names=lambda chat_id: (
-        set(FILES) | {entry['path'] for entry in _fixture_outputs(chat_id)['files']} | set(_uploads.get(chat_id, {}))
+    occupied_names=lambda chat_id: (set(FILES) | {'backend403', 'backend409'}).union(
+        {entry['path'] for entry in _fixture_outputs(chat_id)['files']}, _uploads.get(chat_id, {})
     ),
     files=FILES,
     uploads=_uploads,
