@@ -1,0 +1,26 @@
+{
+	"issue": 221,
+	"base": "403f4b0638effe8e3764c54a1cc211368941e7d7",
+	"initial_base": "904eca020118319f798f576cba59edc77a7cb5ee",
+	"prerequisite_pr": 369,
+	"ignore_sha256": "38ff2a6cea0030220ec8266ae1c40bf3c712787b089cb99b327b5527dcbc3b68",
+	"archive": {
+		"path": "format-boundary-verification.tar.gz",
+		"sha256": "3c4675283d1e02a69228ffb5ca964471d52a6955e044504379b7ee46b32491c7"
+	},
+	"evidence": {
+		"selection": "RED ignored=false -> GREEN ignored=true for generated root state; nested same basename ignored=false",
+		"full_make_fmt_check": "positive0, trackedknipnegative2 namingonlyknip.json, restored0",
+		"state": "Same SHA256 before/after every command; live gate never changed",
+		"source_copy": "All 5840 tracked file contents equal candidate before and after; ownedcopy removed",
+		"initial_failure": "9 inherited issue214 formatting violations retained, corrected separately in mergedPR369; noignorebroadened",
+		"docs": "doc-gate0, decisions42records0, scopedformat0, strict0",
+		"scan": "gitleaks0, nofindings"
+	},
+	"limits": [
+		"macOSarm64; installed Node22.23.2 and Python3.12 environment reused",
+		"No application/UI/dependency change; no runtime application test claim",
+		"Full formatter copy contains mergedbase plus candidateignore; addeddocs/fixture checked separately",
+		"Review and publication pending"
+	]
+}

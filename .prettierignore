@@ -3,6 +3,9 @@ pnpm-lock.yaml
 package-lock.json
 yarn.lock
 
+# Generated machine-local review state
+/.review-gate.json
+
 # Copy of .gitignore
 .DS_Store
 node_modules
