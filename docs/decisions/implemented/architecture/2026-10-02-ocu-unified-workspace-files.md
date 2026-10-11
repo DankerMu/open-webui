@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-02
 supersedes: none
-references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, issue 200, 2026-10-03-ocu-office-editor-selection
+references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, issue 200, issue 201, 2026-10-03-ocu-office-editor-selection
 ---
 
 # One writable workspace files directory per chat
@@ -23,6 +23,8 @@ Uploads publish into the shared directory using the existing per-chat lock and n
 Uploads and Office copies share the numbered-name policy: query `PC_NAME_MAX` on the pinned destination directory, reserve filesystem-encoded bytes for the complete last suffix and current ` (N)`, and retain the longest whole-character stem prefix. Use `_` only when no original stem character fits. A legal free upload name is attempted unchanged. Insufficient capacity fails explicitly (upload HTTP400); an unavailable limit remains an IO failure, never a guessed255-byte limit. Atomic claims still choose the winner, and Office recovery recognizes owned copies by identity rather than spelling.
 
 Output ZIP membership excludes every dot-prefixed output-relative component, including hidden-directory descendants and historical upload staging residue. Payload acquisition reuses the workspace no-follow reader with the requested chat identity; ZIP construction receives verified bytes, never an unchecked pathname to reopen. Selected symlinks, including in-tree aliases and root/ancestor replacements, fail closed before response publication. Completed visible uploads retain their full bytes and actual stored names; hidden source entries remain untouched. Archive headers and upload publication are unchanged. ZIP entries do not retain filesystem timestamps or permission attributes, and reads are not content snapshots under concurrent same-inode writes.
+
+Single-file inline/download responses acquire one regular-file descriptor through the same workspace reader and retain it through bounded streaming. Header metadata derives from that descriptor, not a later path stat. Existing in-root aliases may resolve to a relative candidate, but the original chat identity controls authoritative no-follow acquisition. Framework helpers own MIME/disposition/validator encoding; their path-reopening body sender is never used. An owned response child retains acquisition and setup-worker results through native caller cancellation; task-group exit joins it before ownership ends, and framework exception-group collapse preserves pre-header HTTP errors. Non-abandoned reads finish before close, and cancellation is observed before publishing a completed chunk. Unexecuted response objects own no descriptor.
 
 The server mount map, recovery attribution, prompt/tool/skill guidance and sandbox image configuration change together. The host directory and HTTP interface names stay fixed. This accepts a permanent divergence from upstream OCU in the consumers of sandbox paths.
 
