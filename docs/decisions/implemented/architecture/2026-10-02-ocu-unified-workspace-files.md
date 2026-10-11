@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-02
 supersedes: none
-references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, 2026-10-03-ocu-office-editor-selection
+references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, 2026-10-03-ocu-office-editor-selection
 ---
 
 # One writable workspace files directory per chat
@@ -26,6 +26,12 @@ Output ZIP membership excludes every dot-prefixed output-relative component, inc
 
 The server mount map, recovery attribution, prompt/tool/skill guidance and sandbox image configuration change together. The host directory and HTTP interface names stay fixed. This accepts a permanent divergence from upstream OCU in the consumers of sandbox paths.
 
+MCP discovery is complete or explicitly failed: at most 10,000 visible resources per chat and 20,000 registered workspace resources per process, with no other-chat eviction. Each scan permits 50,000 enumerated entries, 10,000 directories including root and 256 simultaneous directory descriptors including iterator duplicates. Count before filtering; do not descend hidden directories. Exact limits are allowed; resource/IO failures preserve the previous registered snapshot rather than returning partial success.
+
+One nonblocking process-wide admission bounds preparation across async and worker callers. Excess calls receive `busy`, without a discovery queue. Traversal, metadata, sorting, resource construction and registry copying run off-loop; one dictionary reference replacement publishes the complete snapshot to the pinned FastMCP readers. Successfully submitted work retains admission through cancellation, including while queued; its worker owns final release. Empty and failed chats do not accumulate registry bookkeeping.
+
+Committed uploads retain HTTP200, stored filename, size, checksum and receipt semantics. A failed discovery adds `discovery: {status: "failed", reason: <stable code>}`; successful discovery omits the field. The preview displays a separate stored-file warning, and tool results include a per-call warning without republishing bytes. Initial lifecycle discovery runs before Docker create/start and reports failure through the existing launch-error boundary, preventing a discovery failure from leaving a newly running sandbox that later requests mistake for a completed initialization.
+
 ## Alternatives considered
 
 - **Mount one directory at both legacy paths** — a copy between paths can truncate its own source; aliases also preserve contradictory guidance.
@@ -33,6 +39,9 @@ The server mount map, recovery attribution, prompt/tool/skill guidance and sandb
 - **Rename the host directory and HTTP interfaces too** — adds migration and client/proxy churn without changing the user-visible result.
 - **Skip imports when a filename exists** — cannot distinguish attachment identity; it resurrects a renamed/deleted import and conflates different attachments sharing a name.
 - **Add compatibility symlinks** — silently accepts stale model guidance instead of making an invalid write fail.
+- **Truncate or silently evict MCP resources** — hides files or another chat's resources without reporting failure.
+- **Offload unbounded discovery behind a writer-only lock** — neither bounds queued preparation nor protects SDK readers that never take that lock.
+- **Fail discovery after starting a sandbox** — a later running-state lookup can bypass discovery and erase the failure from the initiating flow.
 
 ## Consequences
 
@@ -47,5 +56,7 @@ Sandbox code may rename workspace entries while server IO is in progress. Upload
 Release the server, tool guidance and rebuilt sandbox image together. Acceptance assumes an empty operator-prepared environment; this decision adds no data migration and does not rewrite running old sandboxes. Rollback requires a matching server/image pair and sandbox recreation, not compatibility mounts. Rebase conflicts in path consumers are an accepted maintenance cost.
 
 Real linux/amd64 container evidence remains required for writable files, private-home isolation and failed legacy-path writes; fake-engine mount assertions cannot prove the image half. By user direction, compatible image checks are batched under [#197](https://github.com/DankerMu/open-webui/issues/197) after the non-image source checks and review. Source closure is not deployment acceptance or proof that pending image checks passed. Operator documentation and proxy/stub synchronization retain their separately scheduled owners.
+
+MCP responsiveness acceptance uses a reference workload, not a deployment SLA: another chat's reads under 100,000-file rejection and repeated multi-chat sync/list require p95 at most250 ms and maximum500 ms, qualified by idle maximum10 ms. A noisy idle control is inconclusive. Full-list serialization remains on the SDK request loop but is bounded by registered capacity. Busy admission trades synchronization throughput for bounded work; file content itself remains mutable and is not a versioned snapshot.
 
 The user's execution boundary is completion of all Epic #107 source tasks: image builds and image-dependent acceptance remain deferred, except the explicitly authorized isolated B1 characterization recorded by the [Office selection decision](2026-10-03-ocu-office-editor-selection.md). Its verdict resolves the B1 dependency only; it neither certifies this sandbox cutover nor releases the remaining image-acceptance batch.
