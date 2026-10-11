@@ -13,7 +13,7 @@
 
 ## 3. Integration
 
-- [ ] 3.1 Complete three-seat review and required exact-head local CI under the existing owner authorization, then merge, close and archive.
+- [x] 3.1 Complete three-seat review and required exact-head local CI under the existing owner authorization, then merge, close and archive.
 
 ## Risk pack mapping
 
