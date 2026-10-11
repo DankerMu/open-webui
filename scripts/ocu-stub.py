@@ -595,7 +595,7 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def _upload_post(self, match: re.Match[str], _query: dict) -> None:
         name = unquote(match.group(2))
-        if name.startswith('/') or any(part in ('', '.', '..') for part in name.split('/')):
+        if any(part in ('', '.', '..') for part in name.split('/')) or re.search(r'[\x00-\x1f\x7f]', name):
             self._json(400, {'detail': 'Invalid filename'})
             return
         content_type = self.headers.get('Content-Type', '')

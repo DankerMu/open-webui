@@ -1,0 +1,67 @@
+{
+	"issue": 209,
+	"base": "5f26fea6afa389328a32432e1dad9a13f512a1b4",
+	"archive": "filename-control-verification.tar.gz",
+	"archive_sha256": "b06f7fd9d0d7bf1e657de2067d342ac30c723ca43ace7663b8551c1abe8368b5",
+	"oracle_sha256": "6111cac2504498fbe95ec925493dfae1b8cdb1e81bfe604528a9ecbcd88e0ecd",
+	"mode": "Construction; local harness boundary",
+	"semantic_red": {
+		"command": "make smoke-stub",
+		"exit": 2,
+		"failure": "NUL filename accepted200 instead of400",
+		"preceding_controls": "Ordinary nested ASCII raw inline/attachment responses and18 traversal rejections GREEN"
+	},
+	"green": {
+		"command": "make smoke-stub",
+		"exit": 0,
+		"seconds": 1.8135614590719342,
+		"rejection_cases": 34,
+		"description": "All33 ASCII controls plus CRLF injection-shaped name rejected400; complete listing/ETag unchanged; rejected GETs both modes404 without disposition; raw framing checked. Ordinary binary bytes and exact inline/attachment basename preserved."
+	},
+	"qualification": {
+		"mutant": "Disposable guard missing empty-component rejection",
+		"exit": 2,
+		"failure": "/leading.bin accepted200 instead of400",
+		"restored_exit": 0,
+		"owned_tree_removed": true,
+		"protected_inputs_unchanged": true
+	},
+	"gates": {
+		"ruff_format": "pass, standalone retained command log",
+		"lint_scoped_files": 101,
+		"backend_tests": 140,
+		"coverage_backend_tests": 140,
+		"coverage_frontend_tests": 491,
+		"coverage_gate": "pass",
+		"doc_gate": "pass",
+		"decisions_verify": 40,
+		"strict_fixture": "pass, retained argv/exit/output"
+	},
+	"runtime": {
+		"python": "3.12.12",
+		"node": "22.23.2",
+		"owned_green_and_restored_ports_closed": true
+	},
+	"limits": [
+		"Local stub only; no production OCU behavior or400/403 parity change.",
+		"Existing Office asset-mode skip: placeholder contract only, no browser/DocumentServer/image/proxy deployment certification.",
+		"Quote/backslash Content-Disposition serialization tracked separately in https://github.com/DankerMu/open-webui/issues/358; no fix claimed."
+	],
+	"deviations": "No implementation deviations. Fixture revision1 explicitly tasked traversal controls and mutation qualification before production edits. Guard remains800 lines by removing redundant leading-slash check already covered by empty-component rejection.",
+	"scanner": {
+		"exit": 0,
+		"matches": 0,
+		"archive": "evidence-scan.json.gz",
+		"archive_sha256": "93612dede64b37940f5d974ba21fd786d4005bfd808e94878b0d4e5b0420175b"
+	},
+	"review": {
+		"status": "clean",
+		"head": "2c46b1e21226db976539f3688d3c5543301f7def",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "filename-control-review.tar.gz",
+		"archive_sha256": "59b4454a09a5b4ca5adea6a1180c556b941bc7656ec807df642bf4801ce47bf3",
+		"binding": "Runner source_head records the precommit checkout HEAD; per-file input hashes bind the tested bytes to the reviewed commit. All 34 inputs matched across five candidate runs.",
+		"notes": "Only cosmetic prose spacing corrected; contract, source and smoke unchanged. Fresh docs/strict records and zero-finding review scan retained."
+	}
+}
