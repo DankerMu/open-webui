@@ -17,14 +17,22 @@ auth_cfg="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-auth.XXXXXX")"
 record="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-record.XXXXXX")"
 export OCU_STUB_RECORD="$record"
 stub_script="${OCU_STUB_SCRIPT:-$repo_root/scripts/ocu-stub.py}"
-python3 "$stub_script" >"$log" 2>&1 &
-stub_pid=$!
+fixture_map="$(mktemp "${TMPDIR:-/tmp}/ocu-stub-fixtures.XXXXXX")"
+large_chat='pagination-large-smoke'
+partial_after_chat='pagination-partial-after-smoke'
+stub_pid=''
 cleanup() {
   kill "$stub_pid" 2>/dev/null || true
   wait "$stub_pid" 2>/dev/null || true
-  rm -f "$log" "$body" "$hdr" "$auth_cfg" "$record"
+  rm -f "$log" "$body" "$hdr" "$auth_cfg" "$record" "$fixture_map"
 }
 trap cleanup EXIT
+
+printf '{"%s":"large","%s":"partial_after"}\n' "$large_chat" "$partial_after_chat" >"$fixture_map"
+# A fixture map with an empty asset root selects cwd/app.py instead of the placeholder preview.
+OCU_STUB_FIXTURES="$fixture_map" OCU_STUB_ASSETS="${OCU_STUB_ASSETS:-/nonexistent-ocu-smoke-assets}" \
+  python3 "$stub_script" >"$log" 2>&1 &
+stub_pid=$!
 
 fail() { echo "smoke-stub: $*" >&2; exit 1; }
 
@@ -134,7 +142,7 @@ if grep -Fq "$probe_token" "$hdr" "$body"; then fail "public files leaked token"
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/terminal/running/heartbeat")"
 [ "$code" = "200" ] || fail "heartbeat HTTP $code"
 
-python3 - "$base" <<'PY'
+python3 - "$base" "$large_chat" "$partial_after_chat" <<'PY'
 import hashlib
 import json
 import re
@@ -147,6 +155,8 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, urlsplit
 
 base = sys.argv[1]
+large_chat = sys.argv[2]
+partial_after_chat = sys.argv[3]
 
 def request(path, data=None, headers=None):
     req = urllib.request.Request(base + path, data=data, headers=headers or {})
@@ -157,9 +167,12 @@ def request(path, data=None, headers=None):
     with response:
         return response.status, response.headers, response.read()
 
-def listing(chat='upload-smoke', headers=None):
-    status, response_headers, body = request('/api/outputs/' + quote(chat, safe=''), headers=headers)
-    assert status == 200, (status, body)
+def listing(chat='upload-smoke', headers=None, cursor=None):
+    path = '/api/outputs/' + quote(chat, safe='')
+    if cursor is not None:
+        path += '?cursor=' + quote(str(cursor), safe='')
+    status, response_headers, body = request(path, headers=headers)
+    assert status == 200, f'{chat} cursor={cursor!r}: expected listing HTTP 200, got {(status, body)!r}'
     return json.loads(body), response_headers['ETag']
 
 def upload_response(name, payload, chat='upload-smoke', encoded_name=None):
@@ -343,6 +356,80 @@ for name in unsafe_names:
         assert headers.get(b'content-disposition', []) == [], (
             f'{name!r}{query}: rejected GET has disposition fields {headers!r}')
 print('smoke-stub: all 33 ASCII controls and CRLF injection rejected; raw inline/download 404 headers intact')
+
+large_original_paths = ['page.html'] + [f'item-{index:03d}.txt' for index in range(100)]
+large_before, _ = listing(large_chat)
+large_first_paths = [row['path'] for row in large_before['files']]
+assert large_before['total'] == 101, (
+    f'large: expected 101 fixture rows, got {large_before["total"]!r}')
+assert large_first_paths == large_original_paths[:100], (
+    f'large: expected first 100 original paths, got {large_first_paths!r}')
+assert large_before['next_cursor'] == '100', (
+    f'large: expected initial next cursor "100", got {large_before["next_cursor"]!r}')
+large_remaining, _ = listing(large_chat, cursor=100)
+large_remaining_paths = [row['path'] for row in large_remaining['files']]
+assert large_remaining_paths == ['item-099.txt'], (
+    f'large: expected remaining fixture path ["item-099.txt"], got {large_remaining_paths!r}')
+assert large_remaining['total'] == 101 and large_remaining['next_cursor'] is None, (
+    f'large: expected total 101 and no further cursor, got {large_remaining!r}')
+
+large_name = 'large-upload.bin'
+large_payload = b'large page-two upload\x00\xff\r\n'
+large_stored = upload(large_name, large_payload, chat=large_chat)
+assert large_stored == large_name, (
+    f'large: expected unique upload name {large_name!r}, got {large_stored!r}')
+large_after, _ = listing(large_chat)
+large_after_paths = [row['path'] for row in large_after['files']]
+assert large_stored not in large_after_paths, (
+    f'large: upload {large_stored!r} appeared on page one: {large_after_paths!r}')
+assert large_after_paths == large_first_paths, (
+    f'large: upload changed first 100 original paths: {large_after_paths!r}')
+assert large_after['next_cursor'] == '100', (
+    f'large: expected next cursor "100" after upload, got {large_after["next_cursor"]!r}')
+large_later, _ = listing(large_chat, cursor=100)
+large_later_paths = [row['path'] for row in large_later['files']]
+assert large_later_paths.count(large_stored) == 1, (
+    f'large: expected uploaded path exactly once on cursor 100, got {large_later_paths!r}')
+assert large_later_paths == ['item-099.txt', large_stored], (
+    f'large: expected upload after remaining fixture path, got {large_later_paths!r}')
+status, _, body = request('/files/' + quote(large_chat, safe='') + '/' + quote(large_stored, safe=''))
+assert (status, body) == (200, large_payload), (
+    f'large: expected HTTP 200 and exact uploaded bytes, got {(status, body)!r}')
+print('smoke-stub: large upload pagination passed (101 fixtures; upload only on cursor 100; exact bytes)', flush=True)
+
+partial_original_paths = [f'item-{index:03d}.txt' for index in range(100)]
+partial_before, _ = listing(partial_after_chat)
+partial_first_paths = [row['path'] for row in partial_before['files']]
+assert partial_before['total'] == 101, (
+    f'partial_after: expected 101 fixture rows, got {partial_before["total"]!r}')
+assert partial_first_paths == partial_original_paths, (
+    f'partial_after: expected first 100 original paths, got {partial_first_paths!r}')
+assert partial_before['next_cursor'] == '100', (
+    f'partial_after: expected initial next cursor "100", got {partial_before["next_cursor"]!r}')
+
+partial_name = 'partial-after-upload.bin'
+partial_payload = b'partial listing upload\x00\xfe\r\n'
+partial_stored = upload(partial_name, partial_payload, chat=partial_after_chat)
+assert partial_stored == partial_name, (
+    f'partial_after: expected unique upload name {partial_name!r}, got {partial_stored!r}')
+partial_after, _ = listing(partial_after_chat)
+partial_after_paths = [row['path'] for row in partial_after['files']]
+assert partial_stored not in partial_after_paths, (
+    f'partial_after: upload {partial_stored!r} appeared on page one: {partial_after_paths!r}')
+assert partial_after_paths == partial_first_paths, (
+    f'partial_after: upload changed first 100 original paths: {partial_after_paths!r}')
+assert partial_after['next_cursor'] == '100', (
+    f'partial_after: expected next cursor "100" after upload, got {partial_after["next_cursor"]!r}')
+status, _, body = request('/api/outputs/' + quote(partial_after_chat, safe='') + '?cursor=100')
+assert status == 503, (
+    f'partial_after: expected intentional cursor-100 HTTP 503, got {(status, body)!r}')
+partial_error = json.loads(body)
+assert partial_error.get('reason') == 'listing_incomplete', (
+    f'partial_after: expected listing_incomplete reason, got {partial_error!r}')
+status, _, body = request('/files/' + quote(partial_after_chat, safe='') + '/' + quote(partial_stored, safe=''))
+assert (status, body) == (200, partial_payload), (
+    f'partial_after: expected HTTP 200 and exact uploaded bytes after listing failure, got {(status, body)!r}')
+print('smoke-stub: partial_after upload pagination passed (cursor 100 listing_incomplete; exact bytes after 503)', flush=True)
 PY
 
 python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$stub_script" || fail "office fixtures"
