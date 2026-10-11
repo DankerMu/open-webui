@@ -1,0 +1,67 @@
+{
+	"issue": 210,
+	"base": "a70ea4ff8f435151b11397481cbb8094f0427f8a",
+	"mode": "Characterization; no product defect or source fix",
+	"archive": "pagination-upload-verification.tar.gz",
+	"archive_sha256": "32243a274747ee1d40bdb433801ca51f86effa4daa716a1d6847cf29b905f52f",
+	"oracle_sha256": "ffef384d70570fe73d1f2484cfe68b4460dd3ef3176540da66fb474ed47e6cfc",
+	"reference_smoke": {
+		"exit": 0,
+		"seconds": 1.9978377079823986,
+		"large": "101 fixture rows; upload absent from the first 100, exactly once after the remaining fixture row at cursor 100; exact file bytes",
+		"partial_after": "First 100 fixture paths unchanged, cursor 100 returns 503 listing_incomplete; exact file bytes remain readable after failure"
+	},
+	"qualification": {
+		"missing_large_upload_exit": 2,
+		"missing_large_upload_failure": "Uploaded path missing at cursor 100",
+		"masked_partial_error_exit": 2,
+		"masked_partial_error_failure": "Expected 503, received 200",
+		"restored_smoke_exit": 0,
+		"controller_exit": 1,
+		"controller_failure": "Additional all-TMPDIR-empty audit found an unchanged Office replay helper residue; not a pagination assertion failure."
+	},
+	"cleanup": {
+		"new_main_maps_remaining": [],
+		"legacy_office_residue": "ocu-office-fixtures-x5t8lxs4.json",
+		"legacy_follow_up": "https://github.com/DankerMu/open-webui/issues/361",
+		"office_helper_identical_to_base": true,
+		"owned_qualification_tree_removed_in_finally": true,
+		"reference_and_restored_listener_ports_closed": true,
+		"limit": "No claim that the legacy Office helper cleans all files; ordinary reference run used default TMPDIR. The controller failure is a labeled structured transcript capture, alongside raw child logs, the original qualification record and source-based adjudication."
+	},
+	"scope": {
+		"base": "a70ea4ff8f435151b11397481cbb8094f0427f8a",
+		"verified_application_baseline": "40f8a579e044ba6874a3335c8f9410d5dc5caad9",
+		"only_application_scope_change": ["scripts/smoke-stub.sh"],
+		"stub_and_sibling_modules_byte_identical": true,
+		"prior_assertion_predicates_retained_in_order": 56,
+		"new_total_assertion_predicates": 78,
+		"message_change": "Existing listing status predicate unchanged; diagnostic message now includes chat/cursor."
+	},
+	"gates": {
+		"shell_syntax": "pass",
+		"doc_gate": "pass",
+		"decisions_verify": 40,
+		"strict_fixture": "pass"
+	},
+	"runtime": {
+		"python": "3.12.12",
+		"node": "22.23.2",
+		"configured_assets": "Runtime used default placeholder mode; explicit caller asset preservation is statically reviewed, not custom-asset certification."
+	},
+	"limits": [
+		"Existing Office asset-mode skip remains disclosed.",
+		"No production, UI, browser, image or proxy deployment certification.",
+		"Unchanged application checks reused from verified issue #209; no fresh full test/coverage/typecheck/build claim."
+	],
+	"scanner": {
+		"exit": 0,
+		"matches": 0,
+		"archive": "evidence-scan.json.gz",
+		"archive_sha256": "fd0fc0b1855e8c66ffd892949b3000c1f89d7662d4284b393a4de3c1e09f85c7"
+	},
+	"review": {
+		"status": "pending",
+		"cleanup_scope_adjudication": "Parent identifies pre-existing out-of-scope helper leak; independent review must evaluate retained evidence."
+	}
+}
