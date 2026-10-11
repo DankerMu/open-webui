@@ -4,6 +4,10 @@
 	"source_base": "0c23ca3ffc20f97791b2c04e983da07af3521ee2",
 	"archive": "archive-containment-verification.tar.gz",
 	"archive_sha256": "90a931d53b708ac8a4d21ca27c14819d57a4644280b23e99130595ed31180287",
+	"review_archive": "archive-containment-review.tar.gz",
+	"review_archive_sha256": "5620dba5d9b33ea09ce447733725bf17d4a9fcdc3cab08d18b1cebb77098166c",
+	"review": { "round": 1, "seats": 3, "actionable_findings": 0, "fix_passes_used": 0 },
+	"resource_follow_up": "https://github.com/DankerMu/open-webui/issues/350",
 	"pre_fix_archive_tests": { "exit": 1, "failed": 9, "passed": 4, "deselected": 23 },
 	"post_fix_archive_tests": { "exit": 0, "passed": 13, "deselected": 23 },
 	"scoped_suite": {
