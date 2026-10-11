@@ -3,7 +3,8 @@
 ## 1. Fixture and counterexamples
 
 - [x] 1.1 Review this expanded fixture against approved issue policy and concrete consumer/reader seams; strict OpenSpec validation passes before source edits. Preserve the issue's real baseline stall rather than rerunning it for confirmation.
-- [ ] 1.2 Add focused behavioral regressions through discovery/list/read and upload/lifecycle boundaries; retain semantic red evidence against the unchanged source for each new failure class before its fix.
+- [x] 1.2 Add focused behavioral regressions through discovery/list/read and upload/lifecycle boundaries; retain semantic red evidence against the unchanged source for each new failure class before its fix.
+  - Owner exception on2026-10-11: accept only the disclosed per-class test-execution sequencing deviation, retaining all assertions, thresholds, qualified negatives, independent review and full CI. Additional20 negative/20 restored cases are late qualification, not original pre-fix history. [Explicit decision](https://github.com/DankerMu/open-webui/issues/199#issuecomment-6106574132).
 
 ## 2. Discovery transaction
 
@@ -14,7 +15,7 @@
 
 ## 3. Independent runtime acceptance
 
-- [ ] 3.1 Run source owning tests with Python 3.12 and unchanged requirements, recording resolved dependency versions: `tests/orchestrator/test_mcp_resources.py`, affected upload/lifecycle/consumer modules and any paired discovery regression module. Preserve collected/executed/skipped counts and command exits. Run the repository's affected static/documentation checks without introducing dependency changes.
+- [x] 3.1 Run source owning tests with Python 3.12 and unchanged requirements, recording resolved dependency versions: `tests/orchestrator/test_mcp_resources.py`, affected upload/lifecycle/consumer modules and any paired discovery regression module. Preserve collected/executed/skipped counts and command exits. Run the repository's affected static/documentation checks without introducing dependency changes.
 - [x] 3.2 Exercise actual discovery and actual MCP readers over an external-thread loopback driver with real temporary files. Run an idle control, then at least 10 seconds and 300 completed loaded read samples for each of the 100,000-file rejection and repeated multi-chat sync/list workloads. Record per-request start/end, operation intervals, p95/max, environment/dependency/source identities and all errors. No idle padding in loaded statistics. Require idle max <=10 ms, loaded p95 <=250 ms and max <=500 ms; a noisy idle run is inconclusive, not pass. Keep the raw evidence and remove only owned temporary trees/processes.
 - [x] 3.3 Smoke the actual upload route's committed-success/discovery-failure envelope and the lifecycle error boundary with real filesystem/MCP state; mocks may isolate Docker effects but do not certify real Docker lifecycle or the deferred image batch.
 - [ ] 3.4 Update the owning decision and source changelog, attach evidence and limitations, run three-seat independent source review and approved local CI, then merge paired PRs and archive the fixture.

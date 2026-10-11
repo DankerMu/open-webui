@@ -17,12 +17,30 @@
 		"semantic_negative_cases": 20,
 		"restored_cases": 20,
 		"browser": "Both distinct stored-name cases pass; both wrong-consumer controls fail; restored default harness passes with fresh input/toolchain hashes.",
-		"chronology": "Additional negative controls are late qualification, not original pre-fix TDD. Task1.2 sequencing wording remains pending explicit adjudication.",
+		"chronology": "Additional negatives are late qualification, not original pre-fix TDD. The owner explicitly accepted only this sequencing deviation while retaining every other gate: https://github.com/DankerMu/open-webui/issues/199#issuecomment-6106574132",
 		"invalid_attempts": "Earlier observer fingerprints are excluded; ENTRY_RED3's masked-error classification is explicitly invalidated in the archive."
+	},
+	"integrated_acceptance": {
+		"archive": "integrated-acceptance.tar.gz",
+		"sha256": "57bafe58bcbafe58ad550bc315e5f2953e99437291aa3e1fde41e1b96a51c87c",
+		"size": 66008,
+		"source_head": "b7241020bd1f710c12f58d5f0ee2bb933666a088",
+		"exit": 0,
+		"collected": 3391,
+		"passed": 3386,
+		"existing_skips": 5,
+		"subtests_passed": 332,
+		"pytest_seconds": 2542.74,
+		"python": "3.12.12",
+		"pytest": "9.1.1",
+		"pytest_asyncio": "1.4.0",
+		"head_and_input_hashes_unchanged": true,
+		"tracked_tree_clean_after": true,
+		"child_reaped": true
 	},
 	"prerequisites": {
 		"340": "https://github.com/DankerMu/open-webui/issues/340#issuecomment-6105582986",
 		"341": "https://github.com/DankerMu/open-webui/issues/341#issuecomment-6105792864"
 	},
-	"scope": "The original-to-integrated comparison binds reused production, tool and UI inputs. The review candidate changes only the browser harness; fresh review-qualification evidence supersedes its older browser acceptance. HTTP evidence covers upload/MCP behavior, not later lifecycle placement. Tool/lifecycle provenance and the integrated full non-image gate require the new full-suite result; this record does not attest it."
+	"scope": "The original-to-integrated comparison binds reused production, tool and UI inputs. The review candidate changes only the browser harness; fresh review-qualification evidence supersedes its older browser acceptance. HTTP evidence covers upload/MCP behavior, not later lifecycle placement. The completed frozen-head full-suite evidence separately binds final tool/lifecycle execution and all consumer inputs; its raw result and audit are retained in integrated-acceptance.tar.gz."
 }
