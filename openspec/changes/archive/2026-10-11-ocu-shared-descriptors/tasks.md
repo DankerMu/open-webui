@@ -14,7 +14,7 @@
 ## 3. Acceptance and closure
 
 - [x] 3.1 Independent actual HTTP smoke with only temporary benign fixtures verifies upload no-replace/receipts, single-file/archive containment and broker listing/error behavior; isolated declared-COPY app import passes. Record input/source/toolchain identities and remove owned services/trees. No image/LAN certification.
-- [ ] 3.2 After smoke, update source changelog/docs and the owning decision; central strict fixture/doc-gate/decisions-verify pass. Complete three-seat review, approved local CI on frozen paired heads, merge, close issue and archive fixture.
+- [x] 3.2 After smoke, update source changelog/docs and the owning decision; central strict fixture/doc-gate/decisions-verify pass. Complete three-seat review, approved local CI on frozen paired heads, merge, close issue and archive fixture.
 
 ## 4. Risk-pack map
 
