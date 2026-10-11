@@ -43,7 +43,12 @@
 		"Evaluation qualification and Bash matrices resolve differing cached pytest versions; raw logs retained."
 	],
 	"review": {
-		"status": "pending"
+		"status": "clean",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "descriptor-equivalence-review.tar.gz",
+		"archive_sha256": "3522d4d12444c4e94368cf0073b1c110822e960e7d74dccba7237a94612d3f9a",
+		"observation_limit": "The frozen oracle compares explicit causes or unsuppressed contexts, not both raw attributes. Suppressed __context__ can differ when an explicit cause is present; displayed chains and current consumer contracts are preserved."
 	},
 	"scanner": {
 		"exit": 1,
