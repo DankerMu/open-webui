@@ -28,6 +28,13 @@
 	"deviation": "Initial shared expression passed smoke/Ruff but failed formatter; same-scope set.union layout preserves800-line ceiling. Frozen smoke unchanged; final smoke/formatter pass. No oracle relaxation.",
 	"unchanged_application_evidence": "Outside docs/openspec only scripts/ocu-stub.py and scripts/smoke-stub.sh differ from authorized436ff371 baseline. Fresh gates cover changed harness; no fresh typecheck/build/UI/proxy run claimed.",
 	"review": {
-		"status": "pending"
+		"status": "clean",
+		"source_head": "7e812725ae7f29db8be5fca0075035330d23839f",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "reserved-name-review.tar.gz",
+		"archive_sha256": "dd6671facfbd7e33aacfaf47cd48514560359a57a27e78c289f589b8b49e3c53",
+		"note": "P2 archival omission closed with original strict/scanner/commit output and a formatter excerpt explicitly labeled as parent transcript capture, not a standalone runner log. Reviewer accepted the clarification; no missing behavioral coverage or oracle change.",
+		"scanner": "Both original verification evidence and supplementary review records scanned with zero findings; raw reports retained."
 	}
 }
