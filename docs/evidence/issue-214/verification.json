@@ -1,6 +1,6 @@
 {
   "issue": "https://github.com/DankerMu/open-webui/issues/214",
-  "state": "counted fix pass verified; fresh independent re-review and merge pending",
+  "state": "independent re-review clean; final-head status publication, merge and archive pending",
   "source_repository": "DankerMu/open-computer-use",
   "source_base": "f419297e0990a416816446446713385e70f5d8f1",
   "source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
@@ -224,7 +224,14 @@
       "RESOURCE-1": "parent-close error leaked untransferred broker controlFD;fixed/regression+runtime proven",
       "EVIDENCE-1": "invalid initial central-gates capture;fresh direct capture supplied"
     },
-    "fresh_rereview": "pending"
+    "fresh_rereview": "round2 clean; no findings; both prior findings independently closed",
+    "reviewed_source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+    "reviewed_central_head": "51bdc3d88dd9cf3cdf5a038740cda198fdd735b6",
+    "archive": {
+      "path": "parent-directory-review.tar.gz",
+      "sha256": "71b6222d5676e2a9cf0b82c4d687c134720e6b6c29f5e182658c8c2f27d19981",
+      "bytes": 8957
+    }
   },
   "runtime_final": {
     "record": "issue-214-http-final.json",
@@ -240,5 +247,19 @@
     "disposition": "All individually verified public committed Python SHA256 identities; no credential match, not zero matches",
     "adjudication": "final-scan-adjudication.json",
     "raw_report": "final-evidence-scan.json.gz"
+  },
+  "deferred_followup": {
+    "issue": "https://github.com/DankerMu/open-webui/issues/365",
+    "scope": "Pre-existing postcommit directory-close error classification/cleanup in broker, receipt and Office state writers; not part of parent-creation synchronization",
+    "priority": "P3",
+    "not_added_to_original_queue": true,
+    "origin": "Office state writer and ancestor closes predate214; office/store.py unchanged here",
+    "evidence": "Verified issue body and issue-scribe disposition in final review archive; no data loss or unsafe same-ID retry demonstrated"
+  },
+  "source_remote_checks": {
+    "head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+    "observed_successes": 10,
+    "kind": "Actual GitHub docs-lint jobs; not unit-suite CI",
+    "record": "source-remote-checks.json in final review archive"
   }
 }
