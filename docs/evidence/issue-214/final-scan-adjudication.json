@@ -1,22 +1,22 @@
 {
-  "scanner_exit": 1,
-  "findings": 300,
-  "rules": {
-    "generic-api-key": 300
-  },
-  "disposition": "Every finding is a full SHA256 file-content identity on a Python-path JSON field inside the two verification archives. Each value verified against named committed files at source base or reviewed/final head; no credential match. Not a zero-match scan.",
-  "source_base": "f419297e0990a416816446446713385e70f5d8f1",
-  "source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
-  "verified_files": [
-    "computer-use-server/auth_guard.py",
-    "computer-use-server/office/tokens.py",
-    "tests/integration/test_mcp_auth.py",
-    "tests/orchestrator/test_office_tokens.py",
-    "tests/test_auth_guard.py"
-  ],
-  "raw_report": "final-evidence-scan.json.gz",
-  "archives": {
-    "parent-directory-verification.tar.gz": "7eb47d942e74e83fede2594b88d571a3c6b1a2823d7a6ac4be312f65b0924776",
-    "parent-directory-review-fix.tar.gz": "1957cd525676dd5f2ee915f70713ca12810af2ddab77809da0e3f20e408a1088"
-  }
+	"scanner_exit": 1,
+	"findings": 300,
+	"rules": {
+		"generic-api-key": 300
+	},
+	"disposition": "Every finding is a full SHA256 file-content identity on a Python-path JSON field inside the two verification archives. Each value verified against named committed files at source base or reviewed/final head; no credential match. Not a zero-match scan.",
+	"source_base": "f419297e0990a416816446446713385e70f5d8f1",
+	"source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+	"verified_files": [
+		"computer-use-server/auth_guard.py",
+		"computer-use-server/office/tokens.py",
+		"tests/integration/test_mcp_auth.py",
+		"tests/orchestrator/test_office_tokens.py",
+		"tests/test_auth_guard.py"
+	],
+	"raw_report": "final-evidence-scan.json.gz",
+	"archives": {
+		"parent-directory-verification.tar.gz": "7eb47d942e74e83fede2594b88d571a3c6b1a2823d7a6ac4be312f65b0924776",
+		"parent-directory-review-fix.tar.gz": "1957cd525676dd5f2ee915f70713ca12810af2ddab77809da0e3f20e408a1088"
+	}
 }
