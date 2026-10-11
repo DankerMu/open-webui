@@ -8,9 +8,21 @@
 	],
 	"runtime_inputs_byte_identical": true,
 	"reused_evidence": ["runtime-verification.tar.gz", "consumer-verification.tar.gz"],
+	"review_candidate": "b7241020bd1f710c12f58d5f0ee2bb933666a088",
+	"review_changed_paths": ["tests/orchestrator/preview_embedding_browser.cjs"],
+	"review_evidence": {
+		"archive": "review-qualification.tar.gz",
+		"sha256": "ef2d3504edaad53ba4888f687df69dd832a5f4a540fe1f893063c06c87185e4e",
+		"size": 363206,
+		"semantic_negative_cases": 20,
+		"restored_cases": 20,
+		"browser": "Both distinct stored-name cases pass; both wrong-consumer controls fail; restored default harness passes with fresh input/toolchain hashes.",
+		"chronology": "Additional negative controls are late qualification, not original pre-fix TDD. Task1.2 sequencing wording remains pending explicit adjudication.",
+		"invalid_attempts": "Earlier observer fingerprints are excluded; ENTRY_RED3's masked-error classification is explicitly invalidated in the archive."
+	},
 	"prerequisites": {
 		"340": "https://github.com/DankerMu/open-webui/issues/340#issuecomment-6105582986",
 		"341": "https://github.com/DankerMu/open-webui/issues/341#issuecomment-6105792864"
 	},
-	"scope": "Reused HTTP, browser and latency evidence applies to unchanged production, tool and UI inputs. The two explicitly approved test-only prerequisites are merged. This identity record does not attest the integrated full non-image suite; that gate requires its own retained result."
+	"scope": "The original-to-integrated comparison binds reused production, tool and UI inputs. The review candidate changes only the browser harness; fresh review-qualification evidence supersedes its older browser acceptance. HTTP evidence covers upload/MCP behavior, not later lifecycle placement. Tool/lifecycle provenance and the integrated full non-image gate require the new full-suite result; this record does not attest it."
 }
