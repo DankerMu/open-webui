@@ -13,8 +13,8 @@
 
 - [x] 3.1 Build the complete fixed Dockerfile for linux/amd64 from tracked source, retaining image identity and build output; no runtime overlay substitute.
 - [x] 3.2 In a fresh container with no relay, the exact 15-second pipeline exits 0 and reports the opened about:blank page. After return, CDP responds through the all-interface 9222 listener and loopback 9223 target. Exercise the existing-relay path without replacing it.
-- [ ] 3.3 Run the scoped relay regression, complete default image harness and changed-shell syntax checks, then expanded correctness, test-evidence and process-lifetime review; publish exact-head local CI evidence.
-- [ ] 3.4 Merge source and central fixture PRs, close the issue, and archive the completed fixture only after both acceptance criteria pass.
+- [x] 3.3 Run the scoped relay regression, complete default image harness and changed-shell syntax checks, then expanded correctness, test-evidence and process-lifetime review; publish exact-head local CI evidence.
+- [x] 3.4 Merge source and central fixture PRs, close the issue, and archive the completed fixture only after both acceptance criteria pass.
 
 ## Risk packs
 
