@@ -15,7 +15,7 @@
 
 - [x] 3.1 Run the actual app on an owned loopback port with temporary benign trees; HTTP requests and decoded ZIP members prove ordinary content, external/sibling denial and no source mutation. Retain command, environment, source and oracle identities; stop owned service and remove only owned fixtures.
 - [x] 3.2 Update the existing unified-workspace decision and source changelog; central doc-gate, decisions-verify and strict fixture validation pass.
-- [ ] 3.3 Complete three-seat correctness, test-evidence/spec-compliance and security/invariant review; approved local CI on frozen heads; merge paired PRs, close the issue and archive the fixture.
+- [x] 3.3 Complete three-seat correctness, test-evidence/spec-compliance and security/invariant review; approved local CI on frozen heads; merge paired PRs, close the issue and archive the fixture.
 
 ## 4. Risk-pack map
 
