@@ -24,6 +24,8 @@ The permanent make smoke-proxy command verifies the exact OCU commit in constrai
 
 The explicit Hurl list governs execution, and output names each invoked file on success or failure; a missing listed file fails. Office requests run serially with one private observation boundary per request: each admitted row requires one attributed arrival, and each denial requires none. A configured conflict chat must reach observed conflict before resolution and observed closed state before version restore. The pin carries the seven Office rows without DocumentServer listener inputs; this evidence does not establish browser editing or real-editor behavior.
 
+Office's effective request variables travel in a fresh0600 file beneath owned0700 scratch, never as credential-bearing command arguments. The request file follows the base variables file so an explicit empty cookie overrides retained authentication. Its lifetime ends on success, child failure, launch error or interruption; the base credential file remains owned by the outer smoke run.
+
 The user selected paired cross-repository acceptance: review and freeze OCU without merging, run WebUI's permanent smoke and CI against that source, then merge OCU and WebUI sequentially. A new counterexample invalidates previous evidence; changing request order or framing to avoid a failure is not an acceptable fix.
 
 ## Alternatives considered

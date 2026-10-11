@@ -1,0 +1,33 @@
+{
+	"issue": 229,
+	"base": "25ea240f0ca8bf99b6f660170d917ebdc68b01f7",
+	"archive": {
+		"path": "private-vars-verification.tar.gz",
+		"sha256": "f50197547e3e40400f8aa1e9ec41523266d95c64da61e5afcfa02184de0a40ea"
+	},
+	"candidate": {
+		"scripts/smoke_proxy_office.py": "4bd6f819650772cd8a6eeaeb64f34d6f910d5d4fdddc84ffa5482e0c293ce6db",
+		"scripts/smoke_proxy_support.py": "78cd589679f78b7090cd10b365410144d4d2cf091a4f3927cd2f8d98816383d0",
+		"smoke/proxy/office.hurl": "c54d51fb3b24998d0d1533d77e99f74c9f3cacc915e4c8375a424a7e21959e4a",
+		"backend/open_webui/test/test_smoke_proxy_office.py": "1ba3651972633311dbd65c2b194e5e1323494396a8f08b18765d5827706fa1b7"
+	},
+	"final_test_sha256": "e3ab76f1fcbba7e197ffc2c5e41b23d9420f9a6ea582eb31b65be064f9ddf5e0",
+	"checks": {
+		"semantic_red": "Original argv transport: 1 failed, 140 deselected; static credential-exposure assertion. make exit 2.",
+		"tracer_green": "Private transport: 1 passed, 140 deselected; make exit 0.",
+		"cleanup_qualification": "Disposable delete=False mutant: all 4 cases fail on retained private files; restored candidate: 4 pass. Not a historical cleanup-defect claim.",
+		"focused_regression": "make test-backend with Office and existing cleanup selections: 24 passed, 120 deselected; exit 0.",
+		"real_hurl": "Hurl 8.0.1 real HTTP control: later file overrides base and explicit empty cookie stays empty; exit 0.",
+		"runtime": "make smoke-proxy exit 0; 40 audited Office children; no managed credentials in argv; fresh 0600 files beneath 0700 scratch; prior and final file cleanup; seven anonymous empty-cookie requests; original 7 owner / 24 auth-guard denial / 5 unlisted denial matrix passed. Owned dev services stopped.",
+		"static": "make lint-scoped fmt-check exit 0; 102 scoped files, 274 formatted Python files; existing Prettier option warnings retained.",
+		"docs": "make doc-gate decisions-verify exit 0; 42 decision records. OpenSpec strict validation exit 0.",
+		"scan": "gitleaks exit 0; no findings over 229835 retained input bytes."
+	},
+	"scope": "Only OfficeJudge request transport and its regression tests change executable behavior. Generic Hurl helper, matrix template and smoke entrypoint remain byte-identical to base. Existing owning ADR updated.",
+	"limits": [
+		"macOS arm64 parent acceptance with installed Hurl 8.0.1; no new Linux run or deployment certification.",
+		"Harness scripts and tests are excluded coverage subjects by scripts/coverage-gate.sh:14-18; no application code changed. Full fresh macOS and Linux unit/coverage baseline retained in issue-222 evidence at 9b344222ab308090b622c62aea0591ba5dc9e109.",
+		"Permissions do not protect against privileged or arbitrary same-UID readers. Uncatchable process termination is outside lexical cleanup guarantees.",
+		"Parent runs verification independently of the implementation worker, but not in an OS-isolated verifier enclave."
+	]
+}
