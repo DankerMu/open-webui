@@ -14,7 +14,7 @@ Issue #209 identifies decoded control characters reaching the local stub's `Cont
 
 ## What Changes
 
-- Reject decoded ASCII HTTP controls U+0000–U+001F and U+007F before upload storage, retaining the stub's invalid-filename400 response.
+- Reject decoded ASCII HTTP controls U+0000–U+001F and U+007F before upload storage, retaining the stub's invalid-filename 400 response.
 - Extend the existing smoke with unchanged-listing assertions and ordinary-file disposition controls for inline and `download=1`.
 
 ## Capabilities
@@ -25,4 +25,4 @@ Issue #209 identifies decoded control characters reaching the local stub's `Cont
 
 ## Impact
 
-`scripts/ocu-stub.py` and `scripts/smoke-stub.sh`, plus owning documentation. No production files, dependency changes, broader Unicode/header-quoting policy or OCU400/403 parity changes.
+`scripts/ocu-stub.py` and `scripts/smoke-stub.sh`, plus owning documentation. No production files, dependency changes, broader Unicode/header-quoting policy or OCU 400/403 parity changes.

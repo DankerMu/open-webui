@@ -55,6 +55,13 @@
 		"archive_sha256": "93612dede64b37940f5d974ba21fd786d4005bfd808e94878b0d4e5b0420175b"
 	},
 	"review": {
-		"status": "pending"
+		"status": "clean",
+		"head": "2c46b1e21226db976539f3688d3c5543301f7def",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "filename-control-review.tar.gz",
+		"archive_sha256": "59b4454a09a5b4ca5adea6a1180c556b941bc7656ec807df642bf4801ce47bf3",
+		"binding": "Runner source_head records the precommit checkout HEAD; per-file input hashes bind the tested bytes to the reviewed commit. All 34 inputs matched across five candidate runs.",
+		"notes": "Only cosmetic prose spacing corrected; contract, source and smoke unchanged. Fresh docs/strict records and zero-finding review scan retained."
 	}
 }
