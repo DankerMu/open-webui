@@ -15,7 +15,7 @@
 
 - [x] 3.1 Parent runs owning file-response/header tests plus `tests/test_upload_claim.py`, `tests/security/test_path_traversal_app.py`, `tests/test_auth_guard.py`, `tests/orchestrator/test_mcp_resources.py` under Python3.12/current requirements, recording commands, versions, collection/pass/skip counts and exits; affected static/documentation gates and an isolated import from declared Dockerfile Python COPY inputs pass.
 - [x] 3.2 Independent actual Uvicorn HTTP verifies both modes' bytes, descriptor metadata, MIME/disposition/isolation/no-store, current HEAD/Range behavior, safe alias behavior and a bounded client disconnect; benign temporary trees and all owned services are cleaned, inputs and source identities retained.
-- [ ] 3.3 Update source docs/changelog and the owning decision after smoke; strict fixture, central doc-gate and decisions-verify pass. Complete three-seat independent review, approved local CI on frozen paired heads, merge/closure and fixture archive.
+- [x] 3.3 Update source docs/changelog and the owning decision after smoke; strict fixture, central doc-gate and decisions-verify pass. Complete three-seat independent review, approved local CI on frozen paired heads, merge/closure and fixture archive.
 
 ## 4. Risk-pack map
 

@@ -24,3 +24,49 @@ Successful non-download responses from `/files/{chat_id}/{filename}` with Conten
 
 - **WHEN** the file MIME is plain text, PNG or unknown/octet-stream, or the request is denied or the file is missing
 - **THEN** the mirror headers are absent and the existing content or error behavior remains unchanged
+
+### Requirement: Descriptor-bound single-file responses
+
+Both inline and forced-download responses from `/files/{chat_id}/{filename}` SHALL stream only from one regular-file descriptor securely acquired beneath the requested chat workspace. Pathname replacement SHALL NOT redirect bytes or metadata after acquisition. Content-Length, ETag and Last-Modified SHALL derive from that same opened object. Existing MIME, charset, encoded disposition, selective CSP/nosniff, no-store, authorization and ordinary missing/non-file error semantics SHALL remain intact. No Range capability SHALL be introduced; existing method/range behavior of the pinned framework SHALL be preserved.
+
+#### Scenario: Ancestor replacement before acquisition
+
+- **WHEN** a temporary in-root ancestor is replaced by a symlink to a benign external marker after path validation and before authoritative open
+- **THEN** either response mode returns a closed403/404 or bytes from an already-pinned in-root file, never the marker bytes
+
+#### Scenario: Root replacement during acquisition
+
+- **WHEN** the requested chat root or outputs root is renamed and replaced with a symlink to a benign sibling or external tree after route validation and at its acquisition boundary
+- **THEN** both response modes return only403/404 or already-pinned original in-root bytes, never redirected marker bytes
+
+#### Scenario: Path replacement after acquisition
+
+- **WHEN** a selected leaf or ancestor is replaced after acquisition and before response body transmission
+- **THEN** both response modes retain the original opened object's bytes and metadata headers, not those of the replacement target
+
+#### Scenario: Ordinary and safely resolved in-root paths
+
+- **WHEN** an authenticated caller requests an empty, nested or multi-chunk ordinary file, or an alias resolving to a file inside the same outputs root
+- **THEN** bytes, status, MIME, disposition, isolation policy and metadata remain consistent with the opened in-root file for inline and download responses
+- **AND** an outside link or pre-existing chat/outputs-root alias cannot cause sibling-chat bytes to be served
+
+#### Scenario: Existing file errors and protocol behavior
+
+- **WHEN** the caller requests a missing file, a directory, an unsupported method or a byte range
+- **THEN** existing status/body and method/range semantics remain unchanged without adding range support
+- **AND** rejected requests do not add successful isolated-content headers or expose target content
+
+### Requirement: Bounded descriptor response ownership
+
+A file response SHALL use bounded per-read chunks without materializing the complete uncompressed file. Descriptor ownership SHALL begin inside guarded response execution and end on successful completion, disconnect, cancellation or setup/read/send failure. An unexecuted response object SHALL NOT retain a descriptor. Cleanup SHALL NOT close a descriptor still used by an abandoned worker or close a reused descriptor twice. Failures after response headers SHALL abort the stream rather than report a second successful or error response.
+
+#### Scenario: Successful and empty response cleanup
+
+- **WHEN** an empty or multi-chunk response finishes
+- **THEN** exact expected bytes and metadata have been sent and the owned descriptor is closed
+
+#### Scenario: Abandoned and failed response cleanup
+
+- **WHEN** the client disconnects or execution is cancelled before the first body or during a read, or setup/read/send raises
+- **THEN** the owned descriptor is released after any active read completes, no replacement descriptor is closed, and no path is reopened
+- **AND** no descriptor is acquired by constructing a response object that is never executed
