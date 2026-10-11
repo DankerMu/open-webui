@@ -1,0 +1,60 @@
+{
+	"issue": 202,
+	"source_base": "fc05983d62fa547349ad132d650fcf459e383cbf",
+	"source_head": "4f182e737383550140e0656ed45ae2fb32f89da4",
+	"archive": "descriptor-equivalence-verification.tar.gz",
+	"archive_sha256": "0982a09aa56059ef4c789ea61c38b7d7e2c5d7af455b2586216b8fac743dd4f5",
+	"baseline_consumers": {
+		"passed": 336,
+		"subtests": 3,
+		"exit": 0
+	},
+	"final_consumers": {
+		"passed": 370,
+		"subtests": 3,
+		"skipped": 0,
+		"pytest_seconds": 26.78,
+		"exit": 0
+	},
+	"equivalence": {
+		"cases": 224,
+		"changed": 0,
+		"exit": 0,
+		"oracle_sha256": "49ab42db38113878cc977fcd7e478c35d430f82570873d9f498405bdd8abc6dd"
+	},
+	"qualification": "Parent baseline unsafe uploads/broker mutations each rejected semantically; restored baseline exact. Final shared leaf/directory no-follow mutations each fail one real symlink test; restored31 pass. No missing-symbol failure represented as semantic RED.",
+	"compound_cleanup": "Parent found neutral exception context leakage under type rejection plus close failure; before/after real descriptor probe captures four cases. Broker three-case permanent regression added before repair; final error identity/context, one close, borrowed root and recovery preserved.",
+	"coverage": {
+		"statements": 55,
+		"covered": 54,
+		"percent": 98.18,
+		"type": "line, not branch"
+	},
+	"runtime": "Actual Uvicorn upload collision/receipts/listing/ETag/single/archive and link containment passed; owned trees and ports cleaned. Isolated declared-COPY app import passed, not an image build.",
+	"lint": "New primitive/tests Ruff F py312 pass. Broker test F841 unchanged from base, recorded without suppression.",
+	"deviations": [
+		"Oracle author executed probes despite author-only instruction; parent independently inspected and executed acceptance baseline/negative/restoration before production. Original author outputs retained as provenance only.",
+		"Parent authored source README/changelog after smoke.",
+		"Compound cleanup repair preceded formal review; initial224 oracle did not cover this combined fault. Separate probe and regression retained."
+	],
+	"limitations": [
+		"No full-suite, image, native Linux or LAN certification.",
+		"No same-inode snapshot or hard-link/mount provenance change.",
+		"Evaluation qualification and Bash matrices resolve differing cached pytest versions; raw logs retained."
+	],
+	"review": {
+		"status": "clean",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "descriptor-equivalence-review.tar.gz",
+		"archive_sha256": "3522d4d12444c4e94368cf0073b1c110822e960e7d74dccba7237a94612d3f9a",
+		"observation_limit": "The frozen oracle compares explicit causes or unsuppressed contexts, not both raw attributes. Suppressed __context__ can differ when an explicit cause is present; displayed chains and current consumer contracts are preserved."
+	},
+	"scanner": {
+		"exit": 1,
+		"matches": 92,
+		"classification": "All exact public base/candidate source-file SHA256 values; no secrets or suppressions; raw matches retained.",
+		"archive": "evidence-scan.json.gz",
+		"sha256": "d3d90344d6f3985f372bb265f5519bc2a4680a4d39bec8e8828f8005d4f93288"
+	}
+}
