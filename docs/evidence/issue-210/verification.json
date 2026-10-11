@@ -61,7 +61,13 @@
 		"archive_sha256": "fd0fc0b1855e8c66ffd892949b3000c1f89d7662d4284b393a4de3c1e09f85c7"
 	},
 	"review": {
-		"status": "pending",
-		"cleanup_scope_adjudication": "Parent identifies pre-existing out-of-scope helper leak; independent review must evaluate retained evidence."
+		"status": "clean",
+		"head": "f9525d3bbd547c509bc3525d964a96f92750124f",
+		"round": 1,
+		"fix_passes_used": 0,
+		"archive": "pagination-upload-review.tar.gz",
+		"archive_sha256": "1db5c0a7c98a85407e9190fc75dc3344a5b535b93220a6c50c5a21713a8b511c",
+		"cleanup_scope_adjudication": "All three independent seats confirm the new main-map cleanup and primary acceptance. The retained controller exit 1 is the unchanged Office helper's separately tracked #361 defect, not a new-map leak or a suppressed pagination failure.",
+		"review_scan": "Zero findings; command, output and report retained in the review archive."
 	}
 }
