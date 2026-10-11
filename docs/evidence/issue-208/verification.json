@@ -1,0 +1,33 @@
+{
+	"issue": 208,
+	"base": "76e09ddbbb22bc5cf5871fa32f720005f9de99ae",
+	"archive": "reserved-name-verification.tar.gz",
+	"archive_sha256": "c91c039350753b58c1e26281dd963f880695429f157d4bf1d1d128f4c5fba187",
+	"semantic_red": {
+		"command": "make smoke-stub",
+		"exit": 2,
+		"failure": "backend403 expected allocated name 'backend403 (2)', got 'backend403'"
+	},
+	"final_smoke": {
+		"command": "make smoke-stub",
+		"exit": 0,
+		"seconds": 1.9015906670829281,
+		"scope": "Actual loopback HTTP upload/bare-error/deduplicated-bytes/listing + HTML403 and existing Office/concurrency/isolation scenarios",
+		"limit": "Office asset-mode skipped by existing harness; placeholder contract only, no browser/DocumentServer certification"
+	},
+	"oracle_sha256": "28a5c503b4f7dd47ea5e99ed3f0613bd3c96db82fb48075149970715178a958f",
+	"static": "Ruff check and final format-check pass; scoped lint101 files pass; source stays800 lines",
+	"other_gates": {
+		"test_backend": 140,
+		"coverage_backend": 140,
+		"coverage_frontend": 491,
+		"coverage_gate": "pass",
+		"doc_gate": "pass",
+		"decisions_verify": 40
+	},
+	"deviation": "Initial shared expression passed smoke/Ruff but failed formatter; same-scope set.union layout preserves800-line ceiling. Frozen smoke unchanged; final smoke/formatter pass. No oracle relaxation.",
+	"unchanged_application_evidence": "Outside docs/openspec only scripts/ocu-stub.py and scripts/smoke-stub.sh differ from authorized436ff371 baseline. Fresh gates cover changed harness; no fresh typecheck/build/UI/proxy run claimed.",
+	"review": {
+		"status": "pending"
+	}
+}

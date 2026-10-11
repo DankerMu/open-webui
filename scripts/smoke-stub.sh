@@ -216,6 +216,34 @@ status, _, _ = request('/api/uploads/' + quote('upload-smoke', safe='') + '/' + 
 assert 400 <= status < 500, status
 assert listing()[0] == unchanged
 print('smoke-stub: collision, chat isolation, ETag, concurrent claims and malformed multipart verified')
+
+chat = 'reserved-errors-smoke'
+for name, expected_name, payload, error_status, error_body in (
+    ('backend403', 'backend403 (2)', b'uploaded 403\x00\xff\r\n', 403, b'backend 403'),
+    ('backend409', 'backend409 (2)', b'uploaded 409\x00\xfe\r\n', 409, b'backend 409'),
+    ('backend-html403.html', 'backend-html403 (2).html',
+     b'uploaded HTML403\x00\xfd\r\n', 403, b'upstream error'),
+):
+    stored_name = upload(name, payload, chat=chat)
+    assert stored_name == expected_name, (
+        f'{name}: expected allocated name {expected_name!r}, got {stored_name!r}')
+    status, headers, body = request('/files/' + quote(chat, safe='') + '/' + quote(name, safe=''))
+    assert (status, body) == (error_status, error_body), (
+        f'{name}: expected bare error {(error_status, error_body)!r}, got {(status, body)!r}')
+    if name == 'backend-html403.html':
+        assert headers.get_content_type() == 'text/html', (
+            f'{name}: expected HTML error, got Content-Type {headers.get("Content-Type")!r}')
+    status, _, body = request('/files/' + quote(chat, safe='') + '/' + quote(stored_name, safe=''))
+    assert (status, body) == (200, payload), (
+        f'{stored_name}: expected uploaded response {(200, payload)!r}, got {(status, body)!r}')
+outputs, _ = listing(chat)
+paths = {row['path'] for row in outputs['files']}
+expected_paths = {'backend403 (2)', 'backend409 (2)', 'backend-html403 (2).html'}
+assert expected_paths <= paths, (
+    f'{chat}: missing uploaded paths {expected_paths - paths!r}; listed paths {paths!r}')
+assert not {'backend403', 'backend409'} & paths, (
+    f'{chat}: reserved bare error names listed as uploads; listed paths {paths!r}')
+print('smoke-stub: reserved backend errors, uploaded binary bytes/listing and HTML403 preserved')
 PY
 
 python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$stub_script" || fail "office fixtures"

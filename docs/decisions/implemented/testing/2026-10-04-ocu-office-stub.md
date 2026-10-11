@@ -5,7 +5,7 @@ kind: testing
 status: implemented
 date: 2026-10-04
 supersedes: none
-references: Plan 2, ocu-office-editing tasks 22.1 and 22.3
+references: Plan 2, ocu-office-editing tasks 22.1 and 22.3, issue 208
 ---
 
 # Deterministic Office stub and its evidence boundary
@@ -19,6 +19,8 @@ Gateway and sidebar checks need repeatable Office outcomes without a DocumentSer
 Keep Office state and its host page in adjacent stub modules, using the existing chat-keyed scenario selection, file identities, outputs listing and private request observations. Serialize state transitions with the stub lock. Accepted saves and closes complete their simulated callback outcome synchronously; sequence cursors, version records and workspace revisions expose the result through HTTP.
 
 `make smoke-stub` exercises the seven scenarios, default behavior, request rejection, chat isolation and deterministic replay. File IDs retain the existing chat-scoped convention: identical names in different chats may have identical IDs; the chat and resource together identify the fixture.
+
+The shared occupied-name source reserves synthetic error paths as well as listed fixtures and accepted uploads. Uploads named `backend403` or `backend409` receive numbered names, leaving the bare error responses intact; GET dispatch order cannot provide this guarantee without hiding accepted bytes. The HTTP smoke checks both error responses and retrieval/listing of the uploaded bytes.
 
 Office listing URLs encode logical path segments without changing file identity or stored content. Both save-as outcomes use the same producer. The HTTP smoke downloads each returned URL and checks its bytes against the saved version's hash and size as well as the listing metadata; conflict save-as also preserves the original entry and bytes.
 
