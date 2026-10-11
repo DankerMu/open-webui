@@ -16,7 +16,7 @@
 - [x] 3.1 Run the repaired case against unchanged production, reject the disposable per-call-loop/resolver-shutdown-wait control for the intended invariant, and restore the real implementation to green. Record identities and all exits; no live production mutation or downloader stub is permitted.
 - [x] 3.2 Run three declared stability trials S1/S2/S3 of the unchanged repaired case after restoration, retaining every outcome. These are qualification trials, not retries to erase a failure; any failed trial requires diagnosis.
 - [x] 3.3 Run `tests/orchestrator/test_office_callback_processing.py` and `tests/orchestrator/test_office_download.py` with Python3.12, unchanged server requirements, pytest/pytest-asyncio and `--import-mode=importlib`; record resolved dependency versions, counts, skips and exits. Execute the actual test scenario as the changed CLI surface; do not claim Docker, DocumentServer UI or LAN certification.
-- [ ] 3.4 Update source changelog and owning verification rationale, retain evidence, run the expanded independent review and source/central scoped gates, merge paired PRs and archive this fixture. Issue199 remains blocked until the separate #341 prerequisite also closes.
+- [x] 3.4 Update source changelog and owning verification rationale, retain evidence, run the expanded independent review and source/central scoped gates, merge paired PRs and archive this fixture. Issue199 remains blocked until the separate #341 prerequisite also closes.
 
 ## 4. Risk-pack map
 
