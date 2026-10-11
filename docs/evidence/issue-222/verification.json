@@ -1,0 +1,23 @@
+{
+	"issue": 222,
+	"disposition": "OPEN: historicalfailureunreproduced; no causalfixclaimed",
+	"tested_head": "9b344222ab308090b622c62aea0591ba5dc9e109",
+	"historical_head": "b8d91e8d5a22dbb90216efd58800d1ea0c8f54f9",
+	"archive": {
+		"path": "kit-global-investigation.tar.gz",
+		"sha256": "9cb3e27ca34ae1aaddc9e259f26240abb1c66864d145841ab5ef1abbc7e98883"
+	},
+	"fresh_macos": "Node22.23.2/Python3.12.12; make setup0; frontend34files491passed; fullmakecheck0/424.9s,140backend,coveragepassed97.68frontendline,type7777ceiling7777,drift2.92",
+	"fresh_linux_local_ci": "Linuxx86_64/Node22.23.2/Python3.12.3/uv0.9.18; frozenno-install-project sync+npmci+make test+makecoverage-gate0/1617.8s;140backend+491frontend;97.68frontendline; localcontainer not remoteActions",
+	"historical_control": "Exactb8d source, samefreshlockeddeps; instrumented11suites100testsPASS includingoriginalChatControls assertion. Not a separatefreshinstall.",
+	"trace": "RealControls/FileItem/FileItemModal/Markdown/Kitnavigation chain exists; Kit runtime inlined/webtransformed, barePAYLOAD binding suppliedby/@vite/env. Rawreports with noedgeclaims are explicitlyrefuted; correctedreports and actualtrace retained.",
+	"unknown": "Original failingrealm/globalinjection state absent. The referencedlocalfailurelog is gone; issue/PR220comments contain summaries only. No platform-specific rootcause established; no evidence219fixed222.",
+	"required_next_input": "A failingreproduction or original complete failurelog plus nonsecretVitestflags/pool, module realpaths, /@vite/env andKittransformdumps; do not upload .env orcredentials.",
+	"scope": "Evidence-only; no source/config/test/fixture/lock changes. Preserveopenissue ratherthan weakenacceptance orinventglobalstubs.",
+	"verification_limits": [
+		"Linuxfullunitcommands startfrompinnedGitbundle; no finalcontainer sourcehashmanifest captured.",
+		"Existingformatteroptionwarnings and expectedteststderr retained; nozero-warningclaim.",
+		"macOSfreshcopy and ownedLinuxcontainers/sourcearchivesremoved; existingimage preserved."
+	],
+	"scan": "gitleaks0/no findings across retainedinputs; rawcorrections and initialresearchmistakes retained"
+}
