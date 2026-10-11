@@ -1,0 +1,265 @@
+{
+  "issue": "https://github.com/DankerMu/open-webui/issues/214",
+  "state": "independent re-review clean; final-head status publication, merge and archive pending",
+  "source_repository": "DankerMu/open-computer-use",
+  "source_base": "f419297e0990a416816446446713385e70f5d8f1",
+  "source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+  "central_base": "ccfa09be624a3c8522a7982d05462b0d8723c8ca",
+  "fixture": "openspec/changes/ocu-parent-directory-durability",
+  "archive": {
+    "path": "parent-directory-verification.tar.gz",
+    "sha256": "7eb47d942e74e83fede2594b88d571a3c6b1a2823d7a6ac4be312f65b0924776",
+    "bytes": 457922,
+    "role": "Initial four-boundary verification at source82f6104; retain all original failures and the disclosed invalid central-gates transcript capture."
+  },
+  "construction": {
+    "upload_control": "4 semantic RED, preservation1PASS; GREEN5PASS",
+    "direct_receipts": "4 semantic RED; combined upload/receipt GREEN9PASS",
+    "broker": "5 semantic RED; GREEN5PASS; original postreplace2PASS; parent-close ownership defect found in round1: two new semanticRED regressions,129brokerPASS, independent original close-fault probe GREEN without leaked FD, final full consumer matrixPASS",
+    "chat_lock": "5 semantic RED plus preservation1PASS; corrected oracle requalified against original source (5RED, controls2PASS); final matrix GREEN",
+    "http": "original first upload200 missing BASE/chat fsync gives semanticRED; final actualTCP smoke exit0 includes real fsync inode order, receipt replay, BASE/chat EIO500 with no published file/receipt, recovery200 and owned cleanup"
+  },
+  "consumer_matrix": {
+    "command": [
+      "uv",
+      "run",
+      "--offline",
+      "--python",
+      "3.12",
+      "--no-project",
+      "--with",
+      "pytest",
+      "--with",
+      "pytest-asyncio",
+      "--with-requirements",
+      "computer-use-server/requirements.txt",
+      "--",
+      "python",
+      "-m",
+      "pytest",
+      "tests/orchestrator",
+      "tests/test_upload_claim.py",
+      "tests/security",
+      "tests/test_auth_guard.py",
+      "tests/test_files_headers.py",
+      "tests/test_tools.py",
+      "-vv",
+      "--import-mode=importlib",
+      "-o",
+      "faulthandler_timeout=60",
+      "--durations=20",
+      "--junitxml=/tmp/issue-214-fix-consumer.xml"
+    ],
+    "source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+    "exit": 0,
+    "elapsed_seconds": 1796.1318346250337,
+    "collected": 2953,
+    "passed": 2948,
+    "skipped": [
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_claude_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_entrypoint_renders_valid_config",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_entrypoint_selects_custom_provider",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      }
+    ],
+    "subtests_passed": 3,
+    "junit_cases": 2956,
+    "inputs_unchanged": true,
+    "captured_inputs": 236,
+    "binding": "issue-214-fix-final-binding.json",
+    "inventory_retention": "issue-214-fix-test-retention.json"
+  },
+  "lint": {
+    "command": "ruff check --select F --target-version py312 --output-format json <seven changed Python files>",
+    "exit": 1,
+    "inherited": 5,
+    "introduced": 0,
+    "baseline_evidence": "issue-214-lint-adjudication.json",
+    "final_evidence": "issue-214-fix-lint-adjudication.json"
+  },
+  "central_checks": {
+    "commands": [
+      "make doc-gate",
+      "make decisions-verify",
+      "openspec validate ocu-parent-directory-durability --strict --no-interactive",
+      "bash scripts/change-scope.sh --status"
+    ],
+    "exit": 0,
+    "decisions": 40,
+    "transcript": "issue-214-central-gates-recaptured.json and four direct stdout/stderr logs in review_fix_archive",
+    "fixture_status_only_changed_after_validation": false,
+    "original_capture_defect": "Initial archive central-gates.log is a blocked-reader notice, not command output; retained and superseded by observed fresh direct capture. Original parent tool output also confirms original passes.",
+    "status": "All four commands freshly recaptured exit0 after task status update;40decisions"
+  },
+  "evidence_scan": {
+    "exit": 1,
+    "findings": 226,
+    "disposition": "All findings are public committed Python SHA256 identities, individually checked against source base/candidate files; not a zero-match scan.",
+    "adjudication": "scan-adjudication.json",
+    "raw_report": "evidence-scan.json.gz",
+    "role": "Initial archive scan; retained unchanged"
+  },
+  "deviations": [
+    "Parent performed all checks; leaves ran no tests/build/lint/formatters/probes.",
+    "Worker identity replaced after inconsistent continuation tracking; original confirmed no StageB edits, replacement exclusively edited later stages.",
+    "New canonical-name test fixed case-insensitive lookup assumption; existing flock negative control and Office fault injection retargeted actual intended OS/storage seams; all behavior assertions retained.",
+    "Preserved 1800s and300s timeouts; prior successful full suite took2549s under3600s. Same selection completed in1802s within established bound, not a deadlock fix or assertion relaxation.",
+    "Disposable baseline setup omitted Office helper then fixture registration; both errors retained. Successful lock qualification retained and only Office setup rerun toPASS.",
+    "One counted review fix pass repairs newly discovered parent-close child ownership leak and recaptures an invalid archived gate transcript; original evidence retained. No acceptance clause weakened."
+  ],
+  "limits": [
+    "Real macOS arm64 temporary filesystem and loopbackHTTP only; no physical power loss, Linux/image or LAN certification.",
+    "Directory fsync relies on filesystem semantics; data-root ancestors and unrelated workspace/Office metadata durability are not audited.",
+    "Five live CLI opt-in skips are unchanged; Ruff is not claimed clean."
+  ],
+  "production_scope": "Only uploads.py, outputs_broker.py and docker_manager.py; other41 Python modules unchanged; no new module or dependency",
+  "diff_size_justification": "1026 changed source lines, dominated by22 real-FD order/fault/ownership and interrupted-creation regressions plus preserved negative controls across four coupled creation boundaries; one atomic shared persistence invariant.",
+  "initial_source_head": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+  "review_fix_archive": {
+    "path": "parent-directory-review-fix.tar.gz",
+    "sha256": "1957cd525676dd5f2ee915f70713ca12810af2ddab77809da0e3f20e408a1088",
+    "bytes": 212779,
+    "role": "Round1 reports, counted ownership repair RED/GREEN, final exact-head consumer/runtime proof, corrected central gate capture"
+  },
+  "initial_consumer_matrix": {
+    "command": [
+      "uv",
+      "run",
+      "--offline",
+      "--python",
+      "3.12",
+      "--no-project",
+      "--with",
+      "pytest",
+      "--with",
+      "pytest-asyncio",
+      "--with-requirements",
+      "computer-use-server/requirements.txt",
+      "--",
+      "python",
+      "-m",
+      "pytest",
+      "tests/orchestrator",
+      "tests/test_upload_claim.py",
+      "tests/security",
+      "tests/test_auth_guard.py",
+      "tests/test_files_headers.py",
+      "tests/test_tools.py",
+      "-vv",
+      "--import-mode=importlib",
+      "-o",
+      "faulthandler_timeout=60",
+      "--durations=20",
+      "--junitxml=/tmp/issue-214-consumer-complete.xml"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 1802.4579021669924,
+    "collected": 2951,
+    "passed": 2946,
+    "skipped": [
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_claude_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_entrypoint_renders_valid_config",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_entrypoint_selects_custom_provider",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      }
+    ],
+    "subtests_passed": 3,
+    "junit_cases": 2954,
+    "inputs_unchanged": true,
+    "changed_python_commit_binding": [
+      "computer-use-server/docker_manager.py",
+      "computer-use-server/uploads.py",
+      "computer-use-server/outputs_broker.py",
+      "tests/test_upload_claim.py",
+      "tests/orchestrator/test_outputs_broker.py",
+      "tests/orchestrator/test_lifecycle.py",
+      "tests/orchestrator/test_office_store.py"
+    ],
+    "source_head": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c"
+  },
+  "review": {
+    "round1": "not clean",
+    "fix_passes_used": 1,
+    "findings": {
+      "RESOURCE-1": "parent-close error leaked untransferred broker controlFD;fixed/regression+runtime proven",
+      "EVIDENCE-1": "invalid initial central-gates capture;fresh direct capture supplied"
+    },
+    "fresh_rereview": "round2 clean; no findings; both prior findings independently closed",
+    "reviewed_source_head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+    "reviewed_central_head": "51bdc3d88dd9cf3cdf5a038740cda198fdd735b6",
+    "archive": {
+      "path": "parent-directory-review.tar.gz",
+      "sha256": "71b6222d5676e2a9cf0b82c4d687c134720e6b6c29f5e182658c8c2f27d19981",
+      "bytes": 8957
+    }
+  },
+  "runtime_final": {
+    "record": "issue-214-http-final.json",
+    "exit": 0,
+    "actual_outputs_first_index": true,
+    "close_fault_probe": "issue-214-parent-close-fixed.json",
+    "owned_cleanup": true,
+    "source_inputs_bound_to": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0"
+  },
+  "final_evidence_scan": {
+    "exit": 1,
+    "findings": 300,
+    "disposition": "All individually verified public committed Python SHA256 identities; no credential match, not zero matches",
+    "adjudication": "final-scan-adjudication.json",
+    "raw_report": "final-evidence-scan.json.gz"
+  },
+  "deferred_followup": {
+    "issue": "https://github.com/DankerMu/open-webui/issues/365",
+    "scope": "Pre-existing postcommit directory-close error classification/cleanup in broker, receipt and Office state writers; not part of parent-creation synchronization",
+    "priority": "P3",
+    "not_added_to_original_queue": true,
+    "origin": "Office state writer and ancestor closes predate214; office/store.py unchanged here",
+    "evidence": "Verified issue body and issue-scribe disposition in final review archive; no data loss or unsafe same-ID retry demonstrated"
+  },
+  "source_remote_checks": {
+    "head": "39c35fed226dc2850d667a28f6dec23e5c8a4eb0",
+    "observed_successes": 10,
+    "kind": "Actual GitHub docs-lint jobs; not unit-suite CI",
+    "record": "source-remote-checks.json in final review archive"
+  }
+}

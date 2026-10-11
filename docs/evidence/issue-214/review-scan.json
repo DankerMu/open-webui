@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "gitleaks",
+    "dir",
+    "/tmp/issue-214-review-scan-we_rxkb_",
+    "--no-banner",
+    "--redact",
+    "--max-archive-depth",
+    "3",
+    "--max-decode-depth",
+    "3",
+    "--report-format",
+    "json",
+    "--report-path",
+    "/tmp/issue-214-review-scan.json"
+  ],
+  "exit": 0,
+  "findings": 0,
+  "review_archive_sha256": "71b6222d5676e2a9cf0b82c4d687c134720e6b6c29f5e182658c8c2f27d19981",
+  "manifest_sha256": "d2c07ee1e1b14bf318c520d7a96d97b844fdfcb8d5ff6319dccf9276cc2641ce",
+  "owned_tree_removed": true,
+  "raw_report": [],
+  "stdout_stderr": "\u001b[90m4:09PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~36531 bytes (36.53 KB) in 12.6ms\u001b[0m\n\u001b[90m4:09PM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n"
+}
