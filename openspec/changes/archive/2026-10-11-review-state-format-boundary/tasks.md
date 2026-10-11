@@ -13,7 +13,7 @@
 
 ## 3. Integration
 
-- [ ] 3.1 Complete three-seat review, authorized exact-head local CI, merge, closure and archive.
+- [x] 3.1 Complete three-seat review, authorized exact-head local CI, merge, closure and archive.
 
 ## Risk packs
 
