@@ -21,7 +21,14 @@ export default defineConfig({
 	// Vitest/jsdom must resolve Svelte's browser export instead of Node's server export.
 	...(process.env.VITEST === 'true'
 		? {
-				test: { server: { deps: { inline: [/^svelte(?:\/.*)?$/] } } },
+				test: {
+					// Keep copied build snapshots out of test discovery.
+					include: [
+						'src/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+						'scripts/**/*.{test,spec}.?(c|m)[jt]s?(x)'
+					],
+					server: { deps: { inline: [/^svelte(?:\/.*)?$/] } }
+				},
 				resolve: { conditions: ['browser'] },
 				ssr: { resolve: { conditions: ['browser'] } }
 			}

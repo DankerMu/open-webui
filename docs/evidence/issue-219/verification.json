@@ -1,0 +1,27 @@
+{
+	"issue": 219,
+	"base": "26654cafd6c682597c2285b90e512718a63d6780",
+	"config_sha256": "07c388da707cbe89ab667a8a99ef4be337b3f596d1d6f86c49d228ecb402e339",
+	"archive": {
+		"path": "discovery-verification.tar.gz",
+		"sha256": "682f048234bb9854d2f1b9d1c0af551d2f1a0b47ef4abdf280b6788bb1688423"
+	},
+	"claims": {
+		"red": "37 discovered:34 official+3 copied witnesses; semantic exit1",
+		"green": "34 official, missing/unexpected both empty",
+		"make": "34 suites/491 passed",
+		"npm": "34 exact official suites/491 passed",
+		"filenames": "48 supported paths included,13 unrelated/default-excluded paths rejected",
+		"coverage": "Discovery parity with existing --exclude e2e/**; not a fresh coverage percentage claim",
+		"snapshots": "Named historical snapshots absent before/after; owned witnesses unchanged then removed",
+		"static": "lint-scoped101,doc-gate,decisions41,strict,scopedformat exit0",
+		"scan": "31 retained evidence files; gitleaks scanned initial29,exit0/0findings; final2 scanner outputs only"
+	},
+	"limits": [
+		"macOS arm64 Node22.23.2 Vitest1.6.1",
+		"No production UI/runtime change; no UI smoke required",
+		"Format repair only whitespace; both raw config hashes and equality proof retained",
+		"No permanent config-source assertion test; actual runtime discovery and entrypoint evidence retained",
+		"Review and exact-head required status pending"
+	]
+}
