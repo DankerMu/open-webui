@@ -1,0 +1,16 @@
+{
+	"original_candidate": "a594863a30b7b226b9c04e363f785f62323c7f2d",
+	"integrated_candidate": "01d7bfac208ed4250d395d4a7b69a16a6ef21ace",
+	"changed_paths": [
+		"CHANGELOG.md",
+		"tests/orchestrator/test_office_callback_processing.py",
+		"tests/security/test_path_traversal_app.py"
+	],
+	"runtime_inputs_byte_identical": true,
+	"reused_evidence": ["runtime-verification.tar.gz", "consumer-verification.tar.gz"],
+	"prerequisites": {
+		"340": "https://github.com/DankerMu/open-webui/issues/340#issuecomment-6105582986",
+		"341": "https://github.com/DankerMu/open-webui/issues/341#issuecomment-6105792864"
+	},
+	"scope": "Reused HTTP, browser and latency evidence applies to unchanged production, tool and UI inputs. The two explicitly approved test-only prerequisites are merged. This identity record does not attest the integrated full non-image suite; that gate requires its own retained result."
+}
