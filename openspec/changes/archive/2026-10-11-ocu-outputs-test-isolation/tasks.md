@@ -13,7 +13,7 @@
 ## 3. Compatibility and closure
 
 - [x] 3.1 Collect from canonical `tests/` using an exact file-selection expression for the security app and outputs endpoint modules, then execute that selection with Python3.12, unchanged server requirements, pytest/pytest-asyncio and importlib mode. Record nodes, counts, skips and exit; no production changes, skips or weakened assertions.
-- [ ] 3.2 Update source changelog and owning test-isolation rationale after runtime proof; retain baseline and repaired evidence, run source structure/English gates and central doc-gate/decisions/strict fixture checks. Independent expanded review, paired merge and archive complete this prerequisite; #199 still requires its integrated full non-image run.
+- [x] 3.2 Update source changelog and owning test-isolation rationale after runtime proof; retain baseline and repaired evidence, run source structure/English gates and central doc-gate/decisions/strict fixture checks. Independent expanded review, paired merge and archive complete this prerequisite; #199 still requires its integrated full non-image run.
 
 ## 4. Risk-pack map
 
