@@ -43,6 +43,13 @@
 		"matches": 146,
 		"classification": "Each match verified against public base/candidate tracked-file SHA256 values, not credentials; raw scan/adjudication retained with final review evidence. No suppression or zero-match claim."
 	},
+	"setup_evidence_scan": {
+		"exit": 1,
+		"matches": 69,
+		"classification": "All matches are exact current public source-file digests.",
+		"archive": "setup-evidence-scan.json.gz",
+		"sha256": "d2af2cb44c8c33bc8b34a481587cf18835f4a19aeeb7a055154ee66980151026"
+	},
 	"limitations": [
 		"No same-inode content snapshot",
 		"No hard-link/bind-mount provenance",
