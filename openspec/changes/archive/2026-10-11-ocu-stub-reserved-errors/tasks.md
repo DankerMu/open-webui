@@ -9,7 +9,7 @@
 
 - [x] 2.1 Reserve both exact names in the shared occupied-name source; unchanged smoke passes with bare error status/body, deduplicated bytes/listing and HTML403 preservation assertions.
 - [x] 2.2 Run applicable scoped static/harness checks; preserve existing Office, concurrent upload, chat-isolation and partial-page behavior without edits to unrelated fixtures.
-- [ ] 2.3 After runtime smoke, update owning documentation; strict fixture/doc-gate/decisions-verify pass. Freeze evidence, complete three-seat review and approved local CI, merge and archive.
+- [x] 2.3 After runtime smoke, update owning documentation; strict fixture/doc-gate/decisions-verify pass. Freeze evidence, complete three-seat review and approved local CI, merge and archive.
 
 ## 3. Risk-pack map
 
