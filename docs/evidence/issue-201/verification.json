@@ -1,20 +1,29 @@
 {
 	"issue": 201,
-	"source_head": "4296c7d2f6cb149fd55a7787d11cfc4db1ca4a52",
+	"source_head": "3280d24a14d6240b1ad4edcb5d45e40bb515f6f7",
+	"initial_reviewed_source_head": "4296c7d2f6cb149fd55a7787d11cfc4db1ca4a52",
 	"source_base": "8b4d81847c3cc1388e78b078fde817888514cf6b",
 	"archive": "descriptor-response-verification.tar.gz",
 	"archive_sha256": "07bbbc7cb7cf2bc0531b694264d7ebbbeebf58a23f6e568222282660c43b0d1f",
+	"setup_fix_archive": "descriptor-setup-ownership-verification.tar.gz",
+	"setup_fix_archive_sha256": "cf690d7d3fafa25c9f0e91e9bf6a0268efc48a79b32d380569926e22625a8280",
+	"review": {
+		"round": 2,
+		"clean": true,
+		"fix_passes_used": 1,
+		"independent_verifier": "SECINV-R1-1 closed at repaired head; direct-response history retained, no default request-path leak claim"
+	},
 	"route_baseline": { "failed": 14, "passed": 44, "exit": 1 },
 	"ownership_baseline": { "failed": 6, "passed": 16, "exit": 1 },
 	"initial_combined_green": { "passed": 80, "exit": 0 },
 	"final_affected_matrix": {
-		"passed": 659,
+		"passed": 667,
 		"skipped": 0,
 		"subtests_passed": 3,
-		"pytest_seconds": 81.51,
+		"pytest_seconds": 99.12,
 		"exit": 0
 	},
-	"new_response_line_coverage": { "statements": 44, "missing": 0, "percent": 100 },
+	"new_response_line_coverage": { "statements": 49, "missing": 0, "percent": 100 },
 	"actual_http": {
 		"cases": 40,
 		"protocol_cases": 6,
@@ -23,7 +32,8 @@
 		"owned_cleanup": true
 	},
 	"protocol": "Starlette0.38.6: HEAD405; satisfiable and unsatisfiable Range ignored with full-body200 in both modes, independently characterized before source edits.",
-	"negative_controls": "Final disposable leak10/double-close6/abandoned-worker4 semantic failures, followed by22 restored passes; late oracle qualification, not original pre-fix history.",
+	"negative_controls": "Final disposable leak10/double-close6/abandoned-worker4 semantic failures, followed by30 restored passes; late oracle qualification, not original pre-fix history.",
+	"setup_cancellation_fix": "Native acquisition/fstat direct-response controls failed4 before fix; full-app controls passed4 and do not establish a default request-path leak. Owned response child now retains setup workers through native caller cancellation; same8 controls pass, combined88 tests pass. One review fix pass used.",
 	"packaging": "Isolated actual app import from explicit Dockerfile COPY inputs passed; not an image build.",
 	"fixture_repair": "Combined matrix exposed three404s from newly added file_response missing in app-module purge/snapshot sets; module lists updated across affected fixtures, all existing test assertions AST-equivalent. Final matrix covers every affected fixture owner.",
 	"provenance_limit": "Original tracked-only runner omitted the new untracked lifecycle-test hash before its RED; post-baseline hash and executed assertions retained, subsequent runner includes new files. No pre-run hash is claimed for that test.",
