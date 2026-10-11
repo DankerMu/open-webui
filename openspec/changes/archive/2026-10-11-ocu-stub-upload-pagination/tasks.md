@@ -9,7 +9,7 @@
 ## 2. Acceptance
 
 - [x] 2.1 Verify stub/sibling modules remain byte-identical, scoped static/harness checks pass, and smoke fixture maps/processes are cleaned on success and failure.
-- [ ] 2.2 After smoke proof, update owning documentation; strict fixture/doc-gate/decisions-verify pass. Seal command/output evidence, complete three-seat review and approved local CI, merge and archive.
+- [x] 2.2 After smoke proof, update owning documentation; strict fixture/doc-gate/decisions-verify pass. Seal command/output evidence, complete three-seat review and approved local CI, merge and archive.
 
 ## 3. Risk-pack map
 
