@@ -137,11 +137,14 @@ code="$(curl -sS -o "$body" -w '%{http_code}' "$base/terminal/running/heartbeat"
 python3 - "$base" <<'PY'
 import hashlib
 import json
+import re
+import socket
 import sys
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 base = sys.argv[1]
 
@@ -159,12 +162,16 @@ def listing(chat='upload-smoke', headers=None):
     assert status == 200, (status, body)
     return json.loads(body), response_headers['ETag']
 
-def upload(name, payload, chat='upload-smoke'):
+def upload_response(name, payload, chat='upload-smoke', encoded_name=None):
     envelope = (b'--smoke-boundary\r\nContent-Disposition: form-data; name="file"; '
                 b'filename="ignored.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
                 + payload + b'\r\n--smoke-boundary--\r\n')
-    status, _, body = request('/api/uploads/' + quote(chat, safe='') + '/' + quote(name, safe=''),
-                             envelope, {'Content-Type': 'multipart/form-data; boundary=smoke-boundary'})
+    route_name = quote(name, safe='') if encoded_name is None else encoded_name
+    return request('/api/uploads/' + quote(chat, safe='') + '/' + route_name,
+                   envelope, {'Content-Type': 'multipart/form-data; boundary=smoke-boundary'})
+
+def upload(name, payload, chat='upload-smoke'):
+    status, _, body = upload_response(name, payload, chat)
     assert status == 200, (status, body)
     result = json.loads(body)
     assert result['status'] == 'success', result
@@ -244,6 +251,98 @@ assert expected_paths <= paths, (
 assert not {'backend403', 'backend409'} & paths, (
     f'{chat}: reserved bare error names listed as uploads; listed paths {paths!r}')
 print('smoke-stub: reserved backend errors, uploaded binary bytes/listing and HTML403 preserved')
+
+def raw_file_response(path):
+    origin = urlsplit(base)
+    deadline = time.monotonic() + 5
+    wire = bytearray()
+    with socket.create_connection((origin.hostname, origin.port), timeout=5) as connection:
+        connection.sendall(
+            ('GET ' + path + ' HTTP/1.1\r\nHost: ' + origin.netloc
+             + '\r\nConnection: close\r\n\r\n').encode('ascii'))
+        while True:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, f'{path!r}: raw response timed out'
+            connection.settimeout(remaining)
+            chunk = connection.recv(4096)
+            if not chunk:
+                break
+            wire.extend(chunk)
+            assert len(wire) <= 65536, f'{path!r}: raw response exceeds 64 KiB'
+    header_block, separator, body = bytes(wire).partition(b'\r\n\r\n')
+    assert separator, f'{path!r}: missing HTTP header terminator'
+    lines = header_block.split(b'\r\n')
+    assert all(not any(byte < 32 or byte == 127 for byte in line) for line in lines), (
+        f'{path!r}: raw control byte inside a header line: {header_block!r}')
+    status_line = lines[0].split(b' ', 2)
+    assert len(status_line) == 3 and status_line[0] == b'HTTP/1.1', (
+        f'{path!r}: malformed status line {lines[0]!r}')
+    assert len(status_line[1]) == 3 and status_line[1].isdigit(), status_line
+    fields = {}
+    for line in lines[1:]:
+        name, colon, value = line.partition(b':')
+        assert colon and re.fullmatch(rb"[!#$%&'*+\-.^_`|~0-9A-Za-z]+", name), (
+            f'{path!r}: malformed header line {line!r}')
+        assert value.startswith(b' '), f'{path!r}: malformed header value {line!r}'
+        fields.setdefault(name.lower(), []).append(value[1:])
+    assert b'x-stub-injected' not in fields, f'{path!r}: injected header {fields!r}'
+    lengths = fields.get(b'content-length', [])
+    assert len(lengths) == 1 and lengths[0].isdigit(), (
+        f'{path!r}: invalid Content-Length fields {lengths!r}')
+    assert b'transfer-encoding' not in fields, f'{path!r}: unexpected transfer framing'
+    assert len(body) == int(lengths[0]), (
+        f'{path!r}: expected {lengths[0]!r} body bytes, got {len(body)}')
+    return int(status_line[1]), fields, body
+
+chat = 'filename-controls-smoke'
+ordinary_name = 'nested dir/report 100%25.bin'
+ordinary_payload = b'filename control bytes\x00\xff\r\n\x7f'
+assert upload(ordinary_name, ordinary_payload, chat=chat) == ordinary_name
+ordinary_listing, _ = listing(chat)
+ordinary_entry = next(row for row in ordinary_listing['files'] if row['path'] == ordinary_name)
+assert ordinary_entry['size'] == len(ordinary_payload), ordinary_entry
+ordinary_path = '/files/' + quote(chat, safe='') + '/' + quote(ordinary_name, safe='')
+for query, expected_disposition in (
+    ('', b'inline; filename="report 100%25.bin"'),
+    ('?download=1', b'attachment; filename="report 100%25.bin"'),
+):
+    status, headers, body = raw_file_response(ordinary_path + query)
+    assert (status, body) == (200, ordinary_payload), (
+        f'{ordinary_name!r}{query}: expected exact uploaded binary bytes, got {(status, body)!r}')
+    assert headers.get(b'content-disposition', []) == [expected_disposition], (
+        f'{ordinary_name!r}{query}: unexpected disposition fields {headers!r}')
+print('smoke-stub: ordinary nested ASCII bytes and raw inline/download dispositions verified', flush=True)
+
+# These targets are already encoded; request() sends them without dot-segment normalization.
+for route_name in (
+    '/leading.bin', 'nested//repeated.bin', 'nested/trailing/',
+    '.', '..', './dot.bin', 'nested/./dot.bin', '../dotdot.bin', 'nested/../dotdot.bin',
+    '%2fleading.bin', 'nested%2f%2frepeated.bin', 'nested%2f',
+    '%2e', '%2e%2e', '%2e/dot.bin', 'nested/%2e/dot.bin',
+    '%2e%2e/dotdot.bin', 'nested/%2e%2e/dotdot.bin',
+):
+    unchanged = listing(chat)
+    status, _, body = upload_response(None, b'traversal must not publish', chat, encoded_name=route_name)
+    assert status == 400, f'{route_name!r}: expected traversal 400, got {(status, body)!r}'
+    assert json.loads(body) == {'detail': 'Invalid filename'}, (route_name, body)
+    assert listing(chat) == unchanged, f'{route_name!r}: traversal rejection mutated the full listing'
+print('smoke-stub: filename traversal controls GREEN (400/Invalid filename; full listing unchanged)', flush=True)
+
+unsafe_names = [f'control-{code:02x}-{chr(code)}.bin' for code in (*range(32), 127)]
+unsafe_names.append('header\r\nX-Stub-Injected: yes\r\n.bin')
+for name in unsafe_names:
+    unchanged = listing(chat)
+    status, _, body = upload_response(name, b'controls must not publish', chat)
+    assert status == 400, f'{name!r}: expected invalid-filename 400, got {(status, body)!r}'
+    assert json.loads(body) == {'detail': 'Invalid filename'}, (name, body)
+    assert listing(chat) == unchanged, f'{name!r}: control rejection mutated the full listing'
+    path = '/files/' + quote(chat, safe='') + '/' + quote(name, safe='')
+    for query in ('', '?download=1'):
+        status, headers, _ = raw_file_response(path + query)
+        assert status == 404, f'{name!r}{query}: rejected name is retrievable with HTTP {status}'
+        assert headers.get(b'content-disposition', []) == [], (
+            f'{name!r}{query}: rejected GET has disposition fields {headers!r}')
+print('smoke-stub: all 33 ASCII controls and CRLF injection rejected; raw inline/download 404 headers intact')
 PY
 
 python3 "$repo_root/scripts/smoke_stub_office.py" "$base" "$stub_script" || fail "office fixtures"
