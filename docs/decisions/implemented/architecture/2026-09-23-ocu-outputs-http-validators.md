@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-23
 supersedes: none
-references: 'Plan 1 D11/D15; issue16; 2026-09-23-ocu-broker-identity-observation'
+references: 'Plan 1 D11/D15; issue16; issue341; 2026-09-23-ocu-broker-identity-observation'
 ---
 
 # Validate reconciled page metadata rather than cached counters
@@ -19,6 +19,8 @@ Sandbox writers are external to the broker lock. A cached revision cannot prove 
 Reconcile off-thread before evaluating conditional GET. A weak ETag hashes deterministic page metadata, including chat, files, total, revision, next cursor and effective limit; only request timestamp is excluded. Matching validators return an empty304 after authorization and cursor validation. Invalid cursor integers become typed cursor errors, never unhandled500s.
 
 Keep the existing files envelope and modified seconds for the one release required by issue16. Emit percent-encoded prefixed file URLs, preserving directory separators. Describe reads the persisted broker counter without rescanning or creating an index, completing D11's deferred integration.
+
+HTTP test fixtures use `tests/orchestrator/test_outputs_endpoint.py::_isolated_app` as the single app/Office module and environment lifetime owner. Seeded files and the client share its returned data root; the client closes before prior module objects and environment are restored, including after assertion failure. Replacing only the app and manager modules leaves cached recovery bound to stale roots and exception classes.
 
 ## Alternatives considered
 
