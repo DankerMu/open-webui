@@ -5,14 +5,14 @@
 
 ## 2. Implementation
 
-- [ ] 2.1 Extend the existing image test surface with a fresh-container captured-command and live-CDP regression; parent executes verification.
-- [ ] 2.2 Detach all three relay descriptors with nohup in the existing Dockerfile wrapper; inspect unchanged navigation, guard, config and argument forwarding.
-- [ ] 2.3 Update the source changelog to describe independent relay lifetime.
+- [x] 2.1 Extend the existing image test surface with a fresh-container captured-command and live-CDP regression; parent executes verification.
+- [x] 2.2 Detach all three relay descriptors with nohup in the existing Dockerfile wrapper; inspect unchanged navigation, guard, config and argument forwarding.
+- [x] 2.3 Update the source changelog to describe independent relay lifetime.
 
 ## 3. Acceptance and delivery
 
-- [ ] 3.1 Build the complete fixed Dockerfile for linux/amd64 from tracked source, retaining image identity and build output; no runtime overlay substitute.
-- [ ] 3.2 In a fresh container with no relay, the exact 15-second pipeline exits 0 and reports the opened about:blank page. After return, CDP responds through the all-interface 9222 listener and loopback 9223 target. Exercise the existing-relay path without replacing it.
+- [x] 3.1 Build the complete fixed Dockerfile for linux/amd64 from tracked source, retaining image identity and build output; no runtime overlay substitute.
+- [x] 3.2 In a fresh container with no relay, the exact 15-second pipeline exits 0 and reports the opened about:blank page. After return, CDP responds through the all-interface 9222 listener and loopback 9223 target. Exercise the existing-relay path without replacing it.
 - [ ] 3.3 Run the scoped relay regression, complete default image harness and changed-shell syntax checks, then expanded correctness, test-evidence and process-lifetime review; publish exact-head local CI evidence.
 - [ ] 3.4 Merge source and central fixture PRs, close the issue, and archive the completed fixture only after both acceptance criteria pass.
 
