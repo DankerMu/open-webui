@@ -1,0 +1,42 @@
+{
+	"issue": 200,
+	"source_head": "9945963f8510d5852e9a69f9f75ec3606df44f21",
+	"source_base": "0c23ca3ffc20f97791b2c04e983da07af3521ee2",
+	"archive": "archive-containment-verification.tar.gz",
+	"archive_sha256": "90a931d53b708ac8a4d21ca27c14819d57a4644280b23e99130595ed31180287",
+	"review_archive": "archive-containment-review.tar.gz",
+	"review_archive_sha256": "5620dba5d9b33ea09ce447733725bf17d4a9fcdc3cab08d18b1cebb77098166c",
+	"review": { "round": 1, "seats": 3, "actionable_findings": 0, "fix_passes_used": 0 },
+	"resource_follow_up": "https://github.com/DankerMu/open-webui/issues/350",
+	"pre_fix_archive_tests": { "exit": 1, "failed": 9, "passed": 4, "deselected": 23 },
+	"post_fix_archive_tests": { "exit": 0, "passed": 13, "deselected": 23 },
+	"scoped_suite": {
+		"exit": 0,
+		"passed": 282,
+		"skipped": 0,
+		"subtests_passed": 3,
+		"pytest_seconds": 29.99
+	},
+	"runtime": {
+		"boundary": "actual Uvicorn loopback HTTP",
+		"cases": 6,
+		"red_exit": 1,
+		"green_exit": 0,
+		"inputs_unchanged": true,
+		"owned_process_and_tree_removed": true
+	},
+	"qualification": "Identical test assertions reject actual pre-fix unchecked ZIP reopening, including all four selection/open replacement races. Only app.py changed between RED and GREEN. Static directory-link omission is an existing safe control, not claimed RED.",
+	"toolchain": "Python3.12.12; bash pytest9.1.1/pytest-asyncio1.4.0/anyio4.15.1; macOS26.6.2 arm64. Separate eval metadata resolved other pytest/anyio versions and is not used to attest tests.",
+	"gitleaks": {
+		"exit": 1,
+		"matches": 68,
+		"adjudication": "All matches verified as SHA256 values of unchanged tracked source/test files; raw scan and exact classification retained with review evidence. No suppression or zero-match claim."
+	},
+	"limitations": [
+		"No content snapshot under same-inode writes",
+		"No hard-link or bind-mount provenance guarantee",
+		"No Docker/LAN/image-batch certification",
+		"ZIP filesystem timestamps and permission attributes are not preserved"
+	],
+	"deviations": "No test sequencing deviation. Parent made only mechanical source changelog/README updates after successful smoke; implementation and tests remained delegated."
+}

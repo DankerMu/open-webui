@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-02
 supersedes: none
-references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, 2026-10-03-ocu-office-editor-selection
+references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, issue 200, 2026-10-03-ocu-office-editor-selection
 ---
 
 # One writable workspace files directory per chat
@@ -22,7 +22,7 @@ Uploads publish into the shared directory using the existing per-chat lock and n
 
 Uploads and Office copies share the numbered-name policy: query `PC_NAME_MAX` on the pinned destination directory, reserve filesystem-encoded bytes for the complete last suffix and current ` (N)`, and retain the longest whole-character stem prefix. Use `_` only when no original stem character fits. A legal free upload name is attempted unchanged. Insufficient capacity fails explicitly (upload HTTP400); an unavailable limit remains an IO failure, never a guessed255-byte limit. Atomic claims still choose the winner, and Office recovery recognizes owned copies by identity rather than spelling.
 
-Output ZIP membership excludes every dot-prefixed output-relative component, including hidden-directory descendants and historical upload staging residue. Completed visible uploads retain their full bytes and actual stored names; hidden source entries remain untouched. This reader filter changes neither upload publication nor archive headers, and it is not a snapshot-isolation or symlink-containment guarantee.
+Output ZIP membership excludes every dot-prefixed output-relative component, including hidden-directory descendants and historical upload staging residue. Payload acquisition reuses the workspace no-follow reader with the requested chat identity; ZIP construction receives verified bytes, never an unchecked pathname to reopen. Selected symlinks, including in-tree aliases and root/ancestor replacements, fail closed before response publication. Completed visible uploads retain their full bytes and actual stored names; hidden source entries remain untouched. Archive headers and upload publication are unchanged. ZIP entries do not retain filesystem timestamps or permission attributes, and reads are not content snapshots under concurrent same-inode writes.
 
 The server mount map, recovery attribution, prompt/tool/skill guidance and sandbox image configuration change together. The host directory and HTTP interface names stay fixed. This accepts a permanent divergence from upstream OCU in the consumers of sandbox paths.
 
@@ -42,6 +42,7 @@ Committed uploads retain HTTP200, stored filename, size, checksum and receipt se
 - **Truncate or silently evict MCP resources** — hides files or another chat's resources without reporting failure.
 - **Offload unbounded discovery behind a writer-only lock** — neither bounds queued preparation nor protects SDK readers that never take that lock.
 - **Fail discovery after starting a sandbox** — a later running-state lookup can bypass discovery and erase the failure from the initiating flow.
+- **Resolve a path, then let ZIP reopen it** — a sandbox writer can replace a validated leaf or ancestor before the read. Reusing descriptor-confined reads avoids a second containment implementation.
 
 ## Consequences
 
