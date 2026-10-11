@@ -9,7 +9,7 @@
 
 - [x] 2.1 Extend only the existing filename guard; the frozen smoke passes for all controls, both GET modes, ordinary upload bytes/dispositions and existing traversal 400 behavior.
 - [x] 2.2 Run scoped lint/format and applicable harness/backend checks, preserve reserved-name/Office/concurrency/isolation scenarios and existing 800-line source ceiling. Retain exact commands, exits and input hashes.
-- [ ] 2.3 After smoke, update owning docs; strict fixture/doc-gate/decisions-verify pass, three-seat review and approved local CI complete, then merge and archive.
+- [x] 2.3 After smoke, update owning docs; strict fixture/doc-gate/decisions-verify pass, three-seat review and approved local CI complete, then merge and archive.
 
 ## 3. Risk-pack map
 
