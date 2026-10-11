@@ -9,9 +9,18 @@
 		"scripts/smoke_proxy_office.py": "4bd6f819650772cd8a6eeaeb64f34d6f910d5d4fdddc84ffa5482e0c293ce6db",
 		"scripts/smoke_proxy_support.py": "78cd589679f78b7090cd10b365410144d4d2cf091a4f3927cd2f8d98816383d0",
 		"smoke/proxy/office.hurl": "c54d51fb3b24998d0d1533d77e99f74c9f3cacc915e4c8375a424a7e21959e4a",
-		"backend/open_webui/test/test_smoke_proxy_office.py": "1ba3651972633311dbd65c2b194e5e1323494396a8f08b18765d5827706fa1b7"
+		"backend/open_webui/test/test_smoke_proxy_office.py": "e3ab76f1fcbba7e197ffc2c5e41b23d9420f9a6ea582eb31b65be064f9ddf5e0"
 	},
-	"final_test_sha256": "e3ab76f1fcbba7e197ffc2c5e41b23d9420f9a6ea582eb31b65be064f9ddf5e0",
+	"tracer_test_sha256": "1ba3651972633311dbd65c2b194e5e1323494396a8f08b18765d5827706fa1b7",
+	"review_fix": {
+		"round": 1,
+		"scope": "Evidence-only provenance repair; source, tests and acceptance unchanged.",
+		"archive": "private-vars-review-fix.tar.gz",
+		"sha256": "bab95cf147767ad710f9d0dc8170ae8ceccd5c7b048daa5002cfd19dbd38abb4",
+		"final_test_red_green": "Final shipped test on original source: credential assertion fails, 1 failed/3 deselected. Restored source: 1 passed/3 deselected.",
+		"hash_bound_acceptance": "Fresh actual smoke-proxy, docs and strict fixture checks exit 0; per-command source/test/template/fixture/ADR hashes unchanged. All 40 child audits and original matrix pass; owned services stopped.",
+		"scan": "Gitleaks exit 0, no findings across 87570 review/fix input bytes."
+	},
 	"checks": {
 		"semantic_red": "Original argv transport: 1 failed, 140 deselected; static credential-exposure assertion. make exit 2.",
 		"tracer_green": "Private transport: 1 passed, 140 deselected; make exit 0.",
