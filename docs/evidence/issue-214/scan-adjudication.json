@@ -1,0 +1,91 @@
+{
+  "scanner_exit": 1,
+  "findings": 226,
+  "rules": {
+    "generic-api-key": 226
+  },
+  "classification": "Every finding is a full SHA256 content identity on a Python-path JSON field; every value verified against the named file at source base or candidate commit. No credentials are contained in these findings. This is not a zero-match scan.",
+  "verified_public_files": [
+    {
+      "path": "computer-use-server/auth_guard.py",
+      "committed_digests": [
+        {
+          "revision": "f419297e0990a416816446446713385e70f5d8f1",
+          "sha256": "aa6022a7fa39eb86c4d395cec227a1b8f30e5b9af4b6ec7acf0a428999efa64e"
+        },
+        {
+          "revision": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+          "sha256": "aa6022a7fa39eb86c4d395cec227a1b8f30e5b9af4b6ec7acf0a428999efa64e"
+        }
+      ]
+    },
+    {
+      "path": "computer-use-server/office/tokens.py",
+      "committed_digests": [
+        {
+          "revision": "f419297e0990a416816446446713385e70f5d8f1",
+          "sha256": "30157b95ce9e3ead0130e64c6777fbd931ef39d91e387769cbbcfd2ea6ac68e8"
+        },
+        {
+          "revision": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+          "sha256": "30157b95ce9e3ead0130e64c6777fbd931ef39d91e387769cbbcfd2ea6ac68e8"
+        }
+      ]
+    },
+    {
+      "path": "tests/integration/test_mcp_auth.py",
+      "committed_digests": [
+        {
+          "revision": "f419297e0990a416816446446713385e70f5d8f1",
+          "sha256": "c8e2b5c1f7a70d28e3d490070f0006fc01d296547533c6c8c5687b193ba24123"
+        },
+        {
+          "revision": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+          "sha256": "c8e2b5c1f7a70d28e3d490070f0006fc01d296547533c6c8c5687b193ba24123"
+        }
+      ]
+    },
+    {
+      "path": "tests/orchestrator/test_office_tokens.py",
+      "committed_digests": [
+        {
+          "revision": "f419297e0990a416816446446713385e70f5d8f1",
+          "sha256": "3f0b05c72efb11d4a40b28781355ae6feb45992733ac2b84c8a8c5088751db61"
+        },
+        {
+          "revision": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+          "sha256": "3f0b05c72efb11d4a40b28781355ae6feb45992733ac2b84c8a8c5088751db61"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_auth_guard.py",
+      "committed_digests": [
+        {
+          "revision": "f419297e0990a416816446446713385e70f5d8f1",
+          "sha256": "b9c0b777a1389ec4c1a9bb2f6c8a89dc4106ea1fd751d3c28d01534bfd4b62fe"
+        },
+        {
+          "revision": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+          "sha256": "b9c0b777a1389ec4c1a9bb2f6c8a89dc4106ea1fd751d3c28d01534bfd4b62fe"
+        }
+      ]
+    }
+  ],
+  "raw_report": "evidence-scan.json.gz",
+  "command": [
+    "gitleaks",
+    "dir",
+    "docs/evidence/issue-214",
+    "--no-banner",
+    "--redact",
+    "--max-archive-depth",
+    "3",
+    "--max-decode-depth",
+    "3",
+    "--report-format",
+    "json",
+    "--report-path",
+    "/tmp/issue-214-evidence-scan.json"
+  ]
+}

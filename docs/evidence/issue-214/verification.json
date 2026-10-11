@@ -1,0 +1,137 @@
+{
+  "issue": "https://github.com/DankerMu/open-webui/issues/214",
+  "state": "verification complete; independent cross-review and merge pending",
+  "source_repository": "DankerMu/open-computer-use",
+  "source_base": "f419297e0990a416816446446713385e70f5d8f1",
+  "source_head": "82f6104ae2a320da4b81fde78bdf560c60ed9d9c",
+  "central_base": "ccfa09be624a3c8522a7982d05462b0d8723c8ca",
+  "fixture": "openspec/changes/ocu-parent-directory-durability",
+  "archive": {
+    "path": "parent-directory-verification.tar.gz",
+    "sha256": "7eb47d942e74e83fede2594b88d571a3c6b1a2823d7a6ac4be312f65b0924776",
+    "bytes": 457922
+  },
+  "construction": {
+    "upload_control": "4 semantic RED, preservation1PASS; GREEN5PASS",
+    "direct_receipts": "4 semantic RED; combined upload/receipt GREEN9PASS",
+    "broker": "5 semantic RED; GREEN5PASS; original postreplace2PASS",
+    "chat_lock": "5 semantic RED plus preservation1PASS; corrected oracle requalified against original source (5RED, controls2PASS); final matrix GREEN",
+    "http": "original first upload200 missing BASE/chat fsync gives semanticRED; final actualTCP smoke exit0 includes real fsync inode order, receipt replay, BASE/chat EIO500 with no published file/receipt, recovery200 and owned cleanup"
+  },
+  "consumer_matrix": {
+    "command": [
+      "uv",
+      "run",
+      "--offline",
+      "--python",
+      "3.12",
+      "--no-project",
+      "--with",
+      "pytest",
+      "--with",
+      "pytest-asyncio",
+      "--with-requirements",
+      "computer-use-server/requirements.txt",
+      "--",
+      "python",
+      "-m",
+      "pytest",
+      "tests/orchestrator",
+      "tests/test_upload_claim.py",
+      "tests/security",
+      "tests/test_auth_guard.py",
+      "tests/test_files_headers.py",
+      "tests/test_tools.py",
+      "-vv",
+      "--import-mode=importlib",
+      "-o",
+      "faulthandler_timeout=60",
+      "--durations=20",
+      "--junitxml=/tmp/issue-214-consumer-complete.xml"
+    ],
+    "exit": 0,
+    "elapsed_seconds": 1802.4579021669924,
+    "collected": 2951,
+    "passed": 2946,
+    "skipped": [
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_claude_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_live_against_mock",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_opencode_entrypoint_renders_valid_config",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      },
+      {
+        "class": "tests.orchestrator.test_cli_adapters_live",
+        "name": "test_codex_entrypoint_selects_custom_provider",
+        "reason": "Live CLI smoke is opt-in; export RUN_LIVE_CLI=1 to enable."
+      }
+    ],
+    "subtests_passed": 3,
+    "junit_cases": 2954,
+    "inputs_unchanged": true,
+    "changed_python_commit_binding": [
+      "computer-use-server/docker_manager.py",
+      "computer-use-server/uploads.py",
+      "computer-use-server/outputs_broker.py",
+      "tests/test_upload_claim.py",
+      "tests/orchestrator/test_outputs_broker.py",
+      "tests/orchestrator/test_lifecycle.py",
+      "tests/orchestrator/test_office_store.py"
+    ]
+  },
+  "lint": {
+    "command": "ruff check --select F --target-version py312 --output-format json <seven changed Python files>",
+    "exit": 1,
+    "inherited": 5,
+    "introduced": 0,
+    "baseline_evidence": "issue-214-lint-adjudication.json",
+    "final_evidence": "issue-214-lint-final-adjudication.json"
+  },
+  "central_checks": {
+    "commands": [
+      "make doc-gate",
+      "make decisions-verify",
+      "openspec validate ocu-parent-directory-durability --strict --no-interactive",
+      "bash scripts/change-scope.sh --status"
+    ],
+    "exit": 0,
+    "decisions": 40,
+    "transcript": "issue-214-central-gates.log",
+    "fixture_status_only_changed_after_validation": true
+  },
+  "evidence_scan": {
+    "exit": 1,
+    "findings": 226,
+    "disposition": "All findings are public committed Python SHA256 identities, individually checked against source base/candidate files; not a zero-match scan.",
+    "adjudication": "scan-adjudication.json",
+    "raw_report": "evidence-scan.json.gz"
+  },
+  "deviations": [
+    "Parent performed all checks; leaves ran no tests/build/lint/formatters/probes.",
+    "Worker identity replaced after inconsistent continuation tracking; original confirmed no StageB edits, replacement exclusively edited later stages.",
+    "New canonical-name test fixed case-insensitive lookup assumption; existing flock negative control and Office fault injection retargeted actual intended OS/storage seams; all behavior assertions retained.",
+    "Preserved 1800s and300s timeouts; prior successful full suite took2549s under3600s. Same selection completed in1802s within established bound, not a deadlock fix or assertion relaxation.",
+    "Disposable baseline setup omitted Office helper then fixture registration; both errors retained. Successful lock qualification retained and only Office setup rerun toPASS."
+  ],
+  "limits": [
+    "Real macOS arm64 temporary filesystem and loopbackHTTP only; no physical power loss, Linux/image or LAN certification.",
+    "Directory fsync relies on filesystem semantics; data-root ancestors and unrelated workspace/Office metadata durability are not audited.",
+    "Five live CLI opt-in skips are unchanged; Ruff is not claimed clean."
+  ],
+  "production_scope": "Only uploads.py, outputs_broker.py and docker_manager.py; other41 Python modules unchanged; no new module or dependency",
+  "diff_size_justification": "940 changed lines, dominated by four-boundary real-FD order/fault/ownership and interrupted-creation regressions plus preserved negative controls; one atomic shared persistence invariant."
+}
