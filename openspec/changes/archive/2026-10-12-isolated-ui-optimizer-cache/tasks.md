@@ -13,8 +13,8 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 After runtime proof document the optimizer owner in a testing decision, with a supersession check; retain bounded public evidence without authenticated traces, run docs/decisions/strict checks and complete expanded cross-review.
-- [ ] 3.2 Publish authorized exact-head local CI and pre-merge evidence, merge, close the issue and archive the verified requirement through a separate docs PR.
+- [x] 3.1 After runtime proof document the optimizer owner in a testing decision, with a supersession check; retain bounded public evidence without authenticated traces, run docs/decisions/strict checks and complete expanded cross-review.
+- [x] 3.2 Publish authorized exact-head local CI and pre-merge evidence, merge, close the issue and archive the verified requirement through a separate docs PR.
 
 ## Risk packs
 
