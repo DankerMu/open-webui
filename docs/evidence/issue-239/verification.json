@@ -32,5 +32,17 @@
 		"Kind-update reconciliation #248 is separate.",
 		"Parent-owned verification is not an OS-isolated enclave."
 	],
-	"review": "Compact fixture independently passed; implementation review pending."
+	"review": "Compact fixture independently passed. Round1 confirmed a conditional304 parsing defect in the new browser interceptor, not the production classifier. One fix pass has causal RED/GREEN; fresh correctness+test-evidence rereview pending.",
+	"review_fix": {
+		"verified_head": "cb7fe3ac0ef39c6fd9a507f58cae80a15fe4f55e",
+		"archive": "tsv-kind-review-fix.tar.gz",
+		"archive_sha256": "3b6cfe69db8896bb18b631a8bab88cfb61a8526cff672514b8cbd8dd1874eb64",
+		"browser_test_sha256": "f56561df0b85b383f383c8be60c5905c4fb9316cd2c2221fdd44d1490f5c2a43",
+		"red": "Strengthened the actual case to await a real conditional poll while interception remains active. Before the guard, make verify-ui exits2: baseline2pass, OCU35pass/1fail with Unexpected end of JSON input at response.json. No fixed sleep or mock poll.",
+		"fix": "Pass the already-fetched non-200 response through route.fulfill before JSON parsing. No second fetch, ETag removal, polling disablement, error suppression or timeout increase.",
+		"green": "Same full make verify-ui exits0: baseline2pass plusOCU36pass. New case observes initial ETag, real If-None-Match and actual304 with matching ETag, then retains row/selected icons, prefs identity, unsupported/no-Office capability and actual download assertions. Screenshot inspected; zero console/page errors.",
+		"identity": "Final browser-test bytes exactly match GREEN and frozen commit. Removing only the four-line guard reconstructs the exact executed RED hash. Production and unit-test bytes match the earlier498-test, coverage and per-mapping mutation evidence; no formatter bridge needed for this final browser run.",
+		"static_and_cleanup": "Fresh browser-test Prettier and make lint-scoped exit0/102files; commit hooks pass. Default owned dev pair stopped, ports free; isolated harness cleanup completed after RED and GREEN.",
+		"secret_scan": "Review-fix raw evidence scan exit0/no findings. Failure trace files were not copied into the archive; the complete failing command output and exact failing source are retained."
+	}
 }
