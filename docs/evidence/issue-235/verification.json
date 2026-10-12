@@ -31,7 +31,7 @@
 		"Non-Office source fixtures are separately tracked in issue377, not added to the original queue.",
 		"Historical PR50 trailing banner remains unattributed."
 	],
-	"review": "Round 1 found a held-wrapper coverage gap and idle busy-polling. Fix pass 1 has fresh proof; independent correctness+test-evidence re-review pending.",
+	"review": "Round 1 found a held-wrapper coverage gap and idle busy-polling. One fix pass closed both. Fresh correctness+test-evidence round 2 is clean on source9806bbb71a690316b3ead7704c170c64afe53c32 and control816ad6f69fcc27b89a2885e451ea4e98f9d699b1; no findings or non-blocking notes. Parent owns the subsequent integration gate.",
 	"review_fix": {
 		"source_head": "9806bbb71a690316b3ead7704c170c64afe53c32",
 		"archive": "http-origin-review-fix.tar.gz",
@@ -44,5 +44,11 @@
 		"full_consumer_suite": "Python 3.13.3, declared OCU dependencies, proxy-normalized test process: 2566 passed, 5 existing live-CLI skips, 2 dependency warnings, 3 subtests; exit 0 in 611.03s pytest/616.23s wrapper. No socketserver banner or unhandled-thread warning in captured positive-run output.",
 		"static": "Initial new fixture import caused 4 Ruff F diagnostics; explicit fixture re-export fixes them without suppression. Final baseline211/current211/added0; all three new Python files have zero diagnostics. Docs, 43 decisions, strict validation and scoped prose format pass.",
 		"secret_scan": "Fix evidence scan exits 1 with 26 generic-api-key findings. Every finding is the verified SHA256 of unchanged public test_office_tokens.py; appended scan-record digest entries separately checked. No zero-match claim."
+	},
+	"review_closure": {
+		"archive": "http-origin-review-closure.tar.gz",
+		"archive_sha256": "987cc8db477d75e0c1d85f3708cb0e2d162c09acf91a154f189cbbd7749d0dd0",
+		"contents": "Complete fresh rereview, parent adjudication, round2 clean gate and explicit manifest-format command. This control-plane retention changes no reviewed implementation, fixture or decision.",
+		"secret_scan": "Exit1 with2matches; both exact lines are verified public test-source SHA256 entries in the manifest-format input map."
 	}
 }
