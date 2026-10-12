@@ -15,7 +15,7 @@
 
 ## 3. Integration
 
-- [ ] 3.1 Complete expanded cross-review and any bounded fix pass, authorized local CI, source/control-plane PR merges, issue closure and fixture archive.
+- [x] 3.1 Complete expanded cross-review and any bounded fix pass, authorized local CI, source/control-plane PR merges, issue closure and fixture archive.
 
 ## Risk packs
 
