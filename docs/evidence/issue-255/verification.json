@@ -1,0 +1,43 @@
+{
+	"issue": 255,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_head": "7d96aa25173498685f40a74ebeeefac393941a5a",
+	"source_base": "2e3425f1222541c4b88909cc677e0287af2a7d21",
+	"control_base": "827bd5bd57f05514f065791b813270b88333e0a1",
+	"candidate": {
+		"path": "tests/README.md",
+		"sha256": "44b2ce0b0d14085df6f72e36569236cdd4d520e16231807bd2d08f5890c7362c"
+	},
+	"artifact": {
+		"path": "verification.tar.gz",
+		"bytes": 387676,
+		"sha256": "2ffafdca785c38e18277e4c702934d25151078bb10b0ed752e2bbab297c8c276"
+	},
+	"historical": {
+		"reference": "d670ce86af53fa1c4636a55875e7d4b72ae53ff0",
+		"archive_sha256": "c2733900c13fed6a6f8c2bbdfe113dfc49fe8e4f7d16dcda731237e867cd01d1",
+		"selected_count": 864,
+		"selected_node_set_sha256": "b115beffb98c2d549ccf834cd8ac74abfa70bd16728598bb5950bee12a99dc15",
+		"world_consumers": 124,
+		"missing_world": 0,
+		"execution": "864passed1075deselected2dependencywarnings, exit0;864setup/call/teardownreports each,all passed and exact executed-node set equals collection; source/test inputs unchanged",
+		"environment": "Fresh Python3.13.3/pytest9.1.1 using existing verification dependencies; not the original reportedPython3.12 environment"
+	},
+	"current": {
+		"reference": "2e3425f1222541c4b88909cc677e0287af2a7d21",
+		"selected_count": 950,
+		"selected_node_set_sha256": "6afbd45a2346427602c995576c7e64eb62286939c4b22c8c371b662a7e054b68",
+		"world_consumers": 137,
+		"missing_world": 0,
+		"qualification": "Exact explicit/canonical node-set equality, no duplicates or historical-count trimming. Collection only, not a current950-test execution claim."
+	},
+	"documented_cli": "Actual README shell argv extracted and executed using existing offline cache/UV_PYTHON3.13, plus --collect-only and cache-disabled observation flags: pytest9.1.1,exit0,exact950currentnodes. The read-only observer used for separate qualification does not modify fixtures or collectors.",
+	"checks": "Independent fixture PASS; strictfixture,docgate,45decisionrecords,scopedPrettier and source commit hooks pass. Only source tests/README.md changed; no production/tests/conftest/fixture/dependency changes.",
+	"scan": "Raw gitleaks exit1:210generic-api-key findings. Every cited line parsed and its digest independently recomputed from the correct current or immutable historical source file; all are file identities, not credentials. Complete raw report/classification retained; no scanner allowlist/rule changed.",
+	"limits": [
+		"Mixed-path historical fixture failure is accepted from primary issue evidence, not rerun merely to confirm. Explicit collection modes are node inventories only and do not evaluate fixture availability. Canonical modes inspect actual world lookup.",
+		"The full execution is the exact historical864 selected scope, not the entire historical repository or current950 scope. Historical PR53 results remain distinct from this fresh run.",
+		"No universal upstream pytest repair, no fixture/conftest workaround, no pytest pin/upgrade, no permanent runner or test added.",
+		"The qualified module filter is an explicit example, not all Office coverage; future scopes must compare exact node IDs at one revision rather than preserve a stale count."
+	]
+}
