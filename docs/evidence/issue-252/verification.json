@@ -1,0 +1,51 @@
+{
+	"issue": 252,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_head": "3a46853a2d8d6edfc7116f40103388bb7d2b2db1",
+	"source_base": "197b3d049d51b5e2747a4b67a73b36bf32c596be",
+	"control_base": "c2eae7fbd14fb28e1df5c65fd137a4ba48ae2047",
+	"candidate": [
+		{
+			"path": "computer-use-server/office/control_plane.py",
+			"sha256": "9c044b8539f21af0e15d3826f5d8ba631fbb8a67770cffbcdea3c0baf51ab08c"
+		},
+		{
+			"path": "tests/orchestrator/test_office_control_plane.py",
+			"sha256": "241f941f467f5339c282e556740854e5b7b2e6beb3a340243acc1ac04228bd25"
+		},
+		{
+			"path": "tests/orchestrator/test_office_router.py",
+			"sha256": "dc1332dec64573941fb3e0a3b9b1be33babbf56a8819226133bab828c2ad8944"
+		},
+		{
+			"path": "tests/orchestrator/test_office_callback_body_budget.py",
+			"sha256": "d59ae73491d3c8027c459942e48b51e2c69e79d9bed91393dc285ca6a8fca025"
+		},
+		{
+			"path": "CHANGELOG.md",
+			"sha256": "04689f488cfa45671e48ab6c36895404d8e9cf4ac8abeff7af136bd25d0fd398"
+		}
+	],
+	"artifacts": [
+		{
+			"path": "verification.tar.gz",
+			"bytes": 187790,
+			"sha256": "a90febf82726c07a64f8b8d1dccf6ec79fd1d36f1fa016cf53db690f10d3226f"
+		}
+	],
+	"proof": {
+		"header": "Actual application ASGI forbidden-receive tracer: five variants RED; original owning module GREEN50. Valid header transitions opening to editing; invalid/empty/blank/non-Bearer retain401 without receive or mutation. Shared raw helper then reused without changing assertions.",
+		"budget": "Final real-application oracles: before bound3fail73pass, after76pass. Inclusive1048576 raw bytes with multibyte text accepted; plusone cannot parse; missing/forged-small Content-Length streams stop at crossing17thchunk without18threceive; sandbox403 remains first. Rejections preserve full state/files and no origin hits.",
+		"runtime": "Actual uvicorn HTTP exact1048576->200editing and plusone->413 exacterror1/reasoncallback_body_too_large; raw ASGI valid/invalidheader zero receives, missing/forgedlength overflow stops at thirdchunk. All6cases accepted; server stopped and temporary data root removed. Baseline HTTP plusone wrongly200editing and ASGI premature/extra receives retained.",
+		"full_unit": "3581passed5existingopt-in-live-CLI-skips37dependencywarnings332subtestspassed, exit0,1455.49s. Final discovery3586. No new skips or Docker/LAN certification.",
+		"static": "Final RuffF four touched Python files pass. Docs gate and45decisionrecords pass; strict fixture and scopedPrettier pass; source commit hooks pass. Source repo has no coverage gate.",
+		"identity": "Full-unit run crossed only two explicit same-name pytest fixture export annotations. Every other production/test input remained unchanged; recorded before/after hashes match independently checked AST and Python3.13 executable code (excluding debug locations). Final owning76 and RuffF pass on final test bytes. Production bytes match real runtime.",
+		"scan": "Raw evidence gitleaks exit1 produced150 generic-api-key findings: all named-source SHA256 identities, each individually recomputed. No actual credential finding; complete scanner output and classification retained. No allowlist or scanner rule changed."
+	},
+	"limits": [
+		"Local macOSarm64/Python3.13.3 actual FastAPI0.115.0/Starlette0.38.6/uvicorn; fake Docker and origin dependencies, not full DocumentServer or LAN acceptance.",
+		"Fixed metadata budget does not bound transport-created input chunks, total process memory, concurrency, header sizes or document download size.",
+		"Original runtime reporter counted delivered chunks under receive_calls; forbidden-header attempts were explicit raised errors. Final reporter separates attempts/chunks. Both exact script identities retained; no baseline output rewritten.",
+		"Independent active decision status drift is tracked by issue392, not fixed or added to this issue scope. Its initial origin attribution was corrected from primary git diff to94393ca22."
+	]
+}
