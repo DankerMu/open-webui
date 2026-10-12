@@ -263,6 +263,10 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 	const listingRoute = `**/ocu/api/outputs/${chatId}`;
 	const injectTsv = async (route: Route) => {
 		const response = await route.fetch();
+		if (response.status() !== 200) {
+			await route.fulfill({ response });
+			return;
+		}
 		const listing: WorkspaceListing = await response.json();
 		await route.fulfill({
 			response,
@@ -278,10 +282,28 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 	};
 	await page.route(listingRoute, injectTsv);
 	try {
+		const initialListing = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				response.status() === 200 &&
+				response.request().headers()['if-none-match'] === undefined,
+			{ timeout: 10_000 }
+		);
+		const pollRequest = page.waitForRequest(
+			(request) =>
+				new URL(request.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				request.headers()['if-none-match'] !== undefined,
+			{ timeout: 10_000 }
+		);
+		const pollResponse = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				response.request().headers()['if-none-match'] !== undefined,
+			{ timeout: 10_000 }
+		);
 		const panel = await openWorkspace(page);
+		const initialEtag = (await initialListing).headers()['etag'];
 		const row = panel.getByRole('button', { name: 'notes.bin', exact: true });
-		await expect(row.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'sheet');
-		await expect(row.locator('[data-file-kind] svg')).toBeVisible();
 
 		const savedSelection = page.waitForResponse(
 			(response) =>
@@ -296,6 +318,13 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 		expect((await preference.json()).prefs).toMatchObject({
 			selected_file_id: 'fixture-notes.bin'
 		});
+		const conditionalRequest = await pollRequest;
+		expect(conditionalRequest.headers()['if-none-match']).toBe(initialEtag);
+		const conditionalResponse = await pollResponse;
+		expect(conditionalResponse.status()).toBe(304);
+		expect(conditionalResponse.headers()['etag']).toBe(initialEtag);
+		await expect(row.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'sheet');
+		await expect(row.locator('[data-file-kind] svg')).toBeVisible();
 		await expect(row).toHaveAttribute('aria-pressed', 'true');
 
 		const selected = panel.locator('[aria-label="Selected workspace file"]');
