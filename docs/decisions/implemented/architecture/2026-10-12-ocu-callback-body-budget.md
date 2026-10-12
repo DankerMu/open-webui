@@ -48,8 +48,8 @@ remains authoritative for control-plane placement, internal-token exemption,
 sandbox-peer-first denial, Office-disabled behavior, source tickets and
 session/key binding. Authenticated callback processing stays with its existing
 owners. This record adds capacity policy and does not supersede that decision.
-The independent
-[callback admission fixture](../../../../openspec/changes/ocu-callback-body-budget/proposal.md)
+The canonical
+[callback admission specification](../../../../openspec/specs/ocu-callback-body-budget/spec.md)
 owns the additional boundary requirements.
 
 ## Alternatives considered

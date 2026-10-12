@@ -13,8 +13,8 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 After runtime proof update owning changelog and central decision, retain credential-safe evidence, run relevant static/docs/strict checks and complete correctness, test-evidence/spec-compliance and security-perf review.
-- [ ] 3.2 Publish exact-head CI and pre-merge evidence; merge source/control PRs, close the central issue and archive this independent requirement through a docs PR.
+- [x] 3.1 After runtime proof update owning changelog and central decision, retain credential-safe evidence, run relevant static/docs/strict checks and complete correctness, test-evidence/spec-compliance and security-perf review.
+- [x] 3.2 Publish exact-head CI and pre-merge evidence; merge source/control PRs, close the central issue and archive this independent requirement through a docs PR.
 
 ## Risk packs
 
