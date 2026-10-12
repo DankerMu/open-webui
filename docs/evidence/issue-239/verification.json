@@ -1,0 +1,55 @@
+{
+	"issue": 239,
+	"base": "f858fc68da8479c7b01980a50bd295ad37aa15a3",
+	"verified_implementation_head": "eac1da8157845797ba20624b20491db9628f8543",
+	"candidate": {
+		"src/lib/components/chat/workspace-file-rows.ts": "2c9e8d7633473cabac129182133ac42ce4c7575a4495b136fa9d7fa209e80940",
+		"src/lib/components/chat/workspace-file-rows.test.ts": "02e5a2add3c9839508f91117ddbce7fc90193fdf8307fc811d48301a3e815bb6",
+		"e2e/ocu-tree.e2e.ts": "e7a0aa51fb180d0abf00902633d49fe6df0298391289ee2327c3c1fd528d9d42"
+	},
+	"archive": {
+		"path": "tsv-kind-verification.tar.gz",
+		"sha256": "cd8e6f0b2a53b5b171f575ef274367b710a0deac87f0336eb5b3e04d0288aa53"
+	},
+	"screenshot": {
+		"path": "workspace-tsv-kind.png",
+		"sha256": "f8fdbcfa27c7112c91150b7f641b2ab67e5353247ee1372295b6e522e9e6cd64"
+	},
+	"proof": {
+		"semantic_red": "Original source:1failed491passed, expected sheet received other; sole new tracer before two map entries.",
+		"green": "First492pass; final498pass across34files, including58classifier cases.",
+		"qualification": "Finalcandidate498pass; removing spreadsheet mapping2fail496pass; removing TSV MIME mapping2fail496pass; restored498pass. Semantic mismatch only, disposable snapshot removed, live source unchanged. Git-archive snapshot emits non-failing missing Git metadata diagnostics, retained.",
+		"static": "make typecheck/lint-scoped/coverage-gate exit0:7777errors at7777ceiling,102files conform,backend144passed,frontend498passed. workspace-file-rows.ts100%lines; totalfrontend97.68%. Typecheck is a ratchet, not zero-error claim.",
+		"runtime": "make verify-ui exit0:2auth/chat baseline plus36OCU browser cases. New real mounted list/selected TSV metadata case passes, both visible sheet icons, selected_file_id and actual download URL/name retained, no iframe/Edit/Version history capability added. Screenshot inspected; existing afterEach requires zero console/page errors.",
+		"format_identity": "Initial browser-test callback wrap failed Prettier. Final formatting passes; exact TypeScript5.9.3 syntax tree and token text match preformat browser input. format-identity.json bridges executed bytes to final browser test; production/unit bytes are unchanged.",
+		"docs": "make doc-gate decisions-verify exit0/43records; OpenSpec strict/scopedformat pass. Existing owning decision updated after UI proof.",
+		"cleanup": "Default dev pair initially absent, started by make verify-ui, stopped by make dev-stop exit0; final make dev-status exit2 reports both stopped and health unreachable, expected. Isolated OCU harness completed its owned cleanup.",
+		"secret_scan": "Raw evidence scan exit0/no leaks found; screenshot contains only synthetic nested fixture UI."
+	},
+	"limits": [
+		"Local macOSarm64/Node22.23.2 proof; not deployment certification.",
+		"Browser case supplies TSV metadata only for existing notes.bin via per-test response interception; bytes and endpoint remain the original unsupported fixture. No broker payload production change.",
+		"Kind-update reconciliation #248 is separate.",
+		"Parent-owned verification is not an OS-isolated enclave."
+	],
+	"review": "Compact fixture independently passed. Round1 confirmed TSV-304 in the browser interceptor; one fix pass closed it with causal real-browser RED/GREEN. Fresh correctness+test-evidence round2 is clean on c137873d44fdc67a32b9818004212afa68b2b783, with no new findings. Notes concern disclosed provenance/verification limits, not deferred code defects.",
+	"review_fix": {
+		"verified_head": "cb7fe3ac0ef39c6fd9a507f58cae80a15fe4f55e",
+		"archive": "tsv-kind-review-fix.tar.gz",
+		"archive_sha256": "3b6cfe69db8896bb18b631a8bab88cfb61a8526cff672514b8cbd8dd1874eb64",
+		"browser_test_sha256": "f56561df0b85b383f383c8be60c5905c4fb9316cd2c2221fdd44d1490f5c2a43",
+		"red": "Strengthened the actual case to await a real conditional poll while interception remains active. Before the guard, make verify-ui exits2: baseline2pass, OCU35pass/1fail with Unexpected end of JSON input at response.json. No fixed sleep or mock poll.",
+		"fix": "Pass the already-fetched non-200 response through route.fulfill before JSON parsing. No second fetch, ETag removal, polling disablement, error suppression or timeout increase.",
+		"green": "Same full make verify-ui exits0: baseline2pass plusOCU36pass. New case observes initial ETag, real If-None-Match and actual304 with matching ETag, then retains row/selected icons, prefs identity, unsupported/no-Office capability and actual download assertions. Screenshot inspected; zero console/page errors.",
+		"identity": "Final browser-test bytes exactly match GREEN and frozen commit. Removing only the four-line guard reconstructs the exact executed RED hash. Production and unit-test bytes match the earlier498-test, coverage and per-mapping mutation evidence; no formatter bridge needed for this final browser run.",
+		"static_and_cleanup": "Fresh browser-test Prettier and make lint-scoped exit0/102files; commit hooks pass. Default owned dev pair stopped, ports free; isolated harness cleanup completed after RED and GREEN.",
+		"secret_scan": "Review-fix raw evidence scan exit0/no findings. Failure trace files were not copied into the archive; the complete failing command output and exact failing source are retained."
+	},
+	"review_closure": {
+		"archive": "tsv-kind-review-closure.tar.gz",
+		"archive_sha256": "9b357fffd7fe4cb52192aafef8459446e661db9673eab9844086e86ef6940c5c",
+		"contents": "Complete fresh rereview, parent adjudication and clean round2 gate. Retention changes no reviewed implementation, fixture or decision.",
+		"secret_scan": "Closure evidence scan exit0/no findings.",
+		"provenance_note": "Earlier manifest-format output was not hash-bound to the manifest. The external evidence runner now includes that input; final retention formatting is separately recorded with its before/after hash."
+	}
+}

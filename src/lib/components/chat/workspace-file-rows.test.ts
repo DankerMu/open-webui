@@ -113,6 +113,15 @@ describe('loaded workspace file rows', () => {
 });
 
 describe('workspace display kinds', () => {
+	it('classifies broker TSV metadata as sheet despite a document filename', () => {
+		const tsv = {
+			...file('reports/summary.txt', 'summary.txt'),
+			type: 'spreadsheet',
+			mime: 'text/tab-separated-values'
+		};
+		expect(workspaceFileKind(tsv)).toBe('sheet');
+	});
+
 	it.each([
 		['HTML', 'web'],
 		['svg', 'web'],
@@ -124,6 +133,7 @@ describe('workspace display kinds', () => {
 		['markdown', 'document'],
 		['XLSX', 'sheet'],
 		['csv', 'sheet'],
+		['SPREADSHEET', 'sheet'],
 		['PPTX', 'slides'],
 		['json', 'code'],
 		['code', 'code'],
@@ -148,6 +158,7 @@ describe('workspace display kinds', () => {
 		['text/markdown', 'document'],
 		['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'sheet'],
 		['text/csv', 'sheet'],
+		[' Text/Tab-Separated-Values ; charset=UTF-8 ', 'sheet'],
 		['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'slides'],
 		['application/json', 'code'],
 		['text/javascript', 'code'],
@@ -168,7 +179,11 @@ describe('workspace display kinds', () => {
 		['code', 'image/svg+xml', 'web'],
 		['html', 'image/png', 'image'],
 		['xlsx', 'application/octet-stream', 'sheet'],
-		['unknown', 'text/csv', 'sheet']
+		['unknown', 'text/csv', 'sheet'],
+		['unknown', 'text/tab-separated-values', 'sheet'],
+		['spreadsheet', 'application/octet-stream', 'sheet'],
+		['spreadsheet', 'text/plain', 'document'],
+		['spreadsheet', 'image/avif', 'image']
 	])('prefers recognized MIME, falling back to type: %s / %s', (type, mime, expected) => {
 		expect(workspaceFileKind({ ...file('name'), type, mime })).toBe(expected);
 	});

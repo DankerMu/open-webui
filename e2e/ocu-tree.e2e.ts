@@ -1,6 +1,7 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
 import { context, evidence } from './ocu-fixtures';
+import type { WorkspaceListing } from '../src/lib/apis/ocu';
 
 type Diagnostic = { kind: 'console' | 'pageerror'; text: string; url: string; value?: unknown };
 
@@ -252,5 +253,105 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 			path: `${evidence}/workspace-selected-unsupported-${theme}.png`,
 			animations: 'disabled'
 		});
+	}
+});
+
+test('broker TSV metadata shows sheet icons without granting Office capabilities', async ({
+	page
+}) => {
+	const chatId = context.chats.nested;
+	const listingRoute = `**/ocu/api/outputs/${chatId}`;
+	const injectTsv = async (route: Route) => {
+		const response = await route.fetch();
+		if (response.status() !== 200) {
+			await route.fulfill({ response });
+			return;
+		}
+		const listing: WorkspaceListing = await response.json();
+		await route.fulfill({
+			response,
+			json: {
+				...listing,
+				files: listing.files.map((file) =>
+					file.file_id === 'fixture-notes.bin'
+						? { ...file, type: 'spreadsheet', mime: 'text/tab-separated-values' }
+						: file
+				)
+			}
+		});
+	};
+	await page.route(listingRoute, injectTsv);
+	try {
+		const initialListing = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				response.status() === 200 &&
+				response.request().headers()['if-none-match'] === undefined,
+			{ timeout: 10_000 }
+		);
+		const pollRequest = page.waitForRequest(
+			(request) =>
+				new URL(request.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				request.headers()['if-none-match'] !== undefined,
+			{ timeout: 10_000 }
+		);
+		const pollResponse = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/ocu/api/outputs/${chatId}` &&
+				response.request().headers()['if-none-match'] !== undefined,
+			{ timeout: 10_000 }
+		);
+		const panel = await openWorkspace(page);
+		const initialEtag = (await initialListing).headers()['etag'];
+		const row = panel.getByRole('button', { name: 'notes.bin', exact: true });
+
+		const savedSelection = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/api/v1/ocu/workspaces/${chatId}/prefs` &&
+				response.request().method() === 'PUT' &&
+				response.request().postDataJSON()?.selected_file_id === 'fixture-notes.bin',
+			{ timeout: 10_000 }
+		);
+		await row.click();
+		const preference = await savedSelection;
+		expect(preference.ok()).toBe(true);
+		expect((await preference.json()).prefs).toMatchObject({
+			selected_file_id: 'fixture-notes.bin'
+		});
+		const conditionalRequest = await pollRequest;
+		expect(conditionalRequest.headers()['if-none-match']).toBe(initialEtag);
+		const conditionalResponse = await pollResponse;
+		expect(conditionalResponse.status()).toBe(304);
+		expect(conditionalResponse.headers()['etag']).toBe(initialEtag);
+		await expect(row.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'sheet');
+		await expect(row.locator('[data-file-kind] svg')).toBeVisible();
+		await expect(row).toHaveAttribute('aria-pressed', 'true');
+
+		const selected = panel.locator('[aria-label="Selected workspace file"]');
+		const bar = selected.locator('[data-selected-bar]');
+		await expect(bar.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'sheet');
+		await expect(bar.locator('[data-file-kind] svg')).toBeVisible();
+		await expect(bar.locator('[data-selected-name]')).toHaveText('notes.bin');
+		await expect(selected.getByText('Preview not supported for this file type')).toBeVisible();
+		await expect(selected.locator('[data-selected-preview] iframe')).toHaveCount(0);
+		await expect(bar.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+		await expect(bar.getByRole('button', { name: 'Version history', exact: true })).toHaveCount(0);
+
+		const downloadUrl = `/ocu/files/${chatId}/notes.bin?download=1`;
+		const downloadLink = bar.getByRole('link', { name: 'Download notes.bin', exact: true });
+		await expect(downloadLink).toHaveAttribute('href', downloadUrl);
+		await expect(downloadLink).toHaveAttribute('download', 'notes.bin');
+		const [download] = await Promise.all([
+			page.waitForEvent('download', { timeout: 10_000 }),
+			downloadLink.click()
+		]);
+		expect(download.url()).toBe(new URL(downloadUrl, context.origin).href);
+		expect(download.suggestedFilename()).toBe('notes.bin');
+		await panel.screenshot({
+			path: `${evidence}/workspace-tsv-kind.png`,
+			animations: 'disabled'
+		});
+	} finally {
+		await page.unroute(listingRoute, injectTsv);
 	}
 });
