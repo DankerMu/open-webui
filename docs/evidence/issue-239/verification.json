@@ -32,7 +32,7 @@
 		"Kind-update reconciliation #248 is separate.",
 		"Parent-owned verification is not an OS-isolated enclave."
 	],
-	"review": "Compact fixture independently passed. Round1 confirmed a conditional304 parsing defect in the new browser interceptor, not the production classifier. One fix pass has causal RED/GREEN; fresh correctness+test-evidence rereview pending.",
+	"review": "Compact fixture independently passed. Round1 confirmed TSV-304 in the browser interceptor; one fix pass closed it with causal real-browser RED/GREEN. Fresh correctness+test-evidence round2 is clean on c137873d44fdc67a32b9818004212afa68b2b783, with no new findings. Notes concern disclosed provenance/verification limits, not deferred code defects.",
 	"review_fix": {
 		"verified_head": "cb7fe3ac0ef39c6fd9a507f58cae80a15fe4f55e",
 		"archive": "tsv-kind-review-fix.tar.gz",
@@ -44,5 +44,12 @@
 		"identity": "Final browser-test bytes exactly match GREEN and frozen commit. Removing only the four-line guard reconstructs the exact executed RED hash. Production and unit-test bytes match the earlier498-test, coverage and per-mapping mutation evidence; no formatter bridge needed for this final browser run.",
 		"static_and_cleanup": "Fresh browser-test Prettier and make lint-scoped exit0/102files; commit hooks pass. Default owned dev pair stopped, ports free; isolated harness cleanup completed after RED and GREEN.",
 		"secret_scan": "Review-fix raw evidence scan exit0/no findings. Failure trace files were not copied into the archive; the complete failing command output and exact failing source are retained."
+	},
+	"review_closure": {
+		"archive": "tsv-kind-review-closure.tar.gz",
+		"archive_sha256": "9b357fffd7fe4cb52192aafef8459446e661db9673eab9844086e86ef6940c5c",
+		"contents": "Complete fresh rereview, parent adjudication and clean round2 gate. Retention changes no reviewed implementation, fixture or decision.",
+		"secret_scan": "Closure evidence scan exit0/no findings.",
+		"provenance_note": "Earlier manifest-format output was not hash-bound to the manifest. The external evidence runner now includes that input; final retention formatting is separately recorded with its before/after hash."
 	}
 }
