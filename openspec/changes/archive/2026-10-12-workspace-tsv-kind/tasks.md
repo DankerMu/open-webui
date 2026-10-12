@@ -10,7 +10,7 @@
 
 - [x] 2.1 Exercise TSV metadata in the actual mounted list and selected-file surface using the existing browser harness; assert sheet icons, unchanged file/download identity, no newly granted preview/edit capability, screenshot and zero unexpected console/page errors. Test-only response injection may supply metadata; it must not change broker/runtime behavior or suppress existing harness cases.
 - [x] 2.2 Run `make test-frontend`, `make typecheck`, `make lint-scoped`, named-file coverage and `make verify-ui`; retain commands, exits, identities and screenshots, and stop owned services. Parent qualifies omission of either mapping with the corresponding semantic regression in a disposable copy or pre-change source replay.
-- [ ] 2.3 After runtime proof, update the existing workspace-file-tree decision, run docs/decisions/strict/scoped-format checks, complete compact review and authorized exact-head local CI, merge, close and archive.
+- [x] 2.3 After runtime proof, update the existing workspace-file-tree decision, run docs/decisions/strict/scoped-format checks, complete compact review and authorized exact-head local CI, merge, close and archive.
 
 ## Risk packs
 
