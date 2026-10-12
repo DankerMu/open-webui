@@ -1,0 +1,50 @@
+{
+	"issue": 248,
+	"base": "bdd62dd8dbf39a134020440e3e4e17d8cc02ebdf",
+	"producer_pin": "a53731df95a3b92acb2dcb5980f969b4f8b4ee52",
+	"candidate": [
+		{
+			"path": "src/lib/components/chat/WorkspaceArtifact.svelte",
+			"sha256": "05b1238ee313353e325620c4d083c9bff7d32731ad740f15829b22db5384e61a"
+		},
+		{
+			"path": "src/lib/components/chat/WorkspaceArtifact.tree.test.ts",
+			"sha256": "3ae1924f5cb8e6381d0eec88d5b70941db34bb5d04b94fc54666fa2cc3c7f8fa"
+		},
+		{
+			"path": "e2e/ocu-tree.e2e.ts",
+			"sha256": "6b7ff500c083687b104f2824da629bf5d0b4e85e898cd9bd902410beb6b86750"
+		}
+	],
+	"archive": {
+		"path": "row-kind-verification.tar.gz",
+		"sha256": "f209c1221aea008f1e5680f4a56f9368c786ede0bf4ffb471dc14e27c04ce095",
+		"bytes": 56688
+	},
+	"screenshots": [
+		{
+			"path": "workspace-row-kind-red.png",
+			"sha256": "8e4f95b66e17b06415c8645ac28f06c98ebd5b7e097f1906cda1b1d65978ed36"
+		},
+		{
+			"path": "workspace-row-kind-green.png",
+			"sha256": "3722be1bbd550bfeae2939cd0031a517ac8f78711ed6d49af15a231630b7ea95"
+		}
+	],
+	"proof": {
+		"producer": "Exact pinned FastAPI/broker on owned temporary files: byte-preserving notes.txt to notes.html rename retains file_id/hash/size, advances revision1to2 and changes type/MIME/ETag; HTTP200/304/200/304, zero Docker calls, temporary data removed. First setup attempt failed only unresolved /var versus /private/var origin assertion before requests; retained and corrected by canonical path resolution.",
+		"component": "Actual mounted component/controller: RED498pass/1fail at old Document SVG versus unchanged web control after metadata/name/element/selection/focus passed; same regression GREEN499pass across34files.",
+		"runtime": "Browser RED baseline2pass and OCU36pass/1fail at same rendered SVG mismatch. Final cold-owned-service make verify-ui exit0: baseline2pass+OCU37pass, including A-T01/A-T10; same row identity/current name/selection, current globe glyph, zero unexpected console/page errors. RED/GREEN screenshots inspected.",
+		"identity": "Only production change is the row explicit dynamic component; reversing that exact substitution reconstructs RED source. Component test unchanged since RED. Browser formatting linewrap has identical TypeScript5.9.3 syntax tree/token text; final browser GREEN uses final bytes.",
+		"static": "make typecheck exit0:7777 errors at7777ceiling (ratchet, not zero errors). make lint-scoped exit0/102files. Coverage exit0:backend144passed/121warnings,frontend499passed; WorkspaceArtifact.svelte100%lines/97.31%branches; frontendtotal97.68%lines.",
+		"docs": "make doc-gate decisions-verify exit0/43records; final strict OpenSpec and scoped Prettier exit0. Existing decision updated after runtime proof.",
+		"cleanup": "Default dev pair absent before RED, started by owned verification, stopped after GREEN; make dev-status exit2 confirms both stopped/health unreachable. Isolated OCU harness finished owned cleanup.",
+		"secret_scan": "Publishable raw evidence gitleaks exit0/no findings. Raw browser traces with authentication material and failed-service state remain private and are excluded."
+	},
+	"limits": [
+		"Browser test is consumer metadata proof: real deleted-to-renamed scenario supplies revisions/ETags and served HTML paths, while only target type/MIME is intercepted. It is not the producer rename proof.",
+		"First post-fix reused-default-service run failed before OCU at default route500 with Duplicate use of selection JSON ID cell. Same source/database with fresh owned services passed. This preserves a failure/recovery contrast, not a root-cause fix or production-impact claim; existing #251 remains open.",
+		"Standalone backend coverage exit masking is tracked separately in #385; retained current output explicitly reports144passed, not a blanket exit-status inference.",
+		"Local macOSarm64/Node22.23.2 evidence; no LAN deployment certification."
+	]
+}

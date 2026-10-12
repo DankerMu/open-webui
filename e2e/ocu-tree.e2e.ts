@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
-import { context, evidence } from './ocu-fixtures';
+import { context, createScenarioChat, evidence, setScenario } from './ocu-fixtures';
 import type { WorkspaceListing } from '../src/lib/apis/ocu';
 
 type Diagnostic = { kind: 'console' | 'pageerror'; text: string; url: string; value?: unknown };
@@ -44,8 +44,8 @@ test.afterEach(async ({ page }) => {
 	expect(record.diagnostics).toEqual([]);
 });
 
-async function openWorkspace(page: Page) {
-	await page.goto(`/c/${context.chats.nested}`);
+async function openWorkspace(page: Page, chatId = context.chats.nested) {
+	await page.goto(`/c/${chatId}`);
 	await expect(page.locator('#chat-pane')).toBeVisible();
 	const panel = page.getByRole('region', { name: 'Workspace Files' });
 	if (!(await panel.isVisible())) {
@@ -253,6 +253,136 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 			path: `${evidence}/workspace-selected-unsupported-${theme}.png`,
 			animations: 'disabled'
 		});
+	}
+});
+
+test('refresh updates the selected file row glyph without replacing its selectable identity', async ({
+	page
+}) => {
+	const chatId = await createScenarioChat(page, 'deleted');
+	const listingPath = `/ocu/api/outputs/${chatId}`;
+	const listingRoute = (url: URL) => url.pathname === listingPath;
+	const injectTargetKind = async (route: Route) => {
+		const response = await route.fetch();
+		if (response.status() !== 200) {
+			await route.fulfill({ response });
+			return;
+		}
+		const listing: WorkspaceListing = await response.json();
+		await route.fulfill({
+			response,
+			json: {
+				...listing,
+				files: listing.files.map((file) =>
+					file.path === 'report.html'
+						? { ...file, type: 'text', mime: 'text/plain' }
+						: file.path === 'final.html'
+							? { ...file, type: 'html', mime: 'text/html' }
+							: file
+				)
+			}
+		});
+	};
+	await page.route(listingRoute, injectTargetKind);
+	try {
+		const initialListingResponse = page.waitForResponse(
+			(response) => new URL(response.url()).pathname === listingPath && response.status() === 200
+		);
+		const panel = await openWorkspace(page, chatId);
+		const initialResponse = await initialListingResponse;
+		const initialListing: WorkspaceListing = await initialResponse.json();
+		expect(initialListing.revision).toBe(1);
+		const initialTarget = initialListing.files.find((file) => file.path === 'report.html');
+		expect(initialTarget).toMatchObject({
+			file_id: 'fixture-report',
+			name: 'report.html',
+			url: `/ocu/files/${chatId}/report.html`,
+			revision: 1,
+			type: 'text',
+			mime: 'text/plain',
+			size: 128
+		});
+		const initialEtag = initialResponse.headers()['etag'];
+		expect(initialEtag).toBeDefined();
+		const list = panel.locator('ul[aria-label="Workspace file list"]');
+		const target = list.getByRole('button', { name: 'report.html', exact: true });
+		const control = list.getByRole('button', { name: 'page.html', exact: true });
+		const savedSelection = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `/api/v1/ocu/workspaces/${chatId}/prefs` &&
+				response.request().method() === 'PUT' &&
+				response.request().postDataJSON()?.selected_file_id === 'fixture-report'
+		);
+		await target.click();
+		const preference = await savedSelection;
+		expect(preference.ok()).toBe(true);
+		expect((await preference.json()).prefs).toMatchObject({
+			selected_file_id: 'fixture-report'
+		});
+		await expect(target).toHaveAttribute('aria-pressed', 'true');
+		await expect(target.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'document');
+		await expect(control.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'web');
+		const initialRow = await target.elementHandle();
+		expect(initialRow).not.toBeNull();
+		await expect(target.locator('[data-file-kind] svg')).toBeVisible();
+		await expect(control.locator('[data-file-kind] svg')).toBeVisible();
+		const initialGlyph = await target
+			.locator('[data-file-kind] svg')
+			.evaluate((svg) => svg.innerHTML);
+		const controlGlyph = await control
+			.locator('[data-file-kind] svg')
+			.evaluate((svg) => svg.innerHTML);
+		expect(initialGlyph).not.toBe(controlGlyph);
+
+		const refreshedListingResponse = page.waitForResponse(async (response) => {
+			if (new URL(response.url()).pathname !== listingPath || response.status() !== 200)
+				return false;
+			const listing: WorkspaceListing = await response.json();
+			return (
+				listing.revision > initialListing.revision &&
+				listing.files.some((file) => file.path === 'final.html')
+			);
+		});
+		setScenario(chatId, 'renamed');
+		await panel.getByRole('button', { name: 'Refresh workspace files', exact: true }).click();
+		const refreshedResponse = await refreshedListingResponse;
+		const refreshedListing: WorkspaceListing = await refreshedResponse.json();
+		expect(refreshedListing.revision).toBe(2);
+		expect(refreshedResponse.headers()['etag']).toBeDefined();
+		expect(refreshedResponse.headers()['etag']).not.toBe(initialEtag);
+		expect(refreshedListing.files.find((file) => file.path === 'final.html')).toMatchObject({
+			file_id: initialTarget!.file_id,
+			name: 'final.html',
+			url: `/ocu/files/${chatId}/final.html`,
+			revision: 2,
+			type: 'html',
+			mime: 'text/html',
+			size: initialTarget!.size
+		});
+		const refreshed = list.getByRole('button', { name: 'final.html', exact: true });
+		await expect(refreshed).toBeVisible();
+		await expect(refreshed).toHaveAttribute('aria-label', 'final.html');
+		await expect(refreshed.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'web');
+		await expect(refreshed).toHaveAttribute('aria-pressed', 'true');
+		expect(await refreshed.evaluate((node, previous) => node === previous, initialRow!)).toBe(true);
+		await expect(control.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'web');
+		await expect(refreshed.locator('[data-file-kind] svg')).toBeVisible();
+		await expect(control.locator('[data-file-kind] svg')).toBeVisible();
+		const unchangedControlGlyph = await control
+			.locator('[data-file-kind] svg')
+			.evaluate((svg) => svg.innerHTML);
+		expect(unchangedControlGlyph).toBe(controlGlyph);
+		await panel.screenshot({
+			path: `${evidence}/workspace-tree-kind-transition.png`,
+			animations: 'disabled'
+		});
+		const refreshedGlyph = await refreshed
+			.locator('[data-file-kind] svg')
+			.evaluate((svg) => svg.innerHTML);
+		expect(refreshedGlyph).toBe(unchangedControlGlyph);
+		expect(refreshedGlyph).not.toBe(initialGlyph);
+	} finally {
+		await page.unroute(listingRoute, injectTargetKind);
 	}
 });
 

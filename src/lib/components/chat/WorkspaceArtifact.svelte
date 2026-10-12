@@ -618,7 +618,7 @@
 									aria-pressed={selected?.file_id === row.file.file_id}
 								>
 									<span data-file-kind={fileKind} class="contents">
-										<KindIcon className="size-4 shrink-0" />
+										<svelte:component this={KindIcon} className="size-4 shrink-0" />
 									</span>
 									<span class="min-w-0 flex-1 truncate text-sm">{row.name}</span>
 									<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
