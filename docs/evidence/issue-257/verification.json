@@ -1,0 +1,39 @@
+{
+	"issue": 257,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 104,
+	"source_head": "e61ef056d1815f81d203fb286978a5c60c7acfd1",
+	"source_base": "637990e0d570990c572538f26355fc56f32c53ab",
+	"control_base": "04cc814b871e311c265cee054420edd688c22998",
+	"candidate": {
+		"CHANGELOG.md": "9239787bcb4843164c07c67a6bc2d1ab45b89052f2352725889d635efb530d95",
+		"tests/README.md": "90835eeab0a40f3f4f89b4bb08d1db960997cf5701352eabc85239cc542fe6b1",
+		"tests/orchestrator/test_office_contention_startup.py": "837cdbd9c0c54bd9ad8dd7fbb98c0798c087ff756a5f5db012878994e2203e88",
+		"tests/orchestrator/test_office_control_plane_concurrency.py": "75adcb53892ac8b13077ebd6973ddc5c84781d1bc0bcabdffd931db6fc442fb2"
+	},
+	"artifact": {
+		"path": "verification.tar.gz",
+		"bytes": 138369,
+		"sha256": "97f5ed074c8678d0edc18d31290fc652d11c2dba556387c6d41fdf850c852d8d"
+	},
+	"verification": {
+		"baseline": "Actual successful contention2passed. Process fault regression RED2, then processGREEN2/threadRED1. Independent CLI judges reject all3 historical owner paths.",
+		"accepted": "Canonical owning selection55unique nodeIDs; separate execution55passed3534deselected2dependencywarnings exit0. No skipped selected cases.",
+		"runtime": "Three actual pytest CLI startup-fault runs intentionally exit1; independent judge exits0 after observing identical top-level injected error, restored patches, no unstarted join, acquired-child reaping/pipe closure, explicit acquired-future release/result, and no rescue credited.",
+		"oracle_conservation": "Both async exercise ASTs and final4 state/assertion statements unchanged. Frozen regression source unchanged after RED.",
+		"identity": "All162source/test Python inputs match each accepted owning/runtime run. All45production Python files match pre-change baseline. Source commit contains only4declared test/docs files.",
+		"static": "Changed2test files Ruff F pass. Central docgate,46decisionrecords and47strictspec/change items pass. Fixture table formatter correction retained; scoped final formatting checked before commit.",
+		"environment": "Python3.13.3,pytest9.1.1,pytest-asyncio1.4.0,FastAPI0.115.0,Starlette0.38.6,aiohttp3.14.5,httpx0.28.1,docker7.2.0,mcp1.27.0,PyYAML6.0.2;macOS26.6.2arm64"
+	},
+	"scan": {
+		"raw_exit": 1,
+		"findings": 170,
+		"classification": "Every generic-api-key finding is an independently recomputed source-file SHA256 identity. Full redacted report and per-finding classification retained; no allowlist/rules changed."
+	},
+	"limits": [
+		"Controlled test-harness startup paths with otherwise healthy cleanup; not arbitrary cleanup-failure aggregation.",
+		"No production lock/callback/dependency/shared-fixture change; no production cancellation, deployment or general resource-leak claim.",
+		"Owning55-test scope, not a fresh full-repository suite or multi-platform certification.",
+		"Parent-owned role-separated verification; not an OS-enforced verifier enclave."
+	]
+}
