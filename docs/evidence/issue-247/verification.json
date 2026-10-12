@@ -1,0 +1,76 @@
+{
+	"issue": "DankerMu/open-webui#247",
+	"source_repository": "DankerMu/open-computer-use",
+	"source_base": "61d115e6c8098981dab0c6a8512898521a8305e0",
+	"implementation_head": "2a01cda01346b362054d388ce2a41af0e82dcd4b",
+	"control_base": "8c77015521d9c4fd6ce30bd523d555c0b40db059",
+	"source_inputs": [
+		{
+			"path": "CHANGELOG.md",
+			"sha256": "6a599599399daa0f2b0450f6e1daacc8c715ce9406ee40dee1871358f9b9c670"
+		},
+		{
+			"path": "computer-use-server/docker_manager.py",
+			"sha256": "c1293021ebdcdcc7a58efc8444acc392a103f80fe9f8c8602f74808a9f0b1cb1"
+		},
+		{
+			"path": "tests/orchestrator/test_lifecycle.py",
+			"sha256": "11e91693a0083ecf3d73623c1dbff78f64765bd46145a461ef6a69882079967b"
+		},
+		{
+			"path": "tests/orchestrator/test_lifecycle_lock.py",
+			"sha256": "b3178e2544ea8e1941a8d15531932a3cddfbacdd5822ec8900ccf7ee44168d00"
+		},
+		{
+			"path": "tests/orchestrator/test_office_control_plane.py",
+			"sha256": "3a4aa29657bcd5f2ff5d3b0adf8c559b704c7d55f87c3574069dbed35dc03435"
+		},
+		{
+			"path": "tests/orchestrator/test_office_history.py",
+			"sha256": "559b2816dcf8df072d7e0b59f865946364eb4b65fe03c54d477506cc1f6629d0"
+		},
+		{
+			"path": "tests/orchestrator/test_office_publish_fence.py",
+			"sha256": "69cfab7d8bbca43aca6b139458c71289ebe65861f1be01664c31102dba410c8b"
+		}
+	],
+	"evidence_archive": {
+		"path": "lifecycle-lock-verification.tar.gz",
+		"sha256": "56df5f575999084cdc80243fc0845fdf01070badc14f4bdc1ae7e582c2aaa04e",
+		"bytes": 297759,
+		"files": 57
+	},
+	"proof": {
+		"fixture": "Initial expanded fixture independently passed and strict validation passed before implementation; final design clarifies bounded creation without changing acceptance. Final strict validation passed.",
+		"construction": "Original post-Office-precheck tracer opened/flocked the external canary and failed. Candidate rejects it. Final shared observer was requalified against original source and a leaf-following mutant.",
+		"acquisition": "Initial 239-pass/5-fail matrix exposed two missing-lock test setups, two inherited-exception close suppressions and concurrent combined-create ENOENT. Repairs yielded 248 passing affected tests. Primary errors, descriptor retirement, missing/alias/mode/parent-sync/nesting, direct/reap/FIFO and creation-winner races are covered.",
+		"creation": "Bare concurrent combined-create failed with ENOENT on the same live parent; existing-first exclusive creation passed 30 diagnostic trials. Final original two-process creation regression passed ten dedicated stability trials.",
+		"qualification": "Original source and leaf-following controls each fail on actual external inode open/flock; redirected parent fails both inode comparisons; inherited-exception owner fails both close-error cases. Restored final lock module: 48 passed. Initial scratch classifier expected literal AssertionError for tuple output; preserved result and continued only remaining controls after verifying actual wrong-inode failures.",
+		"runtime": "Six real temporary-filesystem/process cases pass: absent-base noncreation, independent flock denial then acquisition of the same inode, nested depth retirement, symlink refusal in both modes, existing-root lock creation, pinned-parent replacement and thread reacquisition. Temporary tree removed.",
+		"fence_observer": "Full-suite RED: 4 failed/3567 passed/5 skipped/332 subtests. Exact pre-assertion probe found all retained fd13 values EBADF. Replaced callback-only bookkeeping with actual FD retirement; omitted-close control fails all four phases; restored fence module: 76 passed.",
+		"full_suite": "Final canonical Docker-free suite: exit 0; 3571 passed, 5 existing opt-in live-CLI skips, 37 dependency warnings, 332 subtests passed. No selected tests suppressed. Inputs unchanged and all seven committed source-file hashes match final full-suite inputs.",
+		"static": "Ruff F comparison: 51 baseline/51 current, zero new diagnostics across six Python files; no suppressions. Source commit hooks passed.",
+		"documentation": "make doc-gate decisions-verify: exit 0, 43 records conform. OpenSpec strict and scoped Markdown/fixture Prettier checks: exit 0."
+	},
+	"retention": {
+		"encoding": "Command input maps use reversible path/value rows to avoid filename-keyed SHA strings being mistaken for API keys. identity-encoding.json records original and retained digests; exact original JSON bytes reconstruct for all 16 encoded records.",
+		"scan": "Initial gitleaks found 150 generic-api-key matches; every match was independently verified as a current unchanged Python-file SHA-256, not a credential. No allowlist or scanner change. Losslessly encoded 1.59 MB payload scanned exit 0: no leaks found.",
+		"raw_failures": "Initial negative runs, failed matrix/full suite, diagnosis scripts/results and scratch classifier failure are retained rather than replaced by green summaries."
+	},
+	"limits": [
+		"Local macOS arm64/Python3.13 proof, not Linux/Docker/LAN certification.",
+		"Parent-owned verification is not an OS-isolated acceptance enclave.",
+		"Host-side writer precondition; no remote exploit or external file-content write claim.",
+		"Hard links, arbitrary regular-inode replacement and trusted-root retargeting are outside this boundary.",
+		"Existing unlock-failure cleanup is separately tracked by https://github.com/DankerMu/open-webui/issues/382."
+	],
+	"review": "Expanded round 1: correctness, invariant-state and test-evidence+spec-compliance seats found no actionable defects or uncovered criteria at source 2a01cda01346b362054d388ce2a41af0e82dcd4b and control b899c951fb066366c273d01d42f6fa11421bb256. Parent adjudication clean; zero fix passes. The sweep-retirement note is covered by identical-owner direct cases. Raw final clean-scan provenance is retained in the review archive.",
+	"review_closure": {
+		"path": "lifecycle-lock-review.tar.gz",
+		"sha256": "bb6e8dcebe82b3749e3bed91fc16c98529ab36e3d785681f4626d255efa10b6c",
+		"bytes": 33021,
+		"files": 14,
+		"scan": "gitleaks exit 0; 156.10 KB scanned, no leaks. Command output and report retained.",
+		"provenance": "Includes complete reviewer reports, parent adjudication, both clean gate snapshots and the previously external final encoded-payload scan command/report. Two command input maps use the same byte-exact reversible encoding. Manifest-format output is hash-bound to the reviewed manifest. Source, fixture, decision and original proof archive are unchanged."
+	}
+}
