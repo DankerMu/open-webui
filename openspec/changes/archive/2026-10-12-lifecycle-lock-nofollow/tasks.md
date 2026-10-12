@@ -15,7 +15,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 After runtime proof, update source changelog and the existing lifecycle decision; run docs/decisions/strict/scoped formatting, retain raw evidence and scans, complete expanded review and authorized exact-head local CI, merge paired PRs, close and archive.
+- [x] 3.1 After runtime proof, update source changelog and the existing lifecycle decision; run docs/decisions/strict/scoped formatting, retain raw evidence and scans, complete expanded review and authorized exact-head local CI, merge paired PRs, close and archive.
 
 ## Risk packs
 
