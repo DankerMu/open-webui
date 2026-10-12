@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-03
 supersedes: none
-references: 'Plan 2 D5; ocu-office-store; 2026-09-22-ocu-lifecycle-lock-and-launch-semantics; issue 122'
+references: 'Plan 2 D5; ocu-office-store; 2026-09-22-ocu-lifecycle-lock-and-launch-semantics; issue 122; 2026-10-12-ocu-command-deadline (command-loop ownership)'
 ---
 
 # Per-chat Office broker state lives in files, not a database
@@ -22,7 +22,7 @@ Missing state is an empty schema without creating `state.json`. Unreadable, malf
 
 The top-level schema is `schema_version` 1 with mapping collections `documents`, `sessions`, `receipts` and `journal`. Session creation uses the version store's optional state mutator to publish its captured version, document metadata and opening session in the same successor. Blob publication retains its existing owned-blob cleanup on precommit failure; postreplace durability failure retains the complete visible successor and referenced blob. Workspace reads share one descriptor-safe implementation with an optional byte limit, so admission never requires materializing an oversized file.
 
-Join/reopen and close decisions keep this lock across the bounded, read-only DocumentServer key lookup in a synchronous request worker; the async client runs on that worker's private event loop, never while the application event loop owns a blocking chat lock. This serializes same-chat admission without an optimistic revalidation protocol, at the cost of delaying that chat by the existing lookup timeout. A confirmed orphan transition is durable independently of replacement creation: a later validation/storage failure must not revive a forgotten editor, while replacement capture remains atomic.
+Join/reopen and close decisions keep this lock across the bounded, read-only DocumentServer key lookup in a synchronous request worker. The async client runs on the service loop through the bounded bridge defined by [the command-deadline decision](2026-10-12-ocu-command-deadline.md), never while that loop owns a blocking chat lock. This serializes same-chat admission without an optimistic revalidation protocol, at the cost of delaying that chat by the existing lookup timeout. A confirmed orphan transition is durable independently of replacement creation: a later validation/storage failure must not revive a forgotten editor, while replacement capture remains atomic.
 
 Force-save uses a different boundary because the command can induce a callback. The request durably allocates its sequence and intent under the lock, releases it for the command, then reconciles the result under the lock against the latest session key and pending allocation. Completed, superseded and final operations remain unchanged. Ordinary failures preserve a concurrent close/conflict; an unknown-key answer orphans a still-owned open session because liveness, not the close allocation, decides whether the editor exists.
 
