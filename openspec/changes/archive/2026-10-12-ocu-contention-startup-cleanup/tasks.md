@@ -13,7 +13,7 @@
 ## 3. Delivery
 
 - [x] 3.1 Update test documentation and owning testing decision after runtime proof; retain scoped lint, source identity, environment, evidence and central docs/spec validation results.
-- [ ] 3.2 Complete expanded correctness, test-evidence/spec and invariant-state review, exact-head CI, exact closing-issue-set checks, source/control merge and fixture archive.
+- [x] 3.2 Complete expanded correctness, test-evidence/spec and invariant-state review, exact-head CI, exact closing-issue-set checks, source/control merge and fixture archive.
 
 ## Risk packs
 

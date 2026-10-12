@@ -42,7 +42,7 @@ is observed before outer fixture teardown; acquired child termination and pipe
 closure are observed before rescue. Independent emergency cleanup is bounded and
 cannot satisfy owner-cleanup assertions. The successful contention exercises and
 their liveness, response, session-state and origin-hit assertions are unchanged.
-The [active OpenSpec design](../../../../openspec/changes/ocu-contention-startup-cleanup/design.md)
+The [OpenSpec specification](../../../../openspec/specs/ocu-contention-test-lifetime/spec.md)
 owns the controlled fault and successful-path acceptance criteria.
 
 ## Alternatives considered
