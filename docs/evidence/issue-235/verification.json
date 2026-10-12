@@ -31,5 +31,18 @@
 		"Non-Office source fixtures are separately tracked in issue377, not added to the original queue.",
 		"Historical PR50 trailing banner remains unattributed."
 	],
-	"review": "Expanded fixture passed before implementation; source/control-plane cross-review pending."
+	"review": "Round 1 found a held-wrapper coverage gap and idle busy-polling. Fix pass 1 has fresh proof; independent correctness+test-evidence re-review pending.",
+	"review_fix": {
+		"source_head": "9806bbb71a690316b3ead7704c170c64afe53c32",
+		"archive": "http-origin-review-fix.tar.gz",
+		"archive_sha256": "9f3916e6e6e1a64aedad1dfe417c0d42a7db4539968d916b47eba72f092674be",
+		"source_identity": "fix-source-identity.json binds all 13 changed files to the frozen source commit and full consumer run; no production/config/workflow changes.",
+		"holder_oracles": "Three new tests exercise real acquired _hold_save startup/readiness and the existing manual save-close consumer. Omitting acquired-box cleanup produces 2 semantic failures; reverting the actual manual forwarding produces 1 lost-body-error failure. Assertions precede emergency repair.",
+		"qualification": "Final candidate and restored candidate: 19 pass. Missing drain, lost owner errors, inherited nonblocking transport, original command origin, omitted holder cleanup and reverted manual forwarding are rejected. Disposable clone removed; live inputs unchanged. Initial proof before the explicit pytest fixture import correction is retained.",
+		"idle": "Same diagnostic: before, 28040 zero-timeout polls in 0.2600s; after, 5 positive 0.05s waits in 0.2546s. Real HTTP response and all owned-resource retirement pass. Single observations, not a CPU benchmark or latency guarantee.",
+		"runtime": "Eight actual HTTP scenarios pass; the same 20 fresh-process stability trials pass all 160 scenarios.",
+		"full_consumer_suite": "Python 3.13.3, declared OCU dependencies, proxy-normalized test process: 2566 passed, 5 existing live-CLI skips, 2 dependency warnings, 3 subtests; exit 0 in 611.03s pytest/616.23s wrapper. No socketserver banner or unhandled-thread warning in captured positive-run output.",
+		"static": "Initial new fixture import caused 4 Ruff F diagnostics; explicit fixture re-export fixes them without suppression. Final baseline211/current211/added0; all three new Python files have zero diagnostics. Docs, 43 decisions, strict validation and scoped prose format pass.",
+		"secret_scan": "Fix evidence scan exits 1 with 26 generic-api-key findings. Every finding is the verified SHA256 of unchanged public test_office_tokens.py; appended scan-record digest entries separately checked. No zero-match claim."
+	}
 }
