@@ -20,7 +20,7 @@
 
 - [x] 3.1 Execute canonical selected Office (including affected restore and save-worker consumers), app/HTTP-origin/lifecycle-lock and server-package consumers with exact discovered/executed scope, scoped lint, at least80% line coverage of the new save-worker module, and real HTTP runtime fault probes. Run targeted lifetime/cancellation cases on available Python3.12 and Python3.13; bind final source/probe/environment identities and retain every failure/cleanup result without full-suite or cross-platform overclaims.
 - [x] 3.2 After runtime proof, update source documentation/changelog and the central owning decision, retain durable reviewed/scanned evidence, and pass central documentation, decision, strict-spec and formatter gates.
-- [ ] 3.3 Complete correctness, test-evidence/spec-compliance and invariant-state review; exact-head CI and intended closing-set checks; source/control merge and fixture archive.
+- [x] 3.3 Complete correctness, test-evidence/spec-compliance and invariant-state review; exact-head CI and intended closing-set checks; source/control merge and fixture archive.
 
 ## Risk packs
 
