@@ -434,6 +434,7 @@ class BrowserHarness(Smoke):
             'CORS_ALLOW_ORIGIN': self.origin,
             'OCU_UI_PROXY_HARNESS': 'true',
             'OCU_UI_SVELTEKIT_OUT_DIR': str(self.scratch / 'svelte-kit'),
+            'OCU_UI_VITE_CACHE_DIR': str(self.scratch / 'vite-cache'),
             'UV_NO_SYNC': '1',
         }
         run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)

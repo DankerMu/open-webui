@@ -1,0 +1,78 @@
+{
+	"issue": 251,
+	"base": "7c54b3926f9ff5e3a711767f9a030305773be977",
+	"candidate": [
+		{
+			"path": "vite.config.ts",
+			"sha256": "24c15ab99f2d13d2aec42d31e5ea76ced504d9ce67072f27a5ddbce0e4d80da8"
+		},
+		{
+			"path": "scripts/verify-ui-ocu.py",
+			"sha256": "063074dca707338ef98d4283aa3436a9244f05e2273440c9a476ce05ce804988"
+		},
+		{
+			"path": "e2e/vite-cache.e2e.ts",
+			"sha256": "5313d0be34280aa13567881a0133cd85072e074dfe2e19fff2c6c40f05ab6c63"
+		},
+		{
+			"path": "docs/decisions/implemented/testing/2026-10-12-isolated-browser-optimizer-cache.md",
+			"sha256": "2dfcc4610e277bdfd7b8cc69ee5692f895ab6a9ec55489a34d5c1478348002c5"
+		}
+	],
+	"artifacts": [
+		{
+			"path": "native-diagnosis.tar.gz",
+			"bytes": 298238,
+			"sha256": "03c34414bdf9f6401bb094d9e2837b85d043c8f8132958d37a6cc4edfcad5b91"
+		},
+		{
+			"path": "optimizer-replay.tar.gz",
+			"bytes": 197941,
+			"sha256": "83b750ab8a5d488d7ce1d1b406a45ae187310d72303a6a7855759b1901099fec"
+		},
+		{
+			"path": "browser-verification.tar.gz",
+			"bytes": 338876,
+			"sha256": "a417dac0b73887734ada9558217f509421a79f767432172a85eb87a7b2ee0549"
+		},
+		{
+			"path": "static-verification.tar.gz",
+			"bytes": 386572,
+			"sha256": "79f57aa6ffe3d1e9ec97accae820e33d822b1c51a681523d2a6010b7464ad812"
+		},
+		{
+			"path": "cache-ownership.json.gz",
+			"bytes": 452838,
+			"sha256": "694aa014ba2b34e27240d07714b1b8594a9713cb1317b5b5b08f7c71e665c168",
+			"decoded_sha256": "b8cc2513d6a8722f7eb24ce626eed345a0edb70fb733b46e644183efbc17d850"
+		}
+	],
+	"screenshots": [
+		{
+			"path": "default-route-error.png",
+			"sha256": "c5738c08a7854ad5e58c52ef493edf8aa3fc2e51812fb6cfcbbbac57e2db776e"
+		},
+		{
+			"path": "reused-default-home.png",
+			"sha256": "c3d0bfaa108d7157ac182f64752f6480b3f40977e6902b48e8057b786612fdc0"
+		}
+	],
+	"proof": {
+		"original_failure": "The retained actual default-route500 trace requests the same table chunk with v=33b8c74b via bubble-menu and v=d8d9860a via table; the failing caller uses the shared registry URL v=0fb8ce43. Original served bodies/first registration were not retained; safe URL/error projections only are public.",
+		"causal_replay": "Installed real Vite/Tiptap/ProseMirror: cold A and B and cached A pass. B adds a direct tables entry and replaces the shared optimizer generation; invalidated reused A raises duplicate cell with first existed=false and second existed=true against the same observed registry. Semantic RED exits2 in0.75s. Only separate second-cache ownership changes in the counterfactual; all four stages pass, exit0 in0.74s. No library guard was suppressed.",
+		"negative_controls_and_origin": "Actual cold baseline2pass, isolated harness37pass then reused baseline2pass, Vitest499pass then baseline2pass, content-preserving HMR then baseline2pass. These are not universal-trigger proof. Shared launch/outdir structure predates153 at5830b25dc433416aece20996d6663116b8eb5b77; exact original triggering timing/introducing commit remains unestablished and is not attributed to Office editing.",
+		"configured_regression": "Actual production configuration consumption: before cutover baseline2pass/new3fail, including real duplicate cell after invalidation and missing/empty cache accepted incorrectly. After cutover all5pass. Initial __dirname ESM collection error is retained separately and not counted as semantic RED.",
+		"runtime": "Full make verify-ui exits0: baseline5pass and all37OCUpass includingA-T01/A-T10/Office. Post-harness make dev-status e2e uses the same backend15863/frontend15958 and passes5. Plain browser login/user dismissal of release notes renders the actual chat shell with errors[], no interception; screenshot inspected.",
+		"ownership": "Filesystem observer saw the real run cache at workspace-ui-i7qq9l02/vite-cache/deps/_metadata.json. All4842 default .vite inventory entries remain byte-identical across that isolated run; owned scratch/cache are removed. Complete before/after inventories and raw output are losslessly retained in cache-ownership.json.gz. This interval does not claim unrelated later compiler/unit commands never modify their own caches.",
+		"final_test_correction": "Scoped lint identified a throw inside test teardown finally. The correction preserves the primary failure and aggregates cleanup failures outside finally. TypeScript parsing proves the complete scenario try-body, imports/helpers and prerequisite cases are unchanged; this is not whole-program equivalence. Final e2e5pass, lint103pass, typecheck7777at7777ceiling, scopedPrettier and harnessRuffF pass on final inputs. Production bytes match the full runtime run.",
+		"static": "make test-frontend499passed across34files. Typecheck is an unchanged7777-error ratchet, not zero errors. Docs gate and44decision records pass; strict fixture validation passes. Coverage is not rerun for configuration/harness/test-only scope; no application module changed.",
+		"cleanup": "All default pairs started by diagnosis/verification were stopped; final make dev-stop reports frontend5173/backend8080 free. Reduced replay roots are removed; permanent fixture closes owned pages/servers and removes only its temp root, including failure paths.",
+		"evidence_quality": "Raw public evidence scans exit0/no findings. Authenticated original traces and failed-service private state are excluded. Probe /var canonicalization/port0 setup failure, invalid bogus-query discriminator, ESM setup failure, lint failure and corrected plain-smoke description are retained or explicitly separated from behavioral proof."
+	},
+	"limits": [
+		"Local macOSarm64, Node22.23.2/Python3.12.12; no LAN/deployment certification.",
+		"Independent generated-file watcher behavior is not changed. Missing-cache tests intentionally emit configuration-load errors in stderr; browser diagnostic assertions remain strict.",
+		"AGENTS lesson-note approval is intentionally separate under388; this change does not assume human acceptance of an AGENTS edit.",
+		"PR386 accidentally auto-closed251 via negated closing-keyword prose. GraphQL identified386 ascloser; body was corrected and251 reopened, public correction6125314100. Workflow guard follow-up389 is separate; current implementation is not deemed complete through that erroneous transition."
+	]
+}

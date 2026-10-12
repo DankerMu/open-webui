@@ -4,8 +4,15 @@ import { defineConfig } from 'vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 const backendTarget = process.env.WEBUI_BACKEND_URL || 'http://localhost:8080';
+const uiProxyHarness = process.env.OCU_UI_PROXY_HARNESS === 'true';
+const harnessCacheDir = uiProxyHarness ? process.env.OCU_UI_VITE_CACHE_DIR : undefined;
+if (uiProxyHarness && !harnessCacheDir) {
+	throw new Error('OCU_UI_VITE_CACHE_DIR is required for the isolated UI harness');
+}
 
 export default defineConfig({
+	// Keep the harness optimizer from replacing dependency generations used by a live default frontend.
+	...(uiProxyHarness ? { cacheDir: harnessCacheDir } : {}),
 	plugins: [
 		sveltekit(),
 		viteStaticCopy({
@@ -42,7 +49,7 @@ export default defineConfig({
 	},
 	server: {
 		// nginx's upstream Host is an alias; permit it only in the owned proxy browser harness.
-		...(process.env.OCU_UI_PROXY_HARNESS === 'true' ? { allowedHosts: ['ocu_proxy_webui'] } : {}),
+		...(uiProxyHarness ? { allowedHosts: ['ocu_proxy_webui'] } : {}),
 		proxy: {
 			'/api': {
 				target: backendTarget,
