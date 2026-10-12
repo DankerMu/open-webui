@@ -21,7 +21,7 @@
 		"accepted": "Canonical owning selection55unique nodeIDs; separate execution55passed3534deselected2dependencywarnings exit0. No skipped selected cases.",
 		"runtime": "Three actual pytest CLI startup-fault runs intentionally exit1; independent judge exits0 after observing identical top-level injected error, restored patches, no unstarted join, acquired-child reaping/pipe closure, explicit acquired-future release/result, and no rescue credited.",
 		"oracle_conservation": "Both async exercise ASTs and final4 state/assertion statements unchanged. Frozen regression source unchanged after RED.",
-		"identity": "All162source/test Python inputs match each accepted owning/runtime run. All45production Python files match pre-change baseline. Source commit contains only4declared test/docs files.",
+		"identity": "All162source/test Python inputs match each accepted owning/runtime run. All45production-directory inputs (44Python files plus requirements.txt) match pre-change baseline. The retained raw final-python-input-binding.json labels that 45-input count python_files; this is an inventory-label error, not a failed hash comparison. Source commit contains only4declared test/docs files.",
 		"static": "Changed2test files Ruff F pass. Central docgate,46decisionrecords and47strictspec/change items pass. Fixture table formatter correction retained; scoped final formatting checked before commit.",
 		"environment": "Python3.13.3,pytest9.1.1,pytest-asyncio1.4.0,FastAPI0.115.0,Starlette0.38.6,aiohttp3.14.5,httpx0.28.1,docker7.2.0,mcp1.27.0,PyYAML6.0.2;macOS26.6.2arm64"
 	},
