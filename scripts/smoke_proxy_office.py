@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from urllib.parse import quote
 
@@ -39,11 +40,20 @@ class OfficeJudge:
         destination = self.report / str(self.counter)
         destination.mkdir(mode=0o700, parents=True)
         options = ['--from-entry', str(entry), '--to-entry', str(entry)]
-        for name, value in self.variables.items():
-            options.extend(['--variable', f'{name}={value}'])
         before = len(observations(self.smoke.record))
         self.logger.info('Office %s %s %s', label, method, path)
-        run_hurl_files(self.smoke, [str(self.path)], destination, self.logger, options)
+        with tempfile.NamedTemporaryFile(
+            mode='w', encoding='utf-8', dir=self.smoke.scratch, prefix='office-', suffix='.vars'
+        ) as request_vars:
+            request_vars.write('\n'.join(f'{name}={value}' for name, value in self.variables.items()) + '\n')
+            request_vars.flush()
+            run_hurl_files(
+                self.smoke,
+                [str(self.path)],
+                destination,
+                self.logger,
+                [*options, '--variables-file', request_vars.name],
+            )
         arrivals = observations(self.smoke.record)[before:]
         if not allowed:
             if arrivals:
