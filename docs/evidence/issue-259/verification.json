@@ -1,0 +1,73 @@
+{
+	"issue": 259,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 105,
+	"source_head": "ad64f971f9ef9694208f54ee2cc8704384d666ec",
+	"source_base": "6d053fc66840c983a61bfa628bdac07041088b0a",
+	"control_base": "127e6aad94461c503c0a243e81e6e2e4fdf3cf28",
+	"candidate": {
+		"CHANGELOG.md": "5f3280a3e5cbd710227ae5e4e45a80039f3dcfcfc226f05b81f261b09da2f5f6",
+		"computer-use-server/app.py": "35e713e70571d103dcda60f5763935d731924c58d8a65fbf020682724b0a7ce9",
+		"computer-use-server/office/commands.py": "56fb0476fe7993d810e7cd1cf2b6a40197f3530d40434219835655d3da6a3d94",
+		"computer-use-server/office/restore.py": "4d8956ae301053b13f035eb7ca4b88ffe774b36c45956bcea6bc9f97e4dbd22a",
+		"computer-use-server/office/sessions.py": "0bcf9c50ba371c6b19e134ca868273f1dd0fcf4d7d610db26e9438afdb645dac",
+		"computer-use-server/office/sweep.py": "43280dca374178ef2a1804be2f3385eb9e8087f0185b07bb1b2de5c47a06bee9",
+		"tests/README.md": "a6df3f9943bdddb920a2c3661b7276c3b15df08eea203461849e1b9817690ff6",
+		"tests/orchestrator/test_lifecycle_lock.py": "ee834f4c0212e8976d1270e4956059ff77a134028024d5b44b375fb0592acb37",
+		"tests/orchestrator/test_office_callback_publish.py": "3e5be96c0b9b1e160cbe07a3c912d63197209ca20baa0ca97f20f42b6577bae5",
+		"tests/orchestrator/test_office_commands.py": "30371e675eda8f75da1628f4dfe5830ed4877a27ca930a68c3c6c46097f7d5f6",
+		"tests/orchestrator/test_office_publish_recovery.py": "582dad7d4590821f50e48395733ebc67495ef89b7ed754284d21da4b418b0b2c",
+		"tests/orchestrator/test_office_resolution.py": "161dc85e0028240e382d51e0175f379cb625e11d77f5ae2c0b8e61cdcae7dfdb",
+		"tests/orchestrator/test_office_restore.py": "7d497097a8c08da0cf46c965dbb3e8370f6dc1456364989fc8db9e3a6406f3b6",
+		"tests/orchestrator/test_office_sessions.py": "24c953c692476edcff1e50ab6d0a28b440b21b752a030e95295d70b967de9094",
+		"tests/orchestrator/test_office_sweep.py": "bbdf7875364f1724efa9ae3efea1361a9a71cd27408f1b5f991df4343de804a1",
+		"tests/orchestrator/test_outputs_endpoint.py": "d44e6dd37f1be08c08aafc7f30406896f2289a32dd9905f7acd4d87a99fedc09",
+		"computer-use-server/office/save_workers.py": "cc4b291dabf8d84c1db3ea83bf53a28ad3c24f7a343a3ad8e9183dfc12a01b10",
+		"tests/orchestrator/test_office_command_deadline.py": "975244f59dd4c80d0dd4d1fed05ed5df0485efd7bae7f1a2aa881c6543b2615e",
+		"tests/orchestrator/test_office_save_workers.py": "3b0fcdccb750bd5f40c5e95e27ff6ed0f1ba539d7354096114ff5be9a9a2af40"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 183632,
+		"sha256": "5fc6b0f86d9b0ec988395a7a1578a18a0190a07e57d552b8e11b681db16d9c97"
+	},
+	"verification": {
+		"primary": "53 passed,3566 deselected; new save_workers.py98.51% line coverage. Python3.12 owner13passed3606deselected.",
+		"consumers": "2137 exact unique nodes discovered/executed:2133passed4failed. Missing child lifespan repaired; entire resolution module266passed, exact same266nodes. Other1871passed consumers have unchanged captured inputs. Combined primary/consumer evidence covers2190unique nodes; not a fresh full-cohort or full-repository pass.",
+		"runtime": "Explicit-asyncio identical-oracle baseline4deadlineRED/candidate4GREEN, unchanged10s+150ms; lookup lock release before held DNS release; forcesave lock available while pending. One-default-DNS-worker baseline5/candidate5GREEN;5wrong-owner mutants rejected. Actual induced callback200 then save202, acquired-start cleanup and migrated childHTTP save proven. Separate actualauto-selecteduvloop5healthy callersGREEN.",
+		"failures_retained": "Shared-AnyIO callback cycle; acquired-start supervisor leak; first auto-backend probe600s timeout and90s diagnostic timeout; bounded stack reveals missing Python resolver entry plus masked teardown failure;4missing-child-owner failures. No rescue or missing prerequisite credited as success.",
+		"oracle_binding": "Frozen9deadline/healthy tests unchanged; original12save-owner assertions unchanged with additive acquired-start case. Four crash/state test bodies match baseline AST; exact inverse HTTP-child-only patch matches failed-run hash. All293baseline snapshot file identities verified; callback/download/control-plane production files match base.",
+		"lint": "Raw scoped Ruff F exit1,8 inherited findings; baseline144findings,0 introduced. All3new Python files clean; no rules/ignores changed.",
+		"central": "doc-gate exit0;47decision records conform;48strict spec/change items pass; scoped Markdown formatter passes.",
+		"environment": {
+			"python": "3.13.3 (main, Apr  8 2025, 13:54:08) [Clang 17.0.0 (clang-1700.0.13.3)]",
+			"packages": {
+				"pytest": "9.1.1",
+				"pytest-asyncio": "1.4.0",
+				"pytest-cov": "7.1.0",
+				"coverage": "7.16.2",
+				"fastapi": "0.115.0",
+				"starlette": "0.38.6",
+				"aiohttp": "3.14.5",
+				"httpx": "0.28.1",
+				"anyio": "4.14.2",
+				"uvicorn": "0.52.1",
+				"uvloop": "0.23.0",
+				"docker": "7.2.0",
+				"mcp": "1.27.0",
+				"PyYAML": "6.0.2"
+			}
+		}
+	},
+	"scan": {
+		"raw_exit": 1,
+		"findings": 665,
+		"classification": "Every generic-api-key finding is an independently recomputed file SHA256 identity. Full redacted report and per-finding matching input paths retained; no allowlist/rule changes."
+	},
+	"limits": [
+		"Local actualHTTP/poll with fixture Docker and recording command origins, not LAN/DocumentServer deployment certification.",
+		"Python-DNS/default-executor probes explicitly use asyncio; healthy uvloop evidence is not native DNS-stall or process-shutdown deadline evidence.",
+		"One standard lazy save executor and one idle supervisor per application lifetime; no new global capacity SLA or forced resolver termination.",
+		"Role-separated parent verification, not an OS-enforced verifier enclave."
+	]
+}
