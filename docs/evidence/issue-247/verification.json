@@ -64,5 +64,13 @@
 		"Hard links, arbitrary regular-inode replacement and trusted-root retargeting are outside this boundary.",
 		"Existing unlock-failure cleanup is separately tracked by https://github.com/DankerMu/open-webui/issues/382."
 	],
-	"review": "Expanded three-seat implementation review pending; evidence is local verification, not merge approval."
+	"review": "Expanded round 1: correctness, invariant-state and test-evidence+spec-compliance seats found no actionable defects or uncovered criteria at source 2a01cda01346b362054d388ce2a41af0e82dcd4b and control b899c951fb066366c273d01d42f6fa11421bb256. Parent adjudication clean; zero fix passes. The sweep-retirement note is covered by identical-owner direct cases. Raw final clean-scan provenance is retained in the review archive.",
+	"review_closure": {
+		"path": "lifecycle-lock-review.tar.gz",
+		"sha256": "bb6e8dcebe82b3749e3bed91fc16c98529ab36e3d785681f4626d255efa10b6c",
+		"bytes": 33021,
+		"files": 14,
+		"scan": "gitleaks exit 0; 156.10 KB scanned, no leaks. Command output and report retained.",
+		"provenance": "Includes complete reviewer reports, parent adjudication, both clean gate snapshots and the previously external final encoded-payload scan command/report. Two command input maps use the same byte-exact reversible encoding. Manifest-format output is hash-bound to the reviewed manifest. Source, fixture, decision and original proof archive are unchanged."
+	}
 }
