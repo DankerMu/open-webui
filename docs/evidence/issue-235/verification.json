@@ -1,0 +1,35 @@
+{
+	"issue": 235,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_base": "43fccbd9552933193721a4c8c30f857aec119046",
+	"verified_source_head": "5287bc589643f62f9cc932158a9b8aa3d0029ee6",
+	"control_base": "b7d9b67f4421cba975a11d8c311be0a2ca41f5f3",
+	"archive": {
+		"path": "http-origin-verification.tar.gz",
+		"sha256": "d3e78896b2864a3f5d1fd627f4b6409d7295976cf99ebcb5ce8f21fbffa9f662"
+	},
+	"candidate": {
+		"tests/orchestrator/_http_origin.py": "9128c100391c0e643b15a7aaade5a304c9cf22c0191c321f894225e853848d68",
+		"tests/orchestrator/test_http_origin.py": "3c668d71a3924c663d0381cff45bcdaf26f0b9c19bb7ecf39ecf074f8ad2f55c"
+	},
+	"proof": {
+		"original_defect": "Real HTTP stop returned with an active unfinished handler; probe finally released/joined it. Original-source attribution tracer failed because handler error never reached owner. Final tracer bytes replayed against original command-origin source fail for the same reason.",
+		"focused": "16 permanent lifetime, framing, error and startup tests pass on Python 3.12.12.",
+		"qualification": "Candidate: 16 pass; missing drain: 4 fail/12 pass; lost errors: 6 fail/10 pass; pre-blocking candidate: 1 framing failure; original command origin with final tracer: 1 failure; restored candidate: 16 pass. Owned clone removed; live inputs unchanged.",
+		"runtime": "Eight actual HTTP scenarios pass: success, timeout, admitted command cancellation, body failure, handler failure, combined failure, keep-alive and partial input. The same 20-fresh-process stability batch passes all 160 scenarios after accepted-socket normalization.",
+		"introduced_regression": "Darwin accepted descriptors inherited O_NONBLOCK despite gettimeout returning None. The first runtime probe and stability trial failed; the fragmented-request oracle observed premature responder entry. Normalization fixed it: both regressions pass and all eight observed accepted descriptors are blocking. All earlier failures are retained.",
+		"full_consumer_suite": "Python 3.13.3 with declared OCU/CI dependencies and no inherited proxies: 2563 passed, 5 existing live-CLI skips, 2 existing dependency warnings, 3 subtests passed; exit 0 in 556.83s pytest/566.28s wrapper. No socketserver banner or unhandled-thread warning in complete captured output.",
+		"environment_repairs": "The wrong WebUI environment first lacked the docker SDK (28 collection errors). The declared source environment then exposed 38 identical missing-socksio errors from inherited proxy routing. One failed node and the complete suite pass with only test-process proxy settings normalized; no dependency, test or source-policy change.",
+		"static": "Raw Ruff F exits 1 with 211 diagnostics; exact per-file comparison is 211 at base and candidate, with zero added diagnostics. Both new files have zero diagnostics. Docs, 43 decision records, strict validation and scoped Markdown format checks exit 0.",
+		"secret_scan": "Initial/final input scans exit 1 with 44/46 generic-api-key matches; all individually verified as the SHA256 of unchanged public test_office_tokens.py. The final scan record's two appended digest entries are separately verified. No zero-match claim, threshold change or suppression."
+	},
+	"scope": "One test-local lifetime implementation; four Office origin families and required held consumers. Production/config/workflow files unchanged. New source helper, tests and source changelog; central fixture and testing decision.",
+	"limits": [
+		"macOS arm64 proof, no Linux or deployment certification.",
+		"Uncooperative arbitrary threads cannot be forcibly killed; in-scope holds/delays cooperate and bad controls have independent emergency cleanup.",
+		"Verification is parent-owned but not in an OS-isolated enclave.",
+		"Non-Office source fixtures are separately tracked in issue377, not added to the original queue.",
+		"Historical PR50 trailing banner remains unattributed."
+	],
+	"review": "Expanded fixture passed before implementation; source/control-plane cross-review pending."
+}
