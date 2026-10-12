@@ -225,6 +225,90 @@ describe('workspace file tree presentation', () => {
 		}
 	});
 
+	it('updates the row glyph in place when a refresh changes the selected file kind', async () => {
+		const targetId = '7d4d2678-83c0-42f2-95a1-f8cfb0ef9043';
+		const reference: WorkspaceFile = {
+			...file('reference.html', 'c2e6fe57-369b-4991-9d6b-f0bd848145f5'),
+			type: 'html',
+			mime: 'text/html',
+			size: 256
+		};
+		let servedListing = listing([
+			{ ...file('notes.txt', targetId), type: 'text', mime: 'text/plain', size: 256 },
+			reference
+		]);
+		scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json({ ...describeBody, revision: servedListing.revision })
+					: json(servedListing);
+
+		await open();
+		await ready('notes.txt');
+		expect(document.querySelector('[aria-label^="Folder "]')).toBeNull();
+		expect(
+			listItems().map((item) => item.querySelector('button')?.getAttribute('aria-label'))
+		).toEqual(['notes.txt', 'reference.html']);
+		const initialRows = listItems();
+		const target = fileButton('notes.txt');
+		const control = fileButton('reference.html');
+		target.click();
+		await vi.waitFor(() => {
+			expect(get(ocuWorkspaces)[chat].selectedFileId).toBe(targetId);
+			expect(target.getAttribute('aria-pressed')).toBe('true');
+		});
+		expect(target.querySelector('[data-file-kind]')?.getAttribute('data-file-kind')).toBe(
+			'document'
+		);
+		expect(control.querySelector('[data-file-kind]')?.getAttribute('data-file-kind')).toBe('web');
+		const initialSvg = target.querySelector('[data-file-kind] svg');
+		const controlSvg = control.querySelector('[data-file-kind] svg');
+		expect(initialSvg).not.toBeNull();
+		expect(controlSvg).not.toBeNull();
+		const initialGlyph = initialSvg!.innerHTML;
+		const controlGlyph = controlSvg!.innerHTML;
+		expect(initialGlyph).not.toBe(controlGlyph);
+		target.focus();
+		expect(document.activeElement).toBe(target);
+
+		servedListing = listing(
+			[
+				{ ...file('notes.html', targetId, 2), type: 'html', mime: 'text/html', size: 256 },
+				reference
+			],
+			null,
+			2
+		);
+		await controller.refresh();
+		await vi.waitFor(() => {
+			const refreshed = fileButton('notes.html');
+			expect(refreshed.querySelector('[data-file-kind]')?.getAttribute('data-file-kind')).toBe(
+				'web'
+			);
+			expect(refreshed.textContent).toContain('notes.html');
+		});
+
+		expect(fileButton('notes.html')).toBe(target);
+		expect(target.getAttribute('aria-label')).toBe('notes.html');
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe(targetId);
+		expect(target.getAttribute('aria-pressed')).toBe('true');
+		expect(document.activeElement).toBe(target);
+		expect(fileButton('reference.html')).toBe(control);
+		expect(control.getAttribute('aria-pressed')).toBe('false');
+		expect(listItems()).toEqual(initialRows);
+		expect(
+			listItems().map((item) => item.querySelector('button')?.getAttribute('aria-label'))
+		).toEqual(['notes.html', 'reference.html']);
+		const refreshedSvg = target.querySelector('[data-file-kind] svg');
+		const unchangedControlSvg = control.querySelector('[data-file-kind] svg');
+		expect(refreshedSvg).not.toBeNull();
+		expect(unchangedControlSvg).not.toBeNull();
+		expect(unchangedControlSvg!.innerHTML).toBe(controlGlyph);
+		expect(refreshedSvg!.innerHTML).toBe(unchangedControlSvg!.innerHTML);
+		expect(refreshedSvg!.innerHTML).not.toBe(initialGlyph);
+	});
+
 	it.each(['constructor', 'toString', '__proto__'] as const)(
 		'starts %s folders expanded and toggles them without hiding other rows',
 		async (folder) => {
