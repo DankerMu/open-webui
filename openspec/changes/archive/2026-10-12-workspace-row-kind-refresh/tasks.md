@@ -14,7 +14,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 After runtime proof update the existing file-tree decision, retain producer/RED/GREEN/browser evidence, run docs/decisions/strict/scoped formatting, complete expanded cross-review and authorized exact-head local CI, merge and archive.
+- [x] 3.1 After runtime proof update the existing file-tree decision, retain producer/RED/GREEN/browser evidence, run docs/decisions/strict/scoped formatting, complete expanded cross-review and authorized exact-head local CI, merge and archive.
 
 ## Risk packs
 
