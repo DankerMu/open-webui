@@ -29,4 +29,4 @@ A column of bare names hides directory context, kind and size, and selected iden
 
 ## Consequences
 
-The nested stub scenario is the only listing that advertises nested bytes; HTTP proof must fetch those URLs rather than invent listing fiction. Browser evidence for headers, indentation, collapse, selection styling and list geometry lives with the nested scenario. TSV classification remains #239.
+The nested stub scenario is the only listing that advertises nested bytes; HTTP proof must fetch those URLs rather than invent listing fiction. Browser evidence for headers, indentation, collapse, selection styling and list geometry lives with the nested scenario. TSV metadata uses the canonical classifier: the `text/tab-separated-values` MIME and broker `spreadsheet` type map to `sheet`, with recognized MIME taking precedence. This decorative classification grants no Office preview or edit capability.

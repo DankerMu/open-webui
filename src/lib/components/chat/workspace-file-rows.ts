@@ -48,6 +48,7 @@ const typeKinds: Record<string, WorkspaceFileKind> = {
 	markdown: 'document',
 	xlsx: 'sheet',
 	csv: 'sheet',
+	spreadsheet: 'sheet',
 	pptx: 'slides',
 	json: 'code',
 	code: 'code'
@@ -65,6 +66,7 @@ const mimeKinds: Record<string, WorkspaceFileKind> = {
 	'text/markdown': 'document',
 	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'sheet',
 	'text/csv': 'sheet',
+	'text/tab-separated-values': 'sheet',
 	'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'slides',
 	'application/json': 'code',
 	'text/javascript': 'code',
