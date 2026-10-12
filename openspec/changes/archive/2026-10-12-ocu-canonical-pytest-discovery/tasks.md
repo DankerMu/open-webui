@@ -9,7 +9,7 @@
 ## 2. Documentation and delivery
 
 - [x] 2.1 Add the canonical root/filter guidance to the existing OCU test README, retaining import mode and integration exclusion. Explain exact node-ID comparison and collection-versus-execution claims; no permanent runner or test/source changes.
-- [ ] 2.2 Retain bounded credential-safe evidence and relevant doc checks; independently review the invocation and evidence, publish exact-head CI/merge statements, merge source/control changes, close the issue and archive the canonical requirement.
+- [x] 2.2 Retain bounded credential-safe evidence and relevant doc checks; independently review the invocation and evidence, publish exact-head CI/merge statements, merge source/control changes, close the issue and archive the canonical requirement.
 
 ## Risk packs
 
