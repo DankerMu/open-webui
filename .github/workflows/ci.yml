@@ -6,6 +6,8 @@ name: CI
 
 on:
   pull_request:
+    # Exemption label changes must reevaluate CI without a new commit.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 

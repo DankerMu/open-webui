@@ -1,0 +1,54 @@
+{
+	"issue": 262,
+	"repository": "DankerMu/open-webui",
+	"base": "563442401de0b57b79119c2e2b5a4b97b192f703",
+	"candidate": {
+		".github/workflows/ci.yml": "d6fc2aaf9fd8e264614e729e57130a39d318f7acbbb22ea341ae061cf167c514"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 28672,
+		"sha256": "b1353569f1811007532e6bb7ead4279b157fcc3edeb35aa423794563105decbd"
+	},
+	"verification": {
+		"tracer": "Baseline semantic RED: oversized opened guard refuses, same-head labeled event not subscribed. Identical tracer candidate GREEN.",
+		"matrix": "45 rows GREEN; actual extracted lockfile/diff/aggregate shell programs execute over isolated real Git fixtures. Three defaults, same-head exemption add/remove, both lockfile pairs, 400/401 boundary, existing path exclusions, main-only push, seven required jobs x failure/cancelled/skipped with both labels.",
+		"qualification": "Missing labeled and unlabeled rejected for absent fresh evaluation; dropped layer1 dependency produces actual aggregate false-green for failure/cancelled/skipped and is rejected. Unchanged 45-row oracle restoration GREEN.",
+		"preservation": "All workflow semantics except intended pull_request activity subscription equal frozen baseline; three shell programs and constraints bytes unchanged.",
+		"environment": {
+			"node": "v22.23.2",
+			"git": "git version 2.49.0",
+			"bash": "GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)",
+			"yaml_version": "2.8.3",
+			"python": "3.12.12 (main, Dec  9 2025, 19:05:33) [Clang 21.1.4 ]",
+			"os": "macOS-26.6.2-arm64-arm-64bit"
+		},
+		"fixture": "Independent PASS and strict validation exit0."
+	},
+	"scan": {
+		"argv": [
+			"/opt/homebrew/Cellar/gitleaks/8.30.1/bin/gitleaks",
+			"dir",
+			"/tmp/issue-262-evidence",
+			"--no-banner",
+			"--report-format",
+			"json",
+			"--report-path",
+			"/tmp/issue-262-delivery/raw-scan.json"
+		],
+		"exit": 0,
+		"version": "8.30.1",
+		"scanner_sha256": "f414bc2fb952be6c9072b75cb411e3368614ef4b16d48dbd9ad238034afd2302",
+		"config": "built-in default; no GITLEAKS_CONFIG or GITLEAKS_CONFIG_TOML overrides",
+		"override_names_present": [],
+		"findings": 0
+	},
+	"limits": [
+		"Bounded documented platform-subscription/expression model, not GitHub-hosted event dispatch or a full Actions runner.",
+		"Checkout success and unrelated-job results are controlled inputs; those CI jobs were not executed by the replay.",
+		"No actionlint installed. YAML1.2 parser and exact semantic preservation provide configuration evidence.",
+		"All label events may rerun the whole workflow and cancel same-ref work under unchanged concurrency; no synchronous live-label ordering guarantee.",
+		"Role-separated parent verifier, not OS-enforced enclave.",
+		"Existing whole-file deletion undercount is tracked separately in issue401; guard program remains unchanged."
+	]
+}
