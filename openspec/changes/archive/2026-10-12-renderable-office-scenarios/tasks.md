@@ -15,7 +15,7 @@
 ## 3. Delivery
 
 - [x] 3.1 After runtime proof, update the owning fixture decision and historical evidence qualification, retain scanned bound evidence, and pass relevant Python/TypeScript formatting/lint plus docs/decision/strict-spec checks without unrelated full application suites.
-- [ ] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state review, exact-head authorized CI and exact intended closing-set gates; merge and archive the fulfilled contract.
+- [x] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state review, exact-head authorized CI and exact intended closing-set gates; merge and archive the fulfilled contract.
 
 ## Risk packs
 
