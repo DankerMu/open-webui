@@ -1,0 +1,72 @@
+{
+	"central-doc-gate": {
+		"command": ["make", "doc-gate"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "bash scripts/doc-gate.sh\n--- 1. AGENTS.md make targets exist\n--- 2. Makefile script references exist\n--- 3. markdown relative links resolve\ndoc-gate: AGENTS.md, Makefile and docs links conform.\n",
+		"stderr": ""
+	},
+	"central-decisions": {
+		"command": ["make", "decisions-verify"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "python3 scripts/decisions-verify.py\ndecisions-verify: 48 record(s) checked, all conform.\n",
+		"stderr": ""
+	},
+	"central-specs": {
+		"command": ["openspec", "validate", "--all", "--strict", "--no-interactive"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "\u2713 spec/ci-exemption-label-events\n\u2713 spec/frontend-test-discovery\n\u2713 spec/ocu-auth-endpoint\n\u2713 spec/ocu-auth-guard\n\u2713 spec/ocu-auth-smoke\n\u2713 spec/ocu-backup-rollback\n\u2713 spec/ocu-browser-cli\n\u2713 spec/ocu-callback-body-budget\n\u2713 spec/ocu-callback-download-evidence\n\u2713 spec/ocu-chat-state\n\u2713 spec/ocu-client\n\u2713 spec/ocu-collision-names\n\u2713 spec/ocu-command-deadline\n\u2713 spec/ocu-compose-port-matrix\n\u2713 spec/ocu-contention-test-lifetime\n\u2713 spec/ocu-file-headers\n\u2713 spec/ocu-filter-auth\n\u2713 spec/ocu-http-test-origins\n\u2713 spec/ocu-lifecycle\n\u2713 spec/ocu-link-recogniser\n\u2713 spec/ocu-mcp-discovery\n\u2713 change/ocu-missing-root-retirement\n\u2713 spec/ocu-network-isolation\n\u2713 change/ocu-office-editing\n\u2713 spec/ocu-offline-image-delivery\n\u2713 spec/ocu-output-archives\n\u2713 spec/ocu-outputs-broker\n\u2713 spec/ocu-outputs-endpoint\n\u2713 spec/ocu-outputs-test-isolation\n\u2713 spec/ocu-overlay-smoke\n\u2713 spec/ocu-preview-spa\n\u2713 spec/ocu-proxy-smoke\n\u2713 spec/ocu-public-prefix\n\u2713 spec/ocu-pyodide-materials\n\u2713 spec/ocu-pytest-discovery\n\u2713 change/ocu-resource-grants\n\u2713 spec/ocu-retention-env\n\u2713 spec/ocu-reverse-proxy\n\u2713 spec/ocu-sandbox-dns\n\u2713 spec/ocu-sandbox-egress-guard\n\u2713 spec/ocu-stub\n\u2713 spec/ocu-tool-auth\n\u2713 spec/ocu-workspace-controls\n\u2713 spec/ocu-workspace-describe-smoke\n\u2713 spec/ocu-workspace-files\n\u2713 spec/ocu-workspace-hint\n\u2713 spec/ocu-workspace-routes\n\u2713 spec/ocu-workspace-store\n\u2713 spec/ocu-ws-recheck\n\u2713 spec/source-format-boundary\nTotals: 50 passed, 0 failed (50 items)\n",
+		"stderr": "  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[8]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[7]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[6]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[7]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[8]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[6]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[8]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[9]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[11]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[15]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[16]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[17]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[5]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[5]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[6]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[5]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[6]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[7]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[9]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[10]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[0]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[1]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[4]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[2]: Requirement text is very long (>500 characters). Consider breaking it down.\n  \u2139 [INFO] requirements[3]: Requirement text is very long (>500 characters). Consider breaking it down.\n"
+	},
+	"central-format-check": {
+		"command": [
+			"/Users/danker/.nvm/versions/node/v22.23.2/bin/node",
+			"node_modules/prettier/bin/prettier.cjs",
+			"--check",
+			"docs/decisions/implemented/architecture/2026-10-05-ocu-office-publish-fence.md",
+			"docs/evidence/issue-276/verification.json",
+			"openspec/changes/ocu-missing-root-retirement/README.md",
+			"openspec/changes/ocu-missing-root-retirement/design.md",
+			"openspec/changes/ocu-missing-root-retirement/proposal.md",
+			"openspec/changes/ocu-missing-root-retirement/specs/ocu-missing-root-retirement/spec.md",
+			"openspec/changes/ocu-missing-root-retirement/tasks.md"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "Checking formatting...\nAll matched files use Prettier code style!\n",
+		"stderr": "[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n[warn] Ignored unknown option { pluginSearchDirs: [\".\"] }.\n"
+	},
+	"source-ci": {
+		"command": [
+			"gh",
+			"run",
+			"view",
+			"38341644244",
+			"--repo",
+			"DankerMu/open-computer-use",
+			"--json",
+			"headSha,conclusion,jobs,url"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "{\"conclusion\":\"success\",\"headSha\":\"3a92b0a5ed7cb2db3544307807ac60282c59e7b1\",\"jobs\":[{\"completedAt\":\"2026-10-13T03:25:40Z\",\"conclusion\":\"success\",\"databaseId\":115113730898,\"name\":\"identity-email detector\",\"startedAt\":\"2026-10-13T03:25:36Z\",\"status\":\"completed\",\"steps\":[{\"completedAt\":\"2026-10-13T03:25:37Z\",\"conclusion\":\"success\",\"name\":\"Set up job\",\"number\":1,\"startedAt\":\"2026-10-13T03:25:36Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-13T03:25:38Z\",\"conclusion\":\"success\",\"name\":\"Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\",\"number\":2,\"startedAt\":\"2026-10-13T03:25:37Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-13T03:25:38Z\",\"conclusion\":\"success\",\"name\":\"Check tracked content for the banned personal address\",\"number\":3,\"startedAt\":\"2026-10-13T03:25:38Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-13T03:25:39Z\",\"conclusion\":\"success\",\"name\":\"Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\",\"number\":6,\"startedAt\":\"2026-10-13T03:25:38Z\",\"status\":\"completed\"},{\"completedAt\":\"2026-10-13T03:25:39Z\",\"conclusion\":\"success\",\"name\":\"Complete job\",\"number\":7,\"startedAt\":\"2026-10-13T03:25:39Z\",\"status\":\"completed\"}],\"url\":\"https://github.com/DankerMu/open-computer-use/actions/runs/38341644244/job/115113730898\"}],\"url\":\"https://github.com/DankerMu/open-computer-use/actions/runs/38341644244\"}\n",
+		"stderr": ""
+	},
+	"source-whitespace-final": {
+		"command": [
+			"git",
+			"diff",
+			"--check",
+			"--",
+			"computer-use-server/office/save_as.py",
+			"tests/orchestrator/test_office_save_as.py",
+			"CHANGELOG.md"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-computer-use",
+		"exit": 0,
+		"stdout": "",
+		"stderr": ""
+	}
+}
