@@ -46,3 +46,11 @@ Blast radius: ordinary-file method compatibility, descriptor ownership and the s
 Selected risk packs: public API, path safety, auth boundary, shared-state ordering, resource limits, legacy compatibility, error handling, documentation.
 Evidence floor: Python3.12 file-header TestClient RED/GREEN, descriptor-response ownership and shared-reader regressions, actual HTTP GET/HEAD parity and source-scoped hygiene.
 Reuse the descriptor acquisition and native-cancellation ownership from the completed read-boundary repair; do not introduce another reader or archive implementation.
+
+## Preview consumer slice fixture
+
+Issue type: feature. Fixture level: expanded; agrees with the suggested level.
+Blast radius: generated HTML resource resolution, canonical navigation and opaque-origin isolation in the trusted preview.
+Selected risk packs: public consumer contract, auth/secrets, input handling, shared-state ordering, legacy compatibility, error handling, documentation.
+Evidence floor: the existing real-SPA preview browser harness with a real redirect, observable relative resources, canonical link/state controls, opaque-origin probes and screenshots, preserving its Office/Drawio and unprefixed checks.
+Resource bases and navigation identities are separate: the final response supplies the former, the original canonical file URL supplies the latter. No gateway activation, grant implementation, iframe permission change or Markdown policy change belongs to this slice.

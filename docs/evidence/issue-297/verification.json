@@ -1,0 +1,288 @@
+{
+	"issue": 297,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 109,
+	"source_head": "5999ae5f45913923efda2dc059a5889ede4336c8",
+	"source_base": "af18fed0c9f832c2e2e4b8d8bd0221bde4c86d17",
+	"control_base": "8df2d6dbed556427d8cb46e349a369f5f8641d53",
+	"candidate": {
+		"computer-use-server/static/preview.js": "9fc7e5c99ae0ef2ef38e9f1e8dd7d26fdba1078654b803e7008d537f8fa92cfa",
+		"tests/orchestrator/preview_embedding_browser.cjs": "f59d76058b0db681473b24509dbbe4e6d9bd206327adbbe6a1db3f9cc474bcaa",
+		"CHANGELOG.md": "215a95141ac1d59a4c0285bd7902628d6713fcbf59ac4293b5926f1268eff377"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 104580,
+		"sha256": "c8083b08c00babcd08ad95b916f23aa90d96cca427fc86394e6d42ecb24ad3e7",
+		"contents": "AllnonPNGrawrecords,baseline/tracerinputs,protectedfaultinjector,served-byte journals and486screenshotidentityinventory. Selected final screenshots separatelyretained."
+	},
+	"screenshots": [
+		{
+			"path": "screenshots/html-direct--ocu-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-direct--ocu-resources.png",
+			"sha256": "0960b3d93057b62b1df17b5ddaf69ed774dce892bd23cb9c5cc4f21b4fb58ca7"
+		},
+		{
+			"path": "screenshots/html-direct--tools-ocu-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-direct--tools-ocu-resources.png",
+			"sha256": "7d313b0567217f62e19c460edd1cff986fda43e0253b04abb361db35f1dfaf01"
+		},
+		{
+			"path": "screenshots/html-direct-root-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-direct-root-resources.png",
+			"sha256": "4502f3c5bf04ac4227e7324c72683d15b8bf28c16c33e861a1b15cf989a86ba5"
+		},
+		{
+			"path": "screenshots/html-fallback.png",
+			"sha256": "3c95305244ce6cb96d45de056777227a8385f2ff50ba8d47f463f0ac2968ee37"
+		},
+		{
+			"path": "screenshots/html-redirect--ocu-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-redirect--ocu-resources.png",
+			"sha256": "f3cf89a2a7389af288ffa1e6281d5eb7112f01cf5b8893a92b82e16dd42149c3"
+		},
+		{
+			"path": "screenshots/html-redirect--tools-ocu-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-redirect--tools-ocu-resources.png",
+			"sha256": "879307a0ad90f3de28e7f2b415386b4c6f5b54e3974637b0dd3dfc8d5e3191d2"
+		},
+		{
+			"path": "screenshots/html-redirect-root-canonical-neighbor.png",
+			"sha256": "f2ab3ff4ae4caf11ea0e7f10d2df1897e62a11d6627f101594fc3f52f0815ed1"
+		},
+		{
+			"path": "screenshots/html-redirect-root-resources.png",
+			"sha256": "54e574a3f5620cebd910cf5c2423349d34c25ea563ce788f2f2427f93173ef7b"
+		},
+		{
+			"path": "screenshots/html-superseded.png",
+			"sha256": "3dece90b93b6afaf2ae18f405a65e1aabc9835fdbd167a2fa0e13c272eade17e"
+		},
+		{
+			"path": "screenshots/standalone-sanitized-office.png",
+			"sha256": "328c954fae54bfa0b675115755735d13de644f73a46d224eeab531409741c539"
+		},
+		{
+			"path": "screenshots/standalone-drawio.png",
+			"sha256": "393ffe2ad7210e5ebdc26781c7fc2505eeb6a7897e32a2d3e9e30666fed8e044"
+		}
+	],
+	"environment": {
+		"python": "3.12.12 (main, Dec  9 2025, 19:05:33) [Clang 21.1.4 ]",
+		"platform": "macOS-26.6.2-arm64-arm-64bit",
+		"packages": {
+			"pytest": "9.1.1",
+			"pytest-asyncio": "1.4.0",
+			"fastapi": "0.115.0",
+			"starlette": "0.38.6",
+			"httpx": "0.28.1",
+			"anyio": "4.15.1"
+		},
+		"node": "v22.23.2",
+		"playwright": "1.62.1",
+		"entry": "/Users/danker/.npm/_npx/db89d7302a373f10/node_modules/playwright/index.js",
+		"chromium": "/Users/danker/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+	},
+	"verification": {
+		"primary": "Soleexistingpreview_embedding_browser.cjs completeharness, nofilter/skips; baselinepass, twoverticalsemanticRED/GREENtracers, expandedmatrixpass, fourcontrolledfaultsrejected, restoredfullpass. Final143listingrequests isactivity, nottestcount.",
+		"cases": [
+			{
+				"prefix": "",
+				"mode": "redirect",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "",
+				"mode": "direct",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/ocu",
+				"mode": "redirect",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/ocu",
+				"mode": "direct",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/tools/ocu",
+				"mode": "redirect",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/tools/ocu",
+				"mode": "direct",
+				"color": "rgb(17, 85, 153)",
+				"dimensions": {
+					"width": 2,
+					"height": 2
+				},
+				"script": "Classic script from resource directory",
+				"data": "Relative JSON from resource directory",
+				"canonicalMessages": ["fragment", "external", "neighbor"],
+				"malformed": "no navigation",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"isolation": {
+					"origin": "null",
+					"denials": {
+						"parentDom": "SecurityError",
+						"parentStorage": "SecurityError",
+						"ownStorage": "SecurityError"
+					}
+				},
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/ocu",
+				"mode": "superseded",
+				"selected": "neighbor.txt",
+				"download": "canonical",
+				"unexpectedErrors": 0
+			},
+			{
+				"prefix": "/ocu",
+				"mode": "fallback",
+				"selected": "reports/space \"'&<img id=\"html-injected-element\" onerror=\"window.__htmlUnexpectedEffect=true\" src=x>.html",
+				"download": "canonical",
+				"unexpectedErrors": 0
+			}
+		],
+		"preservation": "Alloriginalharnessassertionlines retained; Office/Drawio/Markdown/runtime/uploadchecks pass. Onlypreview.jschangedamong314fingerprintedservedassets.",
+		"red_resource": "Actualwrong-destinationCSS404 atpreviewparent; browsererrorassertion failedbeforecomputedcolorassert.",
+		"red_navigation": "Actualsource-boundiframe message carriedtransientpathinsteadofcanonicalneighborURL.",
+		"qualification": {
+			"canonical_resource_base": "Wrongcanonicalassets200 andvisibleWrongcanonicalscript/JSON; expectedscriptmarkerwait rejects.",
+			"transient_navigation": "ExactfragmentmessageURLdiff rejects.",
+			"same_origin_sandbox": "ActualparentDOM/storage accessesallowed andnon-nullorigin; isolationassertion rejects.",
+			"replacement_tokens": "Dollarreplacementcorruptsfinalbase intoencodedhead path; resources404 andexpectedscriptmarkerwait rejects.",
+			"restoration": "Originalsourcebytesserved; full8caseHTMLmatrix andretainedharness pass,zero unexpectederrors."
+		},
+		"hygiene": "NodecheckbothJSfiles,gitdiffwhitespace,sourceprecommit,controldocs49decisions,strictsharedfixture pass. No configuredsourceJSformatter/linter claim.",
+		"scan": {
+			"raw_exit": 1,
+			"findings": 1,
+			"credential_findings": 0,
+			"adjudication": "ExactpublicmxKeyHandler.js sourceSHA256 underKey-namedmanifestentry."
+		}
+	},
+	"limits": [
+		"Consumerfixture usesrealbrowser/productionpreviewHTML butsyntheticresource/CORS routes; notrealgateway,grantcryptography,Linux/LAN/deploymentcertification.",
+		"Sharedresource-grantsfixture/proposeddecisionremainactiveuntil300; group3only complete.",
+		"Role-separatedparentverification, notOS-enforcedenclave.",
+		"Imageisexisting2x2fixture; decodedimensionassertionownsproof, screenshotshowsatinydot. Selectorclosingtransitioncanremainvisibleinimmediatecapture.",
+		"MalformedURLlinkisignoredwithoutpageerror; no newfragment-scrollbehavior orroot-absolute/externalresourcerewriting."
+	]
+}
