@@ -67,7 +67,7 @@ def test_office_credentials_remain_private_through_retained_and_anonymous_reques
         smoke.foreign_cookie.removeprefix('token='),
     )
 
-    def launch(argv, *, cwd, text, capture_output, env):
+    def launch(argv, **_kwargs):
         # Check exposure before inspecting the private-file transport so RED names the leak.
         if any(secret in argument for secret in credentials for argument in argv):
             raise AssertionError('Office child argv exposed a managed credential')
@@ -127,7 +127,7 @@ def test_office_request_file_is_removed_without_swallowing_child_failure(office,
     elif failure == 'interruption':
         child_error = KeyboardInterrupt('synthetic Office interruption')
 
-    def launch(argv, *, cwd, text, capture_output, env):
+    def launch(argv, **_kwargs):
         variable_files = [Path(argv[index + 1]) for index, arg in enumerate(argv) if arg == '--variables-file']
         dedicated_files = [path for path in variable_files if path != smoke.hurl_vars]
         assert len(dedicated_files) == 1

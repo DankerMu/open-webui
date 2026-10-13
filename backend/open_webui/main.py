@@ -162,6 +162,7 @@ from open_webui.routers import (
     models,
     notes,
     notifications,
+    ocu_resource_grants,
     ocu_workspaces,
     ollama,
     openai,
@@ -821,7 +822,6 @@ app.mount('/ws', socket_app)
 app.include_router(ollama.router, prefix='/ollama', tags=['ollama'])
 app.include_router(openai.router, prefix='/openai', tags=['openai'])
 
-
 app.include_router(pipelines.router, prefix='/api/v1/pipelines', tags=['pipelines'])
 app.include_router(tasks.router, prefix='/api/v1/tasks', tags=['tasks'])
 app.include_router(images.router, prefix='/api/v1/images', tags=['images'])
@@ -833,7 +833,6 @@ app.include_router(configs.router, prefix='/api/v1/configs', tags=['configs'])
 
 app.include_router(auths.router, prefix='/api/v1/auths', tags=['auths'])
 app.include_router(users.router, prefix='/api/v1/users', tags=['users'])
-
 
 app.include_router(channels.router, prefix='/api/v1/channels', tags=['channels'])
 app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
@@ -859,6 +858,7 @@ app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminal
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
 app.include_router(ocu_workspaces.router, prefix='/api/v1/ocu', tags=['ocu'])
+app.include_router(ocu_resource_grants.router, prefix='/api/v1/ocu/resource-grants', tags=['ocu'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:

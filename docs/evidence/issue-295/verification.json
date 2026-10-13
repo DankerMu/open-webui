@@ -1,0 +1,188 @@
+{
+	"issue": 295,
+	"mode": "Construction",
+	"profile": "Critical",
+	"scope": "Shared resource-grant change group1; no gateway/browser/descriptor delivery or fixture archive",
+	"base": "80767f3af568241967a524c58f405d191ceb9706",
+	"artifact": {
+		"path": "verification.tar.xz",
+		"sha256": "2f03b58e03dad2caf68a250e64fa6f8cec9c7439d5bff821f675b6cc8804a9b5",
+		"bytes": 84456,
+		"verified_members": 107
+	},
+	"environment": {
+		"python": "3.12.12 (main, Dec  9 2025, 19:05:33) [Clang 21.1.4 ]",
+		"platform": "macOS-26.6.2-arm64-arm-64bit",
+		"packages": {
+			"fastapi": "0.136.3",
+			"starlette": "1.3.1",
+			"PyJWT": "2.13.0",
+			"pytest": "8.4.2",
+			"pytest-cov": "7.1.0",
+			"coverage": "7.16.1",
+			"ruff": "0.15.18",
+			"vulture": "2.16",
+			"httpx": "0.28.1"
+		}
+	},
+	"evidence": {
+		"semantic_red": [
+			"tracer-red.json: issuer404 instead of302",
+			"baseline-http-red.json: actualuvicorn issuer404",
+			"database-refusal-red.json: two observable storage failures500 instead of503"
+		],
+		"primary_route_suite": {
+			"discovered": 265,
+			"executed": 265,
+			"grant_cases": 248,
+			"unchanged_auth_cases": 17,
+			"skipped": 0,
+			"command": "make test-backend PYTEST_ADDOPTS='-k \"ocu_resource_grants or ocu_auth\"'"
+		},
+		"final_consumer_suite": {
+			"passed": 269,
+			"deselected": 123,
+			"skipped": 0,
+			"includes": "all265 authorization cases plus4 Office credential/cleanup regressions after mechanical fixes"
+		},
+		"coverage_gate": {
+			"backend_passed": 392,
+			"frontend_passed": 499,
+			"frontend_files": 34,
+			"router_covered_lines": 217,
+			"router_statements": 224,
+			"router_percent": 96.875,
+			"note": "Full gate preceded final test-helper/callback declaration-only repairs. Coverage subject router is byte-identical; all affected269 cases passed afterward. Modified upstream main remains advisory."
+		},
+		"runtime": [
+			"make smoke:3 Hurlfiles/11requests,0failures",
+			"actualuvicorn protectedgrantprobe:16namedcases plusissuer/credentialconfusion assertions",
+			"make smoke-stub:ordinaryupload/header/pagination andOfficeDOCXfixture paths passed;asset-mode explicitlyskipped becauseplaceholdercontract, notbrowseracceptance",
+			"owneddevservices stopped"
+		],
+		"qualification": {
+			"independent_probe_cases": 34,
+			"independent_fault_classes": ["signature", "claims", "owner", "revocation", "path"],
+			"all_faults_rejected": true,
+			"independent_restoration": "34/34passed",
+			"permanent_regression_fault_failures": {
+				"signature": 1,
+				"claims": 9,
+				"owner": 2,
+				"revocation": 6,
+				"path": 54
+			},
+			"permanent_restoration": "265passed"
+		},
+		"static": [
+			"scopedlint107filespassed",
+			"targetedRuff/formatpassed",
+			"anti-drift2.87%/vulture/knip passed",
+			"docgatepassed",
+			"49decisionrecordsconform",
+			"strictOpenSpecpassed",
+			"274installedpackagescompatible"
+		],
+		"preservation": [
+			"main AST only one import androuterinclude;3043lines unchanged",
+			"existingauth/router/redis/dependencyfiles byte-identical",
+			"all40grant testfunction/decoratorASTs preserved across extraction",
+			"Officecallback wholefileASTs unchanged exceptfour argumentdeclarations"
+		]
+	},
+	"approved_policy": [
+		{
+			"url": "https://github.com/DankerMu/open-webui/issues/295#issuecomment-6141458090",
+			"decision": "unchanged ownerhelper internalDBfailure403;observable infrastructure andconfiguredRedisfailures503"
+		},
+		{
+			"url": "https://github.com/DankerMu/open-webui/issues/295#issuecomment-6142840135",
+			"decision": "samePR mechanical repair of four inherited callback declaration warnings;no assertion/gate weakening"
+		}
+	],
+	"deviations": [
+		"plain test harness extraction keeps formatted pairedtest795lines under800;all248cases preserved",
+		"checksum evidence normalized to path/sha256 records after4scanner falsepositives;no credential findings or scanner allowlist"
+	],
+	"limits": [
+		"No Redis or no-exp session without effective storedrevocation retains600second logoutlimit",
+		"Wholechatbearerreadauthority is intentional",
+		"Sharedfixture remains active anddecisionproposed untilgroup6",
+		"macOS local evidence, notremoteActions/Linuxcleanrunner/LAN certification"
+	],
+	"followups": [
+		{
+			"issue": 410,
+			"url": "https://github.com/DankerMu/open-webui/issues/410",
+			"note": "InheritedPythoncoveragegate aggregatesfiles;newrouter independently96.875%.Notaddedto executionqueue."
+		}
+	],
+	"candidate_files": [
+		{
+			"path": "backend/open_webui/routers/ocu_resource_grants.py",
+			"sha256": "688e62a27c342e127f22c772c2ed4ceb785071d2dd90c566b92a6787506f5f58"
+		},
+		{
+			"path": "backend/open_webui/main.py",
+			"sha256": "b5c093295bb49cec2e3b52e62d6c07e32a23ec359d5c06764e98fa605e543852"
+		},
+		{
+			"path": "backend/open_webui/test/routers/test_ocu_resource_grants.py",
+			"sha256": "b94eaf08c596fdf891cc2c5799c68f9e4410d6bb7988eb738c9549c308b316a0"
+		},
+		{
+			"path": "backend/open_webui/test/ocu_resource_grants_harness.py",
+			"sha256": "4adfb05dcb62610fcc992a920341a968c63bb1e41ebcbe1fc92894845565793e"
+		},
+		{
+			"path": "backend/open_webui/test/test_smoke_proxy_office.py",
+			"sha256": "ef5380af276c30ce8c5a144cb9861de37c9dc12ccdbd9cabaa1613d8f8ac08a2"
+		},
+		{
+			"path": "scripts/ocu_stub_office.py",
+			"sha256": "55647853e8984929549004a677cf95d9eec8f92fffae8f57b0dc46721bfa106a"
+		}
+	],
+	"fixture_files": [
+		{
+			"path": "openspec/changes/ocu-resource-grants/.openspec.yaml",
+			"sha256": "e61703315c59969805e021ec521ca189369aaf8ea902d52c5e39c7fbc603598f"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/README.md",
+			"sha256": "1c8b7b6770131e22478838e32de8268a68272674a033ccc88caa17d08a47afbd"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/design.md",
+			"sha256": "f996ae63927f689a87f7075c570d83149aca84439992883e4ccda8dd19e5d6c3"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/grill-gate.json",
+			"sha256": "db1563f416a00c4ed20daffd02307472d6660849713f7a308a0ae15ca61dc51f"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/proposal.md",
+			"sha256": "1e1a5ddf7016324b77692270ba09480eb327cc89c4675afa825589a602c93e8f"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/specs/ocu-file-headers/spec.md",
+			"sha256": "fca5db71f1918cc5ed737e79ea5fb8c90024d0ecdf305a565edaacfcf1c059ed"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/specs/ocu-proxy-smoke/spec.md",
+			"sha256": "a35e5e2e898481bbf641352dace4157ecfeba6689b0f9434eb6ca270c73c7439"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/specs/ocu-resource-grants/spec.md",
+			"sha256": "428c6ad69ca5fbcb2b8bdc286fa650a67586fa550e2e1ccb0c324dad275361df"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/specs/ocu-reverse-proxy/spec.md",
+			"sha256": "effbd91a89fffd9afbe3dc41c4b28f35c4edad50899d8904aab439592f31a5e7"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/tasks.md",
+			"sha256": "56ad3ad35286c93519343ddd70fcfe682808bf83b4acf51a952017f305252924"
+		}
+	]
+}

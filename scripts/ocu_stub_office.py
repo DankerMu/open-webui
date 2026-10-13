@@ -94,11 +94,11 @@ def _office_body_insertion(xml: bytes, namespace: str) -> tuple[int, int, str | 
     insertion = None
     declared_encoding = None
 
-    def declaration(version, encoding, standalone):
+    def declaration(version, encoding, _standalone):
         nonlocal declared_encoding
         declared_encoding = encoding
 
-    def start(name, attributes):
+    def start(name, _attributes):
         nonlocal body_start, insertion
         if name == f'{namespace}}}body':
             body_start = parser.CurrentByteIndex

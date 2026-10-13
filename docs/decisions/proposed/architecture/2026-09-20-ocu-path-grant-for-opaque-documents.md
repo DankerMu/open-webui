@@ -5,7 +5,7 @@ kind: architecture
 status: proposed
 date: 2026-09-20
 supersedes: none
-references: docs/plans/2026-09-20-workspace-artifact-integration.md (A-T01, § 2 "静态相对资源"); openspec/changes/ocu-workspace-integration design D19; DankerMu/open-webui#35 (follow-up, in epic #2)
+references: docs/plans/2026-09-20-workspace-artifact-integration.md (A-T01, § 2 "静态相对资源"); openspec/changes/ocu-workspace-integration design D19; DankerMu/open-webui#35 (follow-up, in epic #2); docs/decisions/proposed/architecture/2026-10-10-ocu-resource-grants.md (separate-interface proposal; this withdrawn design is historical input only)
 ---
 
 # Signed path grant so opaque-origin generated documents can load relative sub-resources
