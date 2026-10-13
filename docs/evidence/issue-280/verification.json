@@ -1,0 +1,85 @@
+{
+	"issue": 280,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 107,
+	"source_head": "c5a5b9fe91b7940d117ecf7be5fafb50d1de136a",
+	"source_base": "d7d7a7e8407978655cf26114e8d781d709eb5042",
+	"control_base": "dc78eab890ac12e6ef81add938e7644c20e3c7bc",
+	"candidate": {
+		"computer-use-server/office/publish.py": "d5de26de13fb06b05f574e517de1f8167f06f1c6f06658943d853072678b1912",
+		"tests/orchestrator/test_office_publish.py": "490cf0be4d164e49dc9568127131b677000486ddc58afa0160fbe88faf405dd3",
+		"tests/orchestrator/test_office_publish_recovery.py": "acee0609a00d6208bb44373ec3b4f6f4dd0fc35af1e7ab072baa0ea9c292b60b",
+		"tests/orchestrator/test_office_callback_publish.py": "5732e304168c7dcd9ea666abb99d156e59048e6881a22efd4058eced25e7d7e3",
+		"tests/orchestrator/test_office_resolution.py": "6f8fdd8ef17f174e64a54cd57fb402cf375483bcc8486e29527df90f37266076",
+		"CHANGELOG.md": "2a66289c0814689a8238f1dabc12cb6be0481fe5c4fe24c2bf308fd6edbc1f5e"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 168868,
+		"sha256": "43fff0c344c0b87fb5a6a503a8ffaa09753a6d7215446a64624670dd56635778"
+	},
+	"verification": {
+		"primary": "Final seven-module publication/recovery/callback/resolution/restore/save-as/sweep scope: exact938discovered/executed,938passed2764deselected,zero skips/failures/errors. Final tested bytes retained and unchanged through execution.",
+		"python312": "62focused passed3640deselected onPython3.12.12.",
+		"baseline": "First permanent regression semanticRED/GREEN;27requester/callback/native cases all semanticRED on frozen original production, included in final passing scope.",
+		"runtime": "Native SIGKILL/fresh recovery, actual filesystem and authenticated fixtureHTTP/content origin. Postreplacement retained index outage, precontrast terminal failure, single attributed registration, unchanged selected inode/history/receipts, completed replay no-op.",
+		"second_crash": "Actualreplace-after then healthyrecovery killed at registration-durability-after lost staging progress: checkpointRED; monotonic replacement_possible carryforwardGREEN under identical wrapper/oracle.",
+		"qualification": "Final source goodGREEN, prematurecompletionRED, duplicateregistrationRED, exactrestorationGREEN with same index oracle. No arbitrary stability repeats.",
+		"coverage": {
+			"discovered": 938,
+			"executed": 938,
+			"exact_case_set_match": true,
+			"failures": 0,
+			"errors": 0,
+			"skips": 0,
+			"coverage": {
+				"covered_lines": 999,
+				"num_statements": 1150,
+				"percent_covered": 86.8695652173913,
+				"percent_covered_display": "87",
+				"missing_lines": 151,
+				"excluded_lines": 0,
+				"percent_statements_covered": 86.8695652173913,
+				"percent_statements_covered_display": "87"
+			},
+			"coverage_limit": "Parent-process instrumentation; native child recovery is observed by explicit behavioral assertions but not included in this metric.",
+			"final_source_unchanged_during_run": true
+		},
+		"lint": {
+			"raw_candidate_exit": 1,
+			"candidate_findings": 2,
+			"baseline_findings": 2,
+			"exact_code_message_file_multiset_match": true,
+			"introduced": 0,
+			"production_findings": 0,
+			"policy": "Source intentionally has no configured formatter/linter; scoped RuffF comparison, not a clean raw lint or full formatting claim."
+		},
+		"source_hygiene": "Finalgitdiffwhitespace exit0. Source has no configured formatter; no full formatting claim.",
+		"preservation": "All original test bodies preserved except validated initial_revision normalization; renamed unattributed-registration test body exact. Existing Stage methods except allocation AST-identical; observe method added. Six neighboring production owners byte-identical.",
+		"warnings": "Inheritedpython_multipart/Pydantic warnings;Python3.12AnyIOBlockingPortalalias deprecation. No suppression.",
+		"failures_retained": [
+			"Overbroad firstcandidate10fail167pass; reduced to existing healthy retirement/cleanup/error contracts,177pass.",
+			"Second-crash progress loss2fail1controlpass; protected independent RED and finalGREEN.",
+			"Four authored postcompletion callback assertions contradicted existing ended receipt precedence; corrected only those expectations, not pending/firsttransition no-download assertions.",
+			"First HTTPprobe stopped on expected oldepoch RecoveryRequiredError; corrected only observation, reran revised oracle baseline4RED/candidate4GREEN.",
+			"One authored testsetup mutator returnedpop integer; corrected implicitNone, singlecaseGREEN, then final938scopeGREEN."
+		],
+		"platform": "macOS-26.6.2-arm64-arm-64bit"
+	},
+	"receipt_boundary": {
+		"epoch_admission": "Open-session changed-epoch pending outage and first healthy epoch transition download/persist no rejected envelope; recovery drives only accepted obligation.",
+		"ended_receipts": "Existing finalreceipt200/no download and status6 hashvalidation (differentcontent409 stale_save_seq, one download) remain. No state/version/receipt/revision change aftercompletion. Not a blanket all-ended-old-requests zero-download claim.",
+		"authority": "Active Office callback specification rules1/2 in every state; B-T14 open-session epoch boundary. Detailed parent adjudication retained."
+	},
+	"scan": {
+		"raw_exit": 0,
+		"findings": 0,
+		"tool": "gitleaks8.30.1 default rules; redacted report, invocation andbinarydigest retained"
+	},
+	"limits": [
+		"Parent-processcoverage999/1150=86.87% excludesnativeworkers; explicit behavior assertions cover childpaths. Not a full-repository or deployment certification.",
+		"FakeDockerboundary; no realengine/LAN/crossUID/powerlosscertification.",
+		"Ambiguous older obligations lacking progress or historicalregistration evidence can remain pending; no automatic indexrepair or broadcollector.",
+		"Role-separated parent verification, not an OS-enforced verifier enclave."
+	]
+}
