@@ -1,0 +1,60 @@
+{
+	"issue": 276,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 106,
+	"source_head": "3a92b0a5ed7cb2db3544307807ac60282c59e7b1",
+	"source_base": "85cba374b3904cf268285dedcfd3c7fdd391a560",
+	"control_base": "0abf79746465b97e770423e3435424a789750656",
+	"candidate": {
+		"computer-use-server/office/save_as.py": "69bc985f1747cbe140d72cbad03accbcc94cf0e0a08412e079210ebcd8a16018",
+		"tests/orchestrator/test_office_save_as.py": "f7d14585613e9bcb5c325701b90f48c60dbc6a9c4fb89c666275f79f96c77207",
+		"CHANGELOG.md": "0de5fb0880671125092a05a22f171fc30684108a7f8b58f5f1a451a08da6e042"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 105908,
+		"sha256": "647bb20702569f1332dcc353ad94afc8ca09bbf92e3ee42cd135619340eefbf1"
+	},
+	"verification": {
+		"baseline": "Initial permanent matrix 4 failed / 4 passed; initial candidate 8 passed. First exit-2 missing frozen deploy/openwebui prerequisites is retained, not credited as semantic RED.",
+		"focused": "26 passed on Python 3.13; 26 passed on Python 3.12 final source.",
+		"consumers": "Exactly 552 discovered/executed owning save-as, publish-recovery and resolution nodes: 552 passed,3089 deselected, zero skipped.",
+		"final_test_binding": "Only post-552 change is explicit office_world self re-export. Normalized AST equality, actual fixture object identity and exact ordered final 552-node discovery establish the bridge; final Python3.12 focus executed these bytes. Exercised pre-alias bytes retained.",
+		"runtime": "Real filesystem/native SIGKILL/fresh recovery: preserve durable publish_timeout, retire owned private names, no root recreation, conserved state and completed replay no-op. Same oracle rejects skip-retirement and overwrite-reason mutants; restored final owner GREEN.",
+		"budget": "Authored extra post-retirement checkpoint caused retained responsibility after successful cleanup. Saved faulty owner/permanent regression RED; single-variable removal GREEN. Final controlled monotonic advance after actual private fsync completes first attempt, subsequent recovery no-op.",
+		"coverage": {
+			"discovered": 552,
+			"executed": 552,
+			"exact_case_set_match": true,
+			"failures": 0,
+			"errors": 0,
+			"skips": 0,
+			"coverage": {
+				"covered_lines": 444,
+				"num_statements": 575,
+				"percent_covered": 77.21739130434783,
+				"percent_covered_display": "77",
+				"missing_lines": 131,
+				"excluded_lines": 0,
+				"percent_statements_covered": 77.21739130434783,
+				"percent_statements_covered_display": "77"
+			},
+			"coverage_limit": "Parent-process instrumentation only; SIGKILL/fresh worker code paths are observed through explicit native-process assertions but not included in this metric."
+		},
+		"lint": "Final scoped Ruff F zero findings; source diff whitespace exit0. No source formatter configured; no full formatting claim.",
+		"preservation": "All existing production definitions except drive AST-identical; one private helper added. publish.py byte-identical to base.",
+		"warnings": "Inherited python_multipart/Pydantic warnings; Python3.12 AnyIO BlockingPortal alias deprecation. Not suppressed.",
+		"platform": "macOS-26.6.2-arm64-arm-64bit"
+	},
+	"scan": {
+		"raw_exit": 0,
+		"findings": 0,
+		"tool": "gitleaks 8.30.1 default rules; redacted report and exact binary hash retained"
+	},
+	"limits": [
+		"Native worker execution is not measured by parent-only coverage (444/575,77.22%); not an 80% gate or full-repository pass.",
+		"Fake Docker boundary; no LAN deployment, real engine, power-loss or filesystem certification.",
+		"Controlled monotonic budget test is a state-transition proof, not wall-clock performance measurement.",
+		"Role-separated parent verification, not an OS-enforced verifier enclave."
+	]
+}
