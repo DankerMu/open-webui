@@ -8,9 +8,7 @@ import json
 import logging
 import os
 import re
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from pathlib import Path
 
 from smoke_stub_office import (
@@ -29,13 +27,11 @@ from smoke_stub_office import (
     _strip_times,
     _upload_docx,
     _versions,
-    _write_fixtures,
     assert_create_schema,
     assert_history_restored,
     fail,
-    start_stub,
-    stop_stub,
 )
+from smoke_stub_office_documents import _StubContext, assert_renderable_seeds
 
 log = logging.getLogger('smoke-stub-office-regressions')
 NONCE_RE = re.compile(r'nonce-[A-Za-z0-9_-]+')
@@ -51,6 +47,7 @@ DEFAULT_SELECTORS = (
     'missing-field',
     'concurrent-create',
     'embed-baseline',
+    'renderable-seeds',
 )
 
 
@@ -95,31 +92,6 @@ def _unchanged(before: dict, after: dict, message: str) -> None:
 
 def _office_file(base: str, chat: str, path: str = 'report.docx') -> str:
     return _file_id(_outputs(base, chat)[0], path)
-
-
-@contextmanager
-def _StubContext(script: Path, mapping: dict[str, str], env: dict[str, str] | None = None):
-    fixtures = _write_fixtures(mapping)
-    document = tempfile.NamedTemporaryFile(prefix='ocu-office-valid-', suffix='.docx', delete=False)
-    document.write(b'PK\x03\x04configured-office-fixture')
-    document.close()
-    merged = {
-        'OCU_STUB_FIXTURES': str(fixtures),
-        'OCU_STUB_ASSETS': '/nonexistent-ocu-smoke-assets',
-        'OCU_STUB_DOCX': document.name,
-    }
-    if env:
-        merged.update(env)
-    proc = None
-    record = None
-    try:
-        proc, base, record = start_stub(script, merged)
-        yield base
-    finally:
-        if proc is not None and record is not None:
-            stop_stub(proc, record)
-        fixtures.unlink(missing_ok=True)
-        Path(document.name).unlink(missing_ok=True)
 
 
 def assert_wrong_methods(base: str) -> None:
@@ -713,6 +685,9 @@ def named_regression_mapping() -> dict[str, str]:
 
 
 def run_selector(name: str, *, script: Path, old_script: Path | None = None, base: str | None = None) -> None:
+    if name == 'renderable-seeds':
+        assert_renderable_seeds(script)
+        return
     if name == 'schema-create':
         if base is None:
             fail('schema-create requires a running stub')
@@ -768,7 +743,7 @@ def run_regressions(script: Path, *, old_script: Path | None = None, selectors: 
     if old_script is None and os.environ.get('OCU_STUB_OLD_SCRIPT'):
         old_script = Path(os.environ['OCU_STUB_OLD_SCRIPT'])
     for name in chosen:
-        if name == 'embed-baseline' and old_script is not None:
+        if name == 'renderable-seeds' or (name == 'embed-baseline' and old_script is not None):
             run_selector(name, script=script, old_script=old_script)
         else:
             with _StubContext(script, named_regression_mapping()) as base:

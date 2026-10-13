@@ -20,6 +20,10 @@ Keep Office state and its host page in adjacent stub modules, using the existing
 
 `make smoke-stub` exercises the seven scenarios, default behavior, request rejection, chat isolation and deterministic replay. File IDs retain the existing chat-scoped convention: identical names in different chats may have identical IDs; the chat and resource together identify the fixture.
 
+With valid `OCU_STUB_DOCX` input, `office_unpublished` and `office_stale` retain the configured workspace bytes exactly and derive distinct, deterministic DOCX autosaves with visible text `Verified Office autosave (unpublished)` or `Verified Office autosave (stale)`. The derivation preserves existing document XML and unrelated package content; listing and version hashes/sizes describe the actual bytes. The browser and HTTP harnesses share the valid-DOCX generator in `ocu_stub_office.py`. Without configured input, the synthetic workspace bytes and exact `-autosave`/`-stale` suffixes remain unchanged; invalid configured input is not replaced with a generic successful document.
+
+The `renderable-seeds` HTTP regression binds downloaded bytes to public history, identity, publication and lifecycle state, checks package preservation, and compares fresh runs for deterministic generation. Configured-rendering acceptance also requires recognizable read-only content before the existing browser prompts and distinct restored-autosave content without changing request ordering. The [verification record](../../../evidence/issue-269/verification.json) owns those results; deterministic stub/gateway rendering does not certify real DocumentServer recovery.
+
 The shared occupied-name source reserves synthetic error paths as well as listed fixtures and accepted uploads. Uploads named `backend403` or `backend409` receive numbered names, leaving the bare error responses intact; GET dispatch order cannot provide this guarantee without hiding accepted bytes. The HTTP smoke checks both error responses and retrieval/listing of the uploaded bytes.
 
 Upload validation rejects decoded U+0000–U+001F and U+007F before storing bytes or listing metadata, using the stub's existing 400 invalid-filename response. Rejecting at this boundary keeps controls out of both disposition modes without changing accepted names. The smoke checks raw inline/attachment header framing, exact payload bytes and unchanged state after rejection; traversal controls pin the existing path policy. This is a harness contract, not production status-code parity or a general filename serializer.
@@ -35,6 +39,7 @@ The HTTP smoke fetches the host page but does not execute its JavaScript. Messag
 - **Real DocumentServer in every stub check** — adds image and callback timing dependencies to deterministic gateway/UI checks; real-editor acceptance has a separate owner.
 - **Inline Office state in the shared handler** — exceeds the handler's size limit and obscures preservation of unrelated preview modes.
 - **Globally unique fixture file IDs** — changes an existing convention without improving isolation proof; tests must verify chat-local state and reject genuinely foreign resources.
+- **Rebuild configured DOCX content or reserialize its XML** — risks dropping document content or namespace-dependent metadata; inserting one paragraph into the existing XML keeps unrelated bytes and package parts intact.
 
 ## Consequences
 

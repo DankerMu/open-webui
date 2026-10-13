@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import re
+import zipfile
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
+from xml.parsers import expat
 
 OFFICE_SCENARIOS = frozenset(
     {
@@ -54,6 +57,107 @@ ALLOWED_ROUTES = (
     ('GET', DOC_VERSIONS_RE),
     ('POST', DOC_RESTORE_RE),
 )
+
+
+def office_document() -> bytes:
+    """A small reproducible DOCX shared by the HTTP and browser harnesses."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        parts = {
+            '[Content_Types].xml': """<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/word/document.xml"
+ ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>""",
+            '_rels/.rels': """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1"
+ Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+ Target="word/document.xml"/>
+</Relationships>""",
+            'word/document.xml': """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:p><w:r><w:t>Verified Office document</w:t></w:r></w:p></w:body></w:document>""",
+        }
+        for name, content in parts.items():
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, content)
+    return buffer.getvalue()
+
+
+def _office_body_insertion(xml: bytes, namespace: str) -> tuple[int, int, str | None]:
+    parser = expat.ParserCreate(namespace_separator='}')
+    body_start = None
+    insertion = None
+    declared_encoding = None
+
+    def declaration(version, encoding, standalone):
+        nonlocal declared_encoding
+        declared_encoding = encoding
+
+    def start(name, attributes):
+        nonlocal body_start, insertion
+        if name == f'{namespace}}}body':
+            body_start = parser.CurrentByteIndex
+        elif body_start is not None and insertion is None:
+            insertion = parser.CurrentByteIndex
+
+    def end(name):
+        nonlocal insertion
+        if name == f'{namespace}}}body' and insertion is None:
+            insertion = parser.CurrentByteIndex
+
+    parser.XmlDeclHandler = declaration
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.Parse(xml, True)
+    if body_start is None or insertion is None:
+        raise ValueError('configured Office DOCX has no document body')
+    return body_start, insertion, declared_encoding
+
+
+def _office_xml_encoding(xml: bytes, declared_encoding: str | None) -> str:
+    if xml.startswith(b'\xff\xfe'):
+        return 'utf-16-le'
+    if xml.startswith(b'\xfe\xff'):
+        return 'utf-16-be'
+    return declared_encoding or 'utf-8'
+
+
+def _office_autosave_xml(xml: bytes, scenario: str) -> bytes:
+    namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    body_start, insertion, declared_encoding = _office_body_insertion(xml, namespace)
+    encoding = _office_xml_encoding(xml, declared_encoding)
+    paragraph = (
+        f'<w:p xmlns:w="{namespace}"><w:r><w:t>Verified Office autosave ({scenario})</w:t></w:r></w:p>'
+    ).encode(encoding)
+    closing = '/>'.encode(encoding)
+    if xml[body_start:insertion].endswith(closing):
+        opening = xml[body_start:insertion].decode(encoding)
+        body_name = opening.split('>', 1)[0].split()[0][1:].rstrip('/')
+        return (
+            xml[: insertion - len(closing)]
+            + '>'.encode(encoding)
+            + paragraph
+            + f'</{body_name}>'.encode(encoding)
+            + xml[insertion:]
+        )
+    return xml[:insertion] + paragraph + xml[insertion:]
+
+
+def _office_autosave(payload: bytes, scenario: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(payload)) as source:
+        changed = _office_autosave_xml(source.read('word/document.xml'), scenario)
+        with zipfile.ZipFile(buffer, 'w') as target:
+            target.comment = source.comment
+            for info in source.infolist():
+                content = changed if info.filename == 'word/document.xml' else source.read(info)
+                target.writestr(copy.copy(info), content)
+    return buffer.getvalue()
 
 
 class OfficeStore:
@@ -193,25 +297,27 @@ class OfficeStore:
         chat['documents'][document['file_id']] = document
 
     def _seed_unpublished(self, chat_id: str, chat: dict) -> None:
-        document = self._new_document(chat_id, DEFAULT_PATH, DEFAULT_BYTES)
-        parent = document['versions'][0]
-        unpublished = self._version_record(2, 'autosave', parent['number'], DEFAULT_BYTES + b'-autosave', False)
-        document['versions'].append(unpublished)
-        document['latest'] = unpublished
+        document = self._seed_versions(chat_id, 'unpublished', b'-autosave')
         chat['documents'][document['file_id']] = document
 
     def _seed_stale(self, chat_id: str, chat: dict) -> None:
-        document = self._new_document(chat_id, DEFAULT_PATH, DEFAULT_BYTES)
-        parent = document['versions'][0]
-        unpublished = self._version_record(2, 'autosave', parent['number'], DEFAULT_BYTES + b'-stale', False)
-        document['versions'].append(unpublished)
-        document['latest'] = unpublished
+        document = self._seed_versions(chat_id, 'stale', b'-stale')
         session = self._new_session(chat_id, chat, document, 'editing')
         session['last_committed_seq'] = 1
         document['open_session'] = session['session_id']
         document['stale_pending'] = True
         chat['documents'][document['file_id']] = document
         chat['sessions'][session['session_id']] = session
+
+    def _seed_versions(self, chat_id: str, scenario: str, suffix: bytes) -> dict:
+        configured = self._valid_office.is_file()
+        payload = self._valid_office.read_bytes() if configured else DEFAULT_BYTES
+        autosave = _office_autosave(payload, scenario) if configured else payload + suffix
+        document = self._new_document(chat_id, DEFAULT_PATH, payload)
+        unpublished = self._version_record(2, 'autosave', 1, autosave, False)
+        document['versions'].append(unpublished)
+        document['latest'] = unpublished
+        return document
 
     def _seed_bytes(self, chat_id: str, path: str, scenario: str) -> bytes:
         if self._valid_office.is_file() and path.endswith('.docx'):
