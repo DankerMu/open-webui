@@ -38,3 +38,11 @@ Blast radius: bearer read authority across WebUI sessions and chat ownership.
 Selected risk packs: public API, config, path safety, auth/secrets, shared-state ordering, resource limits, legacy compatibility, error handling, documentation.
 Evidence floor: group 1 route RED/GREEN, direct HTTP smoke, unchanged session-only auth tests, named-router coverage and backend/docs gates.
 The shared change remains active through group 6; group 1 does not certify gateway or browser delivery.
+
+## Confined transport slice fixture
+
+Issue type: feature. Fixture level: expanded; agrees with the suggested level.
+Blast radius: ordinary-file method compatibility, descriptor ownership and the sandbox read boundary.
+Selected risk packs: public API, path safety, auth boundary, shared-state ordering, resource limits, legacy compatibility, error handling, documentation.
+Evidence floor: Python3.12 file-header TestClient RED/GREEN, descriptor-response ownership and shared-reader regressions, actual HTTP GET/HEAD parity and source-scoped hygiene.
+Reuse the descriptor acquisition and native-cancellation ownership from the completed read-boundary repair; do not introduce another reader or archive implementation.

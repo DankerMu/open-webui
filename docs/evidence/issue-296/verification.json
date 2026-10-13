@@ -1,0 +1,110 @@
+{
+	"issue": 296,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_pr": 108,
+	"source_head": "07df2b0da8294dc99119505dc69df4c5ed025a69",
+	"source_base": "5ec0b248ab3f9a581ef779f385468c873ac3ab3d",
+	"control_base": "7961e407df64a6c355061e61e7b6cb66a695eedf",
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 96908,
+		"sha256": "0fd673f639742cf837dc0c87a857e2ca57272a5826d297d548e2fd0713ec6d2d"
+	},
+	"candidate": {
+		"computer-use-server/app.py": "b4a6cb86943b831ce92505fef6025a5ffde9ea14d715fd26a57a03fdf3550745",
+		"computer-use-server/file_response.py": "b14a25c61e60e7821ffc12af39503cf6062826e2eb4597ea1bf6e044bbefdace",
+		"tests/test_files_headers.py": "0f44ae1a71c974681c3d8ce235e7cfe6f204e38f79fd6d8016b7bf2f33180383",
+		"tests/test_file_response.py": "c940ae0a9c66e6c692610f84497ba7005438a38b6bde60ed1cef1204c7cb55b2",
+		"CHANGELOG.md": "b86458e28ae7a9e5ff7188f2d0616ca4acebb226536da72ee245ec6776b5135c"
+	},
+	"verification": {
+		"primary": "Python3.12.12 actual TestClient/ASGI, exact431discovered/executed,431pass3416deselected,zero skips. Owning matrix264pass and five fault classes rejected before restored264pass.",
+		"runtime": "Actual Uvicorn/rawTCP36ordinaryHEAD plusanonymous401/reservedarchive405; empty wire body, GET-equivalent metadata. RetainedGET proof andfourRange signatures unchanged. Ownedprocess/socket/data cleanup observed. NoDocker/LAN.",
+		"red_green": "InitialHEAD405 tracerRED thenGREEN; reservedarchiveHEAD200 four-caseRED then405GREEN. Independentnative baseline36HEAD405 RED.",
+		"qualification": {
+			"selected": 264,
+			"executed": 264,
+			"exact_node_set_equal": true,
+			"duplicates": 0,
+			"skipped": 0,
+			"input_hashes_unchanged": true,
+			"faults": {
+				"head-payload": {
+					"tests": "5",
+					"failures": "5",
+					"errors": "0",
+					"skipped": "0"
+				},
+				"leak": {
+					"tests": "4",
+					"failures": "4",
+					"errors": "0",
+					"skipped": "0"
+				},
+				"double-close": {
+					"tests": "4",
+					"failures": "4",
+					"errors": "0",
+					"skipped": "0"
+				},
+				"abandon-setup": {
+					"tests": "8",
+					"failures": "8",
+					"errors": "0",
+					"skipped": "0"
+				},
+				"pathname-metadata": {
+					"tests": "16",
+					"failures": "16",
+					"errors": "0",
+					"skipped": "0"
+				}
+			},
+			"pathname_metadata_scope": "16 cases: 8 GET and 8 HEAD; module name also matches HEAD selector"
+		},
+		"coverage": {
+			"python": "3.13.3 supplementary cached toolchain",
+			"selected_passed": 431,
+			"response_lines": "52/52 (100%)",
+			"limit": "Python3.12 offline pytest-cov resolution failed before collection; primary312suite passed without coverage. Wholeapp coverage not claimed."
+		},
+		"lint": {
+			"raw_baseline_exit": 1,
+			"raw_candidate_exit": 1,
+			"baseline_findings": 5,
+			"candidate_findings": 5,
+			"introduced": 0,
+			"exact_file_code_message_multiset_equal": true,
+			"policy": "Source has no configured formatter/linter; isolated Ruff F baseline comparison, not clean raw lint or full formatter claim. Four inherited app F401 and one default-target BaseExceptionGroup F821."
+		},
+		"hygiene": "gitdiffwhitespace,sourceprecommit,controldocs49decisions,strictsharedfixture pass. No source formatter configured.",
+		"preservation": {
+			"changed_files": [
+				"CHANGELOG.md",
+				"computer-use-server/app.py",
+				"computer-use-server/file_response.py",
+				"tests/test_file_response.py",
+				"tests/test_files_headers.py"
+			],
+			"retained_untracked": [".run/"],
+			"server_manifest_matches_native_green": true,
+			"no_removed_test_functions": true,
+			"audit": "Existing GET assertions retained through method parametrization; new ASGI body/read/close/failure/race/archive controls added. Reader, auth, requirements and archive implementation unchanged."
+		},
+		"warnings": "Inheritedmultipart/Pydantic/AnyIO deprecations and record_property xunit2 warning; not suppressed.",
+		"scan": {
+			"raw_exit": 1,
+			"raw_findings": 30,
+			"credential_findings": 0,
+			"adjudication": "All30exact capturedpublicsourceSHA256 values in auth/token-namedmanifestkeys; machine-verified, detailedarchiveadjudication."
+		}
+	},
+	"limits": [
+		"Sharedresource-grantsfixture remainsactive through#300; proposeddecision unchanged. No gateway/browser/grant activation.",
+		"Nativewireprobe doesnotprove zero payloadreads/FDownership; separateASGI/descriptor tests own those assertions.",
+		"Firsttracer fulltestfile hash capturedafterRED, notbefore; nativeoracle/servermanifest capturedbeforebaseline.",
+		"Controlledpathname-metadata mutant selects16cases (8GET+8HEAD); filename matchesHEADselector.",
+		"Existing same-inode mutation, hardlink/bindmount provenance limits unchanged.",
+		"Test functions retained andGET assertions preserved; no fullrepository/image/Linux/deployment certification."
+	]
+}
