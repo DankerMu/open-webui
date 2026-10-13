@@ -1,0 +1,73 @@
+{
+	"issue": 269,
+	"repository": "DankerMu/open-webui",
+	"base": "dfc2e5782b1dc62ce83e6e385ca3cd3526873fa2",
+	"candidate": {
+		"scripts/ocu_stub_office.py": "d371925438f819f8425b5f6c4acbcf50b1078ba8613cd30f2055e975e4f4144c",
+		"scripts/verify-ui-ocu.py": "923afbb7dacf250c9742a48440f59489a6a23bdd8f76443da6e093b0f6aab3c6",
+		"scripts/smoke_stub_office_regressions.py": "e837f6a77fd6889a423336914c9fbc13149457d007c03877331f2921ce55f7e7",
+		"scripts/smoke_stub_office_documents.py": "dabd6550a76adf43d58155547c43fb88df3b13d9fa6927c01040c9f9fd05cf1e",
+		"e2e/ocu-office-fixtures.ts": "9e32e56e6c1676502600de4708a2f7e10d39acb184ee879993ede00cf5a56a78"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"bytes": 78008,
+		"sha256": "e5bbe21aaf4756c4d9a68246262bf8731a99f21c7d3e5c278a87ff68d934a1d8"
+	},
+	"screenshots": {
+		"office-unpublished-content.png": {
+			"bytes": 69781,
+			"sha256": "d6d38e810f66fe35ca0e3f091014f7f88528989d0cff831f85feea6272b4ad9e"
+		},
+		"office-stale-unpublished-content.png": {
+			"bytes": 67411,
+			"sha256": "1b0e558067bb9c9ba3dc0365d347a282811cb3bbca979893e783384787cc48ff"
+		},
+		"office-unpublished-restored-preview.png": {
+			"bytes": 63762,
+			"sha256": "5f8ce9aef151f654f8398419b6b801dd9e25b667198faace6f05c7d4f0dc4af0"
+		}
+	},
+	"verification": {
+		"baseline": "Real HTTP ordinary configured DOCX control succeeds; both specialized workspace payloads reject as BadZipFile. Permanent candidate renderable-seeds selector against immutable baseline server also fails for workspace bytes not matching configured input.",
+		"candidate": "Identical parent tracer GREEN; six configured HTTP observation rows validate exact input, distinct XML-readable variants, metadata, restore/history/revision and stale refusal/retry. Same-bytes and wrong-metadata observation controls rejected, original observations accepted afterward.",
+		"compatibility": "Six unconfigured HTTP observation rows exactly equal immutable baseline, using identical oracle.35 existing regression functions and39 OfficeStore methods remain AST-identical; all BrowserHarness methods unchanged.",
+		"regressions": "renderable-seeds selector passes: two configured packages \u00d7 two fresh process runs \u00d7 two scenarios, including unrelated XML/member metadata preservation. Full make smoke-stub exit0; its preexisting asset-mode comparison row reports placeholder-only coverage, not real-asset execution.",
+		"browser": "make verify-ui exit0:5 baseline/cache tests and37 workspace cases pass. Existing unpublished/stale prompt and ordering assertions pass with recognizable read-only content; restored preview shows distinct autosave and preserved base text. Intentional corrupt-preview case passes; no unexpected browser diagnostics. Two config-load stderr lines belong to passing missing/empty optimizer-cache controls.",
+		"format_binding": "Python formatter changes are AST-identical; one TypeScript screenshot call was line-wrapped, exact inverse reproduces the exercised source hash. Binding retained in archive.",
+		"lint": "Configured Ruff candidate4files and baseline3files both exit0/zero findings. Browser helper ESLint exit0.",
+		"cleanup": "Before browser acceptance dev services absent. Isolated harness completed owned cleanup; direct make dev-stop subsequently observed frontend5173/backend8080 free. Eval kernel interruption retained separately, not counted as successful cleanup.",
+		"environment": {
+			"python": "Python 3.12.12",
+			"node": "v22.23.2",
+			"ruff": "ruff 0.15.18",
+			"playwright": "Version 1.63.0",
+			"platform": "macOS-26.6.2-arm64-arm-64bit",
+			"gitleaks": "8.30.1"
+		}
+	},
+	"scan": {
+		"argv": [
+			"/opt/homebrew/Cellar/gitleaks/8.30.1/bin/gitleaks",
+			"dir",
+			"/tmp/issue-269-evidence",
+			"--no-banner",
+			"--report-format",
+			"json",
+			"--report-path",
+			"/tmp/issue-269-delivery/raw-scan.json"
+		],
+		"exit": 1,
+		"version": "8.30.1",
+		"sha256": "f414bc2fb952be6c9072b75cb411e3368614ef4b16d48dbd9ad238034afd2302",
+		"configuration": "built-in defaults; explicit allowlisted environment contains no GITLEAKS_CONFIG/GITLEAKS_CONFIG_TOML",
+		"findings": 39,
+		"classification": "All39 generic-api-key findings independently match deterministic fixture generation:24 key identifiers and15 stub-ticket tokens, derived from known chat/kind/sequence SHA256. No real credentials; no rules or allowlists changed. Redacted report and per-finding derivation retained."
+	},
+	"limits": [
+		"Deterministic stub HTTP and actual pinned SPA/renderers, not real DocumentServer callbacks/recovery or LAN deployment.",
+		"Parent protected oracle is role-separated, not an OS-enforced verifier enclave.",
+		"Package evidence covers canonical and enriched configured DOCX; not general arbitrary-document compatibility or parser hardening.",
+		"Negative controls alter captured observations for the independent content judge, not production code or hosted browser behavior."
+	]
+}

@@ -485,10 +485,16 @@ async function holdOfficeResponse(page: Page, path: string, method: string, ordi
 	};
 }
 
+async function expectOfficePreviewContent(page: Page, text: string) {
+	const frame = page.frameLocator('iframe[title="Office preview: report.docx"]');
+	await expect(frame.getByText(text, { exact: true })).toBeVisible({ timeout: 30_000 });
+}
+
 async function showUnpublishedChoice(page: Page, editor: Locator, screenshot: string) {
 	const dialog = page.getByRole('dialog', { name: 'Unpublished content' });
 	await expect(dialog).toBeVisible();
 	await expect(editor).toHaveCount(0);
+	await expectOfficePreviewContent(page, 'Verified Office document');
 	await page.screenshot({ path: `${evidence}/${screenshot}`, fullPage: true });
 	return dialog;
 }
@@ -514,6 +520,7 @@ async function openOfficeHistory(page: Page, versionsPath: string): Promise<Offi
 export async function restoreUnpublishedOffice(page: Page, chatId: string, recordOffset: number) {
 	const panel = await openWorkspacePanel(page, chatId);
 	const file = await listedReport(page, panel, chatId);
+	await expectOfficePreviewContent(page, 'Verified Office document');
 	const versionsPath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/versions`;
 	const restorePath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/restore`;
 	const createPath = officeCreatePath(chatId, file.file_id);
@@ -584,11 +591,22 @@ export async function restoreUnpublishedOffice(page: Page, chatId: string, recor
 		await heldRead.dispose();
 		await heldRestore.dispose();
 	}
+	await page.reload();
+	const readonlyPanel = await workspaceFilesPanel(page);
+	await listedReport(page, readonlyPanel, chatId);
+	await expect(editor).toHaveCount(0);
+	await expectOfficePreviewContent(page, 'Verified Office autosave (unpublished)');
+	await expectOfficePreviewContent(page, 'Verified Office document');
+	await page.screenshot({
+		path: `${evidence}/office-unpublished-restored-preview.png`,
+		fullPage: true
+	});
 }
 
 export async function startAfterStaleOffice(page: Page, chatId: string, recordOffset: number) {
 	const panel = await openWorkspacePanel(page, chatId);
 	const file = await listedReport(page, panel, chatId);
+	await expectOfficePreviewContent(page, 'Verified Office document');
 	const versionsPath = `/ocu/api/office/${chatId}/documents/${encodeURIComponent(file.file_id)}/versions`;
 	const createPath = officeCreatePath(chatId, file.file_id);
 	const heldCreate = await holdOfficeResponse(page, createPath, 'POST');
