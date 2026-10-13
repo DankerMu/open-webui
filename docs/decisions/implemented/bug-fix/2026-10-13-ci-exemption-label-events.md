@@ -5,7 +5,7 @@ kind: bug-fix
 status: implemented
 date: 2026-10-13
 supersedes: none
-references: 'https://github.com/DankerMu/open-webui/issues/262; openspec/changes/ci-exemption-label-events; docs/evidence/issue-262/verification.json'
+references: 'https://github.com/DankerMu/open-webui/issues/262; openspec/changes/archive/2026-10-12-ci-exemption-label-events; docs/evidence/issue-262/verification.json'
 ---
 
 # Reevaluate CI exemptions on pull-request label changes
@@ -14,7 +14,7 @@ references: 'https://github.com/DankerMu/open-webui/issues/262; openspec/changes
 
 Exemption decisions use the labels captured by the triggering event. Without label-event subscriptions, adding or removing an exemption at an unchanged head leaves its guard result stale until a push or reopen. Both `diff-limit-exempt` and `lockfile-refresh` need fresh evaluation.
 
-Source: [exemption-label issue](https://github.com/DankerMu/open-webui/issues/262) and [approved fixture](../../../../openspec/changes/ci-exemption-label-events/proposal.md).
+Source: [exemption-label issue](https://github.com/DankerMu/open-webui/issues/262) and [approved fixture](../../../../openspec/changes/archive/2026-10-12-ci-exemption-label-events/proposal.md).
 
 ## Decision
 
