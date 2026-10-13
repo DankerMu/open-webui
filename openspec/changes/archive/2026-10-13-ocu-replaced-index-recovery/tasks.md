@@ -16,7 +16,7 @@
 ## 3. Integration and delivery
 
 - [x] 3.1 Run exact-discovery owning publish/recovery and callback/resolution consumer suites, affected restore/save-as compatibility checks, source scoped lint/hygiene and central docs/decision/strict-spec/format gates; preserve executed identities and limits.
-- [ ] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state review, source CI and authorized exact-head control CI; verify exact closing sets before each merge and archive the completed fixture.
+- [x] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state review, source CI and authorized exact-head control CI; verify exact closing sets before each merge and archive the completed fixture.
 
 ## Risk packs
 
