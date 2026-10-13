@@ -30,3 +30,11 @@ Opaque-origin generated documents cannot load relative resources through the coo
 WebUI owns grant authorization and its harness; OCU owns ordinary file transport, the trusted preview consumer and the gateway renderer. The OpenSpec change and stage issues remain in the WebUI repository. No login API change, new deployment service, dependency upgrade, database migration, global CORS widening or generated-iframe permission widening is planned.
 
 Source tracker: #35. Existing prerequisites #23 and #29 are closed. This is design preparation, not a claim that grants or their acceptance checks are delivered.
+
+## Authorization slice fixture
+
+Issue type: feature. Fixture level: expanded; agrees with the suggested level.
+Blast radius: bearer read authority across WebUI sessions and chat ownership.
+Selected risk packs: public API, config, path safety, auth/secrets, shared-state ordering, resource limits, legacy compatibility, error handling, documentation.
+Evidence floor: group 1 route RED/GREEN, direct HTTP smoke, unchanged session-only auth tests, named-router coverage and backend/docs gates.
+The shared change remains active through group 6; group 1 does not certify gateway or browser delivery.

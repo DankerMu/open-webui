@@ -1,0 +1,138 @@
+{
+	"scoped-lint-approved-extension": {
+		"command": ["make", "lint-scoped"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "bash scripts/lint-scoped.sh\nlint-scoped: 107 scoped file(s) checked, all conform.\n",
+		"stderr": ""
+	},
+	"authorized-scope-ruff": {
+		"command": [
+			"uv",
+			"run",
+			"ruff",
+			"check",
+			"backend/open_webui/test/ocu_resource_grants_harness.py",
+			"backend/open_webui/test/test_smoke_proxy_office.py",
+			"scripts/ocu_stub_office.py"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "All checks passed!\n",
+		"stderr": ""
+	},
+	"authorized-scope-format": {
+		"command": [
+			"uv",
+			"run",
+			"ruff",
+			"format",
+			"--check",
+			"backend/open_webui/test/ocu_resource_grants_harness.py",
+			"backend/open_webui/test/test_smoke_proxy_office.py",
+			"scripts/ocu_stub_office.py"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "3 files already formatted\n",
+		"stderr": ""
+	},
+	"grant-vulture-final": {
+		"command": [
+			"uv",
+			"run",
+			"vulture",
+			"backend/open_webui/routers/ocu_resource_grants.py",
+			"backend/open_webui/test/routers/test_ocu_resource_grants.py",
+			"backend/open_webui/test/ocu_resource_grants_harness.py",
+			"--min-confidence",
+			"80"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "",
+		"stderr": ""
+	},
+	"anti-drift-final": {
+		"command": ["make", "anti-drift"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "bash scripts/anti-drift.sh\n--- duplicate code (jscpd, threshold 3%)\nDuplications detection: Found 103 exact clones with 997(2.87%) duplicated lines in 112 (5 formats) files.\n--- dead code (vulture, min-confidence 80)\n--- dead exports (knip, scoped)\nanti-drift: scoped duplicate/dead-code checks passed.\n",
+		"stderr": ""
+	},
+	"final-doc-gates": {
+		"command": ["make", "doc-gate", "decisions-verify"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "bash scripts/doc-gate.sh\n--- 1. AGENTS.md make targets exist\n--- 2. Makefile script references exist\n--- 3. markdown relative links resolve\ndoc-gate: AGENTS.md, Makefile and docs links conform.\npython3 scripts/decisions-verify.py\ndecisions-verify: 49 record(s) checked, all conform.\n",
+		"stderr": ""
+	},
+	"final-fixture-validation": {
+		"command": ["openspec", "validate", "ocu-resource-grants", "--strict", "--no-interactive"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "Change 'ocu-resource-grants' is valid\n",
+		"stderr": ""
+	},
+	"environment-identity": {
+		"command": [
+			"uv",
+			"run",
+			"python",
+			"-c",
+			"import sys,platform,json,importlib.metadata as m; print(json.dumps({\"python\":sys.version,\"platform\":platform.platform(),\"packages\":{n:m.version(n) for n in [\"fastapi\",\"starlette\",\"PyJWT\",\"pytest\",\"pytest-cov\",\"coverage\",\"ruff\",\"vulture\",\"httpx\"]}}))"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "{\"python\": \"3.12.12 (main, Dec  9 2025, 19:05:33) [Clang 21.1.4 ]\", \"platform\": \"macOS-26.6.2-arm64-arm-64bit\", \"packages\": {\"fastapi\": \"0.136.3\", \"starlette\": \"1.3.1\", \"PyJWT\": \"2.13.0\", \"pytest\": \"8.4.2\", \"pytest-cov\": \"7.1.0\", \"coverage\": \"7.16.1\", \"ruff\": \"0.15.18\", \"vulture\": \"2.16\", \"httpx\": \"0.28.1\"}}\n",
+		"stderr": ""
+	},
+	"dependency-check": {
+		"command": ["uv", "pip", "check"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "",
+		"stderr": "Checked 274 packages in 2ms\nAll installed packages are compatible\n"
+	},
+	"public-evidence-secret-scan": {
+		"command": [
+			"/opt/homebrew/Cellar/gitleaks/8.30.1/bin/gitleaks",
+			"dir",
+			"/Users/danker/Documents/31308/open-webui-ocu-plan2/docs/evidence/issue-295",
+			"--no-banner",
+			"--redact",
+			"--report-format",
+			"json",
+			"--report-path",
+			"/tmp/issue-295-delivery/public-secret-report.json"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "",
+		"stderr": "\u001b[90m5:58AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~6909 bytes (6.91 KB) in 5.51ms\u001b[0m\n\u001b[90m5:58AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n"
+	},
+	"final-raw-secret-scan": {
+		"command": [
+			"/opt/homebrew/Cellar/gitleaks/8.30.1/bin/gitleaks",
+			"dir",
+			"/tmp/issue-295-evidence",
+			"--no-banner",
+			"--redact",
+			"--report-format",
+			"json",
+			"--report-path",
+			"/tmp/issue-295-delivery/complete-raw-secret-report.json"
+		],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "",
+		"stderr": "\u001b[90m5:58AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~1018367 bytes (1.02 MB) in 141ms\u001b[0m\n\u001b[90m5:58AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mno leaks found\u001b[0m\n"
+	},
+	"whitespace-final": {
+		"command": ["git", "diff", "--check"],
+		"cwd": "/Users/danker/Documents/31308/open-webui-ocu-plan2",
+		"exit": 0,
+		"stdout": "",
+		"stderr": ""
+	}
+}
