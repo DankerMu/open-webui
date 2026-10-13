@@ -2,7 +2,7 @@
 
 ## Context
 
-The owning [publication contract](../ocu-office-editing/specs/ocu-office-publish/spec.md) requires responsibility to survive interrupted recovery and foreign identities to remain untouched. `save_as.drive` has two missing-outputs branches: initial parent traversal and traversal after nested-parent fallback. Both currently finish before `_retire_private`; the existing retirement helper already binds identity/link counts, durable retirement intent, descriptor-relative unlink and directory fsync.
+The owning [publication contract](https://github.com/DankerMu/open-webui/blob/12002247cfdee4282a49e94ed0661756fe2c4b32/openspec/changes/ocu-office-editing/specs/ocu-office-publish/spec.md) requires responsibility to survive interrupted recovery and foreign identities to remain untouched. `save_as.drive` has two missing-outputs branches: initial parent traversal and traversal after nested-parent fallback. Both currently finish before `_retire_private`; the existing retirement helper already binds identity/link counts, durable retirement intent, descriptor-relative unlink and directory fsync.
 
 ## Goals / Non-Goals
 
