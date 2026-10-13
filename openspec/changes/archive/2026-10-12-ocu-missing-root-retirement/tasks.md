@@ -16,7 +16,7 @@
 ## 3. Delivery
 
 - [x] 3.1 After runtime proof, update the source changelog and owning central decision, retain scanned source-bound evidence and pass scoped source lint/format and central docs/decision/strict-spec checks.
-- [ ] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state cross-review; satisfy source CI and authorized exact-head control CI, exact closing sets, merge and archive.
+- [x] 3.2 Complete correctness, test-evidence/spec-compliance and invariant-state cross-review; satisfy source CI and authorized exact-head control CI, exact closing sets, merge and archive.
 
 ## Risk packs
 
