@@ -16,7 +16,7 @@
 ## 3. Delivery
 
 - [x] 3.1 After replay proof, document the CI change, extra label-triggered run cost and hosted-admission limits; retain scanned evidence with exact candidate/oracle/environment identities and pass scoped YAML/format/docs/decision/spec checks.
-- [ ] 3.2 Complete correctness, test-evidence/spec-compliance and invariant review; explicitly flag the CI-file change, satisfy exact-head CI and intended closing-set gates, merge and archive the fulfilled contract.
+- [x] 3.2 Complete correctness, test-evidence/spec-compliance and invariant review; explicitly flag the CI-file change, satisfy exact-head CI and intended closing-set gates, merge and archive the fulfilled contract.
 
 ## Risk packs
 
