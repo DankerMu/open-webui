@@ -1,0 +1,152 @@
+{
+	"issue": 300,
+	"control_base": "0d964fd31ce072bc8a073d10be6e3abc09f5457d",
+	"fixture_checkpoint": "8b174ef99",
+	"ocu_pin": "276e00aceddb332974a0390e01d69d9430065816",
+	"scope": "Local browser acceptance of delivered single-chat read capabilities; same reviewed gateway pin as issue299. No production frontend/auth/proxy/source/dependency/CI change; not LAN, real-model or real-DocumentServer certification.",
+	"environment": {
+		"platform": "macOS26.6.2 arm64",
+		"node": "22.23.2",
+		"python": "3.12.12",
+		"pytest": "8.4.2",
+		"playwright": "1.63.0",
+		"chromium": "153.0.8010.12"
+	},
+	"primary": {
+		"command": "make verify-ui-ocu",
+		"exit": 0,
+		"discovered": 40,
+		"executed": 40,
+		"passed": 40,
+		"skipped": 0,
+		"original37_titles_retained": true,
+		"report": "reports/review-fix1-restored-browser.json",
+		"inventory": "reports/review-fix1-test-inventory.json",
+		"instrumentation": "Parent-only passive pin/argv/lifecycle observer; no resource/CDP fault, case filter or alternate config on the restored acceptance run."
+	},
+	"claims": [
+		"Six independent relative-resource effects in actual sidebar/direct/native modifier-click modes; same target/context and exact canonical302/grant200 relationship.",
+		"HTML/SVG opaque-origin, blocked cookie/localStorage/token/parent probes and unchanged sandbox/CSP/nosniff controls; exact credential-free execution401 and OCU mutation403 refusals.",
+		"Actual signed expiry preserves loaded content but rejects a later uncached resource404 without OCU arrival or renewal; canonical reopen obtains distinct authorization and persisted links/state remain canonical.",
+		"Original download, Office/Drawio, saved-chat, refresh, upload and reconciliation cases remain executed.",
+		"Only exact request/status-correlated intentional denial diagnostics are permitted; zero unexpected console/page errors."
+	],
+	"qualification": {
+		"relative_resources": "Six isolated actual stub byte faults rejected at computed CSS, decoded7x3 image, loaded/applied font, classic/module/fetched DOM effects; reports/resource-fault-verdicts.json.",
+		"native_ownership": "Raw-CDP foreign context outside Playwright ownership remains live/unclosed through an intentional observer failure; dropping helper resume blocks actual foreign document evaluation. Qualified positive/negative/restoration reports retained.",
+		"native_identity": "Wrong final target observation rejected by exact native target relationship oracle.",
+		"expiry": "Skipping only expiry wait fails actual signed-expiry assertion; independent actual grant resource still returns200.",
+		"public_redaction": "Synthetic URL control retained historically; additionally actual authenticated issuer302 provides a real two-part resource grant for an intentional failure. Browser sanitizer and Python reporter mask it; the independent unsanitized negative is detected. Normal protected native reporter path subsequently passes.",
+		"minter": "Fresh repaired Popen-fixture guard faults cause6 lifetime and5 metadata failures; restored16cases PASS491deselected. Fresh owning73cases PASS434deselected. Actual canonical signer cancellation is separately qualified, not inferred from substituted single-process tests.",
+		"cleanup_order": "Actual direct test with protected200ms CDP-detach delay proves detach-end precedes page-close; no error suppression or retry.",
+		"reuse": "reports/review-fix1-qualification-reuse.json binds unchanged visual/denial/expiry/canonical/native oracles and fixtures to the earlier qualified head/bundle. Six resource mutants fail before the changed shortOwnerSession is invoked; fresh full40case restoration verifies its repaired caller."
+	},
+	"compatibility_checks": {
+		"shared_smoke": {
+			"command": "make smoke-proxy",
+			"exit": 0,
+			"report": "reports/review-fix1-shared-restored.json",
+			"coverage": "Six Hurl files, Office7owner/24auth-guard/5unlisted and real resource-grant/HEAD/query/expiry matrix"
+		},
+		"lint": {
+			"command": "make lint-scoped",
+			"exit": 0,
+			"files": 111
+		},
+		"anti_drift": {
+			"command": "make anti-drift",
+			"exit": 0,
+			"duplication_percent": 2.76
+		}
+	},
+	"privacy_and_lifecycle": {
+		"managed_private_values_scanned": 184,
+		"public_report_matches": 0,
+		"raw_traces_and_credentials": "Excluded; retained privately until final retirement.",
+		"pin": "Nine actual staged gateway/preview inputs matched reviewed git blobs.",
+		"restored_run_witness": "reports/review-fix1-restored-browser-witness.json",
+		"owned_groups_ports_directories_retired": true,
+		"private_cdp_sockets": "Observed constructed/open/closed; owned debug listener ports closed after browser retirement.",
+		"prior_browser_artifacts_restored": 93,
+		"dev_services": "make dev-stop confirmed8080/5173 free after repaired shared smoke and cancellation qualification.",
+		"node_children_and_detached_child_groups_retired": true
+	},
+	"source_files": {
+		"e2e/ocu-drawio.e2e.ts": "2183250ac84c6dc101082f2ae1916e0c56e2de65921abf2bc3dc5d882532895c",
+		"e2e/ocu-fixtures.ts": "377d22d083f3a38b22612cbd8c5505bcdba079493aaaba66e577c844eaa784f3",
+		"e2e/ocu-workspace.e2e.ts": "1685fd9ca820705f53bf1758ca146f38972549292620068c09b115d9e5f388ea",
+		"e2e/ocu-resource-fixtures.ts": "ad0a833cbe0145ebc70c661d559236da9c9026cc3bc6823208eebbcc73a1c57c",
+		"e2e/ocu-resources.e2e.ts": "ab4c3ab14cd8ba2e7dd99fc45b111fb4f16dfbad5aeefa5bdf766a774769f9a5",
+		"playwright.ocu.config.ts": "94aca70db2006b7854cbac191e69bbe9a68fcb160069d922e0e8a16a9c5598f0",
+		"scripts/ocu-target-bridge.mjs": "581963dbd79a256b41bdfebb431a1a101e9f793ca120f9d2e1fe67c1ac55ec91",
+		"scripts/ocu_stub_nested.py": "0ee8a3e8b48c21512d8538726ff869ddb3e1f81ba7f8b830284fea7456849e7b",
+		"scripts/smoke_proxy_resources.py": "9f119a58e760ee75daed7eb9875c4222182266a40ad148e1280157141c55f98d",
+		"scripts/verify-ui-ocu.py": "aadd9f1b58449e9c5ff806c872f6f3d7606816ce8c0bf827dd370b15e7a4e8db",
+		"backend/open_webui/test/test_smoke_proxy_resources.py": "8e417a5c322aedab86db3065a37e9a7d465210d3f7e84a6352725c608d414e20",
+		"e2e/ocu-office-leave-fixtures.ts": "de74fef752908feac39b1486d6d751c9fcbfbc09b7157b48a42d67312d6cc5cc"
+	},
+	"screenshots": [
+		{
+			"path": "screenshots/workspace-sidebar-expired.png",
+			"sha256": "7c310bfe69f70e6c11afd5169ac8ffa18ed3b3a8ae6da0cd77b5d6b64981c0d1"
+		},
+		{
+			"path": "screenshots/workspace-sidebar-reopened.png",
+			"sha256": "7c310bfe69f70e6c11afd5169ac8ffa18ed3b3a8ae6da0cd77b5d6b64981c0d1"
+		},
+		{
+			"path": "screenshots/workspace-direct-expired.png",
+			"sha256": "38fbf6532ab60ea298ae2051b2745dec6a045e1d77f8e0994121d5406d4197df"
+		},
+		{
+			"path": "screenshots/workspace-direct-reopened.png",
+			"sha256": "687c6f13283603b325f1e7e462a22391627db5a93377e13a812c7bb79fd1051e"
+		},
+		{
+			"path": "screenshots/workspace-popup-expired.png",
+			"sha256": "088a4211931c7c48b9bdb22a1a4e5f5641329a4f3bdb127019b5f2db5cf62b09"
+		},
+		{
+			"path": "screenshots/workspace-popup-reopened.png",
+			"sha256": "687c6f13283603b325f1e7e462a22391627db5a93377e13a812c7bb79fd1051e"
+		}
+	],
+	"visual_limits": "Six expired/reopened screenshots inspected. Sidebar viewport clips long text; complete values are DOM-asserted. One-pixel relative image is verified by actual decode dimensions and7x3 counterexample. SVG screenshot bytes matched pre-session artifacts, so no separate newly captured SVG image is claimed; fresh full-case SVG DOM/isolation checks passed. After the ownership repair, the two changed sidebar screenshots were freshly inspected; four direct/native images are byte-identical to the previously inspected images.",
+	"diagnostic_history": [
+		"Original37-case baseline ran under inadvertently selectedNode24:34PASS3redirect/oracleFAIL. Node22 path then corrected and directly verified; those34 passes are notNode22 acceptance.",
+		"First candidate40cases35PASS5FAIL: unsupported browser-level nonflat CDP, incorrect assumption readable execution401 must be CORS-blocked, and missing Office hydrated-shell readiness.",
+		"Repair1:38PASS2FAIL on incidental Playwright Page-exposure assertions; removed that automation implementation detail and dead collector, not native popup identity guarantees.",
+		"Repair2:39PASS1FAIL after successful direct behavior because concurrent page-close invalidated CDP detach; ordered dependent retirement, retaining cleanup assertions.",
+		"Initial missing-resume mutant survived because Playwright also owned/resumed its foreign context. It is explicitly excluded; revised raw-CDP foreign-context oracle qualified. First revised negative exposed the expected paused-evaluation RPC deadline; phase diagnostics were clarified before qualified positive/negative/restoration.",
+		"Round1 independently found the detached issuer cancellation hole. Actual real-signer SIGTERM reproduction confirmed it; fix1 closes both browser inherited-group and shared registered-group lifetimes. Six fresh cancellation/registration scenarios plus normal restoration support closure; review remains a separate gate."
+	],
+	"known_limits": [
+		"NoRedis logout and sessions without exp retain bounded-grant revocation limits; upstream signout unchanged.",
+		"Private test-only loopback debugger transport uses managed profile metadata. Independent opaque-document discovery probe was blocked; no sandbox or permission widening.",
+		"Inherited production auth transport-error token invalidation is tracked separately in issue421; only Office test hydration precondition repaired here.",
+		"Historical issue299 bundle is published alongside this evidence without claiming a new299 execution.",
+		"Archive contains executed evidence and parent probes, not a portable one-command environment installer. Review/merge attestation is recorded on the PR, separately from these runtime facts."
+	],
+	"bundle": {
+		"path": "verification.tar.gz",
+		"sha256": "7e994551c677a6a505a8b5c5045a5b1dbc4f357fe9bba86ed69afdde1d48db0f",
+		"bytes": 263644,
+		"members": 269
+	},
+	"review_fix_parent": "732e1a41395c2cad84fa1cd7ea6ad2107819ad02",
+	"review_fix": {
+		"finding": "IS-1 / COR-1, one deduplicated P1 resource ownership defect",
+		"red": "reports/mint-interruption-red-witness.json: detached real signer and wrapper survived outer interruption cleanup and overlapped asset removal; parent emergency retirement recorded, not counted as candidate success.",
+		"repair": "Browser mint chain inherits its already registered browser group. Browser failure retains child assets for that surviving owner; browser group retires before evidence consumption/unregistration. Shared smoke uses its existing group registry with interruption-safe spawn registration and stdin-before-backend-work gating; full group retirement precedes child-asset removal.",
+		"browser_proof": "reports/review-fix1-cancellation-verdicts.json:SIGTERM,SIGINT,requesting-workerSIGKILL,and existing browser-wait timeout. Each observes three actual mint processes, all absent before every owned data/scratch removal; all Node children/groups retired.",
+		"shared_proof": "reports/review-fix1-shared-verdicts.json: real token-created interruption and SIGTERM injected after actual group spawn but before source registration returns. Signal is blocked at the registration boundary; full descendant group retires before assets, dev pidfiles and user/chat/folder identity sets restored.",
+		"normal_restoration": "Full40browser cases, shared default5s smoke Office7/24/5/resource matrix,73owning tests,16minter boundaries; private20s browser lifetime unchanged.",
+		"gate": "Runtime closure only; independent review and merge attestation are recorded on PR422, not inferred from this manifest."
+	},
+	"previous_qualified_bundle": {
+		"head": "732e1a41395c2cad84fa1cd7ea6ad2107819ad02",
+		"sha256": "689d6e05b7553a45187b84a87da7d0e23f971dfd0c23227ea72988560be7126e",
+		"path": "docs/evidence/issue-300/verification.tar.gz",
+		"scope": "Historical initial acceptance/probe source identities; normal facts retained, cancellation gap superseded by review-fix proof."
+	}
+}

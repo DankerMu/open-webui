@@ -5,7 +5,7 @@ kind: architecture
 status: proposed
 date: 2026-09-20
 supersedes: none
-references: docs/plans/2026-09-20-workspace-artifact-integration.md (A-T01, § 2 "静态相对资源"); openspec/changes/ocu-workspace-integration design D19; DankerMu/open-webui#35 (follow-up, in epic #2); docs/decisions/proposed/architecture/2026-10-10-ocu-resource-grants.md (separate-interface proposal; this withdrawn design is historical input only)
+references: docs/plans/2026-09-20-workspace-artifact-integration.md (A-T01, § 2 "静态相对资源"); openspec/changes/ocu-workspace-integration design D19; DankerMu/open-webui#35 (follow-up, in epic #2); docs/decisions/implemented/architecture/2026-10-10-ocu-resource-grants.md (implemented separate-interface decision; this withdrawn design is historical input only)
 ---
 
 # Signed path grant so opaque-origin generated documents can load relative sub-resources
@@ -17,6 +17,8 @@ Model-generated HTML/SVG is shown with an opaque origin (sandboxed iframe withou
 ## Decision
 
 Proposed, not adopted. On 2026-09-20 the user withdrew this design from the `ocu-workspace-integration` change; that change serves generated documents single-file (design D19) and narrows A-T01 to inline resources. This record keeps the design and its open items so a later OpenSpec change starts from them instead of rediscovering them.
+
+The [implemented separate-interface decision](../../implemented/architecture/2026-10-10-ocu-resource-grants.md) owns the delivered resource contract. The header-selected design, open items and consequences below describe this withdrawn proposal, not the current grant interface.
 
 Design as reviewed:
 

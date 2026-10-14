@@ -1,6 +1,6 @@
 import { expect, type Page, type Request } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
-import { context, evidence } from './ocu-fixtures';
+import { context, evidence, waitForGrantedFile } from './ocu-fixtures';
 
 const CELLPHONE = '/ocu/static/drawio/img/telecommunication/Cellphone_128x128.png';
 const AND_STENCIL = '/ocu/static/drawio/stencils/electrical/logic_gates.xml';
@@ -174,10 +174,9 @@ test('workspace Files keeps Drawio as opaque XML without fetching the viewer', a
 		}
 	});
 	const panel = await openWorkspace(page, 'drawio_embedded');
-	const loaded = page.waitForResponse(
-		(response) =>
-			response.url().includes(`/ocu/files/${context.chats.drawio_embedded}/diagram.drawio`) &&
-			response.status() === 200
+	const loaded = waitForGrantedFile(
+		page,
+		`/ocu/files/${context.chats.drawio_embedded}/diagram.drawio?revision=1`
 	);
 	await panel.getByRole('button', { name: 'diagram.drawio' }).click();
 	expect((await loaded).status()).toBe(200);

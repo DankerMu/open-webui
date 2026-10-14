@@ -435,15 +435,16 @@ export async function walkOfficeRefresh(page: Page, chatId: string) {
 		fullPage: true
 	});
 	await expectNoNativeUnloadPrompt(page, () => page.reload());
+	await workspaceFilesPanel(page);
 	await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
 	await page.screenshot({
 		path: `${evidence}/office-leave-refresh-after-clean.png`,
 		fullPage: true
 	});
 	await expectNoNativeUnloadPrompt(page, () => page.reload());
+	const reopenedPanel = await workspaceFilesPanel(page);
 	await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
 	await page.screenshot({ path: `${evidence}/office-leave-refresh-absent.png`, fullPage: true });
-	const reopenedPanel = await workspaceFilesPanel(page);
 	const reopenPath = officeCreatePath(chatId, original.file_id);
 	const reopened = waitOriginResponse(page, reopenPath, 'POST');
 	await clickEditAwaitCreate(page, reopenedPanel, reopenPath);

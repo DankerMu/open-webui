@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-27
 supersedes: none
-references: 2026-09-27-ocu-restricted-office-embedding, 2026-09-27-ocu-consumer-failures, 2026-09-27-ocu-workspace-controls
+references: 2026-09-27-ocu-restricted-office-embedding, 2026-09-27-ocu-consumer-failures, 2026-09-27-ocu-workspace-controls, 2026-10-10-ocu-resource-grants
 ---
 
 # Chat-owned Files selection with isolated preview surfaces
@@ -20,7 +20,7 @@ The authenticated feature flag gates Files mounting on a saved chat. Unsaved act
 
 Generated HTML/SVG/XML uses cookie-path iframe navigation with fixed `allow-scripts allow-forms`. User sandbox preferences cannot widen it. Office uses the existing restricted parent-selection protocol with exact source/origin/chat/file/generation checks and bounded ready/result deadlines. The parent owns download and explicit retry; it never duplicates Office rendering. Selected-file presentation is a compact metadata bar plus a remaining-height framed surface: decorative kind icon, truncated display basename with full-name tooltip, nested directory from canonical row membership, canonical formatted size, and one icon download named `Download <name>` with the original href and download attribute. Generated, Office pending/error/retry and unsupported branches render inside the framed surface; unsupported adds a secondary `Download` anchor. Frame sandbox, source, title, bindings, keyed lifecycle, message validation and deadlines stay unchanged.
 
-Browser evidence runs actual WebUI and pinned OCU assets through the native gateway on isolated owned ports. Ordinary WebUI HTTP and WebSocket forwarding must work, including HMR and Socket.IO, rather than hiding their console errors. The harness backend allows its exact browser origin. Relative generated resources remain denied without credentials; Chromium ORB requires exact-request failure observation plus anonymous 401 and zero-upstream-arrival evidence.
+Browser evidence runs actual WebUI and pinned OCU assets through the native gateway on isolated owned ports. Ordinary WebUI HTTP and WebSocket forwarding must work, including HMR and Socket.IO, rather than hiding their console errors. Relative generated resources use the [session-bound read capability](2026-10-10-ocu-resource-grants.md) while iframe, message, download and persisted identities remain canonical. Expiry blocks new requests, not delivered content; valid-session canonical reopening obtains fresh authorization without automatic renewal. HTML/SVG stays opaque, user sandbox settings cannot widen access, and actual execution/upload/control attempts are refused with exact-request and no-corresponding-OCU-arrival evidence. Anonymous canonical resources remain401; no cookie, sandbox or global CORS widening supplies generated-document authority. [Local verification](../../../evidence/issue-300/verification.json) covers deterministic resources, not LAN, real-model or real-DocumentServer acceptance.
 
 ## Alternatives considered
 

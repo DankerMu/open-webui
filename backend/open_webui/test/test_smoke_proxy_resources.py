@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +22,7 @@ def resources(monkeypatch, tmp_path):
     import smoke_proxy_support as support
 
     smoke = SimpleNamespace(
+        owned=[],
         secrets=['internal-canary', 'session-canary'],
         token='internal-canary',
         owner_id='owner',
@@ -288,3 +291,109 @@ def test_successful_hurl_requires_readable_response_evidence(resources, tmp_path
         (tmp_path / 'report.json').write_text(report_content)
     with pytest.raises(support.Fail, match='report'):
         support.scan_hurl_report(tmp_path, smoke.token, smoke.secrets, require_response=True)
+
+
+@pytest.mark.parametrize('lifetime', [0, -1, 61, True, 5.5, '20'])
+def test_short_session_rejects_unbounded_or_noninteger_lifetime(resources, monkeypatch, tmp_path, lifetime):
+    resource, support, smoke = resources
+    smoke.root = tmp_path
+
+    def unavailable(*_args, **_kwargs):
+        raise AssertionError('invalid lifetime reached the signing process')
+
+    monkeypatch.setattr(resource.subprocess, 'Popen', unavailable)
+    with pytest.raises(support.Fail, match='lifetime must be an integer from 1 to 60'):
+        resource.mint_short_session(smoke, lifetime=lifetime)
+
+
+@pytest.fixture
+def signing_child(resources, monkeypatch, tmp_path):
+    resource, support, smoke = resources
+    smoke.root = tmp_path
+    smoke.scratch = tmp_path / 'owned'
+    smoke.scratch.mkdir()
+    sentinel = smoke.scratch / 'unowned-sentinel'
+    sentinel.write_bytes(b'preserve')
+    smoke.signing_env = {'STATIC_DIR': str(tmp_path / 'live-static')}
+    real_popen = subprocess.Popen
+    children = []
+
+    def install(code, *, timeout=None):
+        def run_child(_command, **kwargs):
+            if _command[0] != 'bash':
+                return real_popen(_command, **kwargs)
+            # The process boundary supplies malformed signer output, not a mocked successful token.
+            children.append(Path(kwargs['env']['STATIC_DIR']).parent)
+            process = real_popen(
+                [
+                    sys.executable,
+                    '-c',
+                    'import os,pathlib,signal; '
+                    'signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGINT,signal.SIGTERM,signal.SIGHUP}); '
+                    'pathlib.Path(os.environ["STATIC_DIR"]).mkdir(parents=True); '
+                    'pathlib.Path(os.environ["STATIC_DIR"],"private").write_text("credential-canary"); ' + code,
+                ],
+                **kwargs,
+            )
+            if timeout is not None:
+                communicate = process.communicate
+
+                def bounded_communicate(*args, **options):
+                    options['timeout'] = timeout
+                    return communicate(*args, **options)
+
+                process.communicate = bounded_communicate
+            return process
+
+        monkeypatch.setattr(resource.subprocess, 'Popen', run_child)
+
+    return resource, support, smoke, install, children, sentinel
+
+
+@pytest.mark.parametrize(
+    'metadata',
+    [
+        '{"token":"eyJcanary.payload.signature","exp":true}',
+        '{"token":"eyJcanary.payload.signature","exp":NaN}',
+        '{"token":"eyJcanary.payload.signature","exp":0}',
+        '{"token":"eyJcanary.payload.signature","exp":99999999999}',
+        '{"token":42,"exp":99999999999}',
+        '{"token":"credential-canary"}',
+        '[]',
+        '{partial',
+    ],
+)
+def test_short_session_rejects_invalid_metadata_without_credentials(signing_child, metadata):
+    resource, support, smoke, install, children, sentinel = signing_child
+    install(f'print({("OCU_SHORT_SESSION=" + metadata)!r})')
+    with pytest.raises(support.Fail, match='invalid captured token/expiry metadata') as raised:
+        resource.mint_short_session(smoke, service_env=smoke.signing_env, lifetime=20)
+    assert 'eyJcanary' not in str(raised.value)
+    assert 'credential-canary' not in str(raised.value)
+    assert children and all(not path.exists() for path in children)
+    assert sentinel.read_bytes() == b'preserve'
+
+
+def test_short_session_rejected_signer_retires_private_assets_without_echoing_output(signing_child):
+    resource, support, smoke, install, children, sentinel = signing_child
+    install(
+        'import sys; print("eyJcanary.payload.signature"); '
+        'print("/ocu/f/rejected.capability/chat/page.html credential-canary",file=sys.stderr); sys.exit(7)'
+    )
+    with pytest.raises(support.Fail, match='canonical create_token failed') as raised:
+        resource.mint_short_session(smoke, service_env=smoke.signing_env)
+    assert 'eyJcanary' not in str(raised.value)
+    assert 'rejected.capability' not in str(raised.value)
+    assert 'credential-canary' not in str(raised.value)
+    assert all(not path.exists() for path in children)
+    assert sentinel.read_bytes() == b'preserve'
+
+
+def test_short_session_timeout_retires_private_assets(signing_child):
+    resource, support, smoke, install, children, sentinel = signing_child
+    install('import time; print("credential-canary",flush=True); time.sleep(60)', timeout=1)
+    with pytest.raises(support.Fail, match='canonical backend interpreter unavailable') as raised:
+        resource.mint_short_session(smoke, service_env=smoke.signing_env)
+    assert 'credential-canary' not in str(raised.value)
+    assert children and all(not path.exists() for path in children)
+    assert sentinel.read_bytes() == b'preserve'

@@ -16,8 +16,10 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 from ocu_stub_office import OFFICE_SCENARIOS, office_document
+from smoke_proxy_resources import mint_short_session
 from smoke_proxy_support import (
     distinct_ports,
     fail,
@@ -41,6 +43,20 @@ Smoke = smoke_module.Smoke
 require_tools = smoke_module.require_tools
 PINNED_FILES = smoke_module.PINNED_FILES
 
+
+def mint_browser_session() -> int:
+    config = json.loads(Path(json.load(sys.stdin)['config']).read_text(encoding='utf-8'))
+    owner = SimpleNamespace(
+        root=Path(config['root']), owner_id=config['owner_id'], secrets=[], scratch=Path(config['scratch'])
+    )
+    token, expiry = mint_short_session(owner, service_env=config['service_env'], lifetime=20, inherited_group=True)
+    fd = os.open(config['credentials'], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd, 'a', encoding='utf-8') as stream:
+        stream.write(json.dumps(token) + '\n')
+    sys.stdout.write(json.dumps({'token': token, 'exp': expiry}))
+    return 0
+
+
 log = logging.getLogger('verify-ui-ocu')
 SCENARIOS = (
     'normal',
@@ -61,6 +77,7 @@ SCENARIOS = (
 )
 REQUIRED_SPECS = (
     'ocu-workspace.e2e.ts',
+    'ocu-resources.e2e.ts',
     'ocu-controls.e2e.ts',
     'ocu-reconciliation.e2e.ts',
     'ocu-drawio.e2e.ts',
@@ -158,6 +175,8 @@ class BrowserHarness(Smoke):
         if status != 200 or not signin.get('token') or not headers.get('set-cookie'):
             fail('owner cannot sign in through actual proxy')
         cookie = f'token={signin["token"]}'
+        self.owner_id = signin['id']
+        self.secrets.extend([jwt, signin['token'], password])
         scenarios: dict[str, str] = {}
         chats: dict[str, str] = {}
         for scenario in SCENARIOS:
@@ -272,8 +291,7 @@ class BrowserHarness(Smoke):
                     source = self.scratch / f'{name}.log'
                     if source.is_file():
                         data = source.read_text(encoding='utf-8', errors='replace')
-                        if self.token:
-                            data = data.replace(self.token, '[redacted]')
+                        data = redact(data, self.secrets)
                         (evidence / f'{name}.log').write_text(data, encoding='utf-8')
                 log.error('workspace failure logs: %s', evidence)
             raise
@@ -288,8 +306,8 @@ class BrowserHarness(Smoke):
             timeout=60,
             check=False,
         )
-        sys.stdout.write(listing.stdout)
-        sys.stderr.write(listing.stderr)
+        sys.stdout.write(redact(listing.stdout, self.secrets))
+        sys.stderr.write(redact(listing.stderr, self.secrets))
         if listing.returncode:
             fail(f'configured Playwright test discovery failed ({listing.returncode})')
         discovered = set(
@@ -319,6 +337,7 @@ class BrowserHarness(Smoke):
         self.fixtures.write_text('{}', encoding='utf-8')
         self.record = self.scratch / 'stub.jsonl'
         self.token = 'Tok!' + secrets.token_hex(12) + '#$%'
+        self.secrets.append(self.token)
         (self.stub_port, self.backend_port, self.frontend_port, self.proxy_port, self.office_port) = distinct_ports(5)
         self.origin = f'http://127.0.0.1:{self.proxy_port}'
         self.webui = f'http://127.0.0.1:{self.frontend_port}'
@@ -383,6 +402,8 @@ class BrowserHarness(Smoke):
             'BACKEND_PORT': str(self.backend_port),
             'FRONTEND_PORT': str(self.frontend_port),
             'DATA_DIR': str(self.data_dir),
+            # Prevent repository dotenv from overriding isolated backend configuration.
+            'PYTHON_DOTENV_DISABLED': '1',
             'WEBUI_SECRET_KEY': secrets.token_urlsafe(32),
             'FRONTEND_BUILD_DIR': str(self.scratch / 'frontend-build'),
             'STATIC_DIR': str(self.scratch / 'backend-static'),
@@ -398,6 +419,7 @@ class BrowserHarness(Smoke):
             'OCU_UI_VITE_CACHE_DIR': str(self.scratch / 'vite-cache'),
             'UV_NO_SYNC': '1',
         }
+        self.secrets.append(service_env['WEBUI_SECRET_KEY'])
         run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)
         backend_cmd = [
             'bash',
@@ -436,6 +458,20 @@ class BrowserHarness(Smoke):
         wait_http(self.origin + '/', self.owned[-1], timeout=20)
         chats, identity, password = self.provision()
         restart = self.restart_native(old_stub, old_backend, stub_cmd, backend_cmd, env, service_env)
+        mint_config = self.scratch / 'mint-config.json'
+        credentials = self.scratch / 'mint-credentials.jsonl'
+        fd = os.open(mint_config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(
+                {
+                    'root': str(self.root),
+                    'scratch': str(self.scratch),
+                    'owner_id': self.owner_id,
+                    'service_env': service_env,
+                    'credentials': str(credentials),
+                },
+                stream,
+            )
         context = self.scratch / 'browser.json'
         context.write_text(
             json.dumps(
@@ -445,6 +481,7 @@ class BrowserHarness(Smoke):
                     'fixtures': str(self.fixtures),
                     'record': str(self.record),
                     'restart': restart,
+                    'mint': {'python': self.python, 'config': str(mint_config)},
                 }
             ),
             encoding='utf-8',
@@ -458,21 +495,38 @@ class BrowserHarness(Smoke):
             'OCU_E2E_PASSWORD': password,
         }
         self.verify_test_discovery(browser_env)
-        browser = subprocess.Popen(
-            [str(self.root / 'node_modules/.bin/playwright'), 'test', '--config', 'playwright.ocu.config.ts'],
-            cwd=self.root,
-            env=browser_env,
-            start_new_session=True,
-        )
-        self.owned.append(browser.pid)
-        try:
-            code = browser.wait(timeout=600)
-        except subprocess.TimeoutExpired:
-            fail('workspace browser verification exceeded 600 seconds')
-        finally:
-            if browser.poll() is not None:
-                self.owned.remove(browser.pid)
+        # Reporter output and automatic traces stay private until credential redaction.
+        output_fd = os.open(self.scratch / 'browser-output.log', os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(output_fd, 'w+', encoding='utf-8') as output:
+            browser = subprocess.Popen(
+                [
+                    str(self.root / 'node_modules/.bin/playwright'),
+                    'test',
+                    '--config',
+                    'playwright.ocu.config.ts',
+                    '--output',
+                    str(self.scratch / 'test-results'),
+                ],
+                cwd=self.root,
+                env=browser_env,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            self.owned.append(browser.pid)
+            try:
+                code = browser.wait(timeout=600)
+            except subprocess.TimeoutExpired:
+                fail('workspace browser verification exceeded 600 seconds')
+            finally:
+                # Retire every inherited mint before consuming credentials or releasing private assets.
                 kill_tree(browser.pid)
+                browser.wait()
+                self.owned.remove(browser.pid)
+                if credentials.exists():
+                    self.secrets.extend(json.loads(line) for line in credentials.read_text().splitlines())
+                output.seek(0)
+                sys.stdout.write(redact(output.read(), self.secrets))
         if code:
             fail(f'workspace browser verification failed ({code})')
         log.info('verify-ui-ocu: all required browser cases completed')
@@ -490,4 +544,4 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(mint_browser_session() if sys.argv[1:] == ['--mint-session'] else main())

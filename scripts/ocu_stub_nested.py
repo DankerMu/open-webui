@@ -54,15 +54,45 @@ FILES = {
         b"""<!doctype html><html><head><title>ocu-stub page</title>
 <link rel="stylesheet" href="style.css"><style>#inline{color:rgb(0,128,0)}</style></head><body>
 <p id="inline">ocu-stub page</p><img id="image" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
+<p id="styled">Relative stylesheet</p><img id="relative-image" src="relative.png" width="64" height="64">
+<p id="font">Workspace resource WWW iii 012345</p>
+<p id="font-control" style="font:32px monospace;width:max-content">Workspace resource WWW iii 012345</p>
+<p id="classic">waiting</p><p id="module">waiting</p><p id="fetch">waiting</p><p id="font-loaded">waiting</p>
 <button id="run" onclick="document.querySelector('#clicked').textContent='clicked'">Run</button>
-<span id="clicked"></span><span id="proof"></span>
+<span id="clicked"></span><span id="proof"></span><span id="denials"></span><span id="expiry"></span>
+<button id="deny" onclick="runDenialProbes()">Probe denied execution and writes</button>
+<script src="classic.js"></script><script type="module" src="module.js"></script>
 <script>
 let storage='blocked', parentAccess='blocked', cookie='blocked';
 try { localStorage.getItem('token'); storage='leaked' } catch {}
 try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
-try { cookie=document.cookie || 'blocked' } catch {}
+try { void document.cookie; cookie='leaked' } catch {}
 document.querySelector('#proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
 window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*');
+fetch('data.json').then(response=>response.json()).then(data=>document.querySelector('#fetch').textContent=data.value);
+document.fonts.load('32px ResourceFixture').then(faces=>{
+  document.querySelector('#font-loaded').textContent=faces.length===1 && faces[0].status==='loaded'?'loaded':'missing';
+});
+const chat=location.pathname.split('/')[4], nonce='resource-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+window.denialProbes=[
+  '/api/v1/utils/code/execute?probe='+nonce,
+  '/ocu/api/uploads/'+chat+'/resource-proof-'+nonce+'.txt?probe='+nonce,
+  '/ocu/terminal/'+chat+'/processes/2147483647/kill?probe='+nonce
+];
+window.runDenialProbes=()=>Promise.all(window.denialProbes.map((url,index)=>fetch(url,{
+  method:'POST',credentials:'omit',headers:{'Content-Type':'text/plain'},
+  body:JSON.stringify({code:'print("browser-denial-canary")',language:'python'})
+}).then(response=>index===0 && response.status===401?'blocked':'unexpected',()=> 'blocked'))).then(results=>{
+  document.querySelector('#denials').textContent=results.join('|');
+});
+window.probeExpiredResource=async nonce=>{
+  const url=new URL('data.json?expiry='+nonce,location.href);
+  try {
+    await fetch(url,{cache:'no-store',credentials:'omit'});
+    document.querySelector('#expiry').textContent='unexpected';
+  }
+  catch { document.querySelector('#expiry').textContent='blocked'; }
+};
 </script></body></html>""",
     ),
     'report.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub report</body></html>'),
@@ -74,7 +104,7 @@ window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*
 let storage='blocked', parentAccess='blocked', cookie='blocked';
 try { localStorage.getItem('token'); storage='leaked' } catch {}
 try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
-try { cookie=document.cookie || 'blocked' } catch {}
+try { void document.cookie; cookie='leaked' } catch {}
 document.getElementById('proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
 window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
 ]]></script></svg>""",
@@ -94,8 +124,21 @@ window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
     'blob.bin': ('application/octet-stream', b'\x00\x01\x02\x03'),
     'sub/archive': ('text/plain', b'ordinary nested archive filename'),
     'office/source/file': ('text/plain', b'ordinary control-like filename'),
-    'style.css': ('text/css', b'#inline { color: rgb(0, 128, 0); }\n'),
-    'module.js': ('text/javascript', b'export const resourceProof = "ocu-stub-module";\n'),
+    'style.css': (
+        'text/css',
+        b'#inline { color: rgb(0, 128, 0); }\n'
+        b'#styled { color: rgb(17, 34, 51); }\n'
+        b'@font-face { font-family: ResourceFixture; src: url("font.ttf") format("truetype"); }\n'
+        b'#font { font: 32px ResourceFixture, monospace; width: max-content; }\n',
+    ),
+    'relative.png': ('image/png', NESTED_FILES['photo.png'][2]),
+    'classic.js': ('text/javascript', b'document.querySelector("#classic").textContent="classic-loaded";\n'),
+    'module.js': (
+        'text/javascript',
+        b'export const resourceProof = "ocu-stub-module";\n'
+        b'document.querySelector("#module").textContent=resourceProof;\n',
+    ),
+    'data.json': ('application/json', b'{"value":"relative-fetch-loaded"}\n'),
     'font.ttf': (
         'font/ttf',
         (Path(__file__).resolve().parent.parent / 'static/assets/fonts/Inter-Variable.ttf').read_bytes(),

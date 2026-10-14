@@ -1,6 +1,12 @@
 import * as fs from 'node:fs';
-import { expect, type BrowserContext, type CDPSession, type Page } from '@playwright/test';
-import { attachCdpTarget, cdpDeadline } from '../scripts/ocu-target-bridge.mjs';
+import { expect, type BrowserContext, type Page, type Response } from '@playwright/test';
+import {
+	openBrowserCdp,
+	retireBrowserTargets,
+	cdpDeadline,
+	type BrowserCdpController,
+	type CdpTargetSession
+} from '../scripts/ocu-target-bridge.mjs';
 
 export type OcuClickProbe = {
 	path: string;
@@ -25,6 +31,7 @@ export const context: {
 	chats: Record<string, string>;
 	fixtures: string;
 	record: string;
+	mint: { python: string; config: string };
 	restart: {
 		stub: { old_pid: number; new_pid: number };
 		backend: { old_pid: number; new_pid: number };
@@ -33,6 +40,113 @@ export const context: {
 } = JSON.parse(fs.readFileSync(contextFile, 'utf8'));
 export const evidence = '.run/ui-evidence';
 fs.mkdirSync(evidence, { recursive: true });
+
+export function redactOcu(text: string): string {
+	return text
+		.replace(/\/ocu\/f\/[^/\s"'<>?#]+/g, '/ocu/f/[grant]')
+		.replace(/wss?:\/\/[^\s"'<>]+\/devtools\/[^\s"'<>]+/g, '[private CDP endpoint]');
+}
+
+export function sanitizedLocation(raw: string): string | null {
+	try {
+		const address = new URL(raw, context.origin);
+		if (address.origin !== context.origin) return null;
+		const query = new URLSearchParams();
+		for (const [key, value] of address.searchParams) {
+			const allowed = ['revision', 'download', 'embed'].includes(key);
+			query.append(allowed ? key : 'other', allowed && /^\d+$/.test(value) ? value : '[redacted]');
+		}
+		return redactOcu(address.pathname) + (query.size ? `?${query}` : '');
+	} catch {
+		return null;
+	}
+}
+
+export function isGrantedFile(raw: string, canonical: string): boolean {
+	try {
+		const actual = new URL(raw, context.origin);
+		const expected = new URL(canonical, context.origin);
+		const grant = /^\/ocu\/f\/[^/]+\/([^/]+)\/(.+)$/.exec(actual.pathname);
+		const file = /^\/ocu\/files\/([^/]+)\/(.+)$/.exec(expected.pathname);
+		return (
+			actual.origin === expected.origin &&
+			!!grant &&
+			!!file &&
+			grant[1] === file[1] &&
+			grant[2] === file[2] &&
+			actual.search === expected.search &&
+			actual.hash === expected.hash
+		);
+	} catch {
+		return false;
+	}
+}
+
+export type GrantedDocument = {
+	url: string;
+	canonical: string;
+	headers: Record<string, string>;
+};
+
+function assertGrantChain(
+	canonical: string,
+	final: string,
+	status: number,
+	headers: Record<string, string>,
+	issuedUrl: string,
+	issuedStatus: number,
+	issuance: Record<string, string>
+): GrantedDocument {
+	expect(isGrantedFile(final, canonical), 'exact granted chat/file/query').toBe(true);
+	expect(
+		issuedUrl === new URL(canonical, context.origin).href,
+		'actual canonical predecessor'
+	).toBe(true);
+	expect(issuedStatus).toBe(302);
+	expect(issuance['cache-control'] === 'no-store').toBe(true);
+	expect(issuance['referrer-policy'] === 'no-referrer').toBe(true);
+	expect(issuance.location?.startsWith('/ocu/f/'), 'relative grant Location').toBe(true);
+	expect(
+		new URL(issuance.location ?? '', context.origin).href === final,
+		'redirect Location is final response'
+	).toBe(true);
+	expect(status).toBe(200);
+	expect(headers['cache-control'] === 'no-store').toBe(true);
+	expect(headers['referrer-policy'] === 'no-referrer').toBe(true);
+	if (
+		['text/html', 'image/svg+xml', 'application/xml', 'text/xml', 'application/xhtml+xml'].includes(
+			headers['content-type']?.split(';')[0].trim().toLowerCase()
+		)
+	) {
+		expect(headers['content-security-policy'] === 'sandbox allow-scripts allow-forms').toBe(true);
+		expect(headers['x-content-type-options'] === 'nosniff').toBe(true);
+	}
+	return { url: final, canonical: new URL(canonical, context.origin).href, headers };
+}
+
+export async function assertGrantedFile(response: Response, canonical: string) {
+	const entry = response.request().redirectedFrom();
+	expect(entry?.redirectedFrom() === null, 'single canonical issuance hop').toBe(true);
+	const issued = await entry?.response();
+	return assertGrantChain(
+		canonical,
+		response.url(),
+		response.status(),
+		response.headers(),
+		entry?.url() ?? '',
+		issued?.status() ?? 0,
+		issued?.headers() ?? {}
+	);
+}
+
+export function waitForGrantedFile(page: Page, canonical: string) {
+	return page
+		.waitForResponse((response) => isGrantedFile(response.url(), canonical))
+		.then(async (response) => {
+			await assertGrantedFile(response, canonical);
+			return response;
+		});
+}
 
 export function records() {
 	return fs
@@ -182,6 +296,12 @@ type PopupCdpEvent = {
 	stackTrace?: { callFrames?: Array<{ url: string }> };
 	exceptionDetails?: { url?: string; text?: string; exception?: { description?: string } };
 	entry?: { level?: string; url?: string; text?: string };
+	requestId?: string;
+	frameId?: string;
+	loaderId?: string;
+	request?: { url: string; method: string };
+	redirectResponse?: { url: string; status: number; headers: Record<string, string> };
+	response?: { url: string; status: number; headers: Record<string, string> };
 };
 
 function collectPopupError(
@@ -191,16 +311,59 @@ function collectPopupError(
 ) {
 	if (method === 'Runtime.consoleAPICalled' && params.type === 'error')
 		errors.push({
-			url: params.stackTrace?.callFrames?.[0]?.url ?? '',
-			text: params.args?.map((arg) => String(arg.value ?? arg.description ?? '')).join(' ') ?? ''
+			url: redactOcu(params.stackTrace?.callFrames?.[0]?.url ?? ''),
+			text: redactOcu(
+				params.args?.map((arg) => String(arg.value ?? arg.description ?? '')).join(' ') ?? ''
+			)
 		});
 	if (method === 'Runtime.exceptionThrown')
 		errors.push({
-			url: params.exceptionDetails?.url ?? '',
-			text: params.exceptionDetails?.exception?.description ?? params.exceptionDetails?.text ?? ''
+			url: redactOcu(params.exceptionDetails?.url ?? ''),
+			text: redactOcu(
+				params.exceptionDetails?.exception?.description ?? params.exceptionDetails?.text ?? ''
+			)
 		});
 	if (method === 'Log.entryAdded' && params.entry?.level === 'error')
-		errors.push({ url: params.entry.url ?? '', text: params.entry.text ?? '' });
+		errors.push({
+			url: redactOcu(params.entry.url ?? ''),
+			text: redactOcu(params.entry.text ?? '')
+		});
+}
+
+type PopupNavigation = {
+	frameId: string;
+	loaderId: string;
+	final?: PopupCdpEvent['response'];
+	redirect?: PopupCdpEvent['redirectResponse'];
+	redirectedUrl?: string;
+};
+
+function collectPopupNavigation(
+	navigations: Map<string, PopupNavigation>,
+	method: string,
+	event: PopupCdpEvent,
+	canonical: string
+) {
+	if (!event.requestId || event.type !== 'Document') return false;
+	if (
+		method === 'Network.requestWillBeSent' &&
+		event.request?.url === canonical &&
+		event.request.method === 'GET' &&
+		event.frameId &&
+		event.loaderId
+	) {
+		navigations.set(event.requestId, { frameId: event.frameId, loaderId: event.loaderId });
+		return true;
+	}
+	const navigation = navigations.get(event.requestId);
+	if (!navigation || navigation.frameId !== event.frameId || navigation.loaderId !== event.loaderId)
+		return false;
+	if (method === 'Network.requestWillBeSent') {
+		navigation.redirect = event.redirectResponse;
+		navigation.redirectedUrl = event.request?.url;
+	}
+	if (method === 'Network.responseReceived') navigation.final = event.response;
+	return false;
 }
 
 async function sourceTargetContext(
@@ -224,24 +387,9 @@ async function sourceTargetContext(
 		throw new Error('Native popup source target identity unavailable');
 	return info.browserContextId;
 }
-type PopupBridge = Awaited<ReturnType<typeof attachCdpTarget>>;
-
-function matchesPopupPath(url: string, path: string) {
-	try {
-		const address = new URL(url);
-		return (
-			address.origin === context.origin &&
-			address.pathname === path &&
-			address.search === '' &&
-			address.hash === ''
-		);
-	} catch {
-		return false;
-	}
-}
 
 async function awaitPopupDestination(
-	root: CDPSession,
+	root: BrowserCdpController,
 	targetId: string,
 	contextId: string,
 	path: string,
@@ -250,9 +398,9 @@ async function awaitPopupDestination(
 	const deadline = Date.now() + 20_000;
 	do {
 		if (!valid()) throw new Error('Native popup target lost or ambiguous');
-		const { targetInfos } = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
+		const { targetInfos } = await root.send('Target.getTargets');
 		const matches = targetInfos.filter(
-			(info) => (info.type === 'page' || info.type === 'tab') && matchesPopupPath(info.url, path)
+			(info) => (info.type === 'page' || info.type === 'tab') && isGrantedFile(info.url, path)
 		);
 		if (
 			matches.length > 1 ||
@@ -260,7 +408,7 @@ async function awaitPopupDestination(
 				(matches[0].targetId !== targetId || matches[0].browserContextId !== contextId))
 		)
 			throw new Error('Native popup destination identity mismatch');
-		if (matches.length === 1) return;
+		if (matches.length === 1) return matches[0].url as string;
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	} while (Date.now() < deadline);
 	throw new Error('Native popup destination identity mismatch');
@@ -272,7 +420,7 @@ const POPUP_DOCUMENT_EXPRESSION = `JSON.stringify((() => {
 	const image = document.querySelector('#image');
 	const safe = (value) => value === 'blocked' ? 'blocked' : 'unexpected';
 	return {
-		path: location.pathname, origin: location.origin, readyState: document.readyState,
+		path: location.pathname.replace(/\\/ocu\\/f\\/[^/]+/, '/ocu/f/[grant]'), origin: location.origin, readyState: document.readyState,
 		proof: proof === 'null|blocked|blocked|blocked' ? proof : 'unexpected',
 		inlineColor: inline ? getComputedStyle(inline).color : null,
 		imageNaturalWidth: image?.naturalWidth ?? null, imageComplete: image?.complete ?? null,
@@ -293,6 +441,17 @@ type PopupFixtureEvent = {
 	cookie: string;
 };
 
+export type PopupDocument = {
+	path: string;
+	origin: string;
+	readyState: string;
+	proof: string;
+	inlineColor: string | null;
+	imageNaturalWidth: number | null;
+	imageComplete: boolean | null;
+	fixtureEvents: PopupFixtureEvent[];
+};
+
 function expectedPopupEvent(event: PopupFixtureEvent, type: 'html' | 'svg') {
 	return (
 		event.origin === 'null' &&
@@ -303,7 +462,11 @@ function expectedPopupEvent(event: PopupFixtureEvent, type: 'html' | 'svg') {
 	);
 }
 
-async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', valid: () => boolean) {
+async function readPopupDocument(
+	bridge: CdpTargetSession,
+	type: 'html' | 'svg',
+	valid: () => boolean
+): Promise<PopupDocument> {
 	const deadline = Date.now() + 20_000;
 	let lastDocument: unknown;
 	do {
@@ -326,7 +489,7 @@ async function readPopupDocument(bridge: PopupBridge, type: 'html' | 'svg', vali
 	throw new Error(`Native popup fixture event missing: ${JSON.stringify(lastDocument)}`);
 }
 
-async function capturePopupScreenshot(bridge: PopupBridge, path: string) {
+async function capturePopupScreenshot(bridge: CdpTargetSession, path: string) {
 	const capture = await bridge.send('Page.captureScreenshot', { format: 'png' });
 	const png = Buffer.from(capture.data ?? '', 'base64');
 	if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')))
@@ -334,27 +497,46 @@ async function capturePopupScreenshot(bridge: PopupBridge, path: string) {
 	fs.writeFileSync(path, png);
 }
 
-async function releasePopupTarget(
-	root: CDPSession,
-	bridge: PopupBridge | undefined,
-	targetId: string | undefined,
-	targetLost: boolean
+export type PopupObservation = {
+	document: PopupDocument;
+	grant: GrantedDocument;
+	errors: Array<{ url: string; text: string }>;
+	targetId: string;
+	evaluate: (expression: string) => Promise<unknown>;
+	screenshot: (path: string) => Promise<void>;
+};
+
+async function visitPopupDocument(
+	bridge: CdpTargetSession | undefined,
+	type: 'html' | 'svg',
+	valid: () => boolean,
+	screenshotPath: string,
+	initial: Omit<PopupObservation, 'document' | 'evaluate' | 'screenshot'>,
+	visit?: (popup: PopupObservation) => Promise<void>
 ) {
-	const errors: string[] = [];
-	if (bridge) await bridge.detach().catch(() => errors.push('target detach'));
-	if (targetId) {
-		const closed = await cdpDeadline(
-			root.send('Target.closeTarget', { targetId }),
-			'target-close-timeout'
-		).catch(() => ({ success: false }));
-		if (!closed.success && !targetLost) errors.push('target close');
-	}
-	await cdpDeadline(
-		root.send('Target.setDiscoverTargets', { discover: false }),
-		'discovery-stop-timeout'
-	).catch(() => errors.push('target discovery'));
-	await cdpDeadline(root.detach(), 'root-detach-timeout').catch(() => errors.push('root detach'));
-	return errors;
+	if (!bridge) throw new Error('Native popup CDP attachment missing');
+	const document = await readPopupDocument(bridge, type, valid);
+	if (!valid()) throw new Error('Native popup target lost or ambiguous');
+	await capturePopupScreenshot(bridge, screenshotPath);
+	if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
+	const observation: PopupObservation = {
+		...initial,
+		document,
+		evaluate: async (expression) => {
+			if (!valid()) throw new Error('Native popup target lost or ambiguous');
+			const result = await bridge.send('Runtime.evaluate', {
+				expression,
+				returnByValue: true,
+				awaitPromise: true
+			});
+			if (result.exceptionDetails) throw new Error('Native popup evaluation failed');
+			return result.result?.value;
+		},
+		screenshot: (path) => capturePopupScreenshot(bridge, path)
+	};
+	await visit?.(observation);
+	if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
+	return observation;
 }
 
 /**
@@ -367,90 +549,184 @@ export async function observeNativeOcuPopup(
 	expectedPath: string,
 	type: 'html' | 'svg',
 	click: () => Promise<void>,
-	screenshotPath: string
+	screenshotPath: string,
+	visit?: (popup: PopupObservation) => Promise<void>,
+	onNetwork?: (method: string, params: unknown, sessionId: string) => void
 ) {
 	const owner = browser.browser();
 	if (!owner) throw new Error('Native popup observation requires a Chromium browser');
-	const root = await owner.newBrowserCDPSession();
+	const root = await openBrowserCdp(owner);
 	let targetId: string | undefined;
-	let bridge: PopupBridge | undefined;
-	let onCreated:
+	let bridge: CdpTargetSession | undefined;
+	const sessions = new Map<string, CdpTargetSession>();
+	const jobs = new Set<Promise<void>>();
+	const paused = new Set<string>();
+	let ownedTarget: string | undefined;
+	let closing = false;
+	let onAttached:
 		| ((event: {
+				sessionId: string;
+				waitingForDebugger: boolean;
 				targetInfo: { targetId: string; type: string; browserContextId?: string };
 		  }) => void)
 		| undefined;
-	let exposed = false;
 	let targetLost = false;
+	let autoAttachStarted = false;
+	const attachmentErrors: string[] = [];
 	const onLost = ({ targetId: lost }: { targetId: string }) => {
 		if (lost === targetId) targetLost = true;
 	};
 	const errors: Array<{ url: string; text: string }> = [];
-	const onPage = (page: Page) => {
-		if (page !== source) exposed = true;
-	};
-	let observation:
-		| {
-				document: Awaited<ReturnType<typeof readPopupDocument>>;
-				errors: Array<{ url: string; text: string }>;
-				pageExposed: boolean;
-				targetId: string;
-		  }
-		| undefined;
+	let observation: PopupObservation | undefined;
+	const navigations = new Map<string, PopupNavigation>();
+	const canonical = new URL(expectedPath, context.origin).href;
 	let failure: unknown;
 	let cleanupErrors: string[] = [];
 	try {
-		await cdpDeadline(
-			root.send('Target.setDiscoverTargets', { discover: true }),
-			'discovery-timeout'
-		);
-		const { targetInfos } = await cdpDeadline(root.send('Target.getTargets'), 'snapshot-timeout');
+		await root.send('Target.setDiscoverTargets', { discover: true });
+		const { targetInfos } = await root.send('Target.getTargets');
 		const existing = new Set(targetInfos.map(({ targetId }) => targetId));
 		const contextId = await sourceTargetContext(browser, source, targetInfos);
 		const candidates = new Set<string>();
 		const created = Promise.withResolvers<string>();
-		onCreated = ({ targetInfo }) => {
-			if (
-				existing.has(targetInfo.targetId) ||
-				(targetInfo.type !== 'page' && targetInfo.type !== 'tab') ||
-				targetInfo.browserContextId !== contextId
-			)
-				return;
-			candidates.add(targetInfo.targetId);
-			if (candidates.size !== 1) return;
-			targetId = targetInfo.targetId;
-			created.resolve(
-				(async () => {
-					bridge = await attachCdpTarget(root, targetInfo.targetId, {
-						onEvent: (method, params: PopupCdpEvent) => collectPopupError(errors, method, params)
-					});
-					await Promise.all([bridge.send('Runtime.enable'), bridge.send('Log.enable')]);
-					return targetInfo.targetId;
-				})()
-			);
+		void created.promise.catch(() => undefined);
+		onAttached = ({ targetInfo, sessionId, waitingForDebugger }) => {
+			const candidate =
+				!closing &&
+				!existing.has(targetInfo.targetId) &&
+				targetInfo.type === 'page' &&
+				targetInfo.browserContextId === contextId;
+			if (candidate) candidates.add(targetInfo.targetId);
+			const selected = candidate && candidates.size === 1;
+			if (candidate && !selected) created.reject(new Error('Native popup target not unique'));
+			if (waitingForDebugger) paused.add(sessionId);
+			const job = (async () => {
+				const attached = root.session(
+					sessionId,
+					selected
+						? (method, params: PopupCdpEvent) => {
+								collectPopupError(errors, method, params);
+								onNetwork?.(method, params, sessionId);
+								if (collectPopupNavigation(navigations, method, params, canonical))
+									ownedTarget = targetInfo.targetId;
+							}
+						: undefined
+				);
+				sessions.set(sessionId, attached);
+				try {
+					if (selected) {
+						targetId = targetInfo.targetId;
+						bridge = attached;
+						const { targetInfo: adopted } = await attached.send('Target.getTargetInfo');
+						if (adopted.targetId !== targetInfo.targetId || adopted.browserContextId !== contextId)
+							throw new Error('Native popup adopted session identity mismatch');
+						await Promise.all([
+							attached.send('Runtime.enable'),
+							attached.send('Log.enable'),
+							attached.send('Network.enable')
+						]);
+					}
+				} finally {
+					// Even foreign, existing and ambiguous targets belong to the browser, not this observer.
+					if (waitingForDebugger) {
+						await attached.send('Runtime.runIfWaitingForDebugger');
+						paused.delete(sessionId);
+					}
+				}
+				if (selected) created.resolve(targetInfo.targetId);
+			})();
+			jobs.add(job);
+			void job
+				.catch(() => {
+					attachmentErrors.push('target attachment or resume');
+					created.reject(new Error('Native popup attachment or resume failed'));
+				})
+				.finally(() => jobs.delete(job));
 		};
-		root.on('Target.targetCreated', onCreated);
+		root.on('Target.attachedToTarget', onAttached);
 		root.on('Target.targetDestroyed', onLost);
 		root.on('Target.targetCrashed', onLost);
-		browser.on('page', onPage);
+		autoAttachStarted = true;
+		await root.send('Target.setAutoAttach', {
+			autoAttach: true,
+			waitForDebuggerOnStart: true,
+			flatten: true,
+			filter: [{ type: 'page', exclude: false }, { exclude: true }]
+		});
 		await click();
 		targetId = await cdpDeadline(created.promise, 'target-created-timeout');
 		if (candidates.size !== 1 || targetLost) throw new Error('Native popup target not unique');
 		const valid = () => !targetLost && candidates.size === 1;
-		await awaitPopupDestination(root, targetId, contextId, expectedPath, valid);
-		if (!bridge) throw new Error('Native popup CDP attachment missing');
-		const document = await readPopupDocument(bridge, type, valid);
-		if (!valid()) throw new Error('Native popup target lost or ambiguous');
-		await capturePopupScreenshot(bridge, screenshotPath);
-		if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
-		observation = { document, errors, pageExposed: exposed, targetId };
+		const destination = await awaitPopupDestination(root, targetId, contextId, expectedPath, valid);
+		await expect
+			.poll(() => [...navigations.values()].some((row) => row.final?.url === destination))
+			.toBe(true);
+		const navigation = [...navigations.values()].find((row) => row.final?.url === destination)!;
+		expect(navigation.redirect !== undefined, 'native document keeps its captured redirect').toBe(
+			true
+		);
+		expect(ownedTarget === targetId, 'observed canonical request owns the native target').toBe(
+			true
+		);
+		expect(
+			navigation.redirectedUrl === destination,
+			'native redirected request reaches the same target'
+		).toBe(true);
+		const grant = assertGrantChain(
+			expectedPath,
+			destination,
+			navigation.final!.status,
+			Object.fromEntries(
+				Object.entries(navigation.final!.headers).map(([name, value]) => [
+					name.toLowerCase(),
+					value
+				])
+			),
+			navigation.redirect!.url,
+			navigation.redirect!.status,
+			Object.fromEntries(
+				Object.entries(navigation.redirect!.headers).map(([name, value]) => [
+					name.toLowerCase(),
+					value
+				])
+			)
+		);
+		expect(grant.headers['content-security-policy'] === 'sandbox allow-scripts allow-forms').toBe(
+			true
+		);
+		expect(grant.headers['x-content-type-options'] === 'nosniff').toBe(true);
+		observation = await visitPopupDocument(
+			bridge,
+			type,
+			valid,
+			screenshotPath,
+			{ grant, errors, targetId },
+			visit
+		);
+		expect(root.eventErrors, 'native root protocol observers remain healthy').toBe(0);
 	} catch (error) {
 		failure = error;
 	} finally {
-		if (onCreated) root.off('Target.targetCreated', onCreated);
-		root.off('Target.targetDestroyed', onLost);
-		root.off('Target.targetCrashed', onLost);
-		browser.off('page', onPage);
-		cleanupErrors = await releasePopupTarget(root, bridge, targetId, targetLost);
+		closing = true;
+		try {
+			cleanupErrors = await retireBrowserTargets(
+				root,
+				sessions,
+				jobs,
+				paused,
+				ownedTarget,
+				targetLost,
+				autoAttachStarted
+			);
+		} catch {
+			cleanupErrors.push('target retirement');
+		} finally {
+			cleanupErrors.push(...attachmentErrors);
+			if (onAttached) root.off('Target.attachedToTarget', onAttached);
+			root.off('Target.targetDestroyed', onLost);
+			root.off('Target.targetCrashed', onLost);
+			await root.close().catch(() => cleanupErrors.push('root socket'));
+		}
 	}
 	if (failure && cleanupErrors.length)
 		throw new AggregateError(
@@ -462,67 +738,4 @@ export async function observeNativeOcuPopup(
 		throw new Error(`Native popup cleanup failed: ${cleanupErrors.join(', ')}`);
 	if (!observation) throw new Error('Native popup observation unavailable');
 	return observation;
-}
-
-export async function writeOcuFailureEvidence(
-	record: {
-		pending: Promise<void>[];
-		active: Page;
-		browser: BrowserContext;
-		events: unknown[];
-		anchorPath: string | null;
-		gestures: OcuClickProbe[];
-	},
-	sanitize: (url: string) => string | null
-) {
-	await Promise.allSettled(record.pending);
-	const active = record.active.isClosed()
-		? null
-		: await record.active
-				.evaluate(() => ({
-					location: window.location.href,
-					baseURI: document.baseURI,
-					readyState: document.readyState,
-					proof:
-						document
-							.querySelector('#proof')
-							?.textContent?.split('|')
-							.slice(0, 4)
-							.map((part) => (['null', 'blocked', 'leaked'].includes(part) ? part : '[redacted]'))
-							.join('|') ?? null,
-					stylesheets: [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(
-						(link) => link.href
-					)
-				}))
-				.catch(() => null);
-	const targets = await captureBrowserTargetPaths(
-		record.browser,
-		record.active,
-		(url) => sanitize(url)?.split('?')[0] ?? null
-	);
-	fs.writeFileSync(
-		`${evidence}/workspace-network-failure.json`,
-		JSON.stringify(
-			{
-				expectedStylesheets: [context.chats.normal, context.chats.link].map(
-					(id) => `/ocu/files/${id}/style.css`
-				),
-				browserVersion: record.browser.browser()?.version() ?? null,
-				platform: process.platform,
-				events: record.events,
-				anchorPath: record.anchorPath,
-				gestures: record.gestures,
-				targets,
-				active: active && {
-					location: sanitize(active.location),
-					baseURI: sanitize(active.baseURI),
-					readyState: active.readyState,
-					proof: active.proof,
-					stylesheets: active.stylesheets.map(sanitize)
-				}
-			},
-			null,
-			2
-		)
-	);
 }

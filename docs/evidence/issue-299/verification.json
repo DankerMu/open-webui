@@ -1,0 +1,215 @@
+{
+	"issue": 299,
+	"control_base": "470168e2a542d6e46b4a01092e26fa6425edeaa7",
+	"reviewed_head": "e49c9cb856c306a962f887a1ccfc7cc3620271f4",
+	"merge": "0d964fd31ce072bc8a073d10be6e3abc09f5457d",
+	"ocu_pin": "276e00aceddb332974a0390e01d69d9430065816",
+	"scope": "Historical group5 real-auth integration prerequisite; published durably during group6 evidence closure, not a new execution or browser acceptance claim.",
+	"evidence": {
+		"runtime": "Final unwrapped make smoke-proxy exit0: six Hurl files, Office7owner/24auth-guard/5unlisted and real issuer/resource/expiry matrix",
+		"owning_tests": "57 exact discovered/executed nodes passed;434deselected;one inherited Starlette warning",
+		"qualified_boundaries": [
+			{
+				"mode": "nosniff",
+				"diagnostic": "generated grant response escaped single CSP/nosniff isolation",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": true
+			},
+			{
+				"mode": "echo-corrected",
+				"diagnostic": "credential appeared in resource response header",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": false
+			},
+			{
+				"mode": "forwarded-cookie",
+				"diagnostic": "grant arrival carried browser or resource credentials",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": true
+			},
+			{
+				"mode": "denial-contact",
+				"diagnostic": "denied resource request contacted OCU",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {
+					"injected_status": 200,
+					"original_denial_status": 404
+				},
+				"native_validated": false
+			},
+			{
+				"mode": "fresh-session",
+				"diagnostic": "short-session prerequisite: real issuer rejected canonical harness session",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": false
+			},
+			{
+				"mode": "expiry-wait",
+				"diagnostic": "short-session expiry wait did not cross actual session expiry",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {
+					"still_valid_resource_status": 200
+				},
+				"native_validated": false
+			},
+			{
+				"mode": "transport",
+				"diagnostic": "GET request transport error: ConnectionRefusedError",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": false
+			},
+			{
+				"mode": "argv",
+				"diagnostic": "private credential appeared in child arguments",
+				"exit": 1,
+				"cleanup": {
+					"owned_rows_absent": true,
+					"sentinel_preserved": true,
+					"owned_row_count": 5,
+					"owned_process_groups_absent": true,
+					"owned_ports_closed": true
+				},
+				"fault_observations": {},
+				"native_validated": false
+			}
+		],
+		"identity": "Eight actual staged gateway files compared to reviewed git blobs; seven overlapping hashes match native298 proof",
+		"privacy_cleanup": "Managed-value/pattern scans0; actualHurlargv/private0600variables observed; independent ownedDB/process-group/port/scratch retirement and sentinel preservation",
+		"review": "Three seats round1 clean, zero findings/required gaps, zero review fix passes"
+	},
+	"candidate_files": [
+		{
+			"path": "backend/open_webui/test/test_ocu_stub_public.py",
+			"sha256": "261371c8051e559438b7924a7f1dc44a3334b765438cf4dbb1bb59ab046ab572"
+		},
+		{
+			"path": "backend/open_webui/test/test_smoke_proxy_office.py",
+			"sha256": "58ea12b0ec30eb3ca13a81a44acce32b467af81ae1e2f314ed444a5049f05170"
+		},
+		{
+			"path": "backend/open_webui/test/test_smoke_proxy_resources.py",
+			"sha256": "cd8d367f10d00ba4557d4b92531b166432786148457512b1e0a12e212e9351b4"
+		},
+		{
+			"path": "constraints.yaml",
+			"sha256": "4200bf127b98f8dd76c405f3f6237bbef9e05ce5565d3ba41d5fcebc3d37ad7a"
+		},
+		{
+			"path": "docs/decisions/implemented/architecture/2026-09-25-ocu-cookie-gateway-and-paired-smoke.md",
+			"sha256": "b4161698e94ac586792619d58112ff95577ff3224cf49f96af682dfabc9702c7"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/tasks.md",
+			"sha256": "4f850254804b8b2d36ad7f34561effc3315dd14cc84ffa1f7cb4d6bc513c23ba"
+		},
+		{
+			"path": "scripts/ocu-stub.py",
+			"sha256": "28a54adca316a672f50a5a2729bbf1b90f10383b0c586264be14dbf47948e983"
+		},
+		{
+			"path": "scripts/ocu_stub_nested.py",
+			"sha256": "6e4969dc9087c320f2fab8cec934923373deb7e8d921df8595ad8af02fc62879"
+		},
+		{
+			"path": "scripts/smoke-proxy.py",
+			"sha256": "8eea67753212c55e2d3bb6a3d29b8edaf542f17beed86ae7abd22faf1c8f91c9"
+		},
+		{
+			"path": "scripts/smoke_proxy_office.py",
+			"sha256": "4adc59fbe27ba7c2dc4dee5e25507bde6b2e5345df3964702710ee05382672ee"
+		},
+		{
+			"path": "scripts/smoke_proxy_resources.py",
+			"sha256": "f0195d22143fcdafc45f068b434cc58cae1702a45898eefb358039a14e7749f3"
+		},
+		{
+			"path": "scripts/smoke_proxy_support.py",
+			"sha256": "e028e98db53bc6016c0c1b2640bd95cf9b3e6744197a8448a3905f3c684d5ed9"
+		},
+		{
+			"path": "scripts/verify-ui-ocu.py",
+			"sha256": "dc4328206d4853cd14cd37824ef8b63107da359616571af497e0959251bee386"
+		},
+		{
+			"path": "smoke/proxy/auth.hurl",
+			"sha256": "08f364127a15f64806c471d661d350bafd9ac6a9f17ca1881dc70c84ad8bbb49"
+		},
+		{
+			"path": "smoke/proxy/files.hurl",
+			"sha256": "249417a24fb2d658be8848b2169f5933fcb378a521da09d63fb0b0e6b95f7a79"
+		}
+	],
+	"links": {
+		"pr": "https://github.com/DankerMu/open-webui/pull/420",
+		"review": "https://github.com/DankerMu/open-webui/pull/420#issuecomment-6161165109",
+		"local_status": "https://github.com/DankerMu/open-webui/pull/420#issuecomment-6161070471",
+		"completion": "https://github.com/DankerMu/open-webui/issues/299#issuecomment-6161182752"
+	},
+	"archive": {
+		"path": "verification.tar.gz",
+		"bytes": 161769,
+		"members": 175,
+		"sha256": "396355cabb5235f98135c2e79965158ec283bfb49d781d78a36baa77df4765a0"
+	},
+	"limits": [
+		"Native macOS local evidence, not Linux/Actions/LAN",
+		"Browser resource acceptance300 and real-editor172 excluded",
+		"Before-verifier refusal composed from native298 proof plus identicalpin; real-auth observer proves zeroOCU, not verifier telemetry",
+		"No Node22 runtime attribution: historical archive records Python/nginx/Hurl identities; subsequent300 corrected parent PATH precedence",
+		"Raw credentials/config/request traces excluded and retired; no archived historical source hash was rewritten"
+	]
+}

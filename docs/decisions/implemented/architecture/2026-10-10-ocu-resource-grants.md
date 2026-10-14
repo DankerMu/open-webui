@@ -2,10 +2,10 @@
 id: 2026-10-10-ocu-resource-grants
 title: Session-bound capabilities for opaque-document workspace resources
 kind: architecture
-status: proposed
+status: implemented
 date: 2026-10-10
 supersedes: none
-references: docs/plans/2026-10-10-opaque-document-resources.md; openspec/changes/ocu-resource-grants/design.md (D1–D2); DankerMu/open-webui#295; docs/decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md (withdrawn historical input)
+references: docs/plans/2026-10-10-opaque-document-resources.md; openspec/changes/ocu-resource-grants/design.md (D1–D2); DankerMu/open-webui#295; docs/decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md (withdrawn historical input); docs/evidence/issue-300/verification.json
 ---
 
 # Session-bound capabilities for opaque-document workspace resources
@@ -28,7 +28,7 @@ Expiry is the earlier of600seconds after issuance and a present session expiry; 
 
 Listings, messages and persisted workspace state retain canonical cookie URLs. Expiry rejects subsequent requests, not bytes already delivered. Grants do not renew automatically; reopening the canonical URL with a valid session obtains fresh authorization. Issuance performs no OCU transport.
 
-The [withdrawn path-grant proposal](2026-09-20-ocu-path-grant-for-opaque-documents.md) is historical input only. Its header-selected mode on `/api/v1/ocu/auth` is not adopted: that endpoint stays session-only, and the issuer and verifier are separate interfaces.
+The [withdrawn path-grant proposal](../../proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md) is historical input only. Its header-selected mode on `/api/v1/ocu/auth` is not adopted: that endpoint stays session-only, and the issuer and verifier are separate interfaces.
 
 ## Alternatives considered
 
@@ -44,4 +44,8 @@ Whole-chat bearer read authority is an accepted trade-off: anyone holding the UR
 
 Without Redis, logout cannot revoke a grant immediately; it remains usable only until its bounded expiry, subject to current role/ownership checks. Even with Redis, the existing `invalidate_token` helper stores no per-token logout marker for sessions without exp. Such grants have the same bounded limitation unless effective per-user revocation exists. This decision does not modify upstream signout.
 
-This record remains proposed until group6 browser acceptance. The backend authorization seam does not certify downstream delivery: group2 owns descriptor-confined file transport/HEAD, group3 the preview response base, group4 gateway routing/containment/CORS, group5 real-auth gateway smoke and pinning including the real-issuer/new-gateway query regression, and group6 browser rendering, isolation and canonical reopen evidence. No filesystem confinement, proxy activation or browser-resource success follows from route authorization tests alone.
+Generated documents consume relative stylesheets, decoded images, loaded/applied fonts, classic/module scripts and fetched data in sidebar, direct file navigation and native message-popup opening while retaining opaque-origin HTML/SVG isolation. Canonical navigation follows the matching302→grant200 chain; native modifier-click retains the same browser context and target, not a replacement page navigation. Execution, upload and control requests confer no authority. Final responses preserve sandbox/nosniff; cookies, generated-document sandbox permissions and global CORS are not widened.
+
+After actual signed expiry, loaded content remains, but new uncached resources fail404 without OCU contact or automatic reissuance. Reopening the canonical sidebar/message URL with a valid session obtains distinct fresh authorization and working resources without persisting grant identity.
+
+[Browser and native verification](../../../evidence/issue-300/verification.json) covers a local macOS/Node22 real pinned gateway with deterministic OCU resources. Route authorization, confined transport, preview response base, gateway policy, real-auth smoke and browser rendering have separate owning seams; route tests alone cannot certify downstream delivery. This evidence is not LAN, real-model or real-DocumentServer acceptance.
