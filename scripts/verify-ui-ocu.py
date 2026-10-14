@@ -19,8 +19,8 @@ from pathlib import Path
 
 from ocu_stub_office import OFFICE_SCENARIOS, office_document
 from smoke_proxy_support import (
+    distinct_ports,
     fail,
-    free_port,
     git_run,
     http_json,
     kill_tree,
@@ -319,12 +319,7 @@ class BrowserHarness(Smoke):
         self.fixtures.write_text('{}', encoding='utf-8')
         self.record = self.scratch / 'stub.jsonl'
         self.token = 'Tok!' + secrets.token_hex(12) + '#$%'
-        ports = []
-        while len(ports) < 4:
-            port = free_port()
-            if port not in ports:
-                ports.append(port)
-        self.stub_port, self.backend_port, self.frontend_port, self.proxy_port = ports
+        (self.stub_port, self.backend_port, self.frontend_port, self.proxy_port, self.office_port) = distinct_ports(5)
         self.origin = f'http://127.0.0.1:{self.proxy_port}'
         self.webui = f'http://127.0.0.1:{self.frontend_port}'
         self.stage = self.scratch / 'ocu'

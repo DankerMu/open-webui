@@ -93,7 +93,8 @@ def test_office_credentials_remain_private_through_retained_and_anonymous_reques
         destination = Path(argv[argv.index('--report-json') + 1])
         (destination / 'body.json').write_text('{}', encoding='utf-8')
         (destination / 'report.json').write_text(
-            json.dumps([{'entries': [{'calls': [{'response': {'body': 'body.json'}}]}]}]), encoding='utf-8'
+            json.dumps([{'entries': [{'calls': [{'response': {'status': 404, 'headers': [], 'body': 'body.json'}}]}]}]),
+            encoding='utf-8',
         )
         return subprocess.CompletedProcess(argv, 0, '', '')
 

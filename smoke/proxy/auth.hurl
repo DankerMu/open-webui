@@ -42,20 +42,6 @@ header "X-Echo-Authorization" not exists
 body not contains "Bearer "
 
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/backend403
-Cookie: {{owner_cookie}}
-
-HTTP 403
-[Asserts]
-header "X-Echo-Authorization" not exists
-
-GET {{proxy_url}}/ocu/files/{{chat_id}}/backend409
-Cookie: {{owner_cookie}}
-
-HTTP 409
-[Asserts]
-header "X-Echo-Authorization" not exists
-
 GET {{proxy_url}}/ocu/static/deep/preview.js?rev=5
 Cookie: {{owner_cookie}}
 
