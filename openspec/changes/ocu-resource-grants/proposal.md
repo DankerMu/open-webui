@@ -39,6 +39,10 @@ Selected risk packs: public API, config, path safety, auth/secrets, shared-state
 Evidence floor: group 1 route RED/GREEN, direct HTTP smoke, unchanged session-only auth tests, named-router coverage and backend/docs gates.
 The shared change remains active through group 6; group 1 does not certify gateway or browser delivery.
 
+### Issuer query alignment prerequisite
+
+The owner approved a separate WebUI prerequisite for the encoded-duplicate query mismatch before gateway implementation. Extend the existing issuer predicate and route tests to match the reviewed proxy download exemption for otherwise safe queries; do not add a gateway bypass or change the proxy rule. The shared expanded authorization fixture owns route-level proof, while group 5 retains the exact real-issuer/new-gateway integration obligation. The proposed decision and shared change remain active through group 6.
+
 ## Confined transport slice fixture
 
 Issue type: feature. Fixture level: expanded; agrees with the suggested level.

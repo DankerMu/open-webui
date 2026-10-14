@@ -24,6 +24,8 @@ from open_webui.test.ocu_harness import (
 from open_webui.test.ocu_resource_grants_harness import (
     ISSUE_PATH,
     NOW,
+    PRESERVED_RESOURCE_QUERIES,
+    REFUSED_RESOURCE_QUERIES,
     VERIFY_PATH,
     MemoryRedis,
     _assert_response,
@@ -589,25 +591,20 @@ def test_grant_never_authorizes_nonread_operations(resource_owner, method):
     _assert_response(_verify(grant, chat, method=method), 403)
 
 
-@pytest.mark.parametrize('query', ['download=1', 'x=1&download=1', 'x=1#//evil', 'x=\r\nLocation:evil', 'x=%0d%0aevil'])
-def test_issuer_refuses_download_or_redirect_query_injection(resource_owner, query):
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+@pytest.mark.parametrize('query', REFUSED_RESOURCE_QUERIES)
+def test_issuer_refuses_download_or_redirect_query_injection(resource_owner, query, method):
     owner, chat = resource_owner
-    _assert_response(_issue(owner, chat, query=query), 403)
+    _assert_response(_issue(owner, chat, query=query, method=method), 403)
 
 
-@pytest.mark.parametrize(
-    'query',
-    [
-        'download=0',
-        'Download=1',
-        'download=1&download=0',
-        'download=1&Download=1',
-        'next=https%3A%2F%2Fevil.example%2F&x=%23%25%2B',
-    ],
-)
-def test_issuer_preserves_nondownload_query_semantics_without_external_redirect(resource_owner, query):
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+@pytest.mark.parametrize('query', PRESERVED_RESOURCE_QUERIES)
+def test_issuer_preserves_nondownload_query_semantics_without_external_redirect(resource_owner, query, method):
     owner, chat = resource_owner
-    response = _issue(owner, chat, query=query, headers={'Host': 'evil.example', 'X-Forwarded-Host': 'evil.example'})
+    response = _issue(
+        owner, chat, query=query, method=method, headers={'Host': 'evil.example', 'X-Forwarded-Host': 'evil.example'}
+    )
     _grant(response)
     assert response.headers['Location'].split('/', 4)[4] == f'{chat.id}/reports/index.html?{query}'
 
