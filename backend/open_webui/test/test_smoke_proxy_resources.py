@@ -22,6 +22,7 @@ def resources(monkeypatch, tmp_path):
     import smoke_proxy_support as support
 
     smoke = SimpleNamespace(
+        owned=[],
         secrets=['internal-canary', 'session-canary'],
         token='internal-canary',
         owner_id='owner',
@@ -300,7 +301,7 @@ def test_short_session_rejects_unbounded_or_noninteger_lifetime(resources, monke
     def unavailable(*_args, **_kwargs):
         raise AssertionError('invalid lifetime reached the signing process')
 
-    monkeypatch.setattr(resource.subprocess, 'run', unavailable)
+    monkeypatch.setattr(resource.subprocess, 'Popen', unavailable)
     with pytest.raises(support.Fail, match='lifetime must be an integer from 1 to 60'):
         resource.mint_short_session(smoke, lifetime=lifetime)
 
@@ -314,27 +315,37 @@ def signing_child(resources, monkeypatch, tmp_path):
     sentinel = smoke.scratch / 'unowned-sentinel'
     sentinel.write_bytes(b'preserve')
     smoke.signing_env = {'STATIC_DIR': str(tmp_path / 'live-static')}
-    real_run = subprocess.run
+    real_popen = subprocess.Popen
     children = []
 
     def install(code, *, timeout=None):
         def run_child(_command, **kwargs):
+            if _command[0] != 'bash':
+                return real_popen(_command, **kwargs)
             # The process boundary supplies malformed signer output, not a mocked successful token.
             children.append(Path(kwargs['env']['STATIC_DIR']).parent)
-            if timeout is not None:
-                kwargs['timeout'] = timeout
-            return real_run(
+            process = real_popen(
                 [
                     sys.executable,
                     '-c',
-                    'import os,pathlib; '
+                    'import os,pathlib,signal; '
+                    'signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGINT,signal.SIGTERM,signal.SIGHUP}); '
                     'pathlib.Path(os.environ["STATIC_DIR"]).mkdir(parents=True); '
                     'pathlib.Path(os.environ["STATIC_DIR"],"private").write_text("credential-canary"); ' + code,
                 ],
                 **kwargs,
             )
+            if timeout is not None:
+                communicate = process.communicate
 
-        monkeypatch.setattr(resource.subprocess, 'run', run_child)
+                def bounded_communicate(*args, **options):
+                    options['timeout'] = timeout
+                    return communicate(*args, **options)
+
+                process.communicate = bounded_communicate
+            return process
+
+        monkeypatch.setattr(resource.subprocess, 'Popen', run_child)
 
     return resource, support, smoke, install, children, sentinel
 

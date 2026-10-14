@@ -370,25 +370,16 @@ export async function shortOwnerSession(browser: BrowserContext): Promise<ShortO
 	const saved = (await browser.cookies(context.origin)).filter((cookie) => cookie.name === 'token');
 	expect(saved.length, 'one normal owner cookie is available for restoration').toBe(1);
 	const { promise, resolve, reject } = Promise.withResolvers<{ token: string; exp: number }>();
+	// The surviving harness owns the inherited browser group, including abandoned mint chains.
 	const child = spawn(context.mint.python, ['scripts/verify-ui-ocu.py', '--mint-session'], {
 		stdio: ['pipe', 'pipe', 'pipe'],
-		detached: true,
 		env: { PATH: process.env.PATH, HOME: process.env.HOME }
 	});
 	let output = '';
 	let failure: string | undefined;
-	const retire = () => {
-		if (!child.pid) return;
-		try {
-			process.kill(-child.pid, 'SIGKILL');
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'ESRCH')
-				failure = 'Private session child retirement failed';
-		}
-	};
 	const deadline = setTimeout(() => {
 		failure = 'Private session mint deadline exceeded';
-		retire();
+		reject(new Error(failure));
 	}, 65_000);
 	child.stdout.on('data', (chunk) => {
 		output += chunk;
@@ -400,7 +391,6 @@ export async function shortOwnerSession(browser: BrowserContext): Promise<ShortO
 	});
 	child.on('close', (code) => {
 		clearTimeout(deadline);
-		retire();
 		if (failure) return reject(new Error(failure));
 		if (code !== 0) return reject(new Error('Private session mint failed'));
 		try {
@@ -411,7 +401,7 @@ export async function shortOwnerSession(browser: BrowserContext): Promise<ShortO
 	});
 	child.stdin.on('error', () => {
 		failure = 'Private session input unavailable';
-		retire();
+		reject(new Error(failure));
 	});
 	child.stdin.end(JSON.stringify({ config: context.mint.config }));
 	const payload = await promise;

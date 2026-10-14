@@ -49,7 +49,7 @@ def mint_browser_session() -> int:
     owner = SimpleNamespace(
         root=Path(config['root']), owner_id=config['owner_id'], secrets=[], scratch=Path(config['scratch'])
     )
-    token, expiry = mint_short_session(owner, service_env=config['service_env'], lifetime=20)
+    token, expiry = mint_short_session(owner, service_env=config['service_env'], lifetime=20, inherited_group=True)
     fd = os.open(config['credentials'], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, 'a', encoding='utf-8') as stream:
         stream.write(json.dumps(token) + '\n')
@@ -519,9 +519,10 @@ class BrowserHarness(Smoke):
             except subprocess.TimeoutExpired:
                 fail('workspace browser verification exceeded 600 seconds')
             finally:
-                if browser.poll() is not None:
-                    self.owned.remove(browser.pid)
-                    kill_tree(browser.pid)
+                # Retire every inherited mint before consuming credentials or releasing private assets.
+                kill_tree(browser.pid)
+                browser.wait()
+                self.owned.remove(browser.pid)
                 if credentials.exists():
                     self.secrets.extend(json.loads(line) for line in credentials.read_text().splitlines())
                 output.seek(0)

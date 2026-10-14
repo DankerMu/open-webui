@@ -6,6 +6,8 @@ import json
 import math
 import os
 import re
+import shutil
+import signal
 import socket
 import subprocess
 import tempfile
@@ -14,6 +16,7 @@ import time
 from smoke_proxy_support import (
     fail,
     http_raw,
+    kill_tree,
     observations,
     private_hurl_variables,
     register_capabilities,
@@ -152,13 +155,90 @@ def wire_head(port, target, headers):
     return status, response_headers, raw
 
 
-def mint_short_session(smoke, *, service_env=None, lifetime=5):
+def _retire_short_signer(process, owned, completed):
+    retired = completed
+    try:
+        if owned is None:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+        else:
+            mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
+            try:
+                kill_tree(process.pid)
+                process.wait()
+                owned.remove(process.pid)
+                retired = True
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+    finally:
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+    return retired
+
+
+def _capture_short_session(smoke, env, code, lifetime, inherited_group):
+    owned = None if inherited_group else smoke.owned
+    mask = None
+    if owned is not None:
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM, signal.SIGHUP})
+    child = None
+    process = None
+    completed = retired = False
+    try:
+        child = tempfile.mkdtemp(prefix='short-session-', dir=getattr(smoke, 'scratch', None))
+        env = dict(
+            env,
+            STATIC_DIR=os.path.join(child, 'static'),
+            FONTS_DIR=os.path.join(child, 'static/fonts'),
+            ENABLE_DB_MIGRATIONS='false',
+        )
+        process = subprocess.Popen(
+            [
+                'bash',
+                '-c',
+                'source scripts/dev-env.sh && exec uv run --no-sync --quiet python -c "$1"',
+                'short-session',
+                code,
+            ],
+            cwd=smoke.root,
+            env=env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=owned is not None,
+        )
+        if owned is not None:
+            owned.append(process.pid)
+        # Cancellation can resume only after registration; stdin gates backend/private work.
+        if mask is not None:
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+            mask = None
+        stdout, stderr = process.communicate(input=json.dumps({'id': smoke.owner_id, 'lifetime': lifetime}), timeout=60)
+        completed = True
+        return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+    finally:
+        try:
+            retired = process is None or _retire_short_signer(process, owned, completed)
+        finally:
+            if mask is not None:
+                signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+            if retired and child is not None:
+                shutil.rmtree(child)
+            # Failed inherited chains and their scratch stay with the surviving browser-group owner.
+
+
+def mint_short_session(smoke, *, service_env=None, lifetime=5, inherited_group=False):
+    """Mint privately; inherited_group borrows the browser harness's registered process group."""
     if type(lifetime) is not int or not 1 <= lifetime <= 60:
         fail('short-session prerequisite: lifetime must be an integer from 1 to 60 seconds')
     code = (
-        'import json,sys; from datetime import timedelta; '
+        'import json,signal,sys; '
+        'signal.pthread_sigmask(signal.SIG_UNBLOCK,{signal.SIGINT,signal.SIGTERM,signal.SIGHUP}); '
+        'config=json.load(sys.stdin); from datetime import timedelta; '
         'from open_webui.utils.auth import create_token,decode_token; '
-        'config=json.load(sys.stdin); '
         'token=create_token({"id":config["id"]},timedelta(seconds=config["lifetime"])); '
         'print("OCU_SHORT_SESSION="+json.dumps({"token":token,"exp":decode_token(token)["exp"]}))'
     )
@@ -174,27 +254,7 @@ def mint_short_session(smoke, *, service_env=None, lifetime=5):
     if service_env is not None:
         env = dict(service_env, PYTHONPATH=str(smoke.root / 'backend'), PYTHON_DOTENV_DISABLED='1')
     try:
-        with tempfile.TemporaryDirectory(prefix='short-session-', dir=getattr(smoke, 'scratch', None)) as child:
-            env.update(
-                STATIC_DIR=os.path.join(child, 'static'),
-                FONTS_DIR=os.path.join(child, 'static/fonts'),
-                ENABLE_DB_MIGRATIONS='false',
-            )
-            result = subprocess.run(
-                [
-                    'bash',
-                    '-c',
-                    'source scripts/dev-env.sh && uv run --no-sync --quiet python -c "$1"',
-                    'short-session',
-                    code,
-                ],
-                cwd=smoke.root,
-                env=env,
-                input=json.dumps({'id': smoke.owner_id, 'lifetime': lifetime}),
-                text=True,
-                capture_output=True,
-                timeout=60,
-            )
+        result = _capture_short_session(smoke, env, code, lifetime, inherited_group)
     except (OSError, subprocess.TimeoutExpired):
         fail('short-session prerequisite: canonical backend interpreter unavailable')
     for token in re.findall(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', result.stdout + result.stderr):
