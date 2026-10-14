@@ -1,0 +1,128 @@
+{
+	"issue": 298,
+	"source_base": "bdc217fd26779b9c5c88297816d26010c310904d",
+	"source_head": "732c8d5173c7a83404f820f57f376810af4151b2",
+	"control_base": "ddbbbe6c62a58045e271fc82959f9a973d2e56ad",
+	"scope": "Atomic reviewed OCU deploy/proxy grant gateway; shared fixture active through300; no pin or real-WebUI/browser certification",
+	"evidence": {
+		"baseline": "23 existing native/render test methods passed",
+		"tracer_red": "24 methods:existing23 pass;new redirect method has3 failing subtests (direct200, legacy auth provenance)",
+		"candidate_diagnosis": "32 methods initially4 failures+1 error; three causes independently discriminated; one verification repair, no retry-policy change or assertion waiver",
+		"final": "32 discovered/executed/passed:24 native+8 renderer, zero skips/errors; restored after qualification",
+		"visible_ascii_credential_domain": "Same32 methods passed with every visible ASCII token byte on actual gateway forwarding",
+		"fault_failures": [
+			{
+				"name": "redirect-before-authorization",
+				"failures": 13,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "grant-auth-bypass",
+				"failures": 19,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "grant-cookie-forwarding",
+				"failures": 2,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "grant-download-admission",
+				"failures": 6,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "generated-isolation-loss",
+				"failures": 1,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "cors-origin-widening",
+				"failures": 10,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "grant-error-log-leak",
+				"failures": 1,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "head-method-confusion",
+				"failures": 1,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			},
+			{
+				"name": "encoded-target-loss",
+				"failures": 3,
+				"errors": 0,
+				"all_owned_ports_closed": true
+			}
+		],
+		"runtime": "Actual nginx1.31.6/Python3.12.12 with loopback issuer/verifier/OCU/DocumentServer interface fixtures; raw-wire HEAD, no-contact authorization/route denials, exact query and identity, response/CORS/isolation, private failure-log negative and nonsecret positive controls",
+		"preservation": "26 other reviewed rows, download classifier and DocumentServer listener unchanged;all16 original native method identities retained",
+		"hygiene": "Source whitespace and hooks passed; isolated Ruff F has2 unchanged inherited findings,0introduced; no source configured formatter/linter claim;control docs/49decisions/strict passed",
+		"secrets": "Raw archive-source scan0 findings; private config/log/record bytes excluded"
+	},
+	"limits": [
+		"Synthetic issuer/verifier interface, not signing/expiry/revocation/session acceptance; mandatory real issuer/newgateway/OCU encodedduplicate regression remains299",
+		"Native parser400 on malformed URI including NUL is preserved with policy and no-contact proof",
+		"Default native retries remain unchanged; transport-failure assertions validate every attempt, not incidental attempt count",
+		"macOS native evidence, not Linux/remoteActions/LAN certification",
+		"Request-line diagnostic test passed but wrapper initiallyexit2 collecting absent zero-contact journal; explicitly retained,finalrestoredrunnerexit0",
+		"Source PR exceeds400lines because atomic authority/config/policy cutover plus preserved native matrix; no independent grant-only partial release"
+	],
+	"candidate_files": [
+		{
+			"path": "deploy/proxy/routes.json",
+			"sha256": "c55498f12f30983cb730540a107bd88774f18bb612948e2086be879584a0d69e"
+		},
+		{
+			"path": "deploy/proxy/render.py",
+			"sha256": "22a1279177a686ebe8f265d5250ee4a7740c74fa36cc2c57c295251642f54cd5"
+		},
+		{
+			"path": "deploy/proxy/nginx.conf.in",
+			"sha256": "da62355e24c096681e6a661989ee335231fe47763f26a02c384ab3a556130aa7"
+		},
+		{
+			"path": "deploy/proxy/README.md",
+			"sha256": "d331ca3c476780cc0928bace7c7350320a84e85ced804243e6ecb7d02e696296"
+		},
+		{
+			"path": "deploy/proxy/tests/fixture.py",
+			"sha256": "9653d760840a1930e84e998c3e46c8c0e0a131d5c2dedc8ec478d9b49eadb9d1"
+		},
+		{
+			"path": "deploy/proxy/tests/test_native.py",
+			"sha256": "405ac579505960062829556953d880e75c151cd064e562ef5436a2e5b89051f7"
+		},
+		{
+			"path": "deploy/proxy/tests/test_render.py",
+			"sha256": "98f066dbd632db7e4f742058e8922d8526c3549997d2683aed22d6669abdeb08"
+		}
+	],
+	"previous_source_head": "a953a1dc5e84b4403bfa51fda0cfef9f6b32d431",
+	"review_fix": {
+		"finding": "TE-1 CONFIRMED required P2 evidence gap",
+		"fix_pass": 1,
+		"change": "one exact-single-nosniff assertion added to existing ambiguous query loop;2testlines only",
+		"qualification": "precise encodedduplicate nosniff-loss mutant passed32 before assertion, fails1 afterward; restored32pass; fullASCII changedmethod1pass",
+		"production_byte_identical": true,
+		"prior_evidence_binding": "Original nine faults and fullASCII32 pass predate the two-line test-only strengthening; production and32method identities identical. Final full32 and changedmethod fullASCII run include added assertion.",
+		"followup": "Inherited README drift #418 is not added to execution queue"
+	},
+	"artifact": {
+		"path": "verification.tar.xz",
+		"sha256": "29a2ed4bd9d9e5aebd9c992c8fe93d771aa4f1a2f7429671da95b05927ba75b4",
+		"bytes": 80628,
+		"verified_members": 124
+	}
+}
