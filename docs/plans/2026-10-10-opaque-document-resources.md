@@ -1,7 +1,9 @@
 # Opaque-document relative resources
 
-Status: approved direction; implementation and acceptance not delivered.
+Status: implemented and locally verified through the pinned native gateway and browser harness; deployment and real-editor acceptance remain separate.
 Source tracker: [#35](https://github.com/DankerMu/open-webui/issues/35). The user approved the mechanism, read scope, expiry, revocation boundary and Stage 1 handoff on 2026-10-10.
+
+Owning contract: [session-bound resource grants](../decisions/implemented/architecture/2026-10-10-ocu-resource-grants.md). [Local verification evidence](../evidence/issue-300/verification.json) covers macOS/Node22, real pinned gateway requests and deterministic OCU resources, not LAN, real-model or real-DocumentServer acceptance.
 
 ## Goal
 
@@ -27,7 +29,7 @@ Canonical cookie URLs remain the addresses stored in listings, messages, filters
 - `backend/open_webui/utils/auth.py` validates sessions and existing Redis revocation; sign-out records revocation only when Redis is configured.
 - OCU `deploy/proxy/` owns the reviewed route table, auth subrequests, header stripping and generated-content isolation. WebUI harnesses consume its full pinned SHA.
 - OCU `/files/{chat}/{path}` serves ordinary workspace files; the separate `/files/{chat}/archive` route must not become reachable through a file grant.
-- OCU HTML preview fetches text and installs a cookie-path base. It must preserve the final response resource base while keeping canonical navigation/state separate.
+- OCU HTML preview uses the final fetch response URL as its resource base while preserving canonical cookie URLs for navigation, messages and persisted state.
 - `make smoke-proxy` and `make verify-ui-ocu` are the existing real-proxy and browser seams. OCU has a standalone preview browser harness.
 - The earlier proposal remains historical input: [withdrawn candidate](../decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md). Its header-mode switch is not an approved implementation contract.
 
@@ -35,7 +37,7 @@ Canonical cookie URLs remain the addresses stored in listings, messages, filters
 
 1. Grants authorize GET/HEAD only, for a maximum600seconds and no later than the issuing session expires. A session without an expiry still produces a bounded grant. No background renewal.
 2. Every request validates the grant, resolves current user eligibility and rechecks chat ownership. Reuse existing session-token and per-user revocation; do not silently bypass configured but unavailable revocation storage.
-3. Without Redis, logout does not promise immediate grant revocation. Already delivered bytes cannot be recalled. Ownership loss, deleted/ineligible user or feature disable blocks subsequent requests.
+3. Without Redis, logout does not promise immediate grant revocation. Sessions without exp also lack the existing helper's per-token logout marker even with Redis; effective per-user revocation remains applicable. Grants retain bounded expiry, and already delivered bytes cannot be recalled. Ownership loss, deleted/ineligible user or feature disable blocks subsequent requests.
 4. Keep `/api/v1/ocu/auth` session-only. Client-supplied headers must not select grant authority on any existing non-grant route.
 5. Signatures and credential encoding must be distinct from WebUI session JWTs. No grant is a login credential; no raw session credential or internal OCU secret is inside a grant.
 6. Generated documents retain the existing sandbox/CSP/nosniff policy in every opening mode. Only validated grant responses get credential-free opaque-origin resource CORS. Unsupported methods and paths fail closed before OCU contact.
@@ -45,12 +47,12 @@ Canonical cookie URLs remain the addresses stored in listings, messages, filters
 
 ## Success Criteria
 
-- All declared resource types demonstrably load in the sidebar, direct top-level file navigation and message-link opening; origin remains opaque, token/localStorage access is blocked, and execution/write requests are denied.
+- Relative CSS has a distinct computed effect, images have decoded dimensions, fonts are actually loaded/applied, classic/module scripts change the DOM and fetched data has its fixture value in sidebar, direct file navigation and native message-link opening. Inline controls and HTML/SVG opaque-origin isolation remain; token/storage/cookie/parent access and actual execution/write attempts confer no authority.
 - Valid session owner opens a canonical non-download file URL and reaches its short-lived resource URL. Anonymous/foreign canonical access remains401/404; forged or expired grant requests never contact OCU.
 - Grant holders read only the approved single-chat ordinary-file scope; another chat, archive, private data, traversal and symlink-swap controls cannot escape it.
 - GET/HEAD preserve bytes/metadata and relevant response policy; HEAD emits no body or leaked descriptor. Downloads and Office/Drawio consumers retain their established behavior.
 - Existing session/per-user revocation, expiry, ownership changes, disabled feature and missing user have deterministic refusal evidence. No-Redis logout behavior is stated honestly.
-- On expiry the loaded document is not forcibly closed, but further resource requests fail. Reopening the canonical link with a valid session obtains a fresh grant.
+- After actual signed expiry, loaded content remains, but a new uncached resource request fails404 without OCU contact or automatic reissuance. Reopening the canonical sidebar/message link with a valid session obtains a distinct fresh grant and working resources; persisted chat/workspace/link identity remains canonical.
 - Real proxy evidence covers the five old proposal gaps: header forgery, status matrix, final-response isolation, opaque-origin CORS and HEAD/expiry. Browser screenshots and console/error assertions prove rendering, not just successful HTTP responses.
 
 ## Assumptions and Open Decisions
@@ -86,4 +88,4 @@ Deploy a matched rollback of the gateway, WebUI grant routes and harness pin: re
 
 ## Next Step
 
-Create and review `ocu-resource-grants`, then use #35 as the tracking epic for small implementation issues. No new implementation starts while PR#293 remains at its required CI merge gate.
+Complete review and merge of the locally verified slice, then retire the active shared fixture through its owning archive follow-up. Consolidated deployment, LAN, real-model and real-DocumentServer acceptance remain separate; use matched WebUI/gateway revisions and the owning decision's authorization limits.
