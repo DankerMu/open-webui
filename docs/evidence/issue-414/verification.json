@@ -1,0 +1,67 @@
+{
+	"issue": 414,
+	"base": "f76db15105948a609d3b6fe02a02c39b915f7589",
+	"scope": "Issuer-only raw query classification; shared resource-grants fixture remains active through #300",
+	"approval": "https://github.com/DankerMu/open-webui/issues/414#issuecomment-6157846942",
+	"evidence": {
+		"tracer": "1 failed/5 passed before;6 passed after",
+		"runtime": "60 actual HTTP requests:16 property failures before;0 after; owned users/chats absent after cleanup",
+		"owning_suite": "335 discovered/executed/passed,127 deselected,0 skipped;318 grant and17 legacy auth cases",
+		"query_matrix": "40 unique queries x GET/HEAD =80 cases",
+		"faults": {
+			"historical_raw_key_count": 20,
+			"allow_unambiguous_download": 26,
+			"decode_before_classify": 8
+		},
+		"restored": "335 passed",
+		"coverage": "462 backend and499 frontend tests passed; router219/224 lines=97.767857%,0 excluded",
+		"smoke": "make smoke:3 files/11 requests passed; owned services stopped",
+		"hygiene": [
+			"Ruff format3 files unchanged",
+			"scoped lint107 files passed",
+			"anti-drift2.87%;vulture/knip passed",
+			"doc-gate passed",
+			"49 decision records conform",
+			"strict shared fixture passed",
+			"raw gitleaks0 findings"
+		]
+	},
+	"limits": [
+		"Direct real issuer/verifier runtime, not new gateway integration; exact real issuer/new gateway/OCU query case remains mandatory in #299",
+		"macOS local verification under approved policy, not remote Actions/Linux/LAN certification",
+		"Coverage gate aggregate limitation tracked #410; router independently measured",
+		"Existing dependency warnings retained in raw output"
+	],
+	"candidate_files": [
+		{
+			"path": "backend/open_webui/routers/ocu_resource_grants.py",
+			"sha256": "8580d4e0bec1236ed5be1e314b70a8c03bc5a6769952ae5436ab6d8457ec6247"
+		},
+		{
+			"path": "backend/open_webui/test/ocu_resource_grants_harness.py",
+			"sha256": "1a0248fc16fd8633d99d40737bbddcbd3f9ecde1c84b647f24988d977c37a0ac"
+		},
+		{
+			"path": "backend/open_webui/test/routers/test_ocu_resource_grants.py",
+			"sha256": "f78d06e8f817c9c2bdf7154427f95e8c3afcf465234987b12369dba6659102a7"
+		},
+		{
+			"path": "docs/decisions/proposed/architecture/2026-10-10-ocu-resource-grants.md",
+			"sha256": "7af444aab1104d72cf7ab1544f1695598d658b0a6531e59d468e4569f964ee7a"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/proposal.md",
+			"sha256": "724c0609922874faafb13648e3f41b804e3109dd3aea15e3e9e2f3e42b70c90f"
+		},
+		{
+			"path": "openspec/changes/ocu-resource-grants/tasks.md",
+			"sha256": "9b264e292b0b9e35e2f885a0b2374b9fcf44bc71df22813481af6198c7942530"
+		}
+	],
+	"artifact": {
+		"path": "verification.tar.xz",
+		"sha256": "bed42abf4542ae80a752f1d458b064564d10fc0b5966c5314c4e25c48b2fadaf",
+		"bytes": 50128,
+		"verified_members": 68
+	}
+}

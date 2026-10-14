@@ -22,6 +22,50 @@ from open_webui.test.ocu_harness import (
 ISSUE_PATH = '/api/v1/ocu/resource-grants/issue'
 VERIFY_PATH = '/api/v1/ocu/resource-grants/auth'
 NOW = 2_000_000_000
+REFUSED_RESOURCE_QUERIES = (
+    'download=1',
+    'x=1&download=1',
+    'x=1#//evil',
+    'x=\r\nLocation:evil',
+    'x=%0d%0aevil',
+    'download=1&x=two',
+    'flag&download=1&x=two',
+    'download=1&x=a=b',
+    '_x-=yes&download=1',
+    'Download_extra=1&download=1&download2',
+    'download=1&x=1&x=2',
+    'x=1&x=2&download=1',
+    'download=1&x=',
+    'x=&download=1',
+    'download=1&x=%26',
+    'x=%26&download=1',
+    'x=%ff',
+    'x=1\\path',
+)
+PRESERVED_RESOURCE_QUERIES = (
+    'download=0',
+    'Download=1',
+    'download=1&download=0',
+    'download=1&%64ownload=0',
+    'download=1&Download=1',
+    'next=https%3A%2F%2Fevil.example%2F&x=%23%25%2B',
+    'revision=7',
+    'DOWNLOAD=1',
+    'download=0&download=1',
+    'download=1&download=1',
+    'Download=1&download=1',
+    '%64ownload=0&download=1',
+    'download=1&%78=0',
+    '%78=0&download=1',
+    'download=1&x.y=0',
+    'x.y=0&download=1',
+    '&download=1',
+    'download=1&',
+    'download=1&&x=2',
+    '=x&download=1',
+    'download=1&download',
+    'download&download=1',
+)
 
 
 @pytest.fixture

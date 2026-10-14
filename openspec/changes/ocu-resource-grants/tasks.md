@@ -15,6 +15,8 @@ Minimal mergeable slice: atomic - issuer and verifier share one credential contr
 
 - [x] 1.2 Apply the owner-approved mechanical declaration repair in the existing Office subprocess test doubles and DOCX XML callbacks so the inherited unused-parameter findings do not block `make anti-drift`. Preserve all callback bodies, security/cleanup assertions and accepted callback calls; no gate suppression or threshold change. Verify the Office route-test module, `make smoke-stub` and `make anti-drift`. This is a bounded harness-only exception to group1's authorization scope, not Office behavior or gateway delivery.
 
+- [x] 1.3 Complete the owner-approved issuer query-classification prerequisite before group 4. For queries that pass the existing printable/UTF-8/control-character guards, refuse issuance exactly when the unchanged reviewed proxy download classifier identifies one unambiguous literal lowercase `download=1`. Encoded/out-of-grammar keys, empty fields or additional case-insensitive download keys must not accidentally enable that exemption; repeated ordinary keys and empty values remain valid surrounding fields. Retain original query bytes in the relative grant Location and preserve all session/owner, token, path and unsafe-query refusals. Verify actual issuer GET/HEAD routes, a direct HTTP smoke and the existing grant/auth suites. This WebUI-only prerequisite does not certify a new gateway chain; group 5 owns that integration case.
+
 ### Group 1 risk coverage
 
 | Risk pack                  | Selection and evidence                                                                                                                                                         |
@@ -35,6 +37,16 @@ Governing invariant: possession grants only short-lived ordinary-file reads in t
 Sibling surfaces: issuer, verifier, existing session decoder/revocation helper, current user/owner lookup and unchanged `/api/v1/ocu/auth`; downstream gateway consumes D2 only after its own group4 proof.
 No-expiry sessions retain the existing revocation helper's semantics: logout without an effective stored revocation cannot invalidate their grants immediately. The600-second grant cap still applies; group1 does not modify upstream signout.
 The owner-approved status boundary preserves `Chats.is_chat_owner` unchanged: its internally swallowed database failures remain403. User-lookup failures and other exceptions surfaced to the router return503; configured revocation-store unavailability always returns503. Exercise both the real predicate's internal-failure refusal and surfaced-exception handling, without replacing the authorization predicate in the internal-failure case.
+
+### Issuer query alignment prerequisite
+
+Fixture level: expanded, bounded to the existing query predicate and paired route tests. Selected risks: public API/query grammar, auth/secrets at the unchanged issuer boundary, legacy compatibility, unsafe-input/error handling and documentation. No new config, schema, concurrency mechanism, dependency, gateway implementation or query-rewriting policy.
+
+Governing invariant: safe-query download classification agrees with the already reviewed proxy exemption; issuance preserves the original encoded query and never weakens authentication or redirect safety. Sibling surfaces: issuer GET/HEAD, `_valid_query`, existing grant/auth tests and the unchanged proxy `$ocu_download_exempt` map.
+
+Concrete proof: `download=1` and safe surrounding fields such as `flag&download=1&x=two` remain403 without Location. `download=1&%64ownload=0`, its reversed order, duplicate/case-variant download keys, encoded/out-of-grammar other keys and empty fields remain non-exempt; authorized GET/HEAD issuance returns empty302 with the exact original query and no-store/no-referrer. Raw/encoded controls, invalid UTF-8, fragment/backslash injection, missing session and foreign-owner requests retain their existing refusals. Capture an actual-route RED before the predicate repair, then GREEN plus a real HTTP route probe; compare the safe-input corpus to the frozen proxy rule without importing a sibling checkout into permanent WebUI tests.
+
+Classify original query bytes without decoding or rewriting them. Surrounding keys may be any `[A-Za-z0-9_-]+` name other than case-insensitive `download`, either bare or with `=value`; values may contain anything except literal `&`, subject to the unchanged safety guards. Repeated ordinary keys, empty values and encoded value content do not prevent exemption: `download=1&x=1&x=2`, `download=1&x=` and `download=1&x=%26` must remain403 for both methods. Encoded/out-of-grammar keys and empty fields do prevent exemption: `download=1&%78=1`, `download=1&x.y=1`, `download=1&` and `download=1&&x=1` must return empty302 with the exact original query, relative Location and no-store/no-referrer for authorized GET/HEAD requests.
 
 ## 2. OCU confined HEAD transport
 
@@ -125,6 +137,8 @@ Primary proof: `make smoke-proxy` against the exact pinned OCU revision, includi
 
 Suggested fixture level: expanded - credential-bearing verification scripts, cross-repo pin and gateway response contract.
 Minimal mergeable slice: atomic - the new proxy changes canonical file responses, so pin/fixtures/assertions must move together to keep the single smoke command meaningful and green.
+
+The owner-approved issuer prerequisite also supplies this required group 5 regression: a real owner requests canonical generated HTML with `download=1&%64ownload=0`; real issuance and the pinned new gateway must complete without a false403, preserve the exact query to OCU, and retain inline disposition plus enforced sandbox/nosniff. This end-to-end obligation is not marked complete by group 1.3's issuer-only proof.
 
 ## 6. WebUI browser acceptance and live contract closure
 

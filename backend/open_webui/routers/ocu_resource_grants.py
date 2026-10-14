@@ -28,6 +28,11 @@ _CLAIMS = frozenset({'purpose', 'user_id', 'chat_id', 'session_jti', 'session_ia
 _BASE64URL = re.compile(r'[A-Za-z0-9_-]+\Z')
 _PATH_SEGMENT = re.compile(r"(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})+\Z")
 _ENCODED_OCTET = re.compile(r'%[0-9A-Fa-f]{2}')
+_DOWNLOAD_EXEMPT_QUERY = re.compile(
+    r'(?:(?!(?i:download)(?:=|&|$))[A-Za-z0-9_-]+(?:=[^&]*)?&)*'
+    r'download=1'
+    r'(?:&(?!(?i:download)(?:=|&|$))[A-Za-z0-9_-]+(?:=[^&]*)?)*'
+)
 
 
 def _empty(status_code: int, headers: dict[str, str] | None = None) -> Response:
@@ -76,10 +81,7 @@ def _valid_query(query: str) -> bool:
         return False
     if _has_control(decoded):
         return False
-    download_fields = [
-        field.partition('=') for field in query.split('&') if field.partition('=')[0].lower() == 'download'
-    ]
-    return not (len(download_fields) == 1 and download_fields[0] == ('download', '=', '1'))
+    return _DOWNLOAD_EXEMPT_QUERY.fullmatch(query) is None
 
 
 def _number(value) -> bool:
