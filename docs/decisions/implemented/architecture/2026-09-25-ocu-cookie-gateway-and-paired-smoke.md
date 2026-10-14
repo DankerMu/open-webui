@@ -1,14 +1,14 @@
 ---
 id: 2026-09-25-ocu-cookie-gateway-and-paired-smoke
-title: Cookie-only native gateway with pinned paired acceptance
+title: Native gateway with pinned request acceptance
 kind: architecture
 status: implemented
 date: 2026-09-25
 supersedes: none
-references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-23-ocu-public-prefix, 2026-09-24-ocu-websocket-recheck, issue-22, issue-23
+references: 2026-09-20-lan-topology-external-reverse-proxy, 2026-09-23-ocu-public-prefix, 2026-09-24-ocu-websocket-recheck, 2026-10-10-ocu-resource-grants, issue-22, issue-23
 ---
 
-# Cookie-only native gateway with pinned paired acceptance
+# Native gateway with pinned request acceptance
 
 ## Problem
 
@@ -22,11 +22,13 @@ Chat subrequests authenticate cookies through WebUI owner auth; static subreques
 
 The permanent make smoke-proxy command verifies the exact OCU commit in constraints.yaml and materializes reviewed Git blobs into private scratch before launching the existing entrypoint. It does not read or overwrite a sibling checkout's ignored configuration. Real WebUI sessions establish owner/non-owner and alternate-header positive controls; private stub observations establish per-request forwarding, identity, credentials and denied-request noncontact. Public fixture responses never echo credentials. Ordinary Content-Length POST→GET sequences and WS frame exchange are part of acceptance, not optional diagnostics.
 
-The explicit Hurl list governs execution, and output names each invoked file on success or failure; a missing listed file fails. Office requests run serially with one private observation boundary per request: each admitted row requires one attributed arrival, and each denial requires none. A configured conflict chat must reach observed conflict before resolution and observed closed state before version restore. The pin carries the seven Office rows without DocumentServer listener inputs; this evidence does not establish browser editing or real-editor behavior.
+The explicit Hurl list governs execution, and output names each invoked file on success or failure; a missing listed file fails. Office requests run serially with one private observation boundary per request: each admitted row requires one attributed arrival, and each denial requires none. A configured conflict chat must reach observed conflict before resolution and observed closed state before version restore. The pinned renderer receives a distinct Office listener and its upstream; this evidence does not establish browser editing or real-editor behavior.
 
-Office's effective request variables travel in a fresh0600 file beneath owned0700 scratch, never as credential-bearing command arguments. The request file follows the base variables file so an explicit empty cookie overrides retained authentication. Its lifetime ends on success, child failure, launch error or interruption; the base credential file remains owned by the outer smoke run.
+Office and resource request variables travel in a fresh0600 file beneath owned0700 scratch, never as credential-bearing command arguments. The request file follows the base variables file so an explicit empty cookie overrides retained authentication. Its lifetime ends on success, child failure, launch error or interruption; the base credential file remains owned by the outer smoke run.
 
-The user selected paired cross-repository acceptance: review and freeze OCU without merging, run WebUI's permanent smoke and CI against that source, then merge OCU and WebUI sequentially. A new counterexample invalidates previous evidence; changing request order or framing to avoid a failure is not an acceptable fix.
+Canonical ordinary-file reads use real WebUI owner issuance followed explicitly without cookies. The resource judge registers capabilities before diagnostics, verifies exact raw targets and fresh server identity on each arrival, and requires zero arrivals on each denial. Raw socket HEAD proof observes wire bytes rather than relying on client body suppression. A short session minted through the canonical harness environment proves fresh resource access and subsequent session/grant expiry. Browser-response containment scans exclude private request metadata and permit only the successful canonical issuer Location; public diagnostics redact registered credentials and capability URLs even when reports are incomplete.
+
+Paired cross-repository acceptance couples reviewed source identity with WebUI's permanent smoke and CI. The original coupled cutover freezes OCU before source merge, verifies WebUI against that source, then merges the repositories sequentially. Resource-grant stage ordering, the atomic pin/fixture cutover and separate browser acceptance boundaries follow approved [D6](../../../../openspec/changes/ocu-resource-grants/design.md#d6-verification-and-delivery) and the [resource-grant decision](../../proposed/architecture/2026-10-10-ocu-resource-grants.md), which remains proposed until browser acceptance. A new counterexample invalidates previous evidence; changing request order or framing to avoid a failure is not an acceptable fix.
 
 ## Alternatives considered
 

@@ -5,15 +5,20 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import shutil
 import signal
 import socket
 import stat
 import subprocess
+import tempfile
 import time
+import traceback
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 GIT_ENV = {
     'PATH': os.environ.get('PATH', ''),
@@ -58,14 +63,15 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def distinct_ports() -> tuple[int, int]:
-    first = free_port()
-    second = free_port()
-    if second == first:
-        second = free_port()
-    if second == first:
-        fail('could not allocate distinct stub and proxy ports')
-    return first, second
+def distinct_ports(count: int = 2) -> tuple[int, ...]:
+    ports: list[int] = []
+    for _ in range(count * 10):
+        port = free_port()
+        if port not in ports:
+            ports.append(port)
+        if len(ports) == count:
+            return tuple(ports)
+    fail('could not allocate distinct harness ports')
 
 
 def wait_http(url: str, pid: int, timeout: float = 8.0) -> None:
@@ -125,8 +131,8 @@ def http_raw(
         raw = response.read()
         hdrs_out = response.getheaders()
         status = response.status
-    except (TimeoutError, OSError) as exc:
-        fail(f'{method} {target} transport error: {exc}')
+    except (OSError, http.client.HTTPException, ValueError) as exc:
+        fail(f'{method} request transport error: {type(exc).__name__}')
     finally:
         conn.close()
     return status, hdrs_out, raw
@@ -157,11 +163,19 @@ def observations(path: Path) -> list[dict]:
     return rows
 
 
+def register_capabilities(text: str, credentials: list[str]) -> None:
+    for match in re.finditer(r'/ocu/f/([^/\s\"\'<>?#]+)/[^\s\"\'<>]*', text):
+        for value in (match.group(0), match.group(1)):
+            if value not in credentials:
+                credentials.append(value)
+
+
 def redact(text: str, secrets: list[str]) -> str:
+    credentials = list(secrets)
+    register_capabilities(text, credentials)
     out = text
-    for secret in secrets:
-        if secret:
-            out = out.replace(secret, '[redacted]')
+    for secret in sorted(filter(None, credentials), key=len, reverse=True):
+        out = out.replace(secret, '[redacted]')
     return out
 
 
@@ -366,40 +380,94 @@ def websocket_echo(
         sock.close()
 
 
-def scan_hurl_report(report: Path, token: str) -> None:
-    raw_token = token.encode()
-    for path in report.rglob('*'):
-        if not path.is_file():
-            continue
-        raw = path.read_bytes()
-        if raw_token in raw:
-            fail(f'synthetic internal token appeared in hurl report {path.name}')
-        if path.suffix != '.json':
-            continue
+def scan_hurl_report(
+    report: Path, token: str, credentials: list[str] | None = None, *, require_response: bool = False
+) -> None:
+    credentials = credentials if credentials is not None else [token]
+    if token and token not in credentials:
+        credentials.append(token)
+    responses = 0
+    for path in report.rglob('*.json'):
         try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError:
+            payload = json.loads(path.read_bytes())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            if require_response and path.name == 'report.json':
+                fail('hurl response report is malformed')
             continue
-        _scan_hurl_json(payload, path, token)
+        responses += _scan_hurl_json(payload, path, credentials, strict=require_response)
+    if require_response and not responses:
+        fail('hurl response report evidence is missing')
 
 
-def _scan_hurl_json(payload: object, path: Path, token: str) -> None:
+def _scan_hurl_json(payload: object, path: Path, credentials: list[str], *, strict: bool = False) -> int:
+    responses = 0
     if isinstance(payload, dict):
-        body = payload.get('body')
-        if isinstance(body, str) and body.startswith('store/'):
-            stored = path.parent / body
-            if stored.is_file() and token.encode() in stored.read_bytes():
-                fail('synthetic internal token appeared in a hurl response body')
-        headers = payload.get('headers')
-        if isinstance(headers, list):
-            for header in headers:
-                if isinstance(header, dict) and token in str(header.get('value', '')):
-                    fail('synthetic internal token appeared in a hurl response header')
+        response = payload.get('response')
+        if isinstance(response, dict):
+            responses += _scan_hurl_response(payload, response, path, credentials, strict=strict)
         for value in payload.values():
-            _scan_hurl_json(value, path, token)
+            responses += _scan_hurl_json(value, path, credentials, strict=strict)
     elif isinstance(payload, list):
         for item in payload:
-            _scan_hurl_json(item, path, token)
+            responses += _scan_hurl_json(item, path, credentials, strict=strict)
+    return responses
+
+
+def _scan_hurl_response(payload: dict, response: dict, path: Path, credentials: list[str], *, strict: bool) -> int:
+    headers = response.get('headers', [])
+    for header in headers if isinstance(headers, list) else []:
+        if isinstance(header, dict) and str(header.get('name', '')).lower() == 'location':
+            register_capabilities(str(header.get('value', '')), credentials)
+    request = payload.get('request') or {}
+    canonical = urlsplit(str(request.get('url', ''))).path.startswith('/ocu/files/')
+    request_target = str(request.get('url', '')).split('/ocu/files/', 1)[-1]
+    status = response.get('status')
+    valid_headers = isinstance(headers, list) and all(
+        isinstance(header, dict) and isinstance(header.get('name'), str) and isinstance(header.get('value'), str)
+        for header in headers
+    )
+    if not valid_headers:
+        fail('hurl response report has malformed headers')
+    valid_response = (
+        isinstance(status, int)
+        and 100 <= status <= 599
+        and (response.get('body') is None or isinstance(response.get('body'), str))
+    )
+    if strict and not valid_response:
+        fail('hurl response report has a malformed response')
+    body = response.get('body')
+    if isinstance(body, str):
+        stored = path.parent / body
+        if not stored.is_file():
+            fail('hurl response body evidence is missing')
+        raw = stored.read_bytes()
+        if any(value.encode() in raw for value in credentials if value):
+            fail('credential appeared in a hurl response body')
+    _scan_hurl_headers(headers, response, canonical, request_target, credentials)
+    return int(valid_response)
+
+
+def _scan_hurl_headers(
+    headers: list, response: dict, canonical: bool, request_target: str, credentials: list[str]
+) -> None:
+    for header in headers:
+        if not isinstance(header, dict):
+            continue
+        value = str(header.get('value', ''))
+        issuer_location = (
+            response.get('status') == 302
+            and str(header.get('name', '')).lower() == 'location'
+            and canonical
+            and value.split('/', 4)[-1] == request_target
+            and re.fullmatch(r'/ocu/f/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/[^/?#]+/[^#\r\n]+', value)
+        )
+        if issuer_location:
+            tail = '/' + value.split('/', 4)[4]
+            if any(secret in tail for secret in credentials if secret):
+                fail('credential appeared outside the issued grant in a hurl Location')
+            continue
+        if any(secret in value for secret in credentials if secret):
+            fail('credential appeared in a hurl response header')
 
 
 def _csp(resp: list[tuple[str, str]]) -> list[str]:
@@ -411,8 +479,8 @@ def _require_status(status: int, expected: int, label: str) -> None:
         fail(f'{label} expected {expected}, got {status}')
 
 
-def _assert_forced_html_query(port: int, html: str, query: str, headers: dict[str, str], label: str) -> None:
-    status, resp, _raw = http_raw('127.0.0.1', port, 'GET', html + query, headers=headers)
+def _assert_forced_html_query(fetch, html: str, query: str, label: str) -> None:
+    status, resp, _raw = fetch(html + query)
     _require_status(status, 200, label)
     if _csp(resp) != ['sandbox allow-scripts allow-forms']:
         fail(f'{label} HTML escaped forced isolation')
@@ -435,14 +503,8 @@ def _assert_binary_download(port: int, chat_id: str, headers: dict[str, str]) ->
         fail('binary download body mismatch')
 
 
-def _assert_text_xml(port: int, chat_id: str, headers: dict[str, str]) -> None:
-    status, resp, raw = http_raw(
-        '127.0.0.1',
-        port,
-        'GET',
-        f'/ocu/files/{chat_id}/plain.xml',
-        headers=headers,
-    )
+def _assert_text_xml(fetch, chat_id: str) -> None:
+    status, resp, raw = fetch(f'/ocu/files/{chat_id}/plain.xml')
     _require_status(status, 200, 'text/xml')
     if _csp(resp) != ['sandbox allow-scripts allow-forms']:
         fail('text/xml missing forced isolation')
@@ -450,13 +512,13 @@ def _assert_text_xml(port: int, chat_id: str, headers: dict[str, str]) -> None:
         fail('text/xml body mismatch')
 
 
-def assert_download_variants(port: int, chat_id: str, cookie: str) -> None:
+def assert_download_variants(port: int, chat_id: str, cookie: str, fetch) -> None:
     headers = {'Cookie': cookie}
     html = f'/ocu/files/{chat_id}/page.html'
-    _assert_forced_html_query(port, html, '?Download=1', headers, 'Download=1')
-    _assert_forced_html_query(port, html, '?download=1&download=1', headers, 'duplicate download')
+    _assert_forced_html_query(fetch, html, '?Download=1', 'Download=1')
+    _assert_forced_html_query(fetch, html, '?download=1&download=1', 'duplicate download')
     _assert_binary_download(port, chat_id, headers)
-    _assert_text_xml(port, chat_id, headers)
+    _assert_text_xml(fetch, chat_id)
 
 
 def note_cleanup_failure(code: int, logger) -> int:
@@ -476,13 +538,13 @@ def run_owned_lifecycle(smoke, logger) -> int:
     try:
         code = smoke.run()
     except Fail as cop:
-        logger.error('smoke-proxy: %s', cop)
+        logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
         code = 1
     except KeyboardInterrupt:
         logger.error('smoke-proxy: interrupted')
         code = 130
     except Exception:
-        logger.exception('smoke-proxy: unexpected error')
+        logger.error('smoke-proxy: unexpected error: %s', redact(traceback.format_exc(), smoke.secrets))
         code = 1
     return _finish_owned_cleanup(smoke, logger, code)
 
@@ -490,30 +552,30 @@ def run_owned_lifecycle(smoke, logger) -> int:
 def _finish_owned_cleanup(smoke, logger, code: int) -> int:
     try:
         smoke.cleanup_procs()
-    except Exception:
-        logger.exception('owned process cleanup failed')
+    except Exception as exc:
+        logger.error('owned process cleanup failed: %s', type(exc).__name__)
         code = note_cleanup_failure(code, logger)
     try:
         smoke.cleanup_data()
     except Fail as cop:
-        logger.error('smoke-proxy: %s', cop)
+        logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
         code = note_cleanup_failure(code, logger)
-    except Exception:
-        logger.exception('owned data cleanup failed')
+    except Exception as exc:
+        logger.error('owned data cleanup failed: %s', type(exc).__name__)
         code = note_cleanup_failure(code, logger)
     try:
         smoke.assert_sentinel()
     except Fail as cop:
-        logger.error('smoke-proxy: %s', cop)
+        logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
         code = note_cleanup_failure(code, logger)
-    except Exception:
-        logger.exception('sentinel assertion failed')
+    except Exception as exc:
+        logger.error('sentinel assertion failed: %s', type(exc).__name__)
         code = note_cleanup_failure(code, logger)
     if smoke.scratch and smoke.scratch.exists():
         try:
             shutil.rmtree(smoke.scratch)
         except OSError as cop:
-            logger.error('scratch removal failed: %s', cop)
+            logger.error('scratch removal failed: %s', type(cop).__name__)
             code = note_cleanup_failure(code, logger)
     return code
 
@@ -534,6 +596,16 @@ def setup_office_fixture(smoke) -> dict[str, str]:
     fixtures.write_text(json.dumps({chat['id']: 'office_conflict'}), encoding='utf-8')
     os.chmod(fixtures, 0o600)
     return {'OCU_STUB_FIXTURES': str(fixtures), 'OCU_STUB_ASSETS': str(smoke.scratch / 'assets')}
+
+
+@contextmanager
+def private_hurl_variables(smoke, variables: dict, *, prefix: str):
+    with tempfile.NamedTemporaryFile(
+        mode='w', encoding='utf-8', dir=smoke.scratch, prefix=prefix, suffix='.vars'
+    ) as request_vars:
+        request_vars.write('\n'.join(f'{name}={value}' for name, value in variables.items()) + '\n')
+        request_vars.flush()
+        yield ['--variables-file', request_vars.name]
 
 
 def run_hurl_files(smoke, files: list[str], report: Path, logger, options=()) -> None:
@@ -564,7 +636,7 @@ def run_hurl_files(smoke, files: list[str], report: Path, logger, options=()) ->
             capture_output=True,
             env={'PATH': os.environ.get('PATH', ''), 'HOME': os.environ.get('HOME', ''), 'TERM': 'dumb'},
         )
-        scan_hurl_report(destination, smoke.token)
+        scan_hurl_report(destination, smoke.token, smoke.secrets, require_response=result.returncode == 0)
         if result.returncode:
             logger.error('%s', redact(result.stdout + result.stderr, smoke.secrets))
             stub_log = smoke.scratch / 'stub.log' if smoke.scratch else None
@@ -586,10 +658,13 @@ def gateway_hurl_matrix(smoke, files, logger) -> None:
         if relative == 'smoke/proxy/office.hurl':
             OfficeJudge(smoke, path, destination, logger).run()
             continue
+        if relative == 'smoke/proxy/files.hurl':
+            smoke.resources.hurl(path, destination)
+            continue
         before = len(observations(smoke.record))
         if relative == 'smoke/proxy/deny.hurl':
             smoke.deny_before = before
         smoke._run_hurl([str(path)], destination)
         if relative == 'smoke/proxy/deny.hurl' and observations(smoke.record)[before:]:
             fail('denied/unlisted request contacted OCU')
-    scan_hurl_report(report, smoke.token)
+    scan_hurl_report(report, smoke.token, smoke.secrets)

@@ -146,3 +146,91 @@ def test_drawio_fixture_lists_and_serves_renderer_document(stub_server):
     cells = {cell.get('id'): cell.attrib.get('style', '') for cell in model.findall('root/mxCell')}
     assert 'img/telecommunication/Cellphone_128x128.png' in cells['phone']
     assert 'mxgraph.electrical.logic_gates.and' in cells['and']
+
+
+@pytest.mark.parametrize('name', ['page.html', 'blob.bin', 'plain.xml', 'backend-html403.html'])
+def test_ordinary_head_preserves_get_metadata_without_wire_body(stub_server, name):
+    base, _record = stub_server
+    get_status, get_headers, _body = _get(f'{base}/files/running/{name}', {})
+    port = int(base.rsplit(':', 1)[1])
+    with socket.create_connection(('127.0.0.1', port), timeout=3) as conn:
+        conn.sendall(f'HEAD /files/running/{name} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'.encode())
+        chunks = []
+        while chunk := conn.recv(65536):
+            chunks.append(chunk)
+    header, _, wire_body = b''.join(chunks).partition(b'\r\n\r\n')
+    lines = header.decode().split('\r\n')
+    assert int(lines[0].split()[1]) == get_status
+    headers = {name.lower(): value for name, value in (line.split(': ', 1) for line in lines[1:])}
+    for key in (
+        'content-type',
+        'content-length',
+        'content-disposition',
+        'content-security-policy',
+        'x-content-type-options',
+    ):
+        assert headers.get(key) == get_headers.get(key)
+    assert wire_body == b''
+
+
+def test_archive_head_remains_refused(stub_server):
+    base, _record = stub_server
+    request = urllib.request.Request(f'{base}/files/running/archive', method='HEAD')
+    with pytest.raises(urllib.error.HTTPError) as raised:
+        urllib.request.urlopen(request, timeout=3)
+    assert raised.value.code == 404
+
+
+def test_observation_records_credential_presence_without_values(stub_server):
+    base, record = stub_server
+    _get(
+        f'{base}/files/running/page.html',
+        {
+            'Authorization': 'Bearer synthetic-stub-token',
+            'Cookie': 'token=presence-cookie-canary',
+            'Referer': 'presence-referer-canary',
+            'X-Ocu-Grant': 'presence-grant-canary',
+            'X-Ocu-Resource-Path': 'presence-path-canary',
+            'X-Ocu-Auth-Mode': 'presence-mode-canary',
+        },
+    )
+    rows = [json.loads(line) for line in record.read_text().splitlines()]
+    assert rows[-1]['credential_headers'] == [
+        'cookie',
+        'referer',
+        'x-ocu-auth-mode',
+        'x-ocu-grant',
+        'x-ocu-resource-path',
+    ]
+    assert rows[-1]['token_ok'] is True
+    assert 'presence-' not in record.read_text()
+
+
+@pytest.mark.parametrize(
+    'name,expected',
+    [
+        ('sub/archive', b'ordinary nested archive filename'),
+        ('office/source/file', b'ordinary control-like filename'),
+    ],
+)
+def test_ordinary_control_like_filenames_have_resource_bytes(stub_server, name, expected):
+    base, _record = stub_server
+    status, _headers, body = _get(f'{base}/files/running/{name}', {})
+    assert status == 200
+    assert body == expected
+
+
+@pytest.mark.parametrize(
+    'name,mime,signature',
+    [
+        ('style.css', 'text/css', b'#inline {'),
+        ('module.js', 'text/javascript', b'export const resourceProof'),
+        ('font.ttf', 'font/ttf', b'\x00\x01\x00\x00'),
+    ],
+)
+def test_relative_resource_fixtures_have_ordinary_content(stub_server, name, mime, signature):
+    base, _record = stub_server
+    status, headers, body = _get(f'{base}/files/running/{name}', {})
+    assert status == 200
+    assert headers['content-type'] == mime
+    assert body.startswith(signature)

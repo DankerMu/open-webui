@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 
+from smoke_proxy_resources import ResourceJudge
 from smoke_proxy_support import (
     GIT_ENV,
     assert_download_variants,
@@ -135,6 +136,8 @@ class Smoke:
         self.stage = Path()
         self.stub_port = 0
         self.proxy_port = 0
+        self.office_port = 0
+        self.resources = ResourceJudge(self, log)
 
     def status(self) -> None:
         try:
@@ -178,6 +181,8 @@ class Smoke:
             'OCU_WEBUI_UPSTREAM': self.webui,
             'OCU_PROXY_UPSTREAM': f'http://127.0.0.1:{self.stub_port}',
             'OCU_PROXY_LISTEN': f'127.0.0.1:{self.proxy_port}',
+            'OCU_OFFICE_PROXY_LISTEN': f'127.0.0.1:{self.office_port}',
+            'OCU_OFFICE_PROXY_UPSTREAM': f'http://127.0.0.1:{self.stub_port}',
         }
         run([self.python, str(self.stage / 'deploy/proxy/render.py')], cwd=self.stage, env=env, secret=True)
         conf = self.stage / 'deploy/proxy/nginx.conf'
@@ -405,7 +410,7 @@ class Smoke:
 
     def extra_matrix(self) -> None:
         self._encoded_file()
-        assert_download_variants(self.proxy_port, self.chat_id, self.owner_cookie)
+        assert_download_variants(self.proxy_port, self.chat_id, self.owner_cookie, self.resources.fetch)
         for name in ('manifest', 'list'):
             before = len(observations(self.record))
             path = f'/ocu/api/uploads/{self.chat_id}/{name}'
@@ -461,13 +466,7 @@ class Smoke:
     def _encoded_file(self) -> None:
         encoded = f'/ocu/files/{self.chat_id}/sub/space%20hash%23plus%2Bpercent%25.html?revision=7'
         before = len(observations(self.record))
-        status, headers, raw = http_raw(
-            '127.0.0.1',
-            self.proxy_port,
-            'GET',
-            encoded,
-            headers={'Cookie': self.owner_cookie},
-        )
+        status, headers, raw = self.resources.fetch(encoded)
         if status != 200:
             fail(f'encoded nested file expected 200, got {status}')
         if [v for n, v in headers if n.lower() == 'content-security-policy'] != ['sandbox allow-scripts allow-forms']:
@@ -550,22 +549,25 @@ class Smoke:
             fail('foreign upload contacted OCU')
 
     def containment_probe(self) -> None:
-        proxy = f'http://127.0.0.1:{self.proxy_port}'
         cookie = self.owner_cookie
         paths = (
             f'/ocu/api/outputs/{self.chat_id}',
-            f'/ocu/files/{self.chat_id}/page.html',
-            f'/ocu/files/{self.chat_id}/diagram.svg',
-            f'/ocu/files/{self.chat_id}/blob.bin',
+            self.resources.issue('page.html'),
+            self.resources.issue('diagram.svg'),
+            self.resources.issue('blob.bin'),
             f'/ocu/files/{self.chat_id}/page.html?download=1',
             f'/ocu/preview/{self.chat_id}',
             '/ocu/static/preview.js',
             '/ocu/health',
-            f'/ocu/files/{self.chat_id}/plain.xml',
+            self.resources.issue('plain.xml'),
         )
         for path in paths:
-            status, _payload, headers, raw = http_json('GET', proxy + path, cookie=cookie)
-            blob = raw + '\n'.join(f'{k}:{v}' for k, v in headers.items()).encode()
+            if path.startswith('/ocu/f/'):
+                resource = path.split('/' + self.chat_id + '/', 1)[1]
+                status, pairs, raw = self.resources.request('GET', path, upstream=f'/files/{self.chat_id}/{resource}')
+            else:
+                status, pairs, raw = http_raw('127.0.0.1', self.proxy_port, 'GET', path, headers={'Cookie': cookie})
+            blob = raw + '\n'.join(f'{k}:{v}' for k, v in pairs).encode()
             if self.token.encode() in blob:
                 fail(f'response containment failed on {path} status {status}')
             if b'x-echo-authorization' in blob.lower():
@@ -734,7 +736,7 @@ class Smoke:
         self.token = 'Tok!' + secrets.token_hex(12) + '#$%'
         if not TOKEN_RE.fullmatch(self.token):
             fail('generated token outside visible ASCII')
-        self.stub_port, self.proxy_port = distinct_ports()
+        self.stub_port, self.proxy_port, self.office_port = distinct_ports(3)
         self.origin = f'http://127.0.0.1:{self.proxy_port}'
         self.stage = self.stage_copy(checkout)
         self.render(nginx)
@@ -767,6 +769,7 @@ class Smoke:
         self.alternate_header_control()
         self.extra_matrix()
         self.hurl()
+        self.resources.run()
         self.websocket()
         self.assert_private()
         log.info('smoke-proxy: ok')

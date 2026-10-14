@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from ocu_stub_nested import nested_listing_entry, nested_names, nested_payload
+from ocu_stub_nested import FILES, nested_listing_entry, nested_names, nested_payload
 from ocu_stub_office import OFFICE_SCENARIOS, OfficeStore
 from ocu_stub_office_page import office_host_page
 
@@ -37,88 +37,6 @@ WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 # Upstream generated fixtures use a weaker CSP so the proxy's forced
 # sandbox CSP is observable. Binary/download keep this upstream policy.
 WEAK_CSP = "default-src 'self'"
-FILES = {
-    'page.html': (
-        'text/html; charset=utf-8',
-        b"""<!doctype html><html><head><title>ocu-stub page</title>
-<link rel="stylesheet" href="style.css"><style>#inline{color:rgb(0,128,0)}</style></head><body>
-<p id="inline">ocu-stub page</p><img id="image" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=">
-<button id="run" onclick="document.querySelector('#clicked').textContent='clicked'">Run</button>
-<span id="clicked"></span><span id="proof"></span>
-<script>
-let storage='blocked', parentAccess='blocked', cookie='blocked';
-try { localStorage.getItem('token'); storage='leaked' } catch {}
-try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
-try { cookie=document.cookie || 'blocked' } catch {}
-document.querySelector('#proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
-window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*');
-</script></body></html>""",
-    ),
-    'report.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub report</body></html>'),
-    'final.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>ocu-stub final report</body></html>'),
-    'diagram.svg': (
-        'image/svg+xml',
-        b"""<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">
-<text id="proof" y="20">waiting</text><script><![CDATA[
-let storage='blocked', parentAccess='blocked', cookie='blocked';
-try { localStorage.getItem('token'); storage='leaked' } catch {}
-try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
-try { cookie=document.cookie || 'blocked' } catch {}
-document.getElementById('proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
-window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
-]]></script></svg>""",
-    ),
-    'report.svg': ('image/svg+xml', b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'),
-    'data.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub</root>'),
-    'report.xml': ('application/xml', b'<?xml version="1.0"?><root>ocu-stub-report</root>'),
-    'plain.xml': ('text/xml; charset=utf-8', b'<?xml version="1.0"?><root>plain-xml</root>'),
-    'page.xhtml': (
-        'application/xhtml+xml; charset=UTF-8',
-        b'<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>x</body></html>',
-    ),
-    'report.xhtml': (
-        'application/xhtml+xml; charset=UTF-8',
-        b'<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>r</body></html>',
-    ),
-    'blob.bin': ('application/octet-stream', b'\x00\x01\x02\x03'),
-    'report.bin': ('application/octet-stream', b'\x00\x01\x02\x03'),
-    'sub/report.bin': ('application/octet-stream', b'nested-bin'),
-    'sub/space hash#plus+percent%.html': (
-        'text/html; charset=utf-8',
-        b'<!doctype html><html><body>encoded</body></html>',
-    ),
-    'sub/report.html': ('text/html; charset=utf-8', b'<!doctype html><html><body>nested</body></html>'),
-    'backend-html403.html': ('TEXT/HTML; charset=utf-8', b'upstream error'),
-    'diagram.drawio': (
-        'application/xml',
-        b"""<mxfile>
-<diagram id="combined" name="Combined">
-<mxGraphModel math="1">
-<root>
-<mxCell id="0"/>
-<mxCell id="1" parent="0"/>
-<mxCell id="ordinary" value="Page one" style="whiteSpace=wrap;" vertex="1" parent="1">
-<mxGeometry x="40" y="40" width="120" height="60" as="geometry"/>
-</mxCell>
-<mxCell id="and" value="AND"
-style="shape=mxgraph.electrical.logic_gates.and;whiteSpace=wrap;"
-vertex="1" parent="1">
-<mxGeometry x="200" y="40" width="100" height="60" as="geometry"/>
-</mxCell>
-<mxCell id="phone" value=""
-style="shape=image;image=img/telecommunication/Cellphone_128x128.png;aspect=fixed;"
-vertex="1" parent="1">
-<mxGeometry x="40" y="140" width="80" height="80" as="geometry"/>
-</mxCell>
-<mxCell id="math" value="$$E=mc^2$$" style="html=1;" vertex="1" parent="1">
-<mxGeometry x="160" y="140" width="120" height="40" as="geometry"/>
-</mxCell>
-</root>
-</mxGraphModel>
-</diagram>
-</mxfile>""",
-    ),
-}
 STATIC = {
     'preview.js': ('text/javascript; charset=utf-8', b'export const ocuStub = true;\n'),
     'deep/preview.js': ('text/javascript; charset=utf-8', b'export const ocuStubDeep = true;\n'),
@@ -421,6 +339,13 @@ def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None
         },
         'token_ok': bool(expected) and auth == expected,
         'upgrade': handler.headers.get('Upgrade', ''),
+        'credential_headers': sorted(
+            name.lower()
+            for name in handler.headers
+            if name.lower() == 'cookie'
+            or name.lower() == 'referer'
+            or name.lower().startswith(('x-ocu-grant', 'x-ocu-resource-', 'x-ocu-auth-'))
+        ),
     }
     if extra:
         entry.update(extra)
@@ -697,6 +622,9 @@ class StubHandler(BaseHTTPRequestHandler):
     def _serve_http(self, method: str) -> None:
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
+        if method == 'HEAD' and FILES_RE.match(parsed.path) and not ARCHIVE_RE.match(parsed.path):
+            self._serve_file(FILES_RE.match(parsed.path), query)
+            return
         if _OFFICE.dispatch(self, method, parsed.path, getattr(self, '_request_body', b'')):
             return
         for verb, regex, fn in _ROUTES:

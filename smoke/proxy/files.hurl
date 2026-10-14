@@ -1,7 +1,16 @@
 # Adversarial CSP/nosniff, binary/download preserve, D19 relative 401, encoded files.
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html
+GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html?download=1&%64ownload=0
 Cookie: {{owner_cookie}}
+
+HTTP 302
+[Asserts]
+body == ""
+header "Location" matches "^/ocu/f/[^/?#]+/{{chat_id}}/page[.]html[?]download=1&%64ownload=0$"
+header "Cache-Control" == "no-store"
+header "Referrer-Policy" == "no-referrer"
+
+GET {{proxy_url}}{{resource_base}}/page.html
 
 HTTP 200
 [Asserts]
@@ -10,8 +19,7 @@ header "X-Content-Type-Options" == "nosniff"
 body not contains "default-src"
 body contains "ocu-stub page"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/diagram.svg
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/diagram.svg
 
 HTTP 200
 [Asserts]
@@ -19,24 +27,21 @@ header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
 header "X-Content-Type-Options" == "nosniff"
 header "Content-Type" contains "svg"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/data.xml
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/data.xml
 
 HTTP 200
 [Asserts]
 header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
 header "X-Content-Type-Options" == "nosniff"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/page.xhtml
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/page.xhtml
 
 HTTP 200
 [Asserts]
 header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
 header "X-Content-Type-Options" == "nosniff"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/blob.bin
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/blob.bin
 
 HTTP 200
 [Asserts]
@@ -60,16 +65,14 @@ HTTP 200
 header "Content-Disposition" contains "attachment"
 
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html?Download=1
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/page.html?Download=1
 
 HTTP 200
 [Asserts]
 header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
 header "X-Content-Type-Options" == "nosniff"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/page.html?download=1&download=1
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/page.html?download=1&download=1
 
 HTTP 200
 [Asserts]
@@ -84,8 +87,7 @@ header "Content-Disposition" contains "attachment"
 header "Content-Security-Policy" == "default-src 'self'"
 header "X-Content-Type-Options" == "other"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/plain.xml
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/plain.xml
 
 HTTP 200
 [Asserts]
@@ -93,8 +95,7 @@ header "Content-Security-Policy" == "sandbox allow-scripts allow-forms"
 header "X-Content-Type-Options" == "nosniff"
 body contains "plain-xml"
 
-GET {{proxy_url}}/ocu/files/{{chat_id}}/backend-html403.html
-Cookie: {{owner_cookie}}
+GET {{proxy_url}}{{resource_base}}/backend-html403.html
 
 HTTP 403
 [Asserts]
@@ -104,5 +105,17 @@ header "X-Content-Type-Options" == "nosniff"
 GET {{proxy_url}}/ocu/files/{{chat_id}}/style.css
 
 HTTP 401
+[Asserts]
+header "X-Echo-Authorization" not exists
+
+GET {{proxy_url}}{{resource_base}}/backend403
+
+HTTP 403
+[Asserts]
+header "X-Echo-Authorization" not exists
+
+GET {{proxy_url}}{{resource_base}}/backend409
+
+HTTP 409
 [Asserts]
 header "X-Echo-Authorization" not exists
