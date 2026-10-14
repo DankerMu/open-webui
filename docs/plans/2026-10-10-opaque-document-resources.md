@@ -88,4 +88,4 @@ Deploy a matched rollback of the gateway, WebUI grant routes and harness pin: re
 
 ## Next Step
 
-Complete review and merge of the locally verified slice, then retire the active shared fixture through its owning archive follow-up. Consolidated deployment, LAN, real-model and real-DocumentServer acceptance remain separate; use matched WebUI/gateway revisions and the owning decision's authorization limits.
+The reviewed implementation fixture is [archived](../../openspec/changes/archive/2026-10-14-ocu-resource-grants/tasks.md); the [live resource-grant specification](../../openspec/specs/ocu-resource-grants/spec.md) owns its requirements. Consolidated deployment, LAN, real-model and real-DocumentServer acceptance remain separate; use matched WebUI/gateway revisions and the owning decision's authorization limits.

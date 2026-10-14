@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-10
 supersedes: none
-references: docs/plans/2026-10-10-opaque-document-resources.md; openspec/changes/ocu-resource-grants/design.md (D1–D2); DankerMu/open-webui#295; docs/decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md (withdrawn historical input); docs/evidence/issue-300/verification.json
+references: docs/plans/2026-10-10-opaque-document-resources.md; openspec/changes/archive/2026-10-14-ocu-resource-grants/design.md (D1–D2); DankerMu/open-webui#295; docs/decisions/proposed/architecture/2026-09-20-ocu-path-grant-for-opaque-documents.md (withdrawn historical input); docs/evidence/issue-300/verification.json
 ---
 
 # Session-bound capabilities for opaque-document workspace resources
