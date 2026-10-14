@@ -1,7 +1,7 @@
 {
 	"issue": 298,
 	"source_base": "bdc217fd26779b9c5c88297816d26010c310904d",
-	"source_head": "a953a1dc5e84b4403bfa51fda0cfef9f6b32d431",
+	"source_head": "732c8d5173c7a83404f820f57f376810af4151b2",
 	"control_base": "ddbbbe6c62a58045e271fc82959f9a973d2e56ad",
 	"scope": "Atomic reviewed OCU deploy/proxy grant gateway; shared fixture active through300; no pin or real-WebUI/browser certification",
 	"evidence": {
@@ -102,17 +102,27 @@
 		},
 		{
 			"path": "deploy/proxy/tests/test_native.py",
-			"sha256": "c062895511a4e0094be0f12f834e72299a1342789f7e34351d989594cec46a05"
+			"sha256": "405ac579505960062829556953d880e75c151cd064e562ef5436a2e5b89051f7"
 		},
 		{
 			"path": "deploy/proxy/tests/test_render.py",
 			"sha256": "98f066dbd632db7e4f742058e8922d8526c3549997d2683aed22d6669abdeb08"
 		}
 	],
+	"previous_source_head": "a953a1dc5e84b4403bfa51fda0cfef9f6b32d431",
+	"review_fix": {
+		"finding": "TE-1 CONFIRMED required P2 evidence gap",
+		"fix_pass": 1,
+		"change": "one exact-single-nosniff assertion added to existing ambiguous query loop;2testlines only",
+		"qualification": "precise encodedduplicate nosniff-loss mutant passed32 before assertion, fails1 afterward; restored32pass; fullASCII changedmethod1pass",
+		"production_byte_identical": true,
+		"prior_evidence_binding": "Original nine faults and fullASCII32 pass predate the two-line test-only strengthening; production and32method identities identical. Final full32 and changedmethod fullASCII run include added assertion.",
+		"followup": "Inherited README drift #418 is not added to execution queue"
+	},
 	"artifact": {
 		"path": "verification.tar.xz",
-		"sha256": "e650ae790d9119fa917fcd7a32007fbbbb4fcc4cd3bd758e1ecae103f52417ab",
-		"bytes": 67576,
-		"verified_members": 91
+		"sha256": "29a2ed4bd9d9e5aebd9c992c8fe93d771aa4f1a2f7429671da95b05927ba75b4",
+		"bytes": 80628,
+		"verified_members": 124
 	}
 }
