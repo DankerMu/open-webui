@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-08
 supersedes: none
-references: ocu-office-editing D15, 2026-09-27-ocu-selected-runtime-embedding, 2026-09-27-ocu-restricted-office-embedding, issue-145, issue-146
+references: 'ocu-office-editing D15, 2026-09-27-ocu-selected-runtime-embedding, 2026-09-27-ocu-restricted-office-embedding, issue-145, issue-146, 2026-10-15-ocu-native-edit-delivery (partial: delivery-qualified coverage and close release)'
 ---
 
 # Office editor host has a dedicated trust class and CSP
@@ -93,9 +93,10 @@ while the nested DocumentServer document owns its own origin and connection poli
 The host uses the existing broker routes without a persisted-schema migration.
 One status-read owner serves hydration, polling and command refresh; one editing
 timer persists uncovered reported modifications every five minutes. Save coverage
-binds the local modification generation at dispatch to the returned allocation
-and the broker's cumulative committed watermark. It is not per-receipt proof.
-Publication, not acceptance or the editor's own save shortcut, clears dirty state.
+binds the native-delivery-qualified modification generation at dispatch to the
+returned allocation and the broker's cumulative committed watermark. It is not
+per-receipt proof. Publication, not native delivery, acceptance or the editor's
+own save shortcut, clears dirty state.
 
 Retry attribution uses broker allocation identities, not response timing or a
 later status snapshot. Saving-state admission409 carries the blocking allocation
@@ -104,10 +105,12 @@ allocation. A matched local auto-save permits one queued publishing intent to
 survive later foreign saves. Error allocation metadata never establishes
 modification coverage; creation and restore errors keep their existing shape.
 
-An explicit close releases the editor only after broker acceptance. Component
-cleanup and pagehide retire the host before aborting its work and releasing its
-editor; neither cleanup path invents a broker close. These lifecycle hooks do not
-change the shell, mode selection, policy or other preview classes.
+An explicit close waits for native delivery before broker admission and revalidates
+it before releasing the editor after acceptance; the
+[native-delivery decision](2026-10-15-ocu-native-edit-delivery.md) owns that boundary.
+Component cleanup and pagehide retire the host before aborting its work and
+releasing its editor; neither cleanup path invents a broker close. These lifecycle
+hooks do not change the shell, mode selection, policy or other preview classes.
 
 Local actual-HTTP/Chromium evidence covers the [idle host](../../../evidence/issue-145/office-shell.png), [local CSP canary](../../../evidence/issue-145/office-policy-canary.png) and [disabled invalid surface](../../../evidence/issue-145/office-disabled.png), not real DocumentServer editing or LAN acceptance.
 
