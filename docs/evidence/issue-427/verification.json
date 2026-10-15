@@ -2,7 +2,7 @@
 	"issue": 427,
 	"source_repository": "DankerMu/open-computer-use",
 	"source_base": "276e00aceddb332974a0390e01d69d9430065816",
-	"source_head": "48e8a8ae49eaa8c96246b2b2cfc8b694923bb9fe",
+	"source_head": "161e6031c4dd0f85d8ca1c3aecccb44c1fb64d8d",
 	"environment": {
 		"host": "macOS arm64",
 		"python": "3.12.12",
@@ -15,8 +15,8 @@
 	"fixture": "openspec/changes/ocu-office-native-delivery",
 	"evidence": {
 		"fixture": "strict validation and independent fixture review passed",
-		"unit": "394 discovered/executed/passed; exact node-ID multiset; zero skips",
-		"red_green": "2 save and4 close cases failed before their repair;8 retirement/supersession cases reject immutable pre-fix host and pass candidate",
+		"unit": "399 discovered/executed/passed; exact node-ID multiset; zero skips; review-fix.tar.xz supersedes the original 394-case inventory",
+		"red_green": "2 save and4 close cases failed before their repair;8 retirement/supersession cases reject immutable pre-fix host;5 delivered-edit variants reject reply-time, commit-time and foreign-watermark coverage controls; candidate passes",
 		"runtime_composition": {
 			"host_parent": "8879f6eac7086e26d65b885e3e101590f57df31e",
 			"lookup_parent": "429a05232b46c6698c506014fdb698ca80d0c03d",
@@ -24,14 +24,14 @@
 			"commit": "f82e322b7d06aa632d338e71fbf70ce6231efc2d",
 			"construction": "git merge-tree/commit-tree; working tree unchanged"
 		},
-		"runtime_identity": "Production tree unchanged from tested host parent8879f6e to sourcehead48e8a8a; only tests/changelog added",
+		"runtime_identity": "Production host SHA256 unchanged from tested host parent8879f6e through sourcehead161e603; later commits change only tests/changelog",
 		"save_close": "Unbarriered native2→4, published4, freshnative4, reserved fresh close sequence1; zero unexpected console/page errors",
 		"direct_close": "No preceding forcesave and no diagnostic barrier; native4 preserved in published bytes/fresh editor; initial and fresh close each consume reserved sequence1",
 		"document_checker": {
 			"checks": ["edit", "sheets", "formulas", "values", "chart"],
 			"Main!B2": 12,
 			"Second!A2": 15,
-			"negative_control": "Only Main!A2 changed4→2: rejected specifically as published input is not4; original published bytes pass again"
+			"negative_control": "Only Main!A2 changed4→2 in runtime/diagnostic-barrier/issue427-published.xlsx: rejected specifically as published input is not4; original bytes pass again. Final unbarriered run workbooks are independently checked."
 		},
 		"cleanup": "No live owned groups or new native browser PIDs; Docker identity/state and paused172source unchanged",
 		"docs": "doc-gate passed;51 decisions conform;strict fixture passed",
@@ -51,7 +51,7 @@
 		},
 		{
 			"path": "tests/orchestrator/test_office_editor.py",
-			"sha256": "1671907266713c8345276551d2de7294170b208140b0115f6eb0f8f4af774c3c"
+			"sha256": "9e18d831a15a1a9512d7547d49591a002c99de42c3c119c8ed4fdb6d465e2275"
 		},
 		{
 			"path": "CHANGELOG.md",
@@ -63,5 +63,14 @@
 		"sha256": "7f9f1fb57726597c3ee351593ca2be5c45d354ee8b5a5f4f83b750a00ebe79b0",
 		"bytes": 32748,
 		"verified_members": 76
+	},
+	"review_fix": {
+		"path": "review-fix.tar.xz",
+		"sha256": "00bf05cc3ee712936687d5750f77a912ce1f4527f16ddd6234f24bb10ddbd158",
+		"bytes": 22556,
+		"verified_members": 20,
+		"finding": "Round1 P1 test-evidence: pending-delivery dirty disjunct masked coverage-binding assertions; five delivered-edit variants restore sensitivity.",
+		"proof": "Three independent semantic controls fail at the intended dirty assertion; all14 focused cases and399 owning cases pass. Production source unchanged.",
+		"traceability": "screenshot-mapping.json binds all3 public PNGs byte-for-byte to runtime originals; workbook-control-provenance.json names the exact mutant source."
 	}
 }
