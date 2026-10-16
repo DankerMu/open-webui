@@ -1,12 +1,16 @@
+import os
+import sys
 from zipfile import ZipFile
 
 import pytest
+from openpyxl import Workbook
 from pypdf import PdfWriter
 from pypdf.errors import PdfReadError
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from smoke_proxy_support import Fail
 from verify_office_documents import DocumentCheckError
-from verify_office_libreoffice import observe_document_pdf, observe_pdf
+from verify_office_libreoffice import LibreOffice, observe_document_pdf, observe_pdf
+from verify_office_processes import OwnedProcesses
 from verify_office_samples import generate_samples
 
 
@@ -147,3 +151,72 @@ def test_malformed_pdf_failure_names_owning_document_format_and_preserves_cause(
     assert failure.value.check == 'fidelity'
     assert kind.upper() in str(failure.value)
     assert isinstance(failure.value.__cause__, PdfReadError)
+
+
+@pytest.fixture
+def libreoffice_boundary(tmp_path):
+    processes = OwnedProcesses(tmp_path)
+
+    def make(*, mode='missing', produced=None, exit_code=0):
+        executable = tmp_path / 'soffice-boundary'
+        executable.write_text(
+            f'#!{sys.executable}\n'
+            'import pathlib, shutil, sys\n'
+            'if "--version" in sys.argv:\n'
+            '    print("LibreOffice external-reader fixture")\n'
+            '    sys.exit(0)\n'
+            'extension = sys.argv[sys.argv.index("--convert-to") + 1]\n'
+            'output = pathlib.Path(sys.argv[sys.argv.index("--outdir") + 1])\n'
+            'destination = output / (pathlib.Path(sys.argv[-1]).stem + "." + extension)\n'
+            f'mode = {mode!r}\n'
+            f'produced = {None if produced is None else str(produced)!r}\n'
+            'if mode == "empty":\n'
+            '    destination.touch()\n'
+            'elif produced is not None:\n'
+            '    shutil.copyfile(produced, destination)\n'
+            f'sys.exit({exit_code!r})\n'
+        )
+        executable.chmod(0o700)
+        return LibreOffice(str(executable), tmp_path / 'libreoffice', processes, dict(os.environ))
+
+    try:
+        yield make
+    finally:
+        processes.close()
+
+
+@pytest.mark.parametrize('output_state', ['missing', 'empty'])
+def test_successful_conversion_without_readable_output_refuses_with_format(
+    tmp_path, libreoffice_boundary, output_state
+):
+    source = generate_samples(tmp_path / 'inputs')['docx']
+    reader = libreoffice_boundary(mode=output_state)
+    with pytest.raises(Fail) as failure:
+        reader.convert(source, 'published', 'pdf')
+    assert 'DOCX' in str(failure.value)
+
+
+def test_nonzero_conversion_observation_preserves_document_error_format(tmp_path, libreoffice_boundary):
+    source = generate_samples(tmp_path / 'inputs')['pptx']
+    converted = tmp_path / 'external-reader.pdf'
+    _pdf(converted, 'OCU_FONT_PROBE_PPTX')
+    reader = libreoffice_boundary(mode='artifact', produced=converted, exit_code=7)
+    with pytest.raises(DocumentCheckError) as failure:
+        reader.observe(source, 'published')
+    assert failure.value.format == 'PPTX'
+    assert 'PPTX' in str(failure.value)
+
+
+def test_external_workbook_with_wrong_values_refuses_with_xlsx_identity(tmp_path, libreoffice_boundary):
+    source = generate_samples(tmp_path / 'inputs')['xlsx']
+    converted = tmp_path / 'external-reader.xlsx'
+    workbook = Workbook()
+    workbook.active.title = 'Main'
+    workbook['Main']['B2'] = 13
+    workbook.create_sheet('Second')['A2'] = 15
+    workbook.save(converted)
+    workbook.close()
+    reader = libreoffice_boundary(mode='artifact', produced=converted)
+    with pytest.raises(Fail) as failure:
+        reader.reopened_values(source)
+    assert 'XLSX' in str(failure.value)

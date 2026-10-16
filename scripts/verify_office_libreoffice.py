@@ -220,13 +220,13 @@ class LibreOffice:
         except Exception as exc:
             raise DocumentCheckError(source.suffix.lstrip('.').upper(), 'LibreOffice/fidelity', str(exc)) from exc
 
-    def recalculated_values(self, source: Path) -> dict:
-        converted = self.convert(source, 'recalculated', 'xlsx')
+    def reopened_values(self, source: Path) -> dict:
+        converted = self.convert(source, 'reopened', 'xlsx')
         book = load_workbook(converted, data_only=True, read_only=True)
         try:
             values = {'Main!B2': book['Main']['B2'].value, 'Second!A2': book['Second']['A2'].value}
             if values != {'Main!B2': 12, 'Second!A2': 15}:
-                raise Fail(f'XLSX LibreOffice recalculation: unexpected values {values}')
+                raise Fail(f'XLSX LibreOffice reopened values: unexpected values {values}')
             return values
         finally:
             book.close()

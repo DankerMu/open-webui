@@ -549,7 +549,7 @@ class OfficeRun:
                 },
             )
             if kind == 'xlsx':
-                judged[kind]['LibreOffice_recalculated_values'] = self.lo.recalculated_values(artifact)
+                judged[kind]['LibreOffice_reopened_values'] = self.lo.reopened_values(artifact)
         return fidelity, judged
 
     def write_observations(self, browser, fidelity, judged):

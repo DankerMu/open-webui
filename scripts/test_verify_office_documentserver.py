@@ -74,6 +74,7 @@ def _start_readiness_worker(state, resources, operation):
         state.cleanup.set()
         state.theme_available.set()
         state.final_phase.touch()
+        state.pgrep_error.unlink(missing_ok=True)
         starting.join(timeout=5)
         assert not starting.is_alive(), 'DocumentServer readiness worker did not retire'
 
@@ -94,6 +95,7 @@ def native_server(tmp_path, monkeypatch):
         bootstrap_seen=tmp_path / 'bootstrap-seen',
         final_phase_receipt=tmp_path / 'native-final-phase-ready',
         pgrep_error=tmp_path / 'pgrep-error',
+        pgrep_error_receipt=tmp_path / 'pgrep-error-receipt',
         final_health_error=False,
         final_health_served=Event(),
     )
@@ -151,12 +153,14 @@ def native_server(tmp_path, monkeypatch):
         pgrep = tmp_path / 'pgrep'
         pgrep.write_text(
             f'#!{sys.executable}\n'
-            'import os, pathlib, sys\n'
+            'import os, pathlib, subprocess, sys\n'
             'args = sys.argv[1:]\n'
             'if args[:2] == ["-P", "1"]:\n'
             f'    args[1] = {str(initializer.pid)!r}\n'
             f'if pathlib.Path({str(state.pgrep_error)!r}).exists():\n'
-            '    args = ["--invalid-readiness-fixture-option"]\n'
+            f'    result = subprocess.run([{real_pgrep!r}, "--invalid-readiness-fixture-option"])\n'
+            f'    pathlib.Path({str(state.pgrep_error_receipt)!r}).write_text(str(result.returncode))\n'
+            '    sys.exit(result.returncode)\n'
             f'os.execv({real_pgrep!r}, ["pgrep", *args])\n'
         )
         pgrep.chmod(0o700)
@@ -222,8 +226,11 @@ def test_native_process_query_errors_fail_without_reporting_readiness(native_ser
     state = native_server
     state.theme_available.set()
     state.pgrep_error.touch()
-    with pytest.raises(Fail, match='DocumentServer native initialization readiness: Docker: command exited 2'):
-        wait_documentserver_ready(state.origin, 'synthetic-documentserver', state.run.docker, timeout=2)
+    state.start(lambda: wait_documentserver_ready(state.origin, 'synthetic-documentserver', state.run.docker))
+    assert state.completed.wait(5), 'native process-query error was not propagated by the readiness worker'
+    assert state.pgrep_error_receipt.read_text() == '2'
+    assert len(state.errors) == 1
+    assert isinstance(state.errors[0], Fail)
     assert not state.bootstrap_seen.exists()
     assert not state.final_health_served.is_set()
 
