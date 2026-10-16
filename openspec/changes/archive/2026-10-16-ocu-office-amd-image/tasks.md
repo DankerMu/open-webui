@@ -21,7 +21,7 @@
 ## 4. Complete the contract and merge gates
 
 - [x] 4.1 Update the owning decisions, pending Office image/service/verification/delivery contracts, source changelog and operator build notes. Keep original B1 artifacts immutable. Verify exact scope, strict OpenSpec, docs/decision gates and matching source/qualification references; do not stage unrelated paused #172 work.
-- [ ] 4.2 Complete expanded source/companion cross-review, parent adjudication and exact-head scoped local CI. Merge the paired PRs only with all acceptance evidence, then archive this corrective change and resume #172 on the merged source/qualified image. Do not close the larger Office change or claim LAN/#197 acceptance.
+- [x] 4.2 Complete expanded source/companion cross-review, parent adjudication and exact-head scoped local CI. Merge the paired PRs only with all acceptance evidence, then archive this corrective change and resume #172 on the merged source/qualified image. Do not close the larger Office change or claim LAN/#197 acceptance. Source PR113 and companion PR434 merged after round1 clean; the archive records that correction only. Nonblocking followups: #436 and #437; operational investigation: #435. The parent proposal dependency wording remains assigned to #172.
 
 ## Risk coverage and verification ownership
 
