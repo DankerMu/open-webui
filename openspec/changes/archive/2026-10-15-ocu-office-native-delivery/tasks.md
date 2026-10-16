@@ -19,8 +19,8 @@
 ## 4. Contract and delivery
 
 - [x] 4.1 Reconcile the in-flight editor coverage/close clauses and owning decision, update the OCU changelog, and pass strict fixture plus `make doc-gate` and `make decisions-verify`; preserve paused #172 and #425 files outside the declared companion scope.
-- [ ] 4.2 Obtain expanded three-seat source/contract cross-review, adjudicate through the bounded gate, and merge independent #427 production/companion PRs only after their evidence and CI gates pass.
-- [ ] 4.3 Record the merged host SHA and acceptance evidence for #425 resumption, then archive this correction after its own acceptance is complete. #425 must finish its separate integration gates before #172's pin changes; #172 retains its full three-format acceptance.
+- [x] 4.2 Obtain expanded three-seat source/contract cross-review, adjudicate through the bounded gate, and merge independent #427 production/companion PRs only after their evidence and CI gates pass.
+- [x] 4.3 Record the merged host SHA and acceptance evidence for #425 resumption, then archive this correction after its own acceptance is complete. #425 must finish its separate integration gates before #172's pin changes; #172 retains its full three-format acceptance.
 
 ## Risk coverage
 
