@@ -51,9 +51,19 @@ Plan 1 gave every chat a workspace sidebar, but Office files in it are read-only
 - **OCU tool** (`openwebui/tools/computer_use_tools.py`): attachment sync.
 - **Deploy overlay** (`open-computer-use/deploy/`): proxy route table and renderer, second listener, compose service, port guard, release inventory, recovery, bootstrap, overlay smoke.
 - **WebUI fork**: `WorkspaceArtifact.svelte`, minimal hooks in `ChatControls.svelte` and `Chat.svelte` (upstream spine, Critical Path), a new API client and store module, the OCU stub, smoke and e2e, `Makefile`, `AGENTS.md`, `CONTEXT.md`, decision records.
-- **Dependencies**: no new Python or npm dependency is planned. One new third-party image (ONLYOFFICE DocumentServer, AGPL v3, unmodified).
+- **Dependencies**: no new Python or npm dependency is planned. ONLYOFFICE DocumentServer uses the qualified minimal bootstrap derivative of the pinned B1 image (AGPL v3, notices retained, modifications identified).
 - **Data**: no Alembic migration. Existing chat data on the acceptance machine is wiped; no migration tooling.
 - **Operations**: DocumentServer, the second proxy listener and its port are always part of the deployment; the flag only decides whether WebUI offers editing. The acceptance machine runs below DocumentServer's official minimum and its run keeps at most one sandbox running; recorded as a deviation.
+
+## Local real-editor verification fixture
+
+- Issue type: feature; issue #172, task 34.1.
+- Fixture level: expanded; agrees with the issue's suggested level.
+- Blast radius: false save/fidelity claims, credential disclosure and leaked or wrongly deleted local runtime resources.
+- Selected risk packs: CLI; configuration; file IO; schema; auth; ordering; resources; compatibility; errors/cleanup; packaging; documentation.
+- Evidence floor: real pinned DocumentServer and broker three-format edit/save/reopen, independent LibreOffice reopening, semantic corruption controls, missing-prerequisite and interruption cleanup proofs, plus both existing gateway smoke/browser commands.
+- Scope: the local verification target and its paired tests, deterministic samples, Makefile and Verification Matrix row. Existing sufficient OCU pin and listener inputs are retained, not changed mechanically.
+- Execution authority: the user approved isolated #172 real-editor verification on 2026-10-14 after source/non-image checks; no LAN or other #197 image-acceptance authority follows.
 
 ## Upload name-claim fixture
 

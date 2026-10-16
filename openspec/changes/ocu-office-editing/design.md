@@ -1729,6 +1729,34 @@ PR CI runs broker tests against recorded callback fixtures and a fake Docker cli
 
 The samples are deterministic and carry what the acceptance rows judge: the DOCX has headings, a table, an image and Chinese text; the XLSX has two sheets, formulas including a cross-sheet reference, and a chart; the PPTX has several slides with shapes and an image. After the round trip the script checks that the edit is present, that formula cells still hold formulas and their recalculated values match, and that tables, images, sheets and slide order are intact. Page count before and after, and fonts substituted, are written to a fidelity record; differences are listed, not judged.
 
+#### Local real-editor verification boundary
+
+Change surface: the Makefile entry, `scripts/verify-office.sh` and focused script helpers/tests, deterministic sample generation and the AGENTS Verification Matrix row. No production application, OCU, stub or CI edits.
+
+Must preserve: the shared gateway renderer, current sufficient exact OCU pin, existing Office/resource-grant smoke cases, all pre-existing containers/processes/data and immutable B1 evidence.
+
+Must add: an executable local command proving actual browser edits through the pinned production Office broker, publication, new editor reopening and independent LibreOffice reopening for all three formats. Use the B1-selected image identity; preparation of prerequisites is separate from the command's fail-loud preflight.
+
+Governing invariant: no generated expectation, cached editor state, fake broker callback or fixture-only success substitutes for actual published bytes and both reopened documents.
+
+Sibling surfaces: sample generation, browser edit/readback, broker source/callback/save/publication, OOXML inspection, LibreOffice loading/rendering, fidelity reporting, process/container ownership and command exit status.
+
+Seams under test: the public Make target, actual HTTP/browser editor-broker flow, resulting workspace files, independent document-reader results and external resource inventories. Reuse existing harness ownership/configuration patterns without adding a second production broker or signer.
+
+Required evidence: all supported formats complete; a semantically flattened XLSX is rejected despite correct cached values; loss of required DOCX/PPTX content or a format's edit is rejected; missing prerequisites fail before mutation; success, failure and interruption retire owned resources and preserve unrelated ones.
+
+Fidelity evidence: measure before/after page counts and substituted fonts using an identified renderer/observation method. State the measurement scope; do not infer successful font fidelity from requested names alone, hardcode expected counts or silently fill unknown measurements. Pagination/font differences do not affect content verdicts.
+
+The target's execution uses only synthetic local data and credentials. Run-owned resources have unique identities and bounded lifetimes; shutdown retains ownership until descendant retirement is confirmed. Public evidence is redacted before publication.
+
+Non-goals: no arbitrary-document fidelity/capacity guarantee, layout threshold, production auth fix, new sandbox lifecycle implementation, LAN operation or acceptance-machine certification. Defects exposed in production surfaces remain separately owned.
+
+Review focus: independence and sensitivity of the saved-file judges; genuine editing/reopening rather than fixture substitution; credential containment; cancellation/resource ownership; completeness of the three-format and fidelity evidence.
+
+The 2026-10-14 user authorization permits this isolated real-editor run after source/non-image verification. It does not release other image batches or the acceptance-machine restrictions. Rollback removes the verification entry and its owning row atomically; it leaves application behavior and pre-existing resources unchanged.
+
+The owner-approved native diagnostic policy keeps the original browser restrictions, rather than enabling `unload` to silence a diagnostic. The verifier separately records the known denial only when browser-native violation provenance is bound to the owning page, configured DocumentServer script origin and observed editor policy. Classification is one-to-one with actual console observations; duplicate native-log delivery grants no additional exclusion. An identical script-emitted error, wrong origin, unproven denial or any page error remains a failure. This exception changes diagnostic accounting only, not editing, publication, reopening, content or cleanup acceptance. Reports state expected-denial counts and unexpected errors separately.
+
 #### Office stub boundary
 
 Task 22.1 changes `scripts/ocu-stub.py`, adjacent Office fixture/page helpers and

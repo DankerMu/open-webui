@@ -118,6 +118,8 @@ The samples SHALL be deterministic — the same bytes on every run — and SHALL
 
 A failed content check SHALL fail the target naming the format and the check. The script SHALL also write a fidelity record under `.run/` and name it in its output: for each format the page count before and after the round trip and the fonts that were substituted. Differences in the fidelity record SHALL be listed and SHALL NOT be judged: they SHALL NOT change the exit code, and the record SHALL NOT call them a pass or a failure. When Docker, the image, the second implementation or another prerequisite is missing the script SHALL exit non-zero naming it; it SHALL NOT skip and SHALL NOT report success. It SHALL stop every container and process it started on success, on failure and on interruption, and SHALL leave unrelated services and data untouched. The target SHALL NOT be part of PR CI; its output SHALL be pasted into the Runtime evidence of pull requests that rely on it. `AGENTS.md` SHALL gain a Verification Matrix row for the target in the same change that adds the target, not before.
 
+The local target SHALL preserve native browser restrictions and the tested iframe attributes. It MAY record the known DocumentServer `unload` permission refusal as an expected diagnostic only with browser-native violation provenance, the owning editor page, the configured DocumentServer script origin and an observed denied `unload` policy. It SHALL count and retain that diagnostic separately, not silently discard it or claim an empty console. Every other console error and every page error SHALL fail verification. This diagnostic classification SHALL NOT waive any real-editor, content, independent-reader or cleanup requirement.
+
 #### Scenario: Three-format round trip (B-T01, B-T02, B-T03)
 
 - **WHEN** `make verify-office` runs with Docker, the pinned image and LibreOffice available
@@ -179,6 +181,16 @@ A failed content check SHALL fail the target naming the format and the check. Th
 
 - **WHEN** the change adding `make verify-office` is reviewed
 - **THEN** the Makefile target, its script and the `AGENTS.md` Verification Matrix row are in the same change, `make doc-gate` passes, and no PR CI job invokes the target
+
+#### Scenario: Native policy denial is recorded without widening permissions
+
+- **WHEN** the owned editor emits the known `unload` refusal with verified browser-native provenance and denied policy
+- **THEN** the target records its count as an expected policy denial, preserves sandbox/allow and browser restrictions, and still requires all three formats and cleanup to pass
+
+#### Scenario: Similar messages cannot hide unexpected errors
+
+- **WHEN** a script emits the same text, the source origin differs, policy/provenance is missing, or one native entry is delivered repeatedly
+- **THEN** only distinct proven native denials may account for corresponding console observations, all remaining errors fail the target, and page errors are never excluded
 
 ### Requirement: PR CI evidence is fixture-level
 
