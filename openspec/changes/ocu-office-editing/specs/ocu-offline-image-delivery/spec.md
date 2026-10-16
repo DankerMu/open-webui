@@ -4,14 +4,14 @@
 
 ### Requirement: Complete release identity
 
-A release SHALL identify exactly the workspace, computer-use-server, retention-guard, proxy, open-webui, PostgreSQL and DocumentServer images for linux/amd64, seven roles. It SHALL record both repository commits, named references, image configuration digests, archive SHA-256 values, non-secret build arguments and material versions/input hashes. Registry manifest digests SHALL NOT be conflated with image configuration digests. The workspace reference SHALL preserve its production image-name contract. DocumentServer SHALL be a pulled, unmodified upstream image like PostgreSQL, recorded by its image configuration digest and archive SHA-256; no derived DocumentServer image SHALL be built.
+A release SHALL identify exactly the workspace, computer-use-server, retention-guard, proxy, open-webui, PostgreSQL and DocumentServer images for linux/amd64, seven roles. It SHALL record both repository commits, named references, image configuration digests, archive SHA-256 values, non-secret build arguments and material versions/input hashes. Registry manifest digests SHALL NOT be conflated with image configuration digests. The workspace reference SHALL preserve its production image-name contract. DocumentServer SHALL be the qualified minimal bootstrap derivative built from the immutable B1 base and selected committed recipe, recorded by its image configuration digest and archive SHA-256; PostgreSQL SHALL remain a pulled role.
 
 A release SHALL also carry the open-source CJK fonts DocumentServer needs as a font bundle, a non-image member of the release package recorded like the source bundle. The fonts SHALL be pinned by a tracked file, `deploy/fonts/fonts.json`, that names each upstream archive with its SHA-256, each font file taken from it with its name, SHA-256 and size, and the licence file; the bundle's font files SHALL NOT be tracked in either repository. This change SHALL add no font binary and SHALL preserve existing unrelated font assets. The release build SHALL fetch the pinned archives, verify every SHA-256 and write `fonts.tar` holding exactly the listed font files and the licence text, and the inventory SHALL record it in a top-level field `font_bundle` with `path` and `sha256`. The inventory `format_version` SHALL be 2 for an inventory with seven roles and a font bundle. Every load of an inventory — by the release command line (build, import and verify), by the deployment entry and by recovery (`ocu-backup-rollback`) — SHALL require version 2. A version-1 inventory, six roles and no font bundle, SHALL be refused naming the unsupported format version; no code path SHALL accept two formats. Import SHALL verify the bundle's SHA-256 against the inventory, extract regular files only into `fonts/` in the install root, verify each extracted file against `fonts.json` of the release's source, and fail without publishing an installation when anything differs.
 
 #### Scenario: Build from explicit sources
 
 - **WHEN** an operator builds a release from committed OCU and WebUI fork checkouts
-- **THEN** five source images and the selected PostgreSQL and DocumentServer images are exported with inspected identities and provenance, including local Pyodide and Draw.io materials
+- **THEN** six source images, including the qualified DocumentServer derivative, and the selected PostgreSQL image are exported with inspected identities and provenance, including local Pyodide and Draw.io materials
 - **AND** untracked files, credentials and unrelated sibling generated files are excluded from source inputs
 
 #### Scenario: Incomplete or drifted inventory
@@ -19,11 +19,11 @@ A release SHALL also carry the open-source CJK fonts DocumentServer needs as a f
 - **WHEN** a role is missing, duplicated, unexpected, wrong-platform or does not match its inspected identity
 - **THEN** release publication or import fails without publishing a complete release or installation
 
-#### Scenario: DocumentServer is a pulled role
+#### Scenario: DocumentServer is a qualified built role
 
 - **WHEN** a release is built
-- **THEN** the DocumentServer image is the selected upstream image, exported unmodified and recorded by configuration digest and archive SHA-256
-- **AND** an inventory that lacks the DocumentServer role, or that records it as a built image, is rejected
+- **THEN** the DocumentServer image is built from the selected committed recipe and immutable B1 base, exported and recorded by configuration digest and archive SHA-256
+- **AND** an inventory that lacks the DocumentServer role, records it as pulled, changes its patch material, or supplies a build override is rejected
 
 #### Scenario: Selected release identity reaches runtime consumers
 

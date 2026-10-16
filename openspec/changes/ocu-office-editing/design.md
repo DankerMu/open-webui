@@ -167,13 +167,15 @@ Containment: server, tool guidance and rebuilt sandbox image ship together; acce
 
 ### D4. ONLYOFFICE Docs Community v9.4.0, gated by B1
 
-Unmodified upstream image, AGPL v3, branding kept. B1 produces a dated record: image identity, licence terms read, official minimum vs measured headroom on the acceptance machine, open/edit/export of deterministic DOCX/XLSX/PPTX samples, observed connection-boundary behaviour and whether usage is queryable, delay between last close and the status-2 callback, the origin of the download address in status-2 and status-6 callbacks, the editor's cap event or its observed absence at the tested boundary, the memory and swap present on the acceptance machine, whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode, whether the editor works when the proxy withholds the WebUI cookie, whether `forcesave` echoes `userdata`, whether the editor's own save command produces a callback with user-initiated force save off, the minimal iframe sandbox and permission set the editor needs, and the fonts loaded. Five observations are assumptions this design is built on, and each must hold for a go: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears that mode; the editor's own save produces no callback; the editor works without the WebUI cookie. If B1 fails, work stops and returns to the plan; there is no automatic switch to Collabora.
+The selected image is the [qualified minimal bootstrap derivative](../../../docs/decisions/implemented/architecture/2026-10-16-ocu-qualified-office-image.md) of the pinned upstream release; AGPL terms, branding and notices are retained, and modifications are identified. B1 produces a dated record: image identity, licence terms read, official minimum vs measured headroom on the acceptance machine, open/edit/export of deterministic DOCX/XLSX/PPTX samples, observed connection-boundary behaviour and whether usage is queryable, delay between last close and the status-2 callback, the origin of the download address in status-2 and status-6 callbacks, the editor's cap event or its observed absence at the tested boundary, the memory and swap present on the acceptance machine, whether the image's shutdown-preparation command saves and closes every open document, the command's name, and whether a restart clears the shutdown-preparation mode, whether the editor works when the proxy withholds the WebUI cookie, whether `forcesave` echoes `userdata`, whether the editor's own save command produces a callback with user-initiated force save off, the minimal iframe sandbox and permission set the editor needs, and the fonts loaded. Five observations are assumptions this design is built on, and each must hold for a go: `forcesave` echoes `userdata`; a shutdown-preparation command exists that saves and closes every open document; a restart clears that mode; the editor's own save produces no callback; the editor works without the WebUI cookie. If B1 fails, work stops and returns to the plan; there is no automatic switch to Collabora.
 
 #### B1 isolation and evidence boundary
 
-The user permits one local isolated B1 measurement campaign despite the general
-image freeze. Its only DocumentServer is the unmodified pinned 9.4.0 image;
-owned helper processes may serve deterministic samples, record real callbacks
+The user permits isolated local B1 measurement and qualification of the
+minimal bootstrap derivative despite the general image freeze. The original
+pinned 9.4.0 image and B1 evidence are preserved; the derivative has separate
+identities and a dated affected-observation delta. Owned helper processes may
+serve deterministic samples, record real callbacks
 and proxy the browser origin. A fresh internal network and loopback publication
 isolate this campaign from existing services and the LAN. Restarts measure the
 same instance's shutdown reset; they do not authorize another deployment.
@@ -1602,28 +1604,24 @@ precede startup. No image is built or run by source verification.
 
 ### D18. Release and backup
 
-DocumentServer is the seventh role in the release inventory, of kind `pull` like PostgreSQL: identity recorded as image configuration digest and archive SHA-256, verified at import and at every start. No derived image is built.
+DocumentServer is the seventh role in the release inventory, of kind `build`; PostgreSQL remains pulled. The selected committed recipe derives it from the immutable original B1 base. Image configuration digest and archive SHA-256 are verified at import and at every start. No build or pull occurs at startup.
 
 The inventory's `format_version` rises to 2. A version-2 inventory has seven roles and the `font_bundle` field (D19); every inventory load — the release command line (build, import, verify), the deployment entry, and recovery when it restores or activates a retained release — requires version 2 and refuses a version-1 inventory (six roles, no font bundle) by naming the format version. No second format is carried. The only release with a version-1 inventory is the Plan 1 release, which never went live (user decision, 2026-10-02), so no retained release and no recovery set of that format exists.
 
 #### Release-role cutover
 
 Task28.1 uses the role key `documentserver` and runtime identity
-`DOCUMENTSERVER_IMAGE`. The existing pulled-image planner/exporter owns it.
-Its default is the selected upstream9.4.0 OCI index reference
+`DOCUMENTSERVER_IMAGE`. The built-image planner/exporter owns the minimal
+bootstrap derivative. Its immutable base is
 `onlyoffice/documentserver@sha256:e3da62a847b9a5d51a11f73cfea1d9c13c3be3809614490d4edddcf01dcf919b`;
-the index is not an image configuration digest. The existing linux/amd64 pull
-and inspection path obtains the platform-specific configuration identity.
+the index is not an image configuration digest.
 
-The tracked release module declares the default; planning reads that literal
+Planning reads `deploy/documentserver/Dockerfile` and its exact patch inventory
 from the selected committed source snapshot, not the running checkout.
-Reuse the existing literal-assignment parser and pulled provenance fields:
-the declaration file occupies the existing `build.dockerfile` field, as the
-PostgreSQL compose declaration does. No fake Dockerfile or new inventory field
-is introduced. DocumentServer provenance must identify that declaration,
-its sole image-reference argument/default, no build overrides, and the matching
-`upstream-image` material. Built-image provenance is rejected. Registry digests
-remain optional metadata, never a substitute for configuration/archive identity.
+Built provenance binds the recipe, patch material and immutable base;
+DocumentServer build overrides and pulled-role provenance are rejected.
+The existing version2 inventory fields and archive/configuration identity
+remain authoritative. Registry digests are optional metadata, not substitutes.
 
 The role order and runtime-variable map include all seven images. The service
 map deliberately remains unchanged until the DocumentServer compose service
@@ -1661,7 +1659,7 @@ One-version rollback verifies the seven images that the selected release's own i
 
 ### D19. Fonts
 
-The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK SC, SIL Open Font License 1.1) in a directory mounted into DocumentServer. DocumentServer is a pulled image with no build step, so the fonts cannot be a build material of a role the way Draw.io and Pyodide are. They travel as a font bundle, a second non-image member of the release package beside the source bundle:
+The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK SC, SIL Open Font License 1.1) in a directory mounted into DocumentServer. The bootstrap derivative does not absorb font material: fonts travel as a separately verified font bundle, a second non-image member of the release package beside the source bundle:
 
 - **Pin.** `deploy/fonts/fonts.json`, tracked in the OCU repository, names each upstream archive (URL and SHA-256), the font files taken from it (name, SHA-256, size) and the licence file. The pinned release fonts are not tracked: they exceed the repository's 500 KB limit. Existing unrelated font assets are preserved; this change adds no font binary.
 - **Build.** `release.py build` runs `deploy/fonts/prepare_fonts.py`, which downloads the pinned archives, checks every SHA-256 and writes `fonts.tar` holding exactly the listed files and the licence text. The inventory records it in the top-level field `font_bundle` (`path`, `sha256`), the shape `source_bundle` already has.
@@ -1671,7 +1669,7 @@ The release carries open-source CJK fonts (Noto Sans CJK SC and Noto Serif CJK S
 
 A second, operator-owned directory (`OCU_OFFICE_FONTS_DIR`) holds fonts supplied by the deploying organisation (仿宋\_GB2312, 方正小标宋简体, 楷体\_GB2312; licences held by that organisation, recorded by B1 as stated) and is mounted the same way. Bootstrap creates it empty; the operator copies the supplied fonts into it. DocumentServer regenerates its font list at start. Neither repository nor the release package contains the supplied fonts. 宋体 and 黑体 are substituted by the two shipped families; substitution effects are recorded as fidelity notes.
 
-Alternative rejected: a derived DocumentServer image with the fonts in a layer. It would reuse the existing build-material path, but the plan fixes the upstream image as unmodified, and the role would stop being a pulled image.
+Alternative rejected: embedding the release fonts in the bootstrap derivative. The separate font bundle preserves its existing import, startup, restore and rollback identity contract without broadening the qualified bootstrap image delta.
 
 #### Font package cutover
 

@@ -54,7 +54,7 @@ HTML 交互预览与只读 Office 预览沿用 Plan 1。不承诺 VBA、宏、�
 
 ## 编辑器选型与机器
 
-采用 ONLYOFFICE Docs 社区版 `v9.4.0`（AGPL v3），不修改源码，保留品牌与许可证文件。集成参考检出在 `/Users/danker/Documents/31308/onlyoffice-documentserver-reference`（`fb73d33c`），子模块未初始化，不是可编译的源码包；实施使用同版本发行镜像并固定镜像身份。Collabora Online 是备选，改选需要实现 WOPI，不能共用本计划的回调契约。
+采用 ONLYOFFICE Docs 社区版 `v9.4.0`（AGPL v3）的[最小启动依赖派生镜像](../decisions/implemented/architecture/2026-10-16-ocu-qualified-office-image.md)，保留品牌与许可证文件并标注修改。原 B1 固定镜像及证据保留，派生镜像单独记录身份和受影响项目的重验结果。集成参考检出在 `/Users/danker/Documents/31308/onlyoffice-documentserver-reference`（`fb73d33c`），子模块未初始化，不是可编译的源码包。Collabora Online 是备选，改选需要实现 WOPI，不能共用本计划的回调契约。
 
 DocumentServer（下称 DS）9.4.0 的 changelog 写明 “Removed the limitation of 20 simultaneously opened documents”，但参考检出 `Readme.md:76` 仍写 “up to 20 maximum”。[B1 实测记录](../evidence/issue-119/2026-10-03-b1.md)中 21 个不同文档同时可编辑，没有上限拒绝或 cap 事件；`license` 返回静态许可额度，不是实时连接数。2026-10-03 用户批准按实测修订：不加人为 20 连接限制，不虚构 cap 事件或对应拒绝分支；真实 API/编辑器错误仍须报告。21 以上未测，不据此宣称无限容量。
 
@@ -184,7 +184,7 @@ Office broker 是 OCU 服务的进程内模块 `office/`。它的全部状态存
 
 ### 6. 部署
 
-- DS 是第七个镜像角色，直接使用上游发行镜像（按拉取角色登记，记录镜像身份与归档 SHA-256），不构建派生镜像，不挂载 Docker socket，不共享沙箱文件树。它只加入控制面网络。
+- DS 是第七个镜像角色，以构建角色登记：从原 B1 不可变基础镜像和选定提交中的最小补丁配方构建，记录配置 digest 与归档 SHA-256；PostgreSQL 仍为拉取角色。启动不得构建或拉取。DS 不挂载 Docker socket，不共享沙箱文件树，只加入控制面网络。
 - **部署只有一种形态**：DS、反代的第二个监听和第二个端口始终存在，功能开关只决定 WebUI 是否显示「编辑」。开关关闭时 DS 仍占用内存，这是接受的代价；换来的是反代配置、端口守卫、冒烟和发布清单都不需要维护两套形态。
 - **独立 origin**：反代多发布一个端口专给 DS，DS 自身不发布端口。端口守卫从「反代恰好一个端口」改为恰好两个。DS 端口上的所有请求也要求 WebUI 登录态。
 - DS 的数据卷跨重启保留，但**不进备份**。备份前停止新会话并等待现有会话保存；恢复后所有编辑会话标记为已失效。
@@ -259,3 +259,4 @@ B0 与 B1 互不依赖，都是依赖图的根。B2 及之后全部依赖 B1；�
 - 术语：Office 的不可变快照改称「版本」，`revision` 保留 Plan 1 含义。
 - 移除已由 Plan 1 完成的 `path + revision` 迁移。
 - B1 实测修订（2026-10-03）：用户确认未修改官方镜像的许可证适配，并批准以 21 文档可编辑、无 cap 事件的观测替换 20 连接拒绝契约；同步 session、host、UI、stub 与任务要求。[选型决定](../decisions/implemented/architecture/2026-10-03-ocu-office-editor-selection.md)只解除 B1 前置门，不解除其余镜像验收冻结。
+- 派生镜像授权（2026-10-16）：用户批准仅修复已复现的原生 AMD 启动依赖顺序，保留原 B1 镜像，记录派生身份并重验受影响项目；[B1 增量记录](../evidence/issue-433/2026-10-16-b1-delta.md)区分新测结果、沿用的有界观测与未测项目。不扩大 LAN 或 #197 验收授权。

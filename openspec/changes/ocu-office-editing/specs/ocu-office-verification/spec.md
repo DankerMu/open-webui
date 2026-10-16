@@ -8,7 +8,7 @@ The evidence that gates and closes Office editing: the B1 release verification r
 
 ### Requirement: B1 release verification record
 
-B1 SHALL produce a dated Markdown record under `docs/` in this repository, written from a run of the pinned, unmodified ONLYOFFICE Docs Community image in isolation. The record SHALL contain every item below, each either filled with the observed result or explicitly marked "not measured" with the reason:
+B1 SHALL produce a dated Markdown record under `docs/` in this repository, written from an isolated run of the pinned ONLYOFFICE Docs Community image. The original unmodified-image record SHALL remain immutable. A qualified minimal bootstrap derivative SHALL have separate image identities and a dated delta that remeasures affected observations, identifies inherited observations with their original limits, and preserves the original image. This qualification SHALL NOT authorize LAN deployment or expand release-wide image acceptance. The record SHALL contain every item below, each either filled with the observed result or explicitly marked "not measured" with the reason:
 
 - image identity (reference and digest) of the verified image;
 - the licence terms read and whether they fit the deployment;
