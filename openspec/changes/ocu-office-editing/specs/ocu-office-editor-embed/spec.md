@@ -114,11 +114,11 @@ The page SHALL report `state` as one of `opening`, `editing`, `saving`, `closing
 
 `opening` SHALL be reported once the open is accepted. `refused` SHALL be reported only when the broker refuses session creation, such as 409 `unpublished_version` or a validation failure. No session exists: the page SHALL report the broker's reason with `session_id: null`. For the pinned 9.4.0 release the page SHALL NOT synthesize a connection-cap event or interpret connection-loss error `-18` as a cap refusal.
 
-`refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the editor reports a connection failure, the session status cannot be read).
+`refused` SHALL be final for the page instance: after reporting it the page SHALL run no status poll and no auto-save timer, SHALL report no other state, and SHALL issue no request for a later `save` or `close` command. In every other case `editing`, `saving`, `closing`, `closed`, `conflict` and `orphaned` SHALL be the persisted session state returned by the broker. `error` SHALL be reported for the persisted state `error` and for a failure the page detects itself (the editor API cannot be loaded, the editor reports a connection failure, the session status cannot be read, or a terminal broker state arrives while reported native modifications remain undelivered).
 
 `dirty` SHALL be `true` exactly while content exists that has not been published to the workspace file, that is, while either holds:
 
-- the editor has reported a modification that no committed save covers. A save covers a modification when the save was requested after the modification was reported and the session status reports `last_committed_seq` at or above that save's `save_seq`; a save that is outstanding, refused or failed covers nothing, and the editor's own save command is not a save;
+- the editor has reported a modification that no committed save covers. A save covers a modification only when native delivery was acknowledged before its request was dispatched and the session status reports `last_committed_seq` at or above that save's `save_seq`. Coverage is limited to the modification generation eligible at dispatch; a save that is outstanding, refused or failed covers nothing, and the editor's own save command is not a save;
 - the latest session status reports `last_committed_seq` above `last_published_seq`.
 
 In every other case `dirty` SHALL be `false`, whatever made `last_published_seq` reach `last_committed_seq`: a completed publish, a publishing save that found nothing new while the latest version was already published, a resolved conflict, or an auto-save whose content equals the already published version. A session reported `closed` SHALL be reported with `dirty: false`. The page SHALL NOT report a save as finished from a click or from an accepted request alone, and a persist-only auto-save that leaves `last_committed_seq` above `last_published_seq` SHALL NOT clear `dirty`. `workspace_changed` SHALL be `true` exactly while the latest session status reports `workspace_changed`.
@@ -246,7 +246,8 @@ When the session status reports `orphaned`, `closed` or `error` the page SHALL s
 #### Scenario: Close command (B-T12)
 
 - **WHEN** the parent sends `close` for a session with unpublished changes
-- **THEN** one close request is issued, the editor instance is released, the page reports `closing` and then the terminal state returned by the session status
+- **THEN** one close request is issued after reported native modifications are delivered, and the page reports the broker's `closing` and terminal states
+- **AND** the editor is released only after broker acceptance and delivery revalidation, so a modification reported during the request cannot be silently discarded
 
 #### Scenario: Request failure is not success
 
