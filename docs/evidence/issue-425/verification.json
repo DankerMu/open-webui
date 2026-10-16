@@ -1,0 +1,72 @@
+{
+	"issue": 425,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_base": "47ec06de98fbc98674a2bff83084dc2b292c6465",
+	"source_head": "c3b036ecaedca138a01399593153ebeb7b26f053",
+	"source_files": {
+		"CHANGELOG.md": "ea33c491e270574ab949d1f27edbb54e6fc02bf839734c1eb1bc8d230880582c",
+		"computer-use-server/app.py": "e09715a7fdc0a6bd00b12a946cdee81fb28fe302b99c2f9b8e7703c076e7dbd1",
+		"computer-use-server/office/restore.py": "f7fb6e1500994ee5edce088ece89c668fed995f9b56e55e20479880d7ef4fe8f",
+		"computer-use-server/office/sessions.py": "2b85010103b2d61a1d6351606f6077001845f8f6e2996cf88c2a51aed9de0452",
+		"computer-use-server/office/sweep.py": "bfc4678c8363dfbf79ee4c983d4c3122e959fa87c27c935431b53425f0ba9e82",
+		"computer-use-server/office/transaction_workers.py": "4169352d7d259879a8b046a2a2d0c7a5aad5e26dfef11f9c9954a3009f982a77",
+		"tests/README.md": "27ec3bc916432c823d76f1606ea3401124b061c3a0359893314b22bc055357ad",
+		"tests/orchestrator/test_office_command_deadline.py": "1880a19cb0a2641717ca85fb86eb9f9236b1d5ce29aac245d3d65bdc1ea35eb1",
+		"tests/orchestrator/test_office_commands.py": "e3af5a3d49d12a5061a8b6dacb470d5f774ba6e9a0514d2ff2fdfe2d41fd2a43",
+		"tests/orchestrator/test_office_resolution.py": "aed956be07c98511a50c7a49922cd024eae1da15f1fd5a6c2aa0a03f8584ea1b",
+		"tests/orchestrator/test_office_restore_recovery.py": "6c8f84f16c7f8ae3f7be543c06e1d1c16855f4830ffb4b5ba4bd04c6fda92d2a",
+		"tests/orchestrator/test_office_save_close.py": "8a064d5b0f03fac232721631d094de528ff67b1a6baf69dd37f8d187d5d1aa13",
+		"tests/orchestrator/test_office_session_lifecycle.py": "0ee0ce80c162ff8bd369757fb726f580e651580e50010c1b70922450b5d75fa0",
+		"tests/orchestrator/test_office_sweep.py": "49df3f7f8ccb833284d0c524ae7598eb90fd4843f55f28af39ddce07409f58d1",
+		"tests/orchestrator/test_office_transaction_workers.py": "b1e0f50b3bd12f2ccfa366ac5a15de872ddd31209144e529a69db6770768808e",
+		"tests/orchestrator/test_outputs_endpoint.py": "49eb46f0864f05e9634807935dda24c145bfd0bc187d36905d1cd8d6bf741cce"
+	},
+	"renamed_owner": {
+		"module": "office.transaction_workers",
+		"removed": [
+			"computer-use-server/office/save_workers.py",
+			"tests/orchestrator/test_office_save_workers.py"
+		],
+		"obsolete_references": 0
+	},
+	"fixture": "openspec/changes/ocu-office-lookup-locking",
+	"evidence": {
+		"red": "12 semantic failures: induced callback or same-chat authority progress blocked before repair",
+		"regression": "1975passed0skips at originalcandidate429a052; current28testmodules andallproductionPython byte-identical; fresh1975discovery exactlymatches retainedexecution",
+		"intermediate_failures": "first-green andfocused historicalfilenames retainexit1; final1975green supersedes them, no selectivepassclaim",
+		"negative_control": "wrongstaleauthority2fail/1pass; restored3pass; sourceunchanged",
+		"real_docx": {
+			"candidate": "f97542e00e071ecf582921b0bd3039d798fada59",
+			"lookup_ms": 9.191,
+			"induced_status1_before_response": true,
+			"status2_consumes_reserved_sequence": 1,
+			"host_and_broker": "closed",
+			"unexpected_console_errors": 0,
+			"page_errors": 0
+		},
+		"real_xlsx": {
+			"composition": "f82e322b7d06aa632d338e71fbf70ce6231efc2d",
+			"same_production_bytes": true,
+			"native_edit": 4,
+			"published_and_fresh_value": 4,
+			"reserved_closes_consumed": true,
+			"reference": "../issue-427/verification.json"
+		},
+		"cleanup": "no liveownedgroups/newbrowserPIDs;Dockerstateidentitiesandpaused172sourceunchanged",
+		"docx_checker_counterexample": "https://github.com/DankerMu/open-webui/issues/172#issuecomment-6206384774",
+		"scan": "publictext gitleaks0;36decodedDOCXXML/relationshipparts gitleaks0"
+	},
+	"limits": [
+		"Parent scoped browser exits3 and outer make exits2 intentionally; no full172threeformatacceptance.",
+		"DOCX fullcontentchecker fails because python-docx inline_shapes omits mc:AlternateContent picture. Input/output each retainoneinline andidenticalmediahash; checker repairbelongs172.",
+		"No newXLSXrun afterrebase; reused exactproductioncomposition proof. Backend1975run reusedafterbytesanddiscoverybinding, not representedasfreshfullsuite.",
+		"LocalpinnedB1/macOS evidence, notLANdeployment or197acceptance.",
+		"High-risksource/contract cross-review pending; no merge or172pin update yet."
+	],
+	"artifact": {
+		"path": "verification.tar.xz",
+		"sha256": "e1b6d28076ee9ee08cfa448e1dc08a64de8fe0921e11a8fdd208f94ebcbc2035",
+		"bytes": 131976,
+		"verified_members": 39
+	}
+}

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Bound synchronous DocumentServer command completion despite delayed resolution while preserving the Office caller's existing lock ownership and session outcomes.
+Bound synchronous DocumentServer command completion despite delayed resolution while preserving callback progress, identity-bound transaction reconciliation and caller-specific session outcomes.
 
 ## Requirements
 
