@@ -10,9 +10,9 @@ endif
 
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
-	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend \
+	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-verify-office \
 	coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -93,6 +93,9 @@ test-backend:
 test-frontend:
 	npx vitest run --passWithNoTests
 
+test-verify-office:
+	uv run --no-sync pytest -q -p no:cacheprovider scripts/test_verify_office*.py
+
 coverage-gate:
 	bash scripts/coverage-gate.sh
 
@@ -135,6 +138,9 @@ verify-ui:
 
 verify-ui-ocu:
 	python3 scripts/verify-ui-ocu.py
+
+verify-office:
+	bash scripts/verify-office.sh $(OFFICE_ARGS)
 
 pyodide-fetch:
 	npm run pyodide:fetch
