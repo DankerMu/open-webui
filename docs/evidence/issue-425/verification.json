@@ -1,0 +1,94 @@
+{
+	"issue": 425,
+	"source_repository": "DankerMu/open-computer-use",
+	"source_base": "47ec06de98fbc98674a2bff83084dc2b292c6465",
+	"source_head": "53926ba1374f37017146fb2e064a52a73559cd40",
+	"source_files": {
+		"CHANGELOG.md": "a3326e8ff0d17c70786605c93af8f6d34360b65e8a84d04ac37b9885d5956eb8",
+		"computer-use-server/app.py": "e09715a7fdc0a6bd00b12a946cdee81fb28fe302b99c2f9b8e7703c076e7dbd1",
+		"computer-use-server/office/lookup_admission.py": "cc00b4424cfd8b664df95400dd58d20d0b64e7a0804a3ee0504e7f77ed2fbcdd",
+		"computer-use-server/office/restore.py": "f7fb6e1500994ee5edce088ece89c668fed995f9b56e55e20479880d7ef4fe8f",
+		"computer-use-server/office/sessions.py": "e12079a8fc493efebc630f7005d552eb46486fd872bbf4f9df2f5ef44c427240",
+		"computer-use-server/office/sweep.py": "741bcb0077f63658db4181da9104a9a139cecb5496a5e13af16f17bf29e9762e",
+		"computer-use-server/office/transaction_workers.py": "4169352d7d259879a8b046a2a2d0c7a5aad5e26dfef11f9c9954a3009f982a77",
+		"tests/README.md": "b4a899f5ede4b16b3ba8d3d7f3c6140b620ba946c346be5a2cb783dd8233036f",
+		"tests/orchestrator/test_office_command_deadline.py": "f9f2b7bb964e8ebe0867c40c373760ff7853c64a5745c896f2c94e3fe7bfd56e",
+		"tests/orchestrator/test_office_commands.py": "e3af5a3d49d12a5061a8b6dacb470d5f774ba6e9a0514d2ff2fdfe2d41fd2a43",
+		"tests/orchestrator/test_office_lookup_admission.py": "868bdffb2d7b97b7259b39590de8f26116307efc78d679cbcacb8e01e3ca212d",
+		"tests/orchestrator/test_office_resolution.py": "aed956be07c98511a50c7a49922cd024eae1da15f1fd5a6c2aa0a03f8584ea1b",
+		"tests/orchestrator/test_office_restore_recovery.py": "6c8f84f16c7f8ae3f7be543c06e1d1c16855f4830ffb4b5ba4bd04c6fda92d2a",
+		"tests/orchestrator/test_office_save_close.py": "50c2580342024460ff8ace4ca4c9c0e27aa9bdc894d6789a4d7ed61aa559e91e",
+		"tests/orchestrator/test_office_session_lifecycle.py": "0ee0ce80c162ff8bd369757fb726f580e651580e50010c1b70922450b5d75fa0",
+		"tests/orchestrator/test_office_sessions.py": "4b35aba6200bce04ca87c3e3ecd35757a3c885381d17f79c08c1f69f3dc88310",
+		"tests/orchestrator/test_office_sweep.py": "49df3f7f8ccb833284d0c524ae7598eb90fd4843f55f28af39ddce07409f58d1",
+		"tests/orchestrator/test_office_transaction_workers.py": "b1e0f50b3bd12f2ccfa366ac5a15de872ddd31209144e529a69db6770768808e",
+		"tests/orchestrator/test_outputs_endpoint.py": "8c5a55a66411b4e57185e9762911b31bd010b4c1f95b7e3fa7c73368ada5670a"
+	},
+	"renamed_owner": {
+		"module": "office.transaction_workers",
+		"removed": [
+			"computer-use-server/office/save_workers.py",
+			"tests/orchestrator/test_office_save_workers.py"
+		],
+		"obsolete_references": 0
+	},
+	"fixture": "openspec/changes/ocu-office-lookup-locking",
+	"evidence": {
+		"red": "12 original progress REDs plus same/cross-process duplicate-close REDs; actual pinned B1 callback ordering confirms the review finding.",
+		"regression": "Fresh 2192 discovered/executed/passed, zero skips; exact JUnit/node-ID multiset and before/after source hashes. Original 1975-case records are historical.",
+		"intermediate_failures": "Retained: original focused setup errors; gate-focused 64pass/1fail; first broad 2154pass/1fail/37errors. Production refusal ordering and fixture lifetime/registration repaired without removing cases.",
+		"negative_control": "Gate bypass produces duplicate sequences1/2; wrong-authority control now fails all3 targeted cases; restored4cases pass.",
+		"real_docx": {
+			"candidate": "8dd1cdf53977680dec1ed930f535f0b52dcdee6a",
+			"lookup_ms": 9.216,
+			"induced_status1_before_response": true,
+			"status2_consumes_reserved_sequence": 1,
+			"host_and_broker": "closed",
+			"unexpected_console_errors": 0,
+			"page_errors": 0
+		},
+		"real_xlsx": {
+			"candidate": "8dd1cdf53977680dec1ed930f535f0b52dcdee6a",
+			"native_edit": 4,
+			"published_and_fresh_value": 4,
+			"reserved_closes_consumed": true,
+			"checks": ["edit", "sheets", "formulas", "values", "chart"],
+			"cached_values": {
+				"Main!B2": 12,
+				"Second!A2": 15
+			}
+		},
+		"real_concurrent_close": {
+			"candidate": "8dd1cdf53977680dec1ed930f535f0b52dcdee6a",
+			"responses": [202, 202],
+			"sequences": [1, 1],
+			"final_published_sequence": 1,
+			"diagnostic_barrier": false,
+			"unexpected_console_errors": 0,
+			"page_errors": 0
+		},
+		"cleanup": "All three fresh runtime runs independently leave no owned groups/new browser PIDs; Docker identity/state and paused172source unchanged.",
+		"docx_checker_counterexample": "https://github.com/DankerMu/open-webui/issues/172#issuecomment-6206384774",
+		"scan": "Historical public/archive and36decodedDOCXparts scanned without leaks; repaired evidence scans recorded separately."
+	},
+	"limits": [
+		"Scoped browser exits3 and outer make exits2 after proof; not full172threeformat acceptance.",
+		"DOCX full content checker retains the mc:AlternateContent enumeration false-negative owned by172; no image-oracle relaxation or full-fidelity claim.",
+		"Fresh runtime/test head8dd1cdf and final53926ba have identical production and test bytes; later commit is docs only.",
+		"Local pinned B1/macOS evidence, not LAN deployment or197 acceptance.",
+		"Round1 P1 concurrency repaired in fixpass1; fresh re-review pending, no merge or172pin update yet.",
+		"Per-chat observation queue waits are separate from the unchanged command I/O budget; no fairness or whole-request deadline guarantee."
+	],
+	"artifact": {
+		"path": "verification.tar.xz",
+		"sha256": "e1b6d28076ee9ee08cfa448e1dc08a64de8fe0921e11a8fdd208f94ebcbc2035",
+		"bytes": 131976,
+		"verified_members": 39
+	},
+	"review_fix": {
+		"path": "review-fix.tar.xz",
+		"sha256": "6d26cb32c453225a949cda545b2bbc8696c7c0801d2c35c72fa6b34d6557d30c",
+		"bytes": 148700,
+		"verified_members": 47
+	}
+}
