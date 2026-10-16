@@ -8,7 +8,7 @@ The ONLYOFFICE DocumentServer service in the LAN deployment overlay (OCU `deploy
 
 ### Requirement: Control-plane placement without host exposure
 
-DocumentServer SHALL run as a compose service of the deployment, attached to the control-plane network only. It SHALL NOT join the sandbox network, SHALL NOT use host or shared-container networking, and SHALL publish no host port, including loopback. It SHALL NOT mount the Docker socket, the chat-data tree, the skills cache or any sandbox workspace volume; it SHALL have no mount other than volumes that hold DocumentServer's own data and the two font directories. It SHALL run the unmodified upstream image identified by the release inventory.
+DocumentServer SHALL run as a compose service of the deployment, attached to the control-plane network only. It SHALL NOT join the sandbox network, SHALL NOT use host or shared-container networking, and SHALL publish no host port, including loopback. It SHALL NOT mount the Docker socket, the chat-data tree, the skills cache or any sandbox workspace volume; it SHALL have no mount other than volumes that hold DocumentServer's own data and the two font directories. It SHALL run the qualified minimal bootstrap derivative identified by the release inventory, built from the immutable B1 base and selected committed recipe.
 
 #### Scenario: Running service inspected
 
@@ -19,7 +19,7 @@ DocumentServer SHALL run as a compose service of the deployment, attached to the
 #### Scenario: Image identity
 
 - **WHEN** the running DocumentServer container's image is compared with the release inventory
-- **THEN** its configuration digest equals the inventory's DocumentServer entry and no derived or locally built image is in use
+- **THEN** its configuration digest equals the inventory's DocumentServer entry and its built provenance identifies the qualified recipe and immutable B1 base
 
 #### Scenario: Resolved service is independent of the editing flag
 
