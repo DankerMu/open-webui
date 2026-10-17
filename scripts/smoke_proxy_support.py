@@ -556,27 +556,30 @@ def _finish_owned_cleanup(smoke, logger, code: int) -> int:
         logger.error('owned process cleanup failed: %s', type(exc).__name__)
         code = note_cleanup_failure(code, logger)
     try:
-        smoke.cleanup_data()
-    except Fail as cop:
-        logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
-        code = note_cleanup_failure(code, logger)
-    except Exception as exc:
-        logger.error('owned data cleanup failed: %s', type(exc).__name__)
-        code = note_cleanup_failure(code, logger)
-    try:
-        smoke.assert_sentinel()
-    except Fail as cop:
-        logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
-        code = note_cleanup_failure(code, logger)
-    except Exception as exc:
-        logger.error('sentinel assertion failed: %s', type(exc).__name__)
-        code = note_cleanup_failure(code, logger)
-    if smoke.scratch and smoke.scratch.exists():
         try:
-            shutil.rmtree(smoke.scratch)
-        except OSError as cop:
-            logger.error('scratch removal failed: %s', type(cop).__name__)
+            smoke.cleanup_data()
+        except Fail as cop:
+            logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
             code = note_cleanup_failure(code, logger)
+        except Exception as exc:
+            logger.error('owned data cleanup failed: %s', type(exc).__name__)
+            code = note_cleanup_failure(code, logger)
+    finally:
+        try:
+            smoke.assert_sentinel()
+        except Fail as cop:
+            logger.error('smoke-proxy: %s', redact(str(cop), smoke.secrets))
+            code = note_cleanup_failure(code, logger)
+        except Exception as exc:
+            logger.error('sentinel assertion failed: %s', type(exc).__name__)
+            code = note_cleanup_failure(code, logger)
+        finally:
+            if smoke.scratch and smoke.scratch.exists():
+                try:
+                    shutil.rmtree(smoke.scratch)
+                except OSError as cop:
+                    logger.error('scratch removal failed: %s', type(cop).__name__)
+                    code = note_cleanup_failure(code, logger)
     return code
 
 
