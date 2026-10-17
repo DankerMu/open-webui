@@ -2,9 +2,9 @@
 
 ## 1. Canonical helper ownership
 
-- [ ] 1.1 Move existing reusable integration MCP helpers to one unambiguous support owner and migrate all consumers; verify helper AST equivalence, no old re-exports, and unchanged fixture/test assertions.
-- [ ] 1.2 Qualify the existing pytest entrypoint: preserve the original full-root import failure; compare focused before/after and full-root integration node-ID sets exactly, with zero collection errors after the repair.
-- [ ] 1.3 Run the original full unit-plus-integration command against the isolated full-image stack and record execution separately from collection; preserve every failure/skip and verify owned cleanup. Update existing test guidance/changelog with the import ownership boundary.
+- [x] 1.1 Move existing reusable integration MCP helpers to one unambiguous support owner and migrate all consumers; verify helper AST equivalence, no old re-exports, and unchanged fixture/test assertions.
+- [x] 1.2 Preserve the original full-root import failure and the candidate console regression. Qualify both `python -m pytest ... --import-mode=importlib` (full and focused) and the documented console `pytest tests/integration/` (default prepend, no PYTHONPATH override). Require exact raw node-ID equality before/after for each focused invocation. For cross-invocation equality, normalize only the rootdir-dependent `tests/integration/` prefix to integration-relative paths, retaining every test/parameter suffix; record raw-to-normalized mappings. Require zero collection errors after repair.
+- [x] 1.3 Run the original full unit-plus-integration command against the isolated full-image stack and record execution separately from collection; preserve every failure/skip and verify owned cleanup. Update existing test guidance/changelog with the import ownership boundary.
 
 ## 2. Delivery
 
@@ -12,7 +12,7 @@
 
 ## Risk coverage
 
-- Public CLI/script entry — selected: canonical full-root and focused pytest commands, exact integration node-ID equality.
+- Public CLI/script entry — selected: canonical full-root/focused importlib commands and the README/CI console focused command; exact integration node-ID equality and real console integration execution.
 - Config/setup — selected: importlib discovery, helper module identity and unchanged pytest fixture ownership.
 - Legacy compatibility — selected: unchanged helper ASTs, test IDs/assertions, credential and MCP request semantics; real integration execution.
 - Error handling — selected: collection errors fail; unrelated execution failures remain visible, never filtered into a success claim.
