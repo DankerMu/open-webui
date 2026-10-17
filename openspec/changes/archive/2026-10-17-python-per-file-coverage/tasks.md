@@ -8,7 +8,7 @@
 ## 2. Acceptance and delivery
 
 - [x] 2.1 Parent executes real Make/pytest/Coverage.py7.16.1 against disposable equal-sized modules: measure60/100with80aggregate and require gatefailure; measure80/100and require success; record and remove owned resources.
-- [ ] 2.2 Document the per-file reporting decision, audit thresholds/discovery/Make/CI/advisory/frontend/status contracts unchanged, pass scoped lint/doc/decision and strict fixture checks, complete expanded review/exact-head scoped CI, merge and archive.
+- [x] 2.2 Document the per-file reporting decision, audit thresholds/discovery/Make/CI/advisory/frontend/status contracts unchanged, pass scoped lint/doc/decision and strict fixture checks, complete expanded review/exact-head scoped CI, merge and archive.
 
 ## Risk coverage
 
@@ -23,4 +23,4 @@ Baseline: `/tmp/issue410-real-baseline.json` records real equal-sized files at60
 
 Post-change: `/tmp/issue410-focused-green.json` records17passing cases. `/tmp/issue410-real-fixed.json` records measured60/100with80aggregate returning Make2 in both orders, and exact80/100 returning Make0; all owned temporary repositories were removed.
 
-Durable bundle: `docs/evidence/issue-410/verification.json.gz`. Actual current-repository `make coverage-gate` also passed:546backend tests,499frontend tests, all5selected added Python files individually above the80% floor; upstream main.py remains advisory. The run used an owned static directory with checked-in assets, removed afterward, and no discovery/tool adapter. Scoped lint132files, docs/55decision records, shell syntax and repaired formatting checks passed. Independent review and exact-head CI remain pending.
+Durable bundle: `docs/evidence/issue-410/verification.json.gz`. Actual current-repository `make coverage-gate` also passed:546backend tests,499frontend tests, all5selected added Python files individually above the80% floor; upstream main.py remains advisory. The run used an owned static directory with checked-in assets, removed afterward, and no discovery/tool adapter. Scoped lint132files, docs/55decision records, shell syntax and repaired formatting checks passed. Three-seat R1 found no P0/P1/P2 at head `86191c47e8d410b348744a7907d7127de1224b8d`; feature PR458 merged at `2e38f8dfd560dc2d5ea5ff3ef3dc80ca4dc0f074`. Exact-head local scoped CI: https://github.com/DankerMu/open-webui/pull/458#issuecomment-6231849244. No hosted Ubuntu/full make check/E2E claim.
