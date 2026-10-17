@@ -12,7 +12,7 @@
 - [x] 2.1 Run focused tests, make test-frontend, make typecheck, make lint-scoped and per-file frontend coverage for the added module; preserve fresh output and root non-growth evidence.
 - [x] 2.2 Run make verify-ui and make smoke against owned local harness resources; retain screenshots, narrowly classified intentional auth-failure diagnostics, zero unexpected page/console errors, and exact runtime cleanup evidence. No LAN deployment or real-user secrets.
 - [x] 2.3 After runtime proof, add a decision record explaining root-only classification and ownership; make doc-gate, make decisions-verify, formatter checks and strict OpenSpec validation pass.
-- [ ] 2.4 Cross-review with correctness, test-evidence+spec-compliance and invariant-state seats; retain adjudication, exact-head authorized scoped-CI evidence, merge then archive without automatic issue-closing references.
+- [x] 2.4 Cross-review with correctness, test-evidence+spec-compliance and invariant-state seats; retain adjudication, exact-head authorized scoped-CI evidence, merge then archive without automatic issue-closing references.
 
 ## 3. Risk-pack mapping
 
