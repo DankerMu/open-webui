@@ -239,3 +239,161 @@ def test_cleanup_failure_preserves_verdict_process_sentinel_and_scratch_cleanup(
         if proc.poll() is None:
             os.killpg(proc.pid, signal.SIGKILL)
         proc.wait(timeout=5)
+
+
+def browser_cleanup_harness(tmp_path, monkeypatch, pidfiles):
+    module = runpy.run_path(str(ROOT / 'scripts/verify-ui-ocu.py'))
+    monkeypatch.setitem(module['Smoke'].__init__.__globals__, 'repo_root', lambda: tmp_path)
+    run_dir = tmp_path / '.run'
+    run_dir.mkdir()
+    for name, content in pidfiles.items():
+        (run_dir / name).write_bytes(content)
+    smoke = module['BrowserHarness']()
+    data_dir = run_dir / 'data/workspace-ui-interrupted'
+    data_dir.mkdir(parents=True)
+    (data_dir / 'owned-data').write_bytes(b'interrupted data remains')
+    smoke.data_dir = data_dir
+    return smoke, run_dir, data_dir
+
+
+def observe_smoke_cleanup_interruption(smoke, responses, monkeypatch, scratch, interrupted, events, fault=None):
+    smoke.sentinel_id = 'sentinel-user'
+    sentinel_request = ('GET', '/api/v1/users/sentinel-user')
+    responses[sentinel_request] = {
+        'id': 'sentinel-user',
+        'email': 'mismatched@harness.local'
+        if fault == 'sentinel-fail'
+        else 'proxy-owner-preexisting-sentinel@harness.local',
+    }
+    urlopen = urllib.request.urlopen
+
+    def interrupt_data_request(request, timeout):
+        key = (request.get_method(), request.selector)
+        if key == ('DELETE', '/api/v1/chats/chat-current'):
+            events.append('data')
+            raise interrupted
+        assert key == sentinel_request
+        assert request.get_header('Authorization') == 'Bearer private-admin-token'
+        assert scratch.is_dir()
+        events.append('sentinel')
+        if fault == 'sentinel-exception':
+            raise RuntimeError(f'{PRIVATE_DETAIL}: private-admin-token')
+        return urlopen(request, timeout)
+
+    monkeypatch.setattr(urllib.request, 'urlopen', interrupt_data_request)
+    return sentinel_request
+
+
+def observe_owned_removal_interruption(support, monkeypatch, data_dir, scratch, interrupted, events, fault=None):
+    rmtree = support.shutil.rmtree
+
+    def fail_owned_removal(path, *args, **kwargs):
+        if path == data_dir:
+            events.append('data')
+            raise interrupted
+        if path == scratch:
+            events.append('scratch')
+            if fault == 'scratch-oserror':
+                raise OSError(f'{PRIVATE_DETAIL}: private-admin-token')
+        return rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(support.shutil, 'rmtree', fail_owned_removal)
+
+
+@pytest.mark.parametrize('harness', ['Smoke', 'BrowserHarness'])
+def test_interrupted_data_cleanup_preserves_sentinel_and_removes_owned_scratch(cleanup, tmp_path, monkeypatch, harness):
+    smoke, support, requests, _, responses = cleanup
+    scratch = tmp_path / 'owned-scratch'
+    scratch.mkdir()
+    (scratch / 'credentials').write_bytes(b'private-admin-token')
+    interrupted = KeyboardInterrupt()
+    events = []
+    data_dir = None
+    pidfiles = {'backend.pid': b'12345\n', 'frontend.pid': b'67890\n'}
+    read_bytes = Path.read_bytes
+    if harness == 'BrowserHarness':
+        smoke, run_dir, data_dir = browser_cleanup_harness(tmp_path, monkeypatch, pidfiles)
+
+        def observe_pidfile(path):
+            if path.parent == run_dir and path.name in pidfiles:
+                assert scratch.is_dir()
+                events.append(path.name)
+            return read_bytes(path)
+
+        monkeypatch.setattr(Path, 'read_bytes', observe_pidfile)
+        expected_events = ['data', 'backend.pid', 'frontend.pid', 'scratch']
+    else:
+        sentinel_request = observe_smoke_cleanup_interruption(
+            smoke, responses, monkeypatch, scratch, interrupted, events
+        )
+        expected_events = ['data', 'sentinel', 'scratch']
+    smoke.scratch = scratch
+    observe_owned_removal_interruption(support, monkeypatch, data_dir, scratch, interrupted, events)
+    with pytest.raises(KeyboardInterrupt) as raised:
+        support._finish_owned_cleanup(smoke, logging.getLogger('smoke-proxy-cleanup-test'), 0)
+    assert raised.value is interrupted
+    assert events == expected_events
+    assert not scratch.exists()
+    if harness == 'BrowserHarness':
+        assert (data_dir / 'owned-data').read_bytes() == b'interrupted data remains'
+        for name, content in pidfiles.items():
+            assert read_bytes(run_dir / name) == content
+    else:
+        assert requests == [sentinel_request]
+
+
+@pytest.mark.parametrize('harness', ['Smoke', 'BrowserHarness'])
+@pytest.mark.parametrize('fault', ['sentinel-fail', 'sentinel-exception', 'scratch-oserror'])
+def test_finalizer_failure_preserves_data_interruption_and_attempts_scratch(
+    cleanup, tmp_path, monkeypatch, caplog, harness, fault
+):
+    fixture_smoke, support, _, _, responses = cleanup
+    smoke = fixture_smoke
+    scratch = tmp_path / 'owned-scratch'
+    scratch.mkdir()
+    credentials = scratch / 'credentials'
+    credentials.write_bytes(b'private-admin-token')
+    interrupted = KeyboardInterrupt()
+    events = []
+    data_dir = None
+    read_bytes = Path.read_bytes
+    if harness == 'BrowserHarness':
+        smoke, run_dir, data_dir = browser_cleanup_harness(tmp_path, monkeypatch, {'backend.pid': b'12345\n'})
+        sentinel = run_dir / 'backend.pid'
+        expected_pidfile = b'changed sentinel\n' if fault == 'sentinel-fail' else b'12345\n'
+        sentinel.write_bytes(expected_pidfile)
+
+        def observe_pidfile(path):
+            if path == sentinel:
+                assert scratch.is_dir()
+                events.append('sentinel')
+                if fault == 'sentinel-exception':
+                    raise RuntimeError(f'{PRIVATE_DETAIL}: private-admin-token')
+            return read_bytes(path)
+
+        monkeypatch.setattr(Path, 'read_bytes', observe_pidfile)
+    else:
+        observe_smoke_cleanup_interruption(smoke, responses, monkeypatch, scratch, interrupted, events, fault)
+    smoke.scratch = scratch
+    observe_owned_removal_interruption(support, monkeypatch, data_dir, scratch, interrupted, events, fault)
+    logger = logging.getLogger('smoke-proxy-cleanup-test')
+    with caplog.at_level(logging.ERROR, logger=logger.name), pytest.raises(KeyboardInterrupt) as raised:
+        support._finish_owned_cleanup(smoke, logger, 0)
+    assert raised.value is interrupted
+    assert events == ['data', 'sentinel', 'scratch']
+    if fault == 'scratch-oserror':
+        assert scratch.is_dir()
+        assert credentials.read_bytes() == b'private-admin-token'
+        assert 'OSError' in caplog.text
+    else:
+        assert not scratch.exists()
+    if fault == 'sentinel-exception':
+        assert 'RuntimeError' in caplog.text
+    for record in caplog.records:
+        if record.name == logger.name:
+            assert record.exc_info is None
+            assert_redacted(record.getMessage(), fixture_smoke)
+    if harness == 'BrowserHarness':
+        assert read_bytes(sentinel) == expected_pidfile
+        assert not (run_dir / 'frontend.pid').exists()
+        assert (data_dir / 'owned-data').read_bytes() == b'interrupted data remains'

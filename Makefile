@@ -10,7 +10,7 @@ endif
 
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
-	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-harness-env test-harness-seed \
+	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-harness-env test-harness-seed test-smoke-cleanup \
 	test-diff-size-guard coverage-gate test-coverage-gate anti-drift build clean \
 	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
@@ -107,6 +107,9 @@ test-harness-env:
 
 test-harness-seed:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_seed.py
+
+test-smoke-cleanup:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_smoke_proxy_cleanup.py open_webui/test/test_smoke_proxy_office.py open_webui/test/test_smoke_proxy_resources.py
 
 test-coverage-gate:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_coverage_gate.py
