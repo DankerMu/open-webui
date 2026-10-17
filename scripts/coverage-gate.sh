@@ -30,10 +30,12 @@ if [ -n "$added_py$mod_py" ]; then
     echo "coverage-gate: backend pytest failed (exit ${pytest_status})." >&2; fail=1
   fi
   if [ -n "$added_py" ]; then
-    inc="$(printf '%s\n' "$added_py" | sed 's#^backend/##' | paste -sd',' -)"
-    if ! (cd backend && uv run --quiet coverage report --include="$inc" --fail-under="$min"); then
-      echo "coverage-gate: fork-added Python files below ${min}% line coverage (add tests; never an assertion-free test)." >&2; fail=1
-    fi
+    while IFS= read -r path; do
+      inc="${path#backend/}"
+      if ! (cd backend && uv run --quiet coverage report --include="$inc" --fail-under="$min"); then
+        echo "coverage-gate: ${path} failed the ${min}% line coverage check (see report above)." >&2; fail=1
+      fi
+    done <<< "$added_py"
   fi
   if [ -n "$mod_py" ]; then
     inc="$(printf '%s\n' "$mod_py" | sed 's#^backend/##' | paste -sd',' -)"

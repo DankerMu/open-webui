@@ -13,6 +13,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 ADDED_PYTHON = 'A\tbackend/open_webui/coverage_probe.py\n'
+SECOND_ADDED_PYTHON = 'A\tbackend/open_webui/second_probe.py\n'
 MODIFIED_PYTHON = 'M\tbackend/open_webui/modified_probe.py\n'
 ADDED_FRONTEND = 'A\tsrc/coverage_widget.ts\n'
 
@@ -31,16 +32,32 @@ if command == 'uv' and args[:3] == ['run', '--quiet', 'pytest']:
 elif command == 'uv' and args[:4] == ['run', '--quiet', 'coverage', 'report']:
     gated = any(arg.startswith('--fail-under=') for arg in args)
     operation = 'coverage' if gated else 'advisory'
-    status = int(os.environ['GATE_COVERAGE_STATUS' if gated else 'GATE_ADVISORY_STATUS'])
-    print('open_webui/coverage_probe.py  1  0  100%' if status == 0 else 'Coverage below threshold')
+    if gated and 'GATE_FILE_COVERAGE' in os.environ:
+        file_coverage = json.loads(os.environ['GATE_FILE_COVERAGE'])
+        included = next(arg.split('=', 1)[1] for arg in args if arg.startswith('--include=')).split(',')
+        minimum = int(next(arg.split('=', 1)[1] for arg in args if arg.startswith('--fail-under=')))
+        if any(path not in file_coverage for path in included):
+            status = 1
+            print('No coverage data for requested files')
+        else:
+            covered = sum(file_coverage[path][0] for path in included)
+            total = sum(file_coverage[path][1] for path in included)
+            status = 0 if 100 * covered >= minimum * total else 2
+            print(f'TOTAL  {total}  {total - covered}  {100 * covered / total:.0f}%')
+    else:
+        status = int(os.environ['GATE_COVERAGE_STATUS' if gated else 'GATE_ADVISORY_STATUS'])
+        print('open_webui/coverage_probe.py  1  0  100%' if status == 0 else 'Coverage below threshold')
 elif command == 'npx' and args[:3] == ['--no-install', 'vitest', 'run']:
     operation = 'vitest'
     status = int(os.environ['GATE_FRONTEND_STATUS'])
 else:
     raise SystemExit(f'Unexpected external command: {command} {args!r}')
 
+observation = {'operation': operation, 'status': status}
+if operation == 'coverage' and 'GATE_FILE_COVERAGE' in os.environ:
+    observation['included'] = included
 with open(os.environ['GATE_RECORD'], 'a', encoding='utf-8') as stream:
-    stream.write(json.dumps({'operation': operation, 'status': status}) + '\n')
+    stream.write(json.dumps(observation) + '\n')
 sys.exit(status)
 """
 
@@ -101,6 +118,7 @@ def run_gate(
     coverage_status=0,
     advisory_status=0,
     frontend_status=0,
+    file_coverage=None,
 ):
     workspace, record, base_env = coverage_gate
     (workspace / 'scope-py').write_text(python_scope, encoding='utf-8')
@@ -112,6 +130,8 @@ def run_gate(
         'GATE_ADVISORY_STATUS': str(advisory_status),
         'GATE_FRONTEND_STATUS': str(frontend_status),
     }
+    if file_coverage is not None:
+        env['GATE_FILE_COVERAGE'] = json.dumps(file_coverage)
     completed = subprocess.run(
         ['make', 'coverage-gate'],
         cwd=workspace,
@@ -190,3 +210,67 @@ def test_unavailable_backend_directory_rejects_gate_even_with_only_advisory_cove
     (workspace / 'backend').rmdir()
     completed, _ = run_gate(coverage_gate, python_scope=MODIFIED_PYTHON)
     assert completed.returncode != 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize(
+    'python_scope',
+    [ADDED_PYTHON + SECOND_ADDED_PYTHON, SECOND_ADDED_PYTHON + ADDED_PYTHON],
+    ids=['low-first', 'low-last'],
+)
+def test_low_file_rejects_gate_even_when_combined_coverage_meets_minimum(coverage_gate, python_scope):
+    completed, outcomes = run_gate(
+        coverage_gate,
+        python_scope=python_scope,
+        file_coverage={
+            'open_webui/coverage_probe.py': [3, 5],
+            'open_webui/second_probe.py': [5, 5],
+        },
+    )
+    output = completed.stdout + completed.stderr
+    assert {'operation': 'pytest', 'status': 0} in outcomes, output
+    coverage_statuses = [item['status'] for item in outcomes if item['operation'] == 'coverage']
+    assert 0 in coverage_statuses, output
+    assert all(status in (0, 2) for status in coverage_statuses), output
+    assert completed.returncode != 0, output
+
+
+def test_files_at_minimum_and_above_pass_gate(coverage_gate):
+    completed, _ = run_gate(
+        coverage_gate,
+        python_scope=ADDED_PYTHON + SECOND_ADDED_PYTHON,
+        file_coverage={
+            'open_webui/coverage_probe.py': [4, 5],
+            'open_webui/second_probe.py': [5, 5],
+        },
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize(
+    ('first_coverage', 'expected_status'),
+    [([3, 5], 2), (None, 1)],
+    ids=['below-minimum', 'report-error'],
+)
+def test_failed_file_report_continues_other_files_advisory_and_frontend(coverage_gate, first_coverage, expected_status):
+    file_coverage = {'open_webui/second_probe.py': [5, 5]}
+    if first_coverage is not None:
+        file_coverage['open_webui/coverage_probe.py'] = first_coverage
+    completed, outcomes = run_gate(
+        coverage_gate,
+        python_scope=ADDED_PYTHON + SECOND_ADDED_PYTHON + MODIFIED_PYTHON,
+        web_scope=ADDED_FRONTEND,
+        file_coverage=file_coverage,
+    )
+    output = completed.stdout + completed.stderr
+    reports = [item for item in outcomes if item['operation'] == 'coverage']
+    failed_report = next(item for item in reports if 'open_webui/coverage_probe.py' in item['included'])
+    passing_report = next(item for item in reports if 'open_webui/second_probe.py' in item['included'])
+    assert failed_report['status'] == expected_status, output
+    assert passing_report['status'] == 0, output
+    assert (
+        outcomes.index(failed_report)
+        < outcomes.index(passing_report)
+        < outcomes.index({'operation': 'advisory', 'status': 0})
+        < outcomes.index({'operation': 'vitest', 'status': 0})
+    ), output
+    assert completed.returncode != 0, output
