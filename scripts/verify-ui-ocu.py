@@ -402,8 +402,6 @@ class BrowserHarness(Smoke):
             'BACKEND_PORT': str(self.backend_port),
             'FRONTEND_PORT': str(self.frontend_port),
             'DATA_DIR': str(self.data_dir),
-            # Prevent repository dotenv from overriding isolated backend configuration.
-            'PYTHON_DOTENV_DISABLED': '1',
             'WEBUI_SECRET_KEY': secrets.token_urlsafe(32),
             'FRONTEND_BUILD_DIR': str(self.scratch / 'frontend-build'),
             'STATIC_DIR': str(self.scratch / 'backend-static'),
