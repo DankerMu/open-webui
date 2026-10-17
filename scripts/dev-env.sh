@@ -26,6 +26,8 @@ if [[ -L "$repo_root/.run" || -L "$repo_root/.run/data" || -L "$DATA_DIR" || -L 
   return 2 2>/dev/null || exit 2
 fi
 export DATA_DIR FRONTEND_BUILD_DIR
+# Prevent dotenv content from injecting harness configuration; discovery can still run.
+export PYTHON_DOTENV_DISABLED=1
 export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
 export ENABLE_OLLAMA_API="${ENABLE_OLLAMA_API:-false}"
 export OPENAI_API_BASE_URLS="${OPENAI_API_BASE_URLS:-}"
