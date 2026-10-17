@@ -13,7 +13,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Complete expanded three-seat review, adjudicate against the frozen oracle, run authorized exact-head scoped CI, merge paired PRs, archive the fixture and manually close319 with empty automatic closing sets.
+- [x] 3.1 Complete expanded three-seat review, adjudicate against the frozen oracle, run authorized exact-head scoped CI, merge paired PRs, archive the fixture and manually close319 with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
 
