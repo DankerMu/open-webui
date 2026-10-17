@@ -11,7 +11,7 @@
 - [x] 2.1 Parent real-descriptor probe demonstrates child-process exclusion during outer/nested ownership, persistence after inner exit, release after failed unlock plus successful close, and immediate same-chat reuse; retain machine-readable output and exact temporary-resource cleanup.
 - [x] 2.2 Run the owning lifecycle-lock module and adjacent lifecycle/Office lookup admission modules with documented uv/pytest command; record exit codes/counts, source non-growth and no production changes outside the release method.
 - [x] 2.3 After runtime proof, update the existing lifecycle decision record's release contract and formerly deferred #382 paragraph; WebUI doc-gate, decisions-verify and strict fixture validation pass; OCU commit hooks pass.
-- [ ] 2.4 Complete three-seat expanded review, exact-head authorized scoped CI and paired OCU/WebUI merge; archive the fixture and manually close the source issue after both deliveries, with automatic closing sets empty.
+- [x] 2.4 Complete three-seat expanded review, exact-head authorized scoped CI and paired OCU/WebUI merge; archive the fixture and manually close the source issue after both deliveries, with automatic closing sets empty.
 
 ## 3. Risk-pack mapping
 
