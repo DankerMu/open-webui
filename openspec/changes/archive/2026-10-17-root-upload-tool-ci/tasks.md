@@ -13,7 +13,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Complete expanded cross-review and exact-head authorized scoped CI; merge paired PRs, archive and manually close339 with empty automatic closing sets and no new issue199 acceptance dependency.
+- [x] 3.1 Complete expanded cross-review and exact-head authorized scoped CI; merge paired PRs, archive and manually close339 with empty automatic closing sets and no new issue199 acceptance dependency.
 
 ## 4. Risk-pack mapping
 
