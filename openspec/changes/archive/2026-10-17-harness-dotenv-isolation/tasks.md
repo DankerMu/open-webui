@@ -8,7 +8,7 @@
 ## 2. Integration and delivery
 
 - [x] 2.1 Exercise both real backend launcher paths with parent false/unset cases, using the existing dev/health/smoke/UI targets and owned cleanup; record actual startup evidence and no orphan processes, then run scoped lint and doc gates.
-- [ ] 2.2 Complete expanded correctness/evidence review, exact-head scoped CI, merge and archive this fixture; retain evidence and leave unrelated acceptance issues unchanged.
+- [x] 2.2 Complete expanded correctness/evidence review, exact-head scoped CI, merge and archive this fixture; retain evidence and leave unrelated acceptance issues unchanged.
 
 ## Risk coverage
 
