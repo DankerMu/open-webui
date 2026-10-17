@@ -8,7 +8,7 @@
 ## 2. Acceptance and delivery
 
 - [x] 2.1 Parent runs actual pytest/coverage in an owned disposable repository: failed assertion with100% measured coverage makes real Make target fail; restored assertion succeeds. Preserve receipts and remove owned temporary data.
-- [ ] 2.2 Add the testing decision, audit Make/CI sibling consumers unchanged, pass scoped lint/doc/decision checks and strict fixture validation, complete expanded review and exact-head scoped CI, then merge and archive.
+- [x] 2.2 Add the testing decision, audit Make/CI sibling consumers unchanged, pass scoped lint/doc/decision checks and strict fixture validation, complete expanded review and exact-head scoped CI, then merge and archive.
 
 ## Risk coverage
 
@@ -23,4 +23,4 @@ Pre-change evidence: `/tmp/issue385-real-baseline.json` records real pytest fail
 
 Post-change evidence: `/tmp/issue385-focused-green.json` records12 passing isolated cases; `/tmp/issue385-real-fixed.json` records the same real failing assertion and100% coverage returning Make2, followed by restored assertion/100% coverage returning0. Both report generation and owned temporary-repository removal were observed.
 
-Durable receipt bundle: `docs/evidence/issue-385/verification.json.gz`. Scoped lint132files, documentation/54decision records, Ruff format and shell syntax checks passed. Exact-head independent review and CI are pending.
+Durable receipt bundle: `docs/evidence/issue-385/verification.json.gz`. Scoped lint132files, documentation/54decision records, Ruff format and shell syntax checks passed. Three-seat R1 completed with no P0/P1/P2 findings after the setup-diagnostic candidate was checked against actual stderr and withdrawn. Feature PR456 merged at `72c1905432057b584964081c8452002d8d1c5b36`, reviewed head `890159fd7d9dcf5f2b00669a358da575523cd5f0`. Exact-head local scoped CI: https://github.com/DankerMu/open-webui/pull/456#issuecomment-6231362315. No hosted Ubuntu/full-suite claim.
