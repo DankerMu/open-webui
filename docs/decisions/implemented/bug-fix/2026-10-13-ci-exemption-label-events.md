@@ -36,4 +36,4 @@ Every label addition or removal requests the whole workflow, including unrelated
 
 [Canonical verification evidence](../../../evidence/issue-262/verification.json) records 45 local replay rows executing the actual guard and aggregate shell programs. This evidence does not certify hosted Actions event delivery or execution of unrelated CI jobs; those job results are controlled replay inputs. Acceptance uses the owner-approved scoped local-CI policy.
 
-The separate [whole-file deletion filter issue](https://github.com/DankerMu/open-webui/issues/401) remains unchanged: the guard's `ACMR` filter omits complete-file deletions. This known counter defect is outside label-event acceptance, not a regression introduced by the subscription change.
+The diff-size guard includes countable lines from complete-file deletions under its 400-line threshold, whitespace handling and path exclusions. Exemption authority is the triggering event's resulting label snapshot.
