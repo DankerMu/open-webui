@@ -5,7 +5,7 @@ kind: bug-fix
 status: implemented
 date: 2026-10-17
 supersedes: none
-references: 'https://github.com/DankerMu/open-webui/issues/421; openspec/changes/auth-bootstrap-ownership'
+references: 'https://github.com/DankerMu/open-webui/issues/421; openspec/specs/webui-auth-bootstrap'
 ---
 
 # Preserve unverified bootstrap credentials under session ownership
