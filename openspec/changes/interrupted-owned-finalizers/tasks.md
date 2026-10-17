@@ -4,16 +4,16 @@
 
 - [x] 1.1 Add one parameterized real Smoke/BrowserHarness interruption regression with owned scratch and sentinel observations; parent freezes the oracle and captures semantic RED before source changes.
 - [x] 1.2 Nest the existing finalizer stages so owned-data `KeyboardInterrupt` preserves sentinel/scratch attempts and propagates; parent proves unchanged-oracle GREEN, same exception identity and ordinary error/status compatibility.
-- [ ] 1.3 Add meaningful sentinel `Fail`/ordinary-exception and scratch `OSError` controls after interruption; verify scratch is attempted even after sentinel failure, original interruption survives ordinary finalizer errors and no failed removal is claimed successful.
+- [x] 1.3 Add meaningful sentinel `Fail`/ordinary-exception and scratch `OSError` controls after interruption; verify scratch is attempted even after sentinel failure, original interruption survives ordinary finalizer errors and no failed removal is claimed successful.
 
 ## 2. Independent runtime and regression
 
 - [x] 2.1 Parent executes a private child-process signal matrix for SIGINT/SIGTERM/SIGHUP through both actual harness classes, with readiness at owned-data cleanup, actual sentinel observation, scratch removal, nonzero exit and unrelated-state preservation; archive program/input hashes and resource retirement.
-- [ ] 2.2 Run affected cleanup and adjacent support regressions plus diff-sized lint/coverage and document checks; retain existing ordinary HTTP/transport cleanup matrix and0/1/130 results without weakening oracles.
+- [x] 2.2 Run affected cleanup and adjacent support regressions plus diff-sized lint/coverage and document checks; retain existing ordinary HTTP/transport cleanup matrix and0/1/130 results without weakening oracles.
 
 ## 3. Contract and delivery
 
-- [ ] 3.1 After runtime proof, update the existing paired-smoke decision with the interruption boundary and limits; verify strict fixture, doc-gate, decisions-verify, changed Markdown formatting and commit hooks.
+- [x] 3.1 After runtime proof, update the existing paired-smoke decision with the interruption boundary and limits; verify strict fixture, doc-gate, decisions-verify, changed Markdown formatting and commit hooks.
 - [ ] 3.2 Complete expanded three-seat review, authorized exact-head scoped CI, merge, archive and manual issue294 closure with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
