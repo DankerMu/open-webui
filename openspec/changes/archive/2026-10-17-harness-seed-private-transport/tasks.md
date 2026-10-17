@@ -9,7 +9,7 @@
 
 - [x] 2.1 Exercise success, nonzero child exit, missing executable and SIGINT/SIGTERM/SIGHUP for seed and Hurl; verify owned child retirement, file/scratch removal and unrelated sentinels. Qualify residue detection with a controlled failing cleanup boundary rather than a source-text assertion.
 - [x] 2.2 Run real `make smoke` with distinctive synthetic credentials in owned harness data, observe actual curl/Hurl argv and successful HTTP authentication, and verify real Hurl report redaction against the exposing variables-file control; retire only owned services/data.
-- [ ] 2.3 Update the Hurl transport note and testing decision, run focused/Office transport regression, scoped lint and doc/decision gates, complete expanded review and exact-head CI, then merge and archive this fixture.
+- [x] 2.3 Update the Hurl transport note and testing decision, run focused/Office transport regression, scoped lint and doc/decision gates, complete expanded review and exact-head CI, then merge and archive this fixture.
 
 ## Risk coverage
 
@@ -19,4 +19,6 @@
 - Documentation — selected: private transport ownership and SIGKILL/environment exclusions; existing Office/resource policy remains separate.
 - Schema, production auth, release/dependencies and performance — no changed behavior or dependency version; no new retry/fallback policy.
 
-Evidence: `docs/evidence/issue-375/verification.json.gz` records the confidential semantic RED,19 passing focused cases,38 adjacent Office/resource cases, scoped lint, doc/decision gates, real smoke11requests, independent signin, Make CLI precedence and resource retirement. The Hurl8.0.1 control sent identical values through both file modes: variables-file reports exposed the synthetic value; secrets-file reports did not. A cleanup-noop receiver made the owner exit1 and the residue oracle reject; normal cleanup exited0 and passed. The first real smoke passed but its oracle incorrectly included unrelated Node/uv/Torch caches in seed scratch; the corrected isolated lifecycle-TMPDIR run passed without production edits. Independent review and exact-head CI remain pending.
+Evidence: `docs/evidence/issue-375/verification.json.gz` records the confidential semantic RED,19 passing focused cases,38 adjacent Office/resource cases, scoped lint, doc/decision gates, real smoke11requests, independent signin, Make CLI precedence and resource retirement. The Hurl8.0.1 control sent identical values through both file modes: variables-file reports exposed the synthetic value; secrets-file reports did not. A cleanup-noop receiver made the owner exit1 and the residue oracle reject; normal cleanup exited0 and passed. The first real smoke passed but its oracle incorrectly included unrelated Node/uv/Torch caches in seed scratch; the corrected isolated lifecycle-TMPDIR run passed without production edits.
+
+Delivery: feature PR453 merged at `19e6c2bcd8eedeac1dd58db05677e803bb8f10e7`, reviewed head `9abfed584cac61b347c018ecb9858fc167bc4c49`. Three-seat R1 found no P0/P1; standalone smoke cwd P2 is tracked in #454. Exact-head local scoped CI evidence: https://github.com/DankerMu/open-webui/pull/453#issuecomment-6230864974. No hosted Ubuntu/full-suite claim. This archive retains the historical verification record above; independent review and CI are complete.
