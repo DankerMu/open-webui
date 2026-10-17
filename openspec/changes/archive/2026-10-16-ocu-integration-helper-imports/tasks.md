@@ -8,7 +8,7 @@
 
 ## 2. Delivery
 
-- [ ] 2.1 Complete independent correctness/evidence review and source-bound local CI, merge source and companion PRs, and archive only this corrective fixture; the larger Office acceptance remains separate.
+- [x] 2.1 Complete independent correctness/evidence review and source-bound local CI, merge source and companion PRs, and archive only this corrective fixture; the larger Office acceptance remains separate.
 
 ## Risk coverage
 
