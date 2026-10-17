@@ -16,7 +16,7 @@
 - [x] 3.1 Parent runs actual service and MCP/HTTP consumer probes with isolated owned data and private synthetic credentials; record authorized normalized responses, unchanged authorization denial, source identity and full cleanup. Label injected failures and any missing-socket SDK probe separately from live-engine reproduction; archive complete probe source and output.
 - [x] 3.2 Run the focused new module plus relevant existing lifecycle/network/MCP/route regression modules using documented uv/pytest commands; retain exact scope/counts and fixture restoration evidence. Do not claim full-root green or rerun known unrelated #444/#445 failures merely to confirm them.
 - [x] 3.3 After smoke proof, update the existing lifecycle decision; WebUI doc-gate, decisions-verify, strict fixture validation, changed Markdown formatting and both repositories' commit hooks pass.
-- [ ] 3.4 Complete expanded three-seat cross-review and exact-head authorized scoped CI; merge paired source/control-plane delivery, archive, and manually close #306 with automatic closing sets empty.
+- [x] 3.4 Complete expanded three-seat cross-review and exact-head authorized scoped CI; merge paired source/control-plane delivery, archive, and manually close #306 with automatic closing sets empty.
 
 ## 4. Risk-pack mapping
 
