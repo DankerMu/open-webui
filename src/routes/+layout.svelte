@@ -55,6 +55,7 @@
 	import { getAllTags } from '$lib/apis/chats';
 	import { chatCompletion } from '$lib/apis/openai';
 	import { isTemporaryChatId } from '$lib/utils/chatId';
+	import { createAuthBootstrapOwner } from '$lib/utils/auth-bootstrap';
 	import {
 		addOpenAIConnection,
 		removeOpenAIConnection,
@@ -110,6 +111,9 @@
 	let loaded = false;
 	let tokenTimer = null;
 	let isAuthRedirectInProgress = false;
+	let authOwner;
+	let authCleanup;
+	let unverifiedSession = false;
 
 	let showRefresh = false;
 
@@ -877,38 +881,6 @@
 	};
 
 	const TOKEN_EXPIRY_BUFFER = 60; // seconds
-	const resolveFetchUrl = (input) => {
-		if (input instanceof Request) {
-			return new URL(input.url, window.location.origin);
-		}
-
-		return new URL(input, window.location.origin);
-	};
-
-	const resolveFetchHeaders = (input, init) => {
-		if (init?.headers) {
-			return new Headers(init.headers);
-		}
-
-		if (input instanceof Request) {
-			return input.headers;
-		}
-
-		return new Headers();
-	};
-
-	const isAuthenticatedBackendFetch = (input, init) => {
-		try {
-			const requestUrl = resolveFetchUrl(input);
-			const backendOrigin = new URL(WEBUI_BASE_URL || '/', window.location.origin).origin;
-
-			return (
-				requestUrl.origin === backendOrigin && resolveFetchHeaders(input, init).has('authorization')
-			);
-		} catch {
-			return false;
-		}
-	};
 
 	const clearExpiredSession = () => {
 		if (isAuthRedirectInProgress) {
@@ -921,6 +893,7 @@
 			tokenTimer = null;
 		}
 		user.set(null);
+		unverifiedSession = false;
 		localStorage.removeItem('token');
 		// Clear the OAuth token cookie so /auth doesn't auto-login and redirect-loop
 		document.cookie = 'token=; Max-Age=0; path=/';
@@ -929,19 +902,6 @@
 		});
 		toast.error($i18n.t('Session expired. Please sign in again.'));
 		isAuthRedirectInProgress = false;
-	};
-
-	const isCurrentSessionUnauthorized = async (originalFetch) => {
-		return originalFetch(`${WEBUI_API_BASE_URL}/auths/`, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${localStorage.token}`
-			},
-			credentials: 'include'
-		})
-			.then((res) => res.status === 401)
-			.catch(() => false);
 	};
 
 	const checkTokenExpiry = async () => {
@@ -1062,20 +1022,30 @@
 	};
 
 	onMount(async () => {
-		const originalFetch = window.fetch.bind(window);
-		window.fetch = async (input, init) => {
-			const response = await originalFetch(input, init);
-
-			if (
-				response.status === 401 &&
-				localStorage.token &&
-				isAuthenticatedBackendFetch(input, init) &&
-				(await isCurrentSessionUnauthorized(originalFetch))
-			) {
-				clearExpiredSession();
+		authOwner = createAuthBootstrapOwner({
+			target: window,
+			origin: window.location.origin,
+			backendBaseUrl: WEBUI_BASE_URL,
+			sessionUrl: `${WEBUI_API_BASE_URL}/auths/`,
+			getToken: () => localStorage.getItem('token'),
+			getUser: () => $user,
+			onUnauthorized: clearExpiredSession
+		});
+		const retireAuth = () => {
+			authOwner.retire();
+			if (localStorage.token && !$user) {
+				unverifiedSession = true;
+				document.getElementById('splash-screen')?.remove();
+				loaded = true;
 			}
-
-			return response;
+		};
+		const resumeAuth = () => authOwner.resume();
+		window.addEventListener('pagehide', retireAuth);
+		window.addEventListener('pageshow', resumeAuth);
+		authCleanup = () => {
+			window.removeEventListener('pagehide', retireAuth);
+			window.removeEventListener('pageshow', resumeAuth);
+			authOwner.dispose();
 		};
 
 		window.addEventListener('message', windowMessageEventHandler);
@@ -1263,38 +1233,32 @@
 				await setupSocket($config.features?.enable_websocket ?? true);
 
 				if (localStorage.token) {
-					// Get Session User Info
-					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
-						toast.error(`${error}`);
-						return null;
-					});
-
-					if (sessionUser) {
-						await user.set(sessionUser);
+					const lease = await authOwner.bootstrap(getSessionUser, (value) => user.set(value));
+					if (authOwner.disposed) return;
+					unverifiedSession = Boolean(localStorage.token && !$user);
+					if (lease?.token) {
 						try {
-							await config.set(await getBackendConfig());
+							const refreshedConfig = await getBackendConfig();
+							if (lease.isCurrent()) await config.set(refreshedConfig);
 						} catch (error) {
 							console.error('Error refreshing backend config:', error);
 						}
 
 						// Keep user timezone in sync on every app load/refresh
 						const timezone = getUserTimezone();
-						if (timezone) {
-							updateUserTimezone(localStorage.token, timezone);
+						if (lease.isCurrent() && timezone) {
+							updateUserTimezone(lease.token, timezone);
 						}
 
 						// Relay auth token to desktop app for API access
-						if (window.electronAPI?.send) {
+						if (lease.isCurrent() && window.electronAPI?.send) {
 							window.electronAPI
 								.send({
 									type: 'token:update',
-									token: localStorage.token
+									token: lease.token
 								})
 								.catch(() => {});
 						}
-					} else {
-						localStorage.removeItem('token');
-						await user.set(null);
 					}
 				}
 			}
@@ -1364,6 +1328,8 @@
 	}
 
 	onDestroy(() => {
+		// Async onMount's returned Promise cannot register auth lifetime cleanup.
+		authCleanup?.();
 		bc.close();
 	});
 </script>
@@ -1401,7 +1367,19 @@
 {/if}
 
 {#if loaded}
-	{#if $isApp}
+	{#if unverifiedSession && !$user}
+		<div class="flex h-screen items-center justify-center text-center" role="alert">
+			<div>
+				<div class="text-2xl">{$i18n.t('Server connection failed')}</div>
+				<button
+					class="mt-6 rounded-full bg-gray-100 px-5 py-2 text-black"
+					on:click={() => location.reload()}
+				>
+					{$i18n.t('Check Again')}
+				</button>
+			</div>
+		</div>
+	{:else if $isApp}
 		<div class="flex flex-row h-screen">
 			<AppSidebar />
 
