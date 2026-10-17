@@ -17,7 +17,7 @@
 ## 3. Contracts and delivery
 
 - [x] 3.1 After smoke proof, update existing unified-files and Office-file-store decisions and OCU error-contract docs/changelog; run strict fixture, doc-gate, decisions-verify, changed Markdown formatting and both repositories' commit hooks with content-bound receipts.
-- [ ] 3.2 Complete expanded three-seat review and exact-head authorized scoped CI; retain evidence and limits, merge paired source/control-plane PRs, archive the fixture and manually close issue365 with empty automatic closing sets.
+- [x] 3.2 Complete expanded three-seat review and exact-head authorized scoped CI; retain evidence and limits, merge paired source/control-plane PRs, archive the fixture and manually close issue365 with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
 
