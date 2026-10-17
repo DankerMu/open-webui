@@ -10,7 +10,7 @@ endif
 
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
-	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-verify-office test-harness-env \
+	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-verify-office test-harness-env test-harness-seed \
 	coverage-gate anti-drift build clean \
 	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
@@ -99,6 +99,9 @@ test-verify-office:
 test-harness-env:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_environment.py
 
+test-harness-seed:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_seed.py
+
 coverage-gate:
 	bash scripts/coverage-gate.sh
 
@@ -118,9 +121,7 @@ export SEED_PASSWORD ?= harness-admin-pw
 
 smoke:
 	bash scripts/dev-bg.sh status >/dev/null || bash scripts/dev-bg.sh start
-	bash scripts/seed.sh
-	hurl --test smoke/*.hurl --variable base_url=http://localhost:8080 \
-		--variable seed_email=$(SEED_EMAIL) --variable seed_password=$(SEED_PASSWORD)
+	bash scripts/smoke.sh
 
 smoke-stub:
 	bash scripts/smoke-stub.sh
