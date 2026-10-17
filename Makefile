@@ -10,9 +10,9 @@ endif
 
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
-	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-verify-office test-harness-env test-harness-seed \
+	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-harness-env test-harness-seed \
 	test-diff-size-guard coverage-gate test-coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -93,6 +93,9 @@ test-backend:
 test-frontend:
 	npx vitest run --passWithNoTests
 
+test-auth-bootstrap:
+	npx vitest run src/lib/utils/auth-bootstrap.test.ts $(AUTH_BOOTSTRAP_ARGS)
+
 test-diff-size-guard:
 	npx vitest run scripts/ci-diff-size.test.js
 
@@ -138,6 +141,11 @@ smoke-proxy:
 e2e:
 	bash scripts/seed.sh
 	npx playwright test
+
+# Requires a running harness.
+e2e-auth-bootstrap:
+	bash scripts/seed.sh >/dev/null
+	umask 077; npx playwright test e2e/auth-bootstrap.e2e.ts --workers=1 --output=.run/auth-bootstrap-results
 
 # verify-ui ROUTE="/auth" runs one route's test; no ROUTE = all.
 verify-ui:
