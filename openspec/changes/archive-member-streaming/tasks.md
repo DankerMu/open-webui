@@ -15,7 +15,7 @@
 
 ## 3. Documentation and delivery
 
-- [ ] 3.1 After smoke proof, update the existing unified-workspace-files decision and applicable archive docs; run doc-gate, decisions-verify, strict fixture and changed Markdown checks with final file hashes, then both repositories' commit hooks.
+- [x] 3.1 After smoke proof, update the existing unified-workspace-files decision and applicable archive docs; run doc-gate, decisions-verify, strict fixture and changed Markdown checks with final file hashes, then both repositories' commit hooks.
 - [ ] 3.2 Complete expanded three-seat cross-review and exact-head authorized scoped CI; retain evidence and limits, merge paired source/control-plane delivery, archive the fixture and manually close issue350 with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
