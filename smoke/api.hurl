@@ -1,7 +1,7 @@
 # smoke/api.hurl — key API routes (Q7.2). Keep in sync with AGENTS.md
 # ## Verification Matrix and constraints.yaml `verification`.
 # Needs the seeded harness admin (scripts/seed.sh): seed_email / seed_password
-# are hurl variables injected by `make smoke`.
+# arrive through a private Hurl secrets file owned by scripts/smoke.sh.
 
 GET {{base_url}}/api/config
 
