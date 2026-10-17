@@ -14,7 +14,7 @@
 ## 3. Contract and delivery
 
 - [x] 3.1 After runtime proof, update the existing paired-smoke decision with the interruption boundary and limits; verify strict fixture, doc-gate, decisions-verify, changed Markdown formatting and commit hooks.
-- [ ] 3.2 Complete expanded three-seat review, authorized exact-head scoped CI, merge, archive and manual issue294 closure with empty automatic closing sets.
+- [x] 3.2 Complete expanded three-seat review, authorized exact-head scoped CI, merge, archive and manual issue294 closure with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
 
