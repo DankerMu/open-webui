@@ -2,7 +2,7 @@
 
 Source head: `e4f42c738e84b88b05e6b0957272742c15eeb5ab`.
 
-[Complete local packet](../../../docs/evidence/issue-512/verification.json.gz) contains the frozen-source manifest, raw commands/stdout/stderr, all selected node IDs and outcomes, JUnit, temporary probe sources, fixture review, source diff and commit hooks.
+[Complete local packet](../../../../docs/evidence/issue-512/verification.json.gz) contains the frozen-source manifest, raw commands/stdout/stderr, all selected node IDs and outcomes, JUnit, temporary probe sources, fixture review, source diff and commit hooks.
 
 - Decoded SHA-256: `10f5cc03e2ec307c25489bb2166ffb856bda2af254a16c33ca2c716cd9001e5f`.
 - Gzip SHA-256: `48f4b2cd099cdaff3f0ba48b85e2570e80c877d616fc8deec6093027aabf082f`.
