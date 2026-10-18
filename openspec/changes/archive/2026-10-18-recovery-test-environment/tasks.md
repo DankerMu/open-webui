@@ -12,7 +12,7 @@
 ## 3. Integration and delivery
 
 - [x] 3.1 Run sequential recovery-to-real-Docker smoke and canonical full-root execution against owned local server/sandbox resources; record five unchanged lifecycle cases, all other outcomes, environment identity and exact cleanup.
-- [ ] 3.2 Publish scoped evidence, independent cross-review and paired source/spec PRs with an empty automatic-closing set; distinguish #445 and acceptance-machine limits from this repair.
+- [x] 3.2 Publish scoped evidence, independent cross-review and paired source/spec PRs with an empty automatic-closing set; distinguish #445 and acceptance-machine limits from this repair.
 
 ## Risk packs
 
@@ -30,4 +30,4 @@
 
 ## Execution boundary
 
-The [verification packet](../../../docs/evidence/issue-444/verification.json.gz) records three qualified historical-fixture RED cases, seven focused GREEN cases and real Docker sequential smoke. A fresh exact-version Python environment passed package checks before and after canonical execution: 4026 collected nodes completed with 4019 passes, two failures, five skips and 335 passing subtests. All 392 deploy cases and fourteen real integration cases passed, including the five unchanged workspace cases. The two remaining failures are sweep-lock reachability (#445) and an upload-receipt exception-class identity assertion; this is not a full-suite pass. Earlier attempts used a retained interpreter later found to have incomplete package metadata; their immutable packet remains linked, without attributing their failures to repository defects. Session resources were removed; the stopped owned builder and two images remain reserved for the following acceptance repair, not general use.
+The [verification packet](../../../../docs/evidence/issue-444/verification.json.gz) records three qualified historical-fixture RED cases, seven focused GREEN cases and real Docker sequential smoke. A fresh exact-version Python environment passed package checks before and after canonical execution: 4026 collected nodes completed with 4019 passes, two failures, five skips and 335 passing subtests. All 392 deploy cases and fourteen real integration cases passed, including the five unchanged workspace cases. The two remaining failures are sweep-lock reachability (#445) and an upload-receipt exception-class identity assertion (#504); this is not a full-suite pass. Earlier attempts used a retained interpreter later found to have incomplete package metadata; their immutable packet remains linked, without attributing their failures to repository defects. Session resources were removed; the stopped owned builder and two images remain reserved for the following acceptance repair, not general use.
