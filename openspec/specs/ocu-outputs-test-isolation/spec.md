@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keep the security suite's real application requests bound to their seeded temporary workspace, independent of cached modules, and restore process state after each fixture lifetime.
+Keep real output and security test requests bound to their selected temporary workspace and prefix, independent of inherited process configuration or cached modules, and restore process state after each fixture lifetime.
 
 ## Requirements
 
