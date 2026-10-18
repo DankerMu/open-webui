@@ -14,7 +14,7 @@
 ## 3. Integration
 
 - [x] 3.1 Execute the bounded selection and unfiltered canonical full-root suite in the qualified environment; retain positive lock-attempt/canary evidence, all outcomes, source identities and exact owned-resource cleanup.
-- [ ] 3.2 Publish evidence and independent cross-review, merge paired source/control PRs with empty automatic-closing sets, and archive the contract without claiming unrelated full-suite failures resolved.
+- [x] 3.2 Publish evidence and independent cross-review, merge paired source/control PRs with empty automatic-closing sets, and archive the contract without claiming unrelated full-suite failures resolved.
 
 ## Risk packs
 
@@ -32,4 +32,4 @@
 
 ## Evidence boundary
 
-The [verification packet](../../../docs/evidence/issue-445/verification.json.gz) records the single CLI-test predecessor, stale-manager admission trace, semantic RED/GREEN, absent-entry mutation control and an actual pytest-body-error cleanup probe. The unchanged bounded selection passes all 50 nodes before and after. Qualified unfiltered root execution completes 4027 nodes: 4021 pass, one failure (#504), five existing skips and 335 passing subtests; the sweep target and all canary assertions pass with shared manager identity and real post-precheck lock entry. This is not a full-suite pass. A separate bare-console probe fails in the unchanged orchestrator conftest before collection; it is not attributed to the new regression or claimed as hosted-CI evidence.
+The [verification packet](../../../../docs/evidence/issue-445/verification.json.gz) records the single CLI-test predecessor, stale-manager admission trace, semantic RED/GREEN, absent-entry mutation control and an actual pytest-body-error cleanup probe. The unchanged bounded selection passes all 50 nodes before and after. Qualified unfiltered root execution completes 4027 nodes: 4021 pass, one failure (#504), five existing skips and 335 passing subtests; the sweep target and all canary assertions pass with shared manager identity and real post-precheck lock entry. This is not a full-suite pass. A separate bare-console probe fails in the unchanged orchestrator conftest before collection; it is not attributed to the new regression or claimed as hosted-CI evidence.
