@@ -10,7 +10,7 @@
 ## 2. Acceptance and delivery
 
 - [x] 2.1 Run independent real-request/restoration smoke and canonical `tests/ --import-mode=importlib --ignore=tests/integration` pytest discovery with module-name selection for output, preview, Office router/publish-recovery and unchanged `test_path_traversal_app.py` security consumers, plus new regressions; record exact selected/executed nodes and no new skips.
-- [ ] 2.2 After runtime proof update existing test guidance/changelog, pass strict fixture/doc/decision/format and both repositories' commit hooks, and record actual environment limits.
+- [x] 2.2 After runtime proof update existing test guidance/changelog, pass strict fixture/doc/decision/format and both repositories' commit hooks, and record actual environment limits.
 - [ ] 2.3 Complete expanded three-seat review, exact-head authorized local scoped CI and paired merges; archive and manually close344 with empty automatic closing sets.
 
 ## Risk-pack mapping
