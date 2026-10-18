@@ -264,11 +264,9 @@ def _file_headers(name: str, query: dict) -> dict[str, str]:
         'Content-Security-Policy': WEAK_CSP,
         'X-Content-Type-Options': 'other',
     }
-    download = query.get('download') == ['1']
-    if download:
-        extra['Content-Disposition'] = f'attachment; filename="{name.rsplit("/", 1)[-1]}"'
-        return extra
-    extra['Content-Disposition'] = f'inline; filename="{name.rsplit("/", 1)[-1]}"'
+    filename = name.rsplit('/', 1)[-1].replace('\\', '\\\\').replace('"', '\\"')
+    mode = 'attachment' if query.get('download') == ['1'] else 'inline'
+    extra['Content-Disposition'] = f'{mode}; filename="{filename}"'
     return extra
 
 

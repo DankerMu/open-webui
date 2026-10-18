@@ -11,7 +11,7 @@ endif
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-harness-env test-harness-seed test-smoke-cleanup \
-	test-smoke-stub-cleanup test-diff-size-guard coverage-gate test-coverage-gate anti-drift build clean \
+	test-smoke-stub-cleanup test-ocu-stub-public test-diff-size-guard coverage-gate test-coverage-gate anti-drift build clean \
 	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
@@ -107,6 +107,9 @@ test-smoke-stub-cleanup:
 
 test-harness-env:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_environment.py
+
+test-ocu-stub-public:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_ocu_stub_public.py
 
 test-harness-seed:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_seed.py
