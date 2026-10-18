@@ -11,7 +11,7 @@
 - [x] 2.1 Exercise plain/compressed/multipage fixtures, ordinary B selection and revision replacement, Zoom In/Out/Fit and fullscreen geometry/return; retain actual boundary observations and screenshots with no unexpected errors.
 - [x] 2.2 Run the complete browser harness and canonical preview-prefix pytest, preserving original assertions and existing stage-retirement/theme cleanup; record exact results, source/asset identities and owned-resource cleanup.
 - [x] 2.3 After proof update the existing Drawio decision and OCU changelog; pass doc/decision/strict fixture/format and actual commit gates.
-- [ ] 2.4 Complete expanded three-seat review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #314 with empty automatic closing sets.
+- [x] 2.4 Complete expanded three-seat review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #314 with empty automatic closing sets.
 
 ## Risk-pack mapping
 
