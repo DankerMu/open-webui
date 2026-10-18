@@ -10,7 +10,7 @@
 
 - [x] 2.1 Run the complete browser harness including all existing deferred/fullscreen retirement cases and canonical preview-prefix pytest; retain exact outputs, source/asset identities and owned-resource cleanup evidence.
 - [x] 2.2 After proof update the existing Drawio decision and OCU changelog; pass doc/decision/strict fixture/format and actual commit gates.
-- [ ] 2.3 Complete expanded three-seat review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #313 with empty automatic closing sets.
+- [x] 2.3 Complete expanded three-seat review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #313 with empty automatic closing sets.
 
 ## Risk-pack mapping
 
