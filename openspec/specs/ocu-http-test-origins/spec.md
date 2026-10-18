@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keep Office fake HTTP origins' request workers, sockets and failures within the owning test lifetime, including intentional client timeout and cancellation.
+Keep fake HTTP test origins' request workers, sockets and failures within the owning test lifetime, including intentional client timeout, cancellation and exceptional teardown.
 
 ## Requirements
 
