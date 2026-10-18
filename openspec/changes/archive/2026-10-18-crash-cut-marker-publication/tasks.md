@@ -10,7 +10,7 @@
 - [x] 2.1 Add one shared child marker writer and migrate all four producers; behavioral regression must prove final-path absence during incomplete staging and exact text/no remaining staging after publication, with meaningful failing-before evidence.
 - [x] 2.2 Prove saved primitives bypass armed production fault hooks and resolution private-mode/sync guarantees remain; preserve every existing parent cut/kill/recovery assertion, verified by diff and actual cut execution.
 - [x] 2.3 Execute complete publication-recovery, save-as, resolution, shared-store and regression modules on the retained Node-qualified Linux image, plus the transitive crash-helper cases in callback-publish, command-deadline, history and restore; reconcile unchanged old-node inventory plus intentional new regression nodes and report #513 independently if it recurs.
-- [ ] 2.4 Update existing README, pass strict/docs/whitespace/hooks and three-seat review, publish exact-head local scoped evidence with empty automatic closing references.
+- [x] 2.4 Update existing README, pass strict/docs/whitespace/hooks and three-seat review, publish exact-head local scoped evidence with empty automatic closing references.
 
 ## Risk packs
 
