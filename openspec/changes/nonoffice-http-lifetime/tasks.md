@@ -14,7 +14,7 @@
 
 - [x] 2.1 Parent runs a deterministic real-socket matrix through every owner family for completed/held requests and exceptional exits, including deliberate handler failure and joint body+handler failure; verify all original failures are observable and all owned resources retire before rescue.
 - [x] 2.2 Run affected canonical-owner/Office compatibility, tool redirect and deploy/font/offline-release regressions with exact selected/executed node accounting; preserve all original behavioral assertions and no new skips. Exercise deploy unittest discovery and affected direct-script import/lifetime entrypoints.
-- [ ] 2.3 After runtime proof, update the existing HTTP-lifetime decision and OCU testing guidance/changelog; verify strict fixture, doc/decision gates, changed Markdown formatting and both repositories' commit hooks; state actual runtime/platform limits.
+- [x] 2.3 After runtime proof, update the existing HTTP-lifetime decision and OCU testing guidance/changelog; verify strict fixture, doc/decision gates, changed Markdown formatting and both repositories' commit hooks; state actual runtime/platform limits.
 
 ## 3. Delivery
 
