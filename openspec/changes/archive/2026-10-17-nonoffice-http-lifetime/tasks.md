@@ -18,7 +18,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Complete expanded three-seat review, class-wide adjudication and exact-head authorized scoped CI; merge paired PRs, archive and manually close377 with empty automatic closing sets.
+- [x] 3.1 Complete expanded three-seat review, class-wide adjudication and exact-head authorized scoped CI; merge paired PRs, archive and manually close377 with empty automatic closing sets.
 
 ## 4. Risk-pack mapping
 
