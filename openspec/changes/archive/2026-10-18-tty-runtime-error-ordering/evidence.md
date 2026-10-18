@@ -2,7 +2,7 @@
 
 Source head: `cc3f0a1582912c3b185e18d3fbd00ceb19f3e982`.
 
-[Complete local receipt](../../../docs/evidence/issue-502/verification.json.gz) contains raw commands, stdout/stderr, exact collected IDs, JUnit outcomes, probe sources, diagnosis, fixture review and commit hooks.
+[Complete local receipt](../../../../docs/evidence/issue-502/verification.json.gz) contains raw commands, stdout/stderr, exact collected IDs, JUnit outcomes, probe sources, diagnosis, fixture review and commit hooks.
 
 - Decoded SHA-256: `55a1226cb1d6348acee0e457d9a7766075c4d42e406857269d01a89a599af6f7`.
 - Gzip SHA-256: `3477b8a39ee95587da65d9bdfd1ca77bdb84629915a69c06e8fcadffb7ab26db`.
