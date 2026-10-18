@@ -13,7 +13,7 @@
 
 ## 3. Delivery
 
-- [ ] 3.1 Publish evidence and expanded independent review; flag the CI-file change, use authorized local CI, merge paired PRs with empty automatic-closing sets, archive and manually close the issue.
+- [x] 3.1 Publish evidence and expanded independent review; flag the CI-file change, use authorized local CI, merge paired PRs with empty automatic-closing sets, archive and manually close the issue.
 
 ## Risk packs
 
@@ -26,4 +26,4 @@
 
 ## Evidence boundary
 
-The [verification packet](../../../docs/evidence/issue-446/verification.json.gz) records the original console exit 4 and corrected complete 2874-node execution on local Ubuntu 24.04/Python 3.13.11 with the declared pip dependencies and runner Node 22.23.3. The qualified result is 2864 passed, 5 failed, 5 existing live-CLI skips and 3 passing subtests, exit 1: four crash-marker observations are tracked in #512 and one pause/read observation in #513. The entry/import criterion is satisfied; the suite is not green. The initial missing-Node run is retained as unqualified environment evidence. All 948 archived source files remain unchanged; owned containers are gone and the builder is stopped. The unqualified image is removed; the qualified image is retained for those queued diagnoses. No hosted-runner, native non-Docker Linux, LAN or release acceptance is claimed.
+The [verification packet](../../../../docs/evidence/issue-446/verification.json.gz) records the original console exit 4 and corrected complete 2874-node execution on local Ubuntu 24.04/Python 3.13.11 with the declared pip dependencies and runner Node 22.23.3. The qualified result is 2864 passed, 5 failed, 5 existing live-CLI skips and 3 passing subtests, exit 1: four crash-marker observations are tracked in #512 and one pause/read observation in #513. The entry/import criterion is satisfied; the suite is not green. The initial missing-Node run is retained as unqualified environment evidence. All 948 archived source files remain unchanged; owned containers are gone and the builder is stopped. The unqualified image is removed; the qualified image is retained for those queued diagnoses. No hosted-runner, native non-Docker Linux, LAN or release acceptance is claimed.
