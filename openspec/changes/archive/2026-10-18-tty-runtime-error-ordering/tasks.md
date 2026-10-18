@@ -10,7 +10,7 @@
 - [x] 2.1 Synchronize the runtime case through completed handler attribution before owner exit; prove controlled failing-before/passing-after without altering shared lifetime classification or weakening assertions.
 - [x] 2.2 Prove real operation failure/owner-state/exception identity and singular delivery; use temporary no-error and swallowed-error probes to prove distinct failure diagnostics.
 - [x] 2.3 Run consumer/native/shared-origin modules and the deploy suite with the qualified interpreter; retain all outcome and resource-retirement assertions and report exact executed scope.
-- [ ] 2.4 Update the existing test documentation, run strict/docs/whitespace checks and complete three-seat review; publish exact-head local evidence with empty automatic closing references.
+- [x] 2.4 Update the existing test documentation, run strict/docs/whitespace checks and complete three-seat review; publish exact-head local evidence with empty automatic closing references.
 
 ## Risk packs
 
