@@ -9,7 +9,7 @@
 ## 2. Delivery
 
 - [x] 2.1 Update the existing changelog after proof; pass strict fixture, documentation gates and commit hooks with source-bound evidence.
-- [ ] 2.2 Complete compact correctness/test-evidence review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #304.
+- [x] 2.2 Complete compact correctness/test-evidence review and authorized exact-head local scoped CI; merge paired PRs, archive and manually close #304.
 
 ## Risk packs
 
