@@ -10,7 +10,7 @@
 
 - [x] 2.1 Run actual `make smoke-stub` in a private TMPDIR and both original #210 pagination fault controls; success leaves no owned fixture and faults retain their intended semantic failures.
 - [x] 2.2 Run the focused regression and scoped lint/coverage applicable to this script, update existing smoke ownership guidance after proof, and pass strict fixture/doc/decision/changed-format gates.
-- [ ] 2.3 Complete expanded three-seat review, exact-head authorized local scoped CI and merge; archive and manually close361 with empty automatic closing sets.
+- [x] 2.3 Complete expanded three-seat review, exact-head authorized local scoped CI and merge; archive and manually close361 with empty automatic closing sets.
 
 ## Risk-pack mapping
 
