@@ -10,7 +10,7 @@
 
 - [x] 2.1 Execute the complete browser harness with pinned Playwright/Chromium and canonical preview-prefix pytest selection; retain all results, zero unexpected browser errors and owned-resource cleanup evidence.
 - [x] 2.2 After runtime proof update the existing restricted-Office-embedding decision and OCU changelog; pass doc/decision/strict fixture/format and real commit gates.
-- [ ] 2.3 Complete expanded three-seat review and exact-head authorized local scoped CI, paired merges, archive and manual issue closure with empty automatic closing sets.
+- [x] 2.3 Complete expanded three-seat review and exact-head authorized local scoped CI, paired merges, archive and manual issue closure with empty automatic closing sets.
 
 ## Risk-pack mapping
 
