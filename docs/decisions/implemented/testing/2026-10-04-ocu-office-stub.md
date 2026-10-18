@@ -5,7 +5,7 @@ kind: testing
 status: implemented
 date: 2026-10-04
 supersedes: none
-references: Plan 2, ocu-office-editing tasks 22.1 and 22.3, issues 208, 209 and 210
+references: Plan 2, ocu-office-editing tasks 22.1 and 22.3, issues 208, 209, 210 and 361
 ---
 
 # Deterministic Office stub and its evidence boundary
@@ -19,6 +19,8 @@ Gateway and sidebar checks need repeatable Office outcomes without a DocumentSer
 Keep Office state and its host page in adjacent stub modules, using the existing chat-keyed scenario selection, file identities, outputs listing and private request observations. Serialize state transitions with the stub lock. Accepted saves and closes complete their simulated callback outcome synchronously; sequence cursors, version records and workspace revisions expose the result through HTTP.
 
 `make smoke-stub` exercises the seven scenarios, default behavior, request rejection, chat isolation and deterministic replay. File IDs retain the existing chat-scoped convention: identical names in different chats may have identical IDs; the chat and resource together identify the fixture.
+
+The isolation/replay smoke owns its exact temporary fixture configuration across both stub lifetimes. An outer finalizer removes that file on normal completion or startup/assertion failure, after acquired children are stopped by the existing lifecycle helpers; unrelated files remain untouched. `make test-smoke-stub-cleanup` exercises real-process assertion failure, checking original error identity, child retirement, exact-file removal and unrelated-file preservation before emergency cleanup.
 
 With valid `OCU_STUB_DOCX` input, `office_unpublished` and `office_stale` retain the configured workspace bytes exactly and derive distinct, deterministic DOCX autosaves with visible text `Verified Office autosave (unpublished)` or `Verified Office autosave (stale)`. The derivation preserves existing document XML and unrelated package content; listing and version hashes/sizes describe the actual bytes. The browser and HTTP harnesses share the valid-DOCX generator in `ocu_stub_office.py`. Without configured input, the synthetic workspace bytes and exact `-autosave`/`-stale` suffixes remain unchanged; invalid configured input is not replaced with a generic successful document.
 
