@@ -10,7 +10,7 @@
 
 - [x] 2.1 Run actual `make smoke-stub` and focused public-stub regressions, preserving issue209's 33 controls, traversal, ordinary disposition, pagination and Office outcomes; run scoped lint and changed-file format checks.
 - [x] 2.2 After runtime proof update the existing stub decision, then pass doc/decision/strict fixture/Markdown gates and actual commit hooks on the final bytes.
-- [ ] 2.3 Complete expanded three-seat review and exact-head authorized local scoped CI; merge, archive and manually close358 with empty automatic closing sets.
+- [x] 2.3 Complete expanded three-seat review and exact-head authorized local scoped CI; merge, archive and manually close358 with empty automatic closing sets.
 
 ## Risk-pack mapping
 
