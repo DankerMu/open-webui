@@ -14,7 +14,7 @@
 ## 3. Acceptance and delivery
 
 - [x] 3.1 Execute qualified unfiltered full-root with all node outcomes, package integrity, unchanged runtime image identities and exact owned-resource cleanup; both receipt branches must pass and unrelated failures remain explicit.
-- [ ] 3.2 Publish bounded evidence and independent expanded cross-review; merge paired source/control PRs with empty automatic-closing sets, archive the contract and manually close the issue.
+- [x] 3.2 Publish bounded evidence and independent expanded cross-review; merge paired source/control PRs with empty automatic-closing sets, archive the contract and manually close the issue.
 
 ## Risk packs
 
@@ -28,4 +28,4 @@
 
 ## Evidence boundary
 
-The [verification packet](../../../docs/evidence/issue-504/verification.json.gz) retains both independent predecessor RED/GREEN sequences, the new coherence regression's semantic RED, four present/absent ownership cases, four real pytest setup/body failure probes, and the restore-only mutant rejection. Complete affected modules pass 312 cases. Qualified unfiltered root execution completes all 4032 collected nodes with 4027 passed, five unchanged live-CLI skips and 335 passing subtests; both receipt branches, the sweep canary and all 14 real integration cases pass. Exact source hashes, package versions, runtime image identities and independently observed owned-resource retirement bind that result. Console-entry issue #446, latent sibling ownership issue #507 and LAN/release acceptance remain outside this evidence.
+The [verification packet](../../../../docs/evidence/issue-504/verification.json.gz) retains both independent predecessor RED/GREEN sequences, the new coherence regression's semantic RED, four present/absent ownership cases, four real pytest setup/body failure probes, and the restore-only mutant rejection. Complete affected modules pass 312 cases. Qualified unfiltered root execution completes all 4032 collected nodes with 4027 passed, five unchanged live-CLI skips and 335 passing subtests; both receipt branches, the sweep canary and all 14 real integration cases pass. Exact source hashes, package versions, runtime image identities and independently observed owned-resource retirement bind that result. Console-entry issue #446, latent sibling ownership issue #507 and LAN/release acceptance remain outside this evidence.
