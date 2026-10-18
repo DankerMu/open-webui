@@ -81,7 +81,7 @@ def _assert_listed_download(base: str, chat: str, entry: dict, version: dict) ->
     expected_url = f'/ocu/files/{_seg(chat)}/' + '/'.join(_seg(part) for part in entry['path'].split('/'))
     if entry['url'] != expected_url:
         fail(f'Office listing URL is not canonical: {entry["url"]}')
-    status, _, content = _request(base, entry['url'][len('/ocu'):])
+    status, _, content = _request(base, entry['url'][len('/ocu') :])
     digest = hashlib.sha256(content).hexdigest()
     if status != 200 or digest != version['sha256'] or len(content) != version['size']:
         fail('listed URL did not retrieve the intended saved version')
@@ -688,46 +688,49 @@ def assert_isolation_and_replay(script: Path) -> None:
     mapping.update({f'replay-{name}': name for name in OFFICE_SCENARIOS})
     mapping['replay-conflict-overwrite'] = 'office_conflict'
     fixtures = _write_fixtures(mapping)
-    env = {'OCU_STUB_FIXTURES': str(fixtures)}
-    first, base, record = start_stub(script, env)
     try:
-        shared_id = _file_id(_outputs(base, 'alpha')[0], 'report.docx')
-        if shared_id != _file_id(_outputs(base, 'beta')[0], 'report.docx'):
-            fail('alpha and beta did not share the fixture file_id')
-        created_beta = _create(base, 'beta', shared_id)
-        if created_beta[0] != 201:
-            fail(f'beta create {created_beta[0]} {created_beta[2]}')
-        beta_session = created_beta[2]['session_id']
-        beta_status = _status(base, 'beta', beta_session)[2]
-        if beta_status['state'] != 'orphaned':
-            fail('beta isolation lost orphaned outcome')
-        before = _office_snapshot(base, 'beta', shared_id, beta_session)
-        alpha = _assert_default_round_trip(base, 'alpha', shared_id)
-        if _office_snapshot(base, 'beta', shared_id, beta_session) != before:
-            fail('alpha mutations leaked into beta')
-        _assert_foreign_resources(base, alpha['session_id'], beta_session)
-        rows = _observations(record)
-        if not any('/api/office/' in row.get('target', '') for row in rows):
-            fail('Office arrivals were not privately observed')
-        public = _request(
-            base,
-            f'/api/office/{_seg("alpha")}/sessions/{_seg(alpha["session_id"])}',
-            headers={'Authorization': f'Bearer {CANARY}'},
-        )
-        _assert_canary_absent(public[1], public[2])
-        snapshot = _snapshot_replay(base)
+        env = {'OCU_STUB_FIXTURES': str(fixtures)}
+        first, base, record = start_stub(script, env)
+        try:
+            shared_id = _file_id(_outputs(base, 'alpha')[0], 'report.docx')
+            if shared_id != _file_id(_outputs(base, 'beta')[0], 'report.docx'):
+                fail('alpha and beta did not share the fixture file_id')
+            created_beta = _create(base, 'beta', shared_id)
+            if created_beta[0] != 201:
+                fail(f'beta create {created_beta[0]} {created_beta[2]}')
+            beta_session = created_beta[2]['session_id']
+            beta_status = _status(base, 'beta', beta_session)[2]
+            if beta_status['state'] != 'orphaned':
+                fail('beta isolation lost orphaned outcome')
+            before = _office_snapshot(base, 'beta', shared_id, beta_session)
+            alpha = _assert_default_round_trip(base, 'alpha', shared_id)
+            if _office_snapshot(base, 'beta', shared_id, beta_session) != before:
+                fail('alpha mutations leaked into beta')
+            _assert_foreign_resources(base, alpha['session_id'], beta_session)
+            rows = _observations(record)
+            if not any('/api/office/' in row.get('target', '') for row in rows):
+                fail('Office arrivals were not privately observed')
+            public = _request(
+                base,
+                f'/api/office/{_seg("alpha")}/sessions/{_seg(alpha["session_id"])}',
+                headers={'Authorization': f'Bearer {CANARY}'},
+            )
+            _assert_canary_absent(public[1], public[2])
+            snapshot = _snapshot_replay(base)
+        finally:
+            stop_stub(first, record)
+        second, base2, record2 = start_stub(script, env)
+        try:
+            replayed = _snapshot_replay(base2)
+            if replayed != snapshot:
+                fail(f'deterministic replay diverged {snapshot} vs {replayed}')
+            page = _request(base2, f'/preview/{_seg("alpha")}?embed=office')
+            if page[0] != 200 or b'ocu-office-simulate-modification' not in page[2]:
+                fail('replay host page missing control')
+        finally:
+            stop_stub(second, record2)
     finally:
-        stop_stub(first, record)
-    second, base2, record2 = start_stub(script, env)
-    try:
-        replayed = _snapshot_replay(base2)
-        if replayed != snapshot:
-            fail(f'deterministic replay diverged {snapshot} vs {replayed}')
-        page = _request(base2, f'/preview/{_seg("alpha")}?embed=office')
-        if page[0] != 200 or b'ocu-office-simulate-modification' not in page[2]:
-            fail('replay host page missing control')
-    finally:
-        stop_stub(second, record2)
+        fixtures.unlink(missing_ok=True)
 
 
 def assert_non_office_preserved(base: str) -> None:
