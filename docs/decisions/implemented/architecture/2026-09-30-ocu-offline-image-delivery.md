@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-33, issue-34, issue-36, issue-196, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery, 2026-10-03-ocu-office-editor-selection, 2026-10-16-ocu-qualified-office-image
+references: issue-33, issue-34, issue-36, issue-196, issue-337, 2026-09-26-ocu-private-runtime-provisioning, 2026-09-29-ocu-pyodide-offline-materials, 2026-09-30-ocu-local-drawio-materials, 2026-09-30-ocu-cold-backup-recovery, 2026-10-03-ocu-office-editor-selection, 2026-10-16-ocu-qualified-office-image
 ---
 
 # Offline image archives with mandatory content verification
@@ -16,11 +16,13 @@ Startup rebuilds locally named images, while image export/import does not guaran
 
 ## Decision
 
-Deliver named image archives with mandatory configuration-digest and archive SHA-256 verification. These digests have distinct meanings and are not registry manifest digests. Content-derived names preserve the workspace naming contract. Verify all seven roles on import and before deployment mutation; forbid build and pull at startup.
+Deliver named image archives with mandatory configuration-digest and archive SHA-256 verification. Configuration digests hash configuration bytes; engine IDs can instead identify image manifests or indexes. Content-derived names use the configuration digest and preserve the workspace naming contract. Alternate engine identities must be archive-verified descriptors bound to the same reference, platform and configuration, never opaque inspect values or unrelated registry observations. Verify the final archive set before publication, before import loads, and bind all seven local image identities before deployment mutation; forbid export, build and pull at startup.
 
 One machine release inventory binds both repository commits, target platform, image/archive identities, non-secret build arguments and material input provenance. The existing deployment-version report renders that inventory alongside runtime policy. Required tracked OCU source and initializer bind assets travel with the release; credentials and untracked worktree files do not.
 
 The [Office selection](2026-10-03-ocu-office-editor-selection.md) establishes the seven-role version2 inventory; every loader refuses version1. The [qualified bootstrap derivative](2026-10-16-ocu-qualified-office-image.md) selects DocumentServer as a built role from the immutable B1 base and committed recipe. PostgreSQL remains pulled. This record's archive, source, publication and offline-startup guarantees remain in force.
+
+Source-consumer contract2 understands descriptor identities. New builds require that reader capability in the selected committed source before image mutation. Readers preserve valid contract1 format2 config-only deliveries and matching bundled sources for classic-store import and rollback; contract1 cannot claim descriptor support. Unknown contracts, mismatched readers and historically mislabeled configuration identities fail closed rather than being silently repaired. Recovery's selected-release stack checks use actual container image identities, not configured tag text, while retaining project, service and data-binding checks; workspace-sandbox attribution is unchanged.
 
 Online build-time materialization remains permitted. Local Pyodide and Draw.io closures remain enabled, as do configured LAN model/RAG endpoints. User-authored remote content and explicitly selected external integrations are not silently disabled or misrepresented as bundled material.
 
