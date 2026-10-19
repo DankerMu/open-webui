@@ -52,7 +52,7 @@ Seam: the existing isolated tmp git checkout from `test_database_script_alembic_
   - with `--no-env-file`, a `python -c` printing `DATABASE_HOST` prints nothing (`None`);
   - without the flag (the control), it prints `uvenv-host.invalid`;
   - in both arms the precedence key shows the parent value, which pins the stand-in model's precedence.
-  - This proves the flag's real semantics on the pinned uv without importing `open_webui` or touching any project venv. Both arms must run the same command apart from `--no-env-file`.
+  - This proves the flag's real semantics on whichever uv runs the suite (0.9.18 locally; CI installs the latest uv, so a semantic change turns the case red) without importing `open_webui` or touching any project venv. Both arms must run the same command apart from `--no-env-file`.
 - **Existing cases.** The dotenv cases (parent flag unset or `false`) and the deletion bound (stale db files removed, outside sentinel kept) stay green with the new argv.
 - **Commands.** `make test-harness-env`, `make db-verify`, `make lint-scoped`, `make doc-gate`.
 
