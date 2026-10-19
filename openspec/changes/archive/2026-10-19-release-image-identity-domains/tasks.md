@@ -18,7 +18,7 @@
 - [x] 3.1 Run owning offline-release, recovery and bootstrap regression selections with discovery/outcome reconciliation; original archives, conflict/no-load, cancellation/lock, wrong-source and font safety cases remain active. No asserted-wording tests are repinned in place of behavior.
 - [x] 3.2 Run actual seven-role CLI build/export/verify/import/load on both qualified engine identity modes using frozen owned committed inputs and real Docker, respecting qualified-role constraints. Independently hash configuration blobs, verify final references/descriptors, then prove clean-store import and identical re-import. Record actual versions, command exits and complete receipts, not only summaries.
 - [x] 3.3 Exercise false descriptor and foreign-tag cases before any load/publication, valid actual loaded/local identities and real created stack-container identity checks; preserve rollback of an existing config-only contract1 delivery and leave workspace-sandbox attribution unchanged. Prove no unrelated engine resources or mappings are altered and retire exact owned resources.
-- [ ] 3.4 Pass relevant lint/format/static/docs/strict gates, publish source-bound public evidence, complete expanded correctness/test-evidence/invariant-state review and exact-head local CI. Keep automatic closing references empty; merge paired changes, archive only this fixture and close337 manually.
+- [x] 3.4 Pass relevant lint/format/static/docs/strict gates, publish source-bound public evidence, complete expanded correctness/test-evidence/invariant-state review and exact-head local CI. Keep automatic closing references empty; merge paired changes, archive only this fixture and close337 manually.
 
 ## Risk packs
 
