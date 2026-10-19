@@ -1,7 +1,7 @@
 # harness-environment Specification
 
 ## Purpose
-Keep development and isolated UI backend startup, and harness database migration scripts, independent of dotenv file contents while preserving ordinary application startup behavior; keep the harness database scripts' migration target and the backend pytest session's database target independent of inherited or uv env-file database variables; anchor the harness entry scripts to their own checkout whatever the caller's CDPATH or PATH; and report the overridden parent flag state for runtime provenance.
+Keep development and isolated UI backend startup, and harness database migration scripts, independent of dotenv file contents while preserving ordinary application startup behavior; keep the harness database scripts' migration target, the backend pytest session's database target and the development and UI launchers' database target independent of inherited or uv env-file database variables; anchor the harness entry scripts to their own checkout whatever the caller's CDPATH or PATH; and report the overridden parent flag state for runtime provenance.
 
 ## Requirements
 
@@ -107,3 +107,23 @@ The OCU stub smoke, Office verification and proxy development entry scripts SHAL
 
 - **WHEN** one of these scripts runs with a `PATH` that provides no `dirname` or `basename`
 - **THEN** it still resolves its own checkout root rather than the filesystem root
+
+### Requirement: Development and UI launchers resolve the harness database
+
+Every backend started after sourcing the shared harness environment SHALL resolve its database URL to the SQLite database in its validated data directory, whatever database URL, database variables or uv env-file the parent supplies. A workspace-scoped data directory SHALL keep its own database. The harness environment SHALL NOT print inherited database values. Ordinary application startup outside the harness SHALL keep its existing database-variable behavior.
+
+#### Scenario: Inherited database target
+
+- **WHEN** the harness environment is sourced with an inherited database URL, a complete set of fake database variables, or a uv env-file holding that set, and the application environment module is then imported
+- **THEN** the resolved database URL is the SQLite database in the validated data directory
+- **AND** no fake host, user or password appears in the output
+
+#### Scenario: Workspace data directory
+
+- **WHEN** the harness environment runs with a workspace-scoped data directory
+- **THEN** the resolved database URL points inside that workspace directory, not at the shared harness database
+
+#### Scenario: Same database URL without the harness
+
+- **WHEN** the application environment module is imported with an inherited database URL and without sourcing the harness environment, with no database variables or dotenv content
+- **THEN** the resolved database URL is the inherited one
