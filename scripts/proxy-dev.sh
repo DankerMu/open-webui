@@ -2,8 +2,10 @@
 # scripts/proxy-dev.sh — start the OCU overlay proxy against the harness + stub.
 # Missing checkout, deploy/proxy/ config, or nginx/caddy is a named failure (never a skip).
 set -euo pipefail
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
+# Builtins only and an empty CDPATH: see scripts/smoke-stub.sh.
+case "${BASH_SOURCE[0]}" in */*) script_dir="${BASH_SOURCE[0]%/*}" ;; *) script_dir=. ;; esac
+script_dir="$(CDPATH='' cd -- "$script_dir" && pwd)"
+repo_root="$(CDPATH='' cd -- "$script_dir/.." && pwd)"
 if [ -z "${OCU_CHECKOUT:-}" ]; then
   OCU_CHECKOUT="$repo_root/../open-computer-use"
 fi
@@ -40,7 +42,10 @@ if [ -z "$nginx_bin" ] && [ -z "$caddy_bin" ]; then
   exit 2
 fi
 
-config_base="$(basename "$config")"
+# $config is always $proxy_dir/<name>, so it contains a slash.
+config_dir="${config%/*}"
+config_name="${config##*/}"
+config_base="$config_name"
 if [ "$config_base" = "Caddyfile" ]; then
   if [ -z "$caddy_bin" ]; then
     echo "proxy-dev: missing proxy binary: caddy" >&2
@@ -52,5 +57,5 @@ if [ -z "$nginx_bin" ]; then
   echo "proxy-dev: missing proxy binary: nginx" >&2
   exit 2
 fi
-config_abs="$(cd "$(dirname "$config")" && pwd)/$(basename "$config")"
+config_abs="$(CDPATH='' cd -- "$config_dir" && pwd)/$config_name"
 exec "$nginx_bin" -c "$config_abs" -g 'daemon off;'
