@@ -12,7 +12,7 @@
 - [x] 2.2 Convert the notice counter helper to explicit context ownership and migrate all eight callers (seven notice and one callback recovery); verify repeated-request/count-reset, callback edit-after-cache and foreign-file guard scopes plus all original positive/negative assertions.
 - [x] 2.3 Exercise a real forbidden unpaused read and successful/failing observer cleanup through temporary probes; require the original assertion and retired hook/descriptor, not merely a passing status.
 - [x] 2.4 Reconcile unchanged existing node IDs and run the complete affected modules, complete qualified Linux orchestrator selection and fresh qualified Darwin real-Docker root acceptance; report actual outcomes and environment limits without inferred certification.
-- [ ] 2.5 Update existing README, pass docs/strict/whitespace/hooks and three-seat review; publish exact-head local evidence with empty automatic closing references.
+- [x] 2.5 Update existing README, pass docs/strict/whitespace/hooks and three-seat review; publish exact-head local evidence with empty automatic closing references.
 
 ## Risk packs
 
