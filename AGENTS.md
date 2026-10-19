@@ -42,6 +42,7 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 - **AI tools targeting this repo**: Claude Code (`CLAUDE.md` = `@AGENTS.md`), OMP (oh-my-pi, reads this file directly)
 - **Domain language**: `CONTEXT.md` is the bounded-context and invariant map; `openspec/glossary.md` is the canonical glossary (工作区, 沙箱, 产物, revision, file_id, persist/publish, fence). Agents must check them before naming domain concepts or moving business logic.
 - **Plans**: `docs/plans/2026-09-20-workspace-artifact-integration.md` (Plan 1) and `docs/plans/2026-09-20-office-manual-editing.md` (Plan 2) are the source-verified implementation plans. OCU-relative paths in them refer to the sibling `open-computer-use` checkout.
+- **Office user guide**: [在工作区编辑 Office 文件](docs/office-editing.md).
 
 ## Stack & Versions
 
