@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import runpy
 import shlex
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -136,12 +138,26 @@ def _import_environment(*, harness: bool, parent_flag: str | None = None):
     assert completed.returncode == 0, completed.stdout + completed.stderr
     observations = _prefixed_json(completed.stdout, 'DOTENV_OBSERVATION=')
     assert len(observations) == 1, completed.stdout + completed.stderr
-    return observations[0], data_dir
+    return observations[0], data_dir, completed
 
 
-@pytest.mark.parametrize('parent_flag', [None, 'false'], ids=['unset-parent-flag', 'false-parent-flag'])
-def test_harness_import_rejects_dotenv_content_and_preserves_explicit_config(parent_flag):
-    observed, data_dir = _import_environment(harness=True, parent_flag=parent_flag)
+def _harness_env_lines(stderr: str) -> list[str]:
+    return [line for line in stderr.splitlines() if line.startswith('harness-env:')]
+
+
+# A non-allowlisted parent value must be labelled, never echoed.
+_PARENT_FLAG_CANARY = f'parent-flag-canary-{uuid4().hex}'
+
+
+@pytest.mark.parametrize(
+    ('parent_flag', 'label'),
+    [(None, 'unset'), ('false', 'false'), ('1', '1'), (_PARENT_FLAG_CANARY, 'other'), ('', 'other')],
+    ids=['unset-parent-flag', 'false-parent-flag', 'one-parent-flag', 'other-parent-flag', 'empty-parent-flag'],
+)
+def test_harness_import_rejects_dotenv_content_and_preserves_explicit_config(parent_flag, label):
+    observed, data_dir, completed = _import_environment(harness=True, parent_flag=parent_flag)
+    assert _harness_env_lines(completed.stderr) == [f'harness-env: parent PYTHON_DOTENV_DISABLED={label}']
+    assert _PARENT_FLAG_CANARY not in completed.stdout + completed.stderr
     assert observed == {
         'stream_entries': 0,
         'parse_calls': 0,
@@ -151,8 +167,26 @@ def test_harness_import_rejects_dotenv_content_and_preserves_explicit_config(par
     }
 
 
+def test_ui_runner_relays_only_the_staging_label(monkeypatch, capsys):
+    monkeypatch.syspath_prepend(str(ROOT / 'scripts'))
+    module = runpy.run_path(str(ROOT / 'scripts/verify-ui-ocu.py'))
+    capsys.readouterr()
+    staged = SimpleNamespace(
+        stdout='staged assets\n',
+        stderr=(
+            'cp: staging noise\n'
+            'harness-env: parent PYTHON_DOTENV_DISABLED=unset\n'
+            'trailing harness-env: parent PYTHON_DOTENV_DISABLED=other\n'
+        ),
+    )
+
+    module['relay_harness_env'](staged)
+
+    assert capsys.readouterr() == ('', 'harness-env: parent PYTHON_DOTENV_DISABLED=unset\n')
+
+
 def test_non_harness_import_loads_dotenv_content_and_preserves_explicit_config():
-    observed, _ = _import_environment(harness=False)
+    observed, _, _ = _import_environment(harness=False)
     assert observed == {
         'stream_entries': 1,
         'parse_calls': 1,

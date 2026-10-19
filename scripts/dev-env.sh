@@ -26,6 +26,19 @@ if [[ -L "$repo_root/.run" || -L "$repo_root/.run/data" || -L "$DATA_DIR" || -L 
   return 2 2>/dev/null || exit 2
 fi
 export DATA_DIR FRONTEND_BUILD_DIR
+# Provenance for runtime receipts (#452): label the inherited flag before the override below
+# hides it. Only allowlisted labels are printed; any other value, empty included, is "other".
+if [[ -z "${PYTHON_DOTENV_DISABLED+x}" ]]; then
+  parent_dotenv_label='unset'
+else
+  case "$PYTHON_DOTENV_DISABLED" in
+    false) parent_dotenv_label='false' ;;
+    1) parent_dotenv_label='1' ;;
+    *) parent_dotenv_label='other' ;;
+  esac
+fi
+echo "harness-env: parent PYTHON_DOTENV_DISABLED=$parent_dotenv_label" >&2
+unset parent_dotenv_label
 # Prevent dotenv content from injecting harness configuration; discovery can still run.
 export PYTHON_DOTENV_DISABLED=1
 export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
