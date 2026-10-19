@@ -44,6 +44,13 @@ require_tools = smoke_module.require_tools
 PINNED_FILES = smoke_module.PINNED_FILES
 
 
+def relay_harness_env(staged: subprocess.CompletedProcess[str]) -> None:
+    """Forward dev-env.sh parent-flag labels from a captured run so the receipt carries them."""
+    for line in staged.stderr.splitlines():
+        if line.startswith('harness-env:'):
+            sys.stderr.write(line + '\n')
+
+
 def mint_browser_session() -> int:
     config = json.loads(Path(json.load(sys.stdin)['config']).read_text(encoding='utf-8'))
     owner = SimpleNamespace(
@@ -418,7 +425,7 @@ class BrowserHarness(Smoke):
             'UV_NO_SYNC': '1',
         }
         self.secrets.append(service_env['WEBUI_SECRET_KEY'])
-        run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env)
+        relay_harness_env(run(['bash', str(self.root / 'scripts/dev-bg.sh'), 'stage'], env=service_env))
         backend_cmd = [
             'bash',
             '-c',
