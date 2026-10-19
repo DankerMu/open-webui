@@ -16,7 +16,19 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 
-_DOTENV_PROBE = r"""
+_DOTENV_STREAM = (
+    'HARNESS_DOTENV_SENTINEL=loaded\n'
+    'ENABLE_OLLAMA_API=true\n'
+    'DATABASE_TYPE=postgresql\n'
+    'DATABASE_USER=dotenv-user\n'
+    'DATABASE_PASSWORD=dotenv-password\n'
+    'DATABASE_HOST=dotenv-host.invalid\n'
+    'DATABASE_PORT=5432\n'
+    'DATABASE_NAME=dotenv_db\n'
+)
+
+# Stubs dotenv discovery and reading; a probe defines STREAM before this prelude.
+_DOTENV_STUBS = r"""
 import contextlib
 import io
 import json
@@ -35,16 +47,7 @@ def discover(*args, **kwargs):
 @contextlib.contextmanager
 def synthetic_stream(self):
     observed['stream_entries'] += 1
-    with io.StringIO(
-        'HARNESS_DOTENV_SENTINEL=loaded\n'
-        'ENABLE_OLLAMA_API=true\n'
-        'DATABASE_TYPE=postgresql\n'
-        'DATABASE_USER=dotenv-user\n'
-        'DATABASE_PASSWORD=dotenv-password\n'
-        'DATABASE_HOST=dotenv-host.invalid\n'
-        'DATABASE_PORT=5432\n'
-        'DATABASE_NAME=dotenv_db\n'
-    ) as stream:
+    with io.StringIO(STREAM) as stream:
         yield stream
 
 
@@ -59,7 +62,12 @@ def parse(self):
 dotenv.find_dotenv = discover
 dotenv.main.DotEnv._get_stream = synthetic_stream
 dotenv.main.DotEnv.parse = parse
+"""
 
+_DOTENV_PROBE = (
+    f'STREAM = {_DOTENV_STREAM!r}\n'
+    + _DOTENV_STUBS
+    + r"""
 import open_webui.env
 
 observed.update(
@@ -69,7 +77,25 @@ observed.update(
 )
 print('DOTENV_OBSERVATION=' + json.dumps(observed, sort_keys=True))
 """
+)
 
+# ORDER places the open_webui.env import relative to the harness; nothing imports config or main.
+_HARNESS_PROBE_BODY = r"""
+if ORDER == 'env-first':
+    import open_webui.env
+if ORDER != 'no-harness':
+    from open_webui.test import ocu_harness
+import open_webui.env
+
+if ORDER == 'repeat':
+    ocu_harness.configure_ocu_test_env()
+observed.update(
+    database_url=open_webui.env.DATABASE_URL,
+    database_vars=[name for name in DATABASE_VARS if name in os.environ],
+    flag=os.environ.get('PYTHON_DOTENV_DISABLED'),
+)
+print('HARNESS_OBSERVATION=' + json.dumps(observed, sort_keys=True))
+"""
 
 _DOTENV_URL = 'postgresql://dotenv-user:dotenv-password@dotenv-host.invalid:5432/dotenv_db'
 _PROBE_CONFIG = {
@@ -122,6 +148,7 @@ _DATABASE_VARS = (
     'DATABASE_NAME',
 )
 _PRECEDENCE_KEY = 'HARNESS_UV_ENV_FILE_PRECEDENCE'
+_REAL_UV_RUN = ('uv', 'run', '--no-project', '--offline', '--no-config', '--python', sys.executable)
 
 
 def _fake_database_vars(host: str) -> dict[str, str]:
@@ -333,7 +360,7 @@ def test_real_uv_no_env_file_hides_uv_env_file_entries(tmp_path, flag, database_
         **{_PRECEDENCE_KEY: 'parent'},
     )
     probe = f'import json, os; print(json.dumps([os.environ.get(k) for k in ("DATABASE_HOST", "{_PRECEDENCE_KEY}")]))'
-    command = ['uv', 'run', '--no-project', '--offline', '--no-config', '--python', sys.executable, *flag]
+    command = [*_REAL_UV_RUN, *flag]
 
     completed = subprocess.run(
         [*command, 'python', '-c', probe], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=180
@@ -341,3 +368,99 @@ def test_real_uv_no_env_file_hides_uv_env_file_entries(tmp_path, flag, database_
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert json.loads(completed.stdout) == [database_host, 'parent']
+
+
+_HARNESS_URL = f'sqlite:///{ROOT}/.run/data/webui.db'
+_SHELL_URL = 'postgresql://fake-user:fake-password@shell-host.invalid:5432/fake_db'
+
+
+def _run_harness_probe(tmp_path: Path, order: str, *, stream: str = '', env_extra=None, parent_flag=None, uv=False):
+    env = _allowlisted_env(parent_flag)
+    env.update(
+        _PROBE_CONFIG,
+        ENABLE_DB_MIGRATIONS='false',
+        DATA_DIR=str(tmp_path.resolve() / 'data'),
+        WEBUI_SECRET_KEY=uuid4().hex,
+        **(env_extra or {}),
+    )
+    probe = f'ORDER = {order!r}\nSTREAM = {stream!r}\nDATABASE_VARS = {_DATABASE_VARS!r}\n'
+    command = [sys.executable, '-c', probe + _DOTENV_STUBS + _HARNESS_PROBE_BODY]
+    if uv:
+        env.update(UV_CACHE_DIR=str(tmp_path.resolve() / 'uv-cache'), UV_ENV_FILE=str(_write_uv_env_file(tmp_path)))
+        command = [*_REAL_UV_RUN, 'python', *command[1:]]
+    completed = subprocess.run(command, cwd=tmp_path, env=env, capture_output=True, text=True, timeout=180)
+    return completed, _prefixed_json(completed.stdout, 'HARNESS_OBSERVATION=')
+
+
+def _resolved(url: str, *, database_vars=(), flag='1', stream_entries=0) -> dict:
+    return {
+        'database_url': url,
+        'database_vars': list(database_vars),
+        'flag': flag,
+        'stream_entries': stream_entries,
+        'parse_calls': stream_entries,
+    }
+
+
+@pytest.mark.parametrize(
+    ('order', 'stream', 'env_extra', 'parent_flag', 'expected'),
+    [
+        ('harness', '', _fake_database_vars('shell-host.invalid'), None, _resolved(_HARNESS_URL)),
+        ('harness', '', _fake_database_vars('shell-host.invalid'), 'false', _resolved(_HARNESS_URL)),
+        ('harness', _DOTENV_STREAM, {}, None, _resolved(_HARNESS_URL)),
+        (
+            'no-harness',
+            '',
+            _fake_database_vars('shell-host.invalid'),
+            None,
+            _resolved(_SHELL_URL, database_vars=_DATABASE_VARS, flag=None, stream_entries=1),
+        ),
+    ],
+    ids=['shell-database-vars', 'shell-false-parent-flag', 'dotenv-database-vars', 'no-harness-control'],
+)
+def test_harness_pins_database_target_against_inherited_sources(
+    tmp_path, order, stream, env_extra, parent_flag, expected
+):
+    completed, observations = _run_harness_probe(
+        tmp_path, order, stream=stream, env_extra=env_extra, parent_flag=parent_flag
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert observations == [expected]
+
+
+def test_harness_pins_database_target_against_real_uv_env_file(tmp_path):
+    completed, observations = _run_harness_probe(tmp_path, 'harness', uv=True)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert observations == [_resolved(_HARNESS_URL)]
+
+
+@pytest.mark.parametrize('order', ['env-first', 'repeat'], ids=['env-before-harness', 'repeat-after-env'])
+def test_harness_refuses_to_configure_after_env_import(tmp_path, order):
+    completed, observations = _run_harness_probe(tmp_path, order, env_extra=_fake_database_vars('shell-host.invalid'))
+
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0, output
+    assert observations == []
+    assert 'RuntimeError: configure_ocu_test_env must run before open_webui.env is imported' in completed.stderr
+    assert 'shell-host.invalid' not in output
+    assert 'fake-password' not in output
+
+
+def test_office_flag_process_ignores_inherited_database_vars(monkeypatch):
+    from open_webui.test.ocu_office_flag_process import run_office_flag_process
+
+    # Keeps the subprocess from reading a real .env before the harness disables dotenv.
+    monkeypatch.setenv('PYTHON_DOTENV_DISABLED', '1')
+    for name in _DATABASE_VARS:
+        monkeypatch.delenv(name, raising=False)
+    clean = run_office_flag_process(office='true', workspace='true')
+    assert clean['exit'] == 0, clean['stderr']
+    for name, value in _fake_database_vars('shell-host.invalid').items():
+        monkeypatch.setenv(name, value)
+
+    inherited = run_office_flag_process(office='true', workspace='true')
+
+    assert inherited['exit'] == 0, inherited['stderr'][-2000:]
+    assert inherited['payload'] == clean['payload']

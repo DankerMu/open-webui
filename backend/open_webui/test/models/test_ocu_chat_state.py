@@ -56,6 +56,12 @@ def _ensure_ocu_chat_state_table():
             module.upgrade()
 
 
+def test_direct_engine_targets_the_application_database():
+    import open_webui.env
+
+    assert _engine().url.render_as_string(hide_password=False) == open_webui.env.DATABASE_URL
+
+
 @pytest.mark.asyncio
 async def test_prefs_upsert_get_round_trip():
     from open_webui.models.ocu_chat_state import OcuChatStates
