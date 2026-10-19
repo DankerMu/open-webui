@@ -1,0 +1,37 @@
+# Verification evidence
+
+Source head: `d212e129fb749a6021660f33cb2b4041ca7fbd61`. All 949 committed file contents match the tested candidate by exact path/SHA-256 mapping. Execution preceded the commit; the receipts state that fact rather than inventing an execution-time commit SHA.
+
+## Results
+
+- Qualified Linux orchestrator: **2876 passed, 5 existing live-CLI skips, 3 subtests passed**, exit0; all2881 raw node IDs unchanged. Ubuntu24.04.5/Python3.13.11/Node22.23.3, local LinuxKit/QEMU linux/amd64 uid501.
+- Qualified Darwin root: **4034 passed, 5 existing live-CLI skips, 335 subtests passed**, exit0; all4039 raw IDs unchanged, actual Docker integration14/14 passed. Python3.12.12/Node22.23.2/52 compatible packages. The call-report count4369 includes335 subtests, not4369 primary tests.
+- Initial archive-root run:4032pass/2fail/5skip/335subtests, exit1. Two Git-inventory checks could not run because `git archive` omits `.git`. Their code and assertions were not changed. The complete qualified rerun uses the existing actual-checkout harness convention, with949 source hashes checked before/after and exact Git tracked-path equality.
+- Diagnostic Linux trace preserves the original pause assertion failure: the matching unpaused fd resolves to index.json with the former workspace identity. Its426-byte post-assertion diagnostic read is labeled separately; original workspace1061-byte/EOF reads occurred while paused. A retained-FD control passes the unchanged test; the fixed test passes without a diagnostic pin.
+- All17 observer ownership cases pass, including the callback caller's three parameters. Three fault probes retain the exact original assertion object and prove hook restoration before descriptor close: pre-pause protected read, unpaused read of the retained deleted resource, and notice body failure after a real protected read. No emergency cleanup supplies these observations.
+- All1571 existing assertion expressions in the five affected test modules are unchanged. Eight counter callsites migrate together; no pathname exclusion or production change. The callback caller was discovered during the implementation-wide reference audit and explicitly added to scope.
+- Runtime-image application source is unchanged from the retained718ab48b5efa build. Runtime cleanup returns the Docker identity sets to the current pre-run baseline; no global prune or unrelated resource removal. Broader batch image/builder cleanup is recorded separately.
+- Expanded fixture review and timestamped pre-edit strict validation pass. Post-edit strict/docs/decisions56, whitespace and source commit hooks pass. Decoded public evidence gitleaks scan:20,403,194bytes,exit0,no leaks; control hooks and review receipts are published with merge evidence.
+
+## Complete receipts
+
+Each root execution is partitioned into run, collection, events and JUnit without dropping fields; exact reconstruction was checked. Partitions satisfy the repository's500KB per-file limit. No test IDs were normalized or omitted.
+
+| Receipt | Scope | Gzip SHA-256 | Decoded SHA-256 |
+| --- | --- | --- | --- |
+| [verification](../../../docs/evidence/issue-513/verification.json.gz) | Diagnosis, source binding, fixture, smoke and ownership fault probes | `10b85ae6b008d5b77220fdb735caf42e42d43df90abfb06b0f0e97c48516a4b6` | `cda436e57fbb13648b9f78cd227a1ca8ed80737ccce1cab8a4250fa5c7dc5e63` |
+| [linux-orchestrator](../../../docs/evidence/issue-513/linux-orchestrator.json.gz) | Complete qualified Linux selection and raw outcomes | `183337a88a83f6607b6d89a51fb430d8e07f871423bd253123e79019f11582da` | `8d154cb46e264627d7b00b49345bc0bbe6f80bd642442b723aa2124a403be385` |
+| [darwin-archive-root](../../../docs/evidence/issue-513/darwin-archive-root.json.gz) | Initial archive-root run: two Git-metadata failures, retained | `a63598f0f6d9ff75f00c8aee63906e391c900484d5633d22c3a0b8598a830344` | `9a2352769a660b03d6d43a1f33a5f9b01f84556bd78e207fb3131b3f586aeffa` |
+| [darwin-archive-collection](../../../docs/evidence/issue-513/darwin-archive-collection.json.gz) | Initial archive-root complete node inventory | `37bb84ec1be85f19dd7f889c77abcff99efa6cdc7750e17cfcee8098f2660c13` | `fff774eff86e5b1ceea884864f3b3ac608bc757ade763bc0dea53aebe53a8408` |
+| [darwin-archive-events](../../../docs/evidence/issue-513/darwin-archive-events.json.gz) | Initial archive-root phase/start observations | `cf9229abb3096ef8f916c97fe3336e4b7a3077b95cc4edc9bd78ac1ff06a41fe` | `1a1e5d68e836235b3b282d7fe806fac43d60bc5f2335145eb064735af0cd82df` |
+| [darwin-archive-junit](../../../docs/evidence/issue-513/darwin-archive-junit.json.gz) | Initial archive-root JUnit | `44aca7b9c60996baf8a4e1274560eca5013534364a579d8b440134a92f51ddac` | `876f3bc6afc6a1b3c2796e229709487839bad3de40d7e7ada498d13539bcad2b` |
+| [darwin-checkout-root](../../../docs/evidence/issue-513/darwin-checkout-root.json.gz) | Qualified checkout-root run, cleanup and reconciliation | `3d15569d1d1293dbbc63735f3e6571272ccd864876d37b06da6b2787b796b9ab` | `c70c676c166a1f148e8c32ecced0ae3dfd2bf7f0e81279c8189fe4ef281caea3` |
+| [darwin-checkout-collection](../../../docs/evidence/issue-513/darwin-checkout-collection.json.gz) | Qualified root inventory and before/after collections | `52dc5ad32d0fd42d38c85659852e98c7fe6e04303d489b61cd0948433ac2c5fb` | `8d68f67702eb38373e0b86d577218c534f96084f056102869e1c212fefd2a0ed` |
+| [darwin-checkout-events](../../../docs/evidence/issue-513/darwin-checkout-events.json.gz) | Qualified root phase/start observations | `6847e9c05bef41c7e7ea6503eb8fef015b10e1f827523c5c1be33926fb577643` | `9f31a1990d37b7cb729741f4ec74a84411e46cdfe79409b6caeedba4862d0311` |
+| [darwin-checkout-junit](../../../docs/evidence/issue-513/darwin-checkout-junit.json.gz) | Qualified root JUnit | `b3f26e170a4a4a3a4fa8abf2852e0610c7fe4916bb7fda1f2d5e74e42d10831b` | `1f5277f33afff6e19f49168ddc7ec923fb3d00206930bec54228bf93dc6e0f97` |
+
+## Limits and provenance
+
+These are local qualified test runs, not hosted, native non-Docker Linux, LAN, full UI or release certification. The same five live-CLI skips remain in both environments. The original unpaused match was not a production read of protected workspace content. Temporary probes and retained raw failure receipts are evidence, not new production behavior.
+
+The source-manifest comparison initially compared two differently ordered lists (`Path` component order versus archive lexical order at `.vale/` and `.vale.ini`). Exact path-to-hash maps prove zero missing, extra or content-different files. No runtime rerun or byte normalization was used for that comparison.
