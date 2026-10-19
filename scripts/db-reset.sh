@@ -9,5 +9,8 @@ mkdir -p "$DATA_DIR"
 rm -f "$DATA_DIR/webui.db" "$DATA_DIR/webui.db-wal" "$DATA_DIR/webui.db-shm"
 export DATABASE_URL="sqlite:///$DATA_DIR/webui.db"
 export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
+# Dotenv DATABASE_* could rebuild DATABASE_URL and point Alembic outside .run/data;
+# this blocks dotenv content only, discovery still runs.
+export PYTHON_DOTENV_DISABLED=1
 (cd backend/open_webui && uv run --quiet alembic upgrade head)
 echo "db-reset: $DATA_DIR/webui.db recreated at alembic head"

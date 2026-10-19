@@ -3,6 +3,10 @@
 # reset -> upgrade head -> downgrade -1 -> upgrade head. Exit non-zero on any step.
 set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"; cd "$repo_root"
+# Dotenv DATABASE_* could rebuild DATABASE_URL and point Alembic outside .run/data;
+# this blocks dotenv content only, discovery still runs.
+# Set here too: the child reset's export does not reach this shell's Alembic steps.
+export PYTHON_DOTENV_DISABLED=1
 bash scripts/db-reset.sh
 export DATA_DIR="$repo_root/.run/data"
 export DATABASE_URL="sqlite:///$DATA_DIR/webui.db"
