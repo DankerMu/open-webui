@@ -2,69 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from urllib.parse import urlparse
 
 import aiohttp
 import pytest
 from aiohttp import web
+from open_webui.test.ocu_harness import _StubResponse, _StubSession
 
 TOKEN = 'test-token'
 DISTINCTIVE_TOKEN = 'ocu-internal-token-UNIQUE-7f2a9c1e'
 BASE_URL = 'http://ocu.example/'
 CHAT_ID = 'C'
-
-
-class _StubResponse:
-    def __init__(self, status=200, payload=None, text=None):
-        self.status = status
-        self._payload = {} if payload is None else payload
-        self._text = text
-
-    async def json(self):
-        return self._payload
-
-    async def text(self):
-        if self._text is not None:
-            return self._text
-        return json.dumps(self._payload)
-
-
-class _StubCM:
-    def __init__(self, response):
-        self._response = response
-
-    async def __aenter__(self):
-        return self._response
-
-    async def __aexit__(self, _exc_type, _exc, _tb):
-        return False
-
-
-class _StubSession:
-    def __init__(self, response=None, error=None):
-        self.response = response or _StubResponse()
-        self.error = error
-        self.calls = []
-        self.closed = False
-
-    def request(self, method, url, *, headers=None, **kwargs):
-        parsed = urlparse(url)
-        self.calls.append(
-            {
-                'method': method,
-                'path': parsed.path,
-                'url': url,
-                'headers': dict(headers or {}),
-            }
-        )
-        if self.error is not None:
-            raise self.error
-        return _StubCM(self.response)
-
-    async def close(self):
-        self.closed = True
+MARKER = 'private-upstream-marker'
+NESTED_NEVER_CREATED = '{"detail": {"detail": "private-upstream-marker", "reason": "never_created"}}'
 
 
 def _make_client(monkeypatch, session, url=BASE_URL, token=TOKEN):
@@ -119,16 +69,19 @@ async def test_refresh_sends_get_outputs_with_bearer_token(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_launch_409_never_created_is_typed_result(monkeypatch):
-    session = _StubSession(_StubResponse(status=409, payload={'reason': 'never_created'}))
+async def test_launch_409_never_created_is_typed_result(monkeypatch, caplog):
+    envelope = {'detail': {'detail': f'{MARKER} chat has no sandbox', 'reason': 'never_created'}}
+    session = _StubSession(_StubResponse(status=409, payload=envelope))
     client = _make_client(monkeypatch, session)
+    caplog.set_level(logging.DEBUG, logger='open_webui.utils.ocu_client')
     from open_webui.utils.ocu_client import OcuNeverCreated, OcuUnreachable
 
     result = await client.launch(CHAT_ID)
 
     assert isinstance(result, OcuNeverCreated)
-    assert result.reason == 'never_created'
+    assert vars(result) == {'reason': 'never_created'}
     assert not isinstance(result, OcuUnreachable)
+    assert MARKER not in ' '.join(record.getMessage() for record in caplog.records)
     _assert_bearer_call(session, 'POST', f'/internal/launch/{CHAT_ID}')
 
 
@@ -139,10 +92,20 @@ async def test_launch_409_never_created_is_typed_result(monkeypatch):
         ('describe', 500, '{"revision": 999, "marker": "private-upstream-marker"}'),
         ('refresh', 500, 'private-upstream-marker'),
         ('launch', 500, ''),
-        ('describe', 401, '{"reason": "never_created"}'),
-        ('refresh', 403, '{"reason": "never_created"}'),
+        ('describe', 401, NESTED_NEVER_CREATED),
+        ('refresh', 403, NESTED_NEVER_CREATED),
+        ('launch', 404, NESTED_NEVER_CREATED),
+        ('launch', 500, NESTED_NEVER_CREATED),
+        ('describe', 409, NESTED_NEVER_CREATED),
+        ('refresh', 409, NESTED_NEVER_CREATED),
         ('describe', 409, '{"reason": "never_created"}'),
+        ('launch', 409, '{"reason": "never_created"}'),
         ('launch', 409, 'private-upstream-marker never_created'),
+        ('launch', 409, '{"detail": "private-upstream-marker never_created"}'),
+        ('launch', 409, '{"detail": {"detail": "private-upstream-marker", "reason": "other"}}'),
+        ('launch', 409, '{"detail": {"detail": "private-upstream-marker", "reason": "never_created later"}}'),
+        ('launch', 409, '{"detail": {"detail": "private-upstream-marker", "reason": null}}'),
+        ('launch', 409, '{"detail": ["never_created"]}'),
         ('launch', 409, '{"detail": "never_created"}'),
         ('launch', 409, '["never_created"]'),
         ('launch', 409, '{"reason": "other"}'),

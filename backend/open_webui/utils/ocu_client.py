@@ -97,7 +97,8 @@ class OcuClient:
                             payload = json.loads(await response.text())
                         except (json.JSONDecodeError, UnicodeError, LookupError):
                             payload = None
-                        if isinstance(payload, dict) and payload.get('reason') == _NEVER_CREATED:
+                        detail = payload.get('detail') if isinstance(payload, dict) else None
+                        if isinstance(detail, dict) and detail.get('reason') == _NEVER_CREATED:
                             return OcuNeverCreated()
                     raise OcuUpstreamError(status)
                 text = await response.text()

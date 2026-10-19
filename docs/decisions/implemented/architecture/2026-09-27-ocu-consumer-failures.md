@@ -16,7 +16,7 @@ Discarding OCU HTTP status makes failed launch look successful and failed refres
 
 ## Decision
 
-The internal client raises OcuUpstreamError with numeric upstream status and fixed reason ocu_upstream_error for non-2xx responses. Only launch409 with parsed JSON reason exactly never_created yields OcuNeverCreated. Transport errors retain OcuUnreachable. Failed upstream bodies are not retained or logged.
+The internal client raises OcuUpstreamError with numeric upstream status and fixed reason ocu_upstream_error for non-2xx responses. Only launch409 whose parsed JSON body carries OCU's error envelope with `detail.reason` exactly never_created yields OcuNeverCreated. Transport errors retain OcuUnreachable. Failed upstream bodies are not retained or logged.
 
 Describe HTTP failure returns502 ocu_upstream_error without cursor/prefs mutation or fabricated stopped state. Describe transport failure retains200 unavailable/ocu_unreachable with stored cursor. Launch/refresh return502 with ocu_upstream_error or ocu_unreachable; never_created retains409. WebUI authentication, mutating-header, ownership and flag gates retain precedence.
 

@@ -6,10 +6,12 @@ works when CI runs pytest without installing the project.
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 _CLIENT = None
 
@@ -111,3 +113,54 @@ def _session_headers(user_id: str) -> dict[str, str]:
     from open_webui.utils.auth import create_token
 
     return {'Authorization': f'Bearer {create_token({"id": user_id})}'}
+
+
+class _StubResponse:
+    def __init__(self, status=200, payload=None, text=None):
+        self.status = status
+        self._payload = {} if payload is None else payload
+        self._text = text
+
+    async def json(self):
+        return self._payload
+
+    async def text(self):
+        if self._text is not None:
+            return self._text
+        return json.dumps(self._payload)
+
+
+class _StubCM:
+    def __init__(self, response):
+        self._response = response
+
+    async def __aenter__(self):
+        return self._response
+
+    async def __aexit__(self, _exc_type, _exc, _tb):
+        return False
+
+
+class _StubSession:
+    def __init__(self, response=None, error=None):
+        self.response = response or _StubResponse()
+        self.error = error
+        self.calls = []
+        self.closed = False
+
+    def request(self, method, url, *, headers=None, **kwargs):
+        parsed = urlparse(url)
+        self.calls.append(
+            {
+                'method': method,
+                'path': parsed.path,
+                'url': url,
+                'headers': dict(headers or {}),
+            }
+        )
+        if self.error is not None:
+            raise self.error
+        return _StubCM(self.response)
+
+    async def close(self):
+        self.closed = True

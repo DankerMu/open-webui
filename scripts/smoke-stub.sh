@@ -89,7 +89,8 @@ json_views_running "$body"
 
 code="$(curl -sS -o "$body" -w '%{http_code}' -X POST "$base/internal/launch/never_created")"
 [ "$code" = "409" ] || fail "launch never_created HTTP $code"
-json_field "$body" reason never_created
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get("detail"), dict) and d["detail"].get("reason")=="never_created", d' "$body" \
+  || fail "launch never_created body lacks OCU envelope detail.reason"
 
 code="$(curl -sS -o "$body" -w '%{http_code}' "$base/files/running/page.html")"
 [ "$code" = "200" ] || fail "files page.html HTTP $code"
