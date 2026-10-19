@@ -1,0 +1,31 @@
+{
+	"scan_exit": 1,
+	"input_sha256": "7d4d7f7e3aa37661a813d1902b1a231adf9aefb541637444a843a78019613257",
+	"verdict": "Four generic-api-key matches are reproducible source SHA256 metadata, not credentials. Scanner rules unchanged; no scanner-green claim.",
+	"findings": [
+		{
+			"rule": "generic-api-key",
+			"line": 397,
+			"source_path": "src/lib/utils/auth-bootstrap.ts",
+			"computed_source_digest_matches": true
+		},
+		{
+			"rule": "generic-api-key",
+			"line": 398,
+			"source_path": "src/lib/utils/auth-bootstrap.test.ts",
+			"computed_source_digest_matches": true
+		},
+		{
+			"rule": "generic-api-key",
+			"line": 400,
+			"source_path": "e2e/auth-bootstrap.e2e.ts",
+			"computed_source_digest_matches": true
+		},
+		{
+			"rule": "generic-api-key",
+			"line": 401,
+			"source_path": "e2e/ocu-auth.ts",
+			"computed_source_digest_matches": true
+		}
+	]
+}

@@ -11,7 +11,10 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -146,6 +149,67 @@ def test_drawio_fixture_lists_and_serves_renderer_document(stub_server):
     cells = {cell.get('id'): cell.attrib.get('style', '') for cell in model.findall('root/mxCell')}
     assert 'img/telecommunication/Cellphone_128x128.png' in cells['phone']
     assert 'mxgraph.electrical.logic_gates.and' in cells['and']
+
+
+@pytest.mark.parametrize(
+    'name,expected_leaf',
+    [
+        pytest.param('a"b.txt', 'a"b.txt', id='quote'),
+        pytest.param(r'a\b.txt', r'a\b.txt', id='backslash'),
+        pytest.param(r'a\"b.txt', r'a\"b.txt', id='combined'),
+        pytest.param(r'nested/a\"b.txt', r'a\"b.txt', id='nested'),
+        pytest.param('ordinary.txt', 'ordinary.txt', id='ordinary'),
+    ],
+)
+@pytest.mark.parametrize('query,mode', [('', 'inline'), ('?download=1', 'attachment')], ids=['inline', 'download'])
+def test_uploaded_quoted_filename_survives_content_disposition(stub_server, query, mode, name, expected_leaf):
+    base, _record = stub_server
+    chat = 'quoted-upload'
+    payload = b'quoted upload\r\n\x00\xffpayload\n'
+    envelope = (
+        b'--quoted-upload-boundary\r\nContent-Disposition: form-data; name="file"; '
+        b'filename="ignored.bin"\r\nContent-Type: application/octet-stream\r\n\r\n'
+        + payload
+        + b'\r\n--quoted-upload-boundary--\r\n'
+    )
+    request = urllib.request.Request(
+        f'{base}/api/uploads/{chat}/{quote(name, safe="")}',
+        data=envelope,
+        headers={'Content-Type': 'multipart/form-data; boundary=quoted-upload-boundary'},
+    )
+    with urllib.request.urlopen(request, timeout=3) as response:
+        assert response.status == 200
+        assert json.loads(response.read())['filename'] == name
+    status, _headers, listing = _get(f'{base}/api/outputs/{chat}', {})
+    assert status == 200
+    stored = [entry for entry in json.loads(listing)['files'] if entry['path'] == name]
+    assert len(stored) == 1
+    assert stored[0]['name'] == name
+
+    port = int(base.rsplit(':', 1)[1])
+    target = f'/files/{chat}/{quote(name, safe="")}{query}'
+    with socket.create_connection(('127.0.0.1', port), timeout=3) as conn:
+        conn.sendall(f'GET {target} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'.encode())
+        chunks = []
+        while chunk := conn.recv(65536):
+            chunks.append(chunk)
+    header, separator, wire_body = b''.join(chunks).partition(b'\r\n\r\n')
+    assert separator == b'\r\n\r\n'
+    lines = header.split(b'\r\n')
+    assert int(lines[0].split()[1]) == 200
+    assert all(
+        b':' in line and not line.startswith((b' ', b'\t')) and b'\r' not in line and b'\n' not in line
+        for line in lines[1:]
+    )
+    disposition_fields = [line for line in lines[1:] if line.split(b':', 1)[0].lower() == b'content-disposition']
+    assert len(disposition_fields) == 1
+    assert wire_body == payload
+    message = BytesParser(policy=policy.default).parsebytes(b'\r\n'.join(lines[1:]) + b'\r\n\r\n')
+    assert message.get_all('Content-Length') == [str(len(payload))]
+    assert message.get_content_disposition() == mode
+    assert message.get_filename() == expected_leaf
+    assert message.defects == []
+    assert message['Content-Disposition'].defects == ()
 
 
 @pytest.mark.parametrize('name', ['page.html', 'blob.bin', 'plain.xml', 'backend-html403.html'])

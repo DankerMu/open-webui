@@ -224,3 +224,85 @@ First canonical chat-directory creation SHALL synchronize its exact configured d
 - **WHEN** another worker observes the same chat directory, or an admitted transaction nests acquisition
 - **THEN** both retain canonical lock identity and serialization, and the nested transaction uses the admitted outer lock
 - **AND** missing-chat non-creating acquisition creates no directory or lock file
+
+### Requirement: Lifecycle release retires its owner after unlock failure
+
+An outermost lifecycle-lock release SHALL attempt to close its owned lock handle and clear retained owner state even if explicit unlock fails. It SHALL remove the completed outer depth and release the process-local lock. Unlock and close failures SHALL remain observable, including exception context when both fail; release SHALL NOT silently suppress them or retry an uncertain close. Nested release SHALL retain the outer lock until outermost release.
+
+#### Scenario: Explicit unlock fails while close succeeds
+
+- **WHEN** a deterministic fault raises only from the outer explicit unlock without releasing its real kernel flock
+- **THEN** the original unlock error remains visible, the owned handle is closed and retired, and no completed outer depth remains
+- **AND** the same chat can immediately acquire and release again without sleep or leaked thread ownership
+
+#### Scenario: Cleanup itself reports failure
+
+- **WHEN** the owned handle's close reports an error during outer release
+- **THEN** close failure remains visible, retained owner state is cleared and the process-local lock is released
+- **AND** any preceding unlock failure remains in the propagated exception context; no close retry is attempted
+
+#### Scenario: Nested and independent process ownership
+
+- **WHEN** normal nested calls enter and leave the same chat's lifecycle transaction
+- **THEN** another process remains excluded while the outer transaction is held, including after the inner call exits
+- **AND** after outer retirement, that process can acquire the same canonical lock and existing non-creating acquisition semantics remain intact
+
+### Requirement: Request lifecycle Docker failures use the existing error contract
+
+Docker exceptions from sandbox get/create lookup or reload, describe lookup or reload, and explicit launch's post-lookup network preparation or restarting readiness SHALL become lifecycle failures with status500 and reason `launch_failed`. These failures SHALL preserve diagnostic operation context and exception cause rather than become an absent sandbox or allow later launch actions. Existing MCP and HTTP consumers SHALL receive their established lifecycle error representation.
+
+#### Scenario: Get/create lookup failure reaches the MCP lifecycle path
+
+- **WHEN** the Docker lookup or its reload fails during sandbox get/create
+- **THEN** the service raises a typed lifecycle failure and does not create a replacement sandbox on that evidence
+- **AND** a real MCP tool invocation reports the lifecycle error message through its standard error path rather than its generic raw-engine fallback
+
+#### Scenario: Describe lookup failure uses the established HTTP envelope
+
+- **WHEN** the Docker lookup or reload fails during an authorized internal describe request
+- **THEN** the response is status500 with `launch_failed` at `detail.reason` and the lifecycle message at `detail.detail`
+- **AND** no container mutation is performed
+
+#### Scenario: Existing-container preparation fails
+
+- **WHEN** a Docker exception not already converted by a specific network handler occurs during an admitted existing-container launch preparation
+- **THEN** explicit launch exposes status500 and reason `launch_failed` through the existing lifecycle response
+- **AND** it performs no later start, unpause or retirement action; any preparation mutation that already occurred remains governed by the existing repair behavior, without new rollback or retries
+
+#### Scenario: Restarting readiness reload fails
+
+- **WHEN** a restarting container's readiness polling reload or final readiness reload raises a Docker exception after successful initial lookup and preparation
+- **THEN** launch reports status500 with reason `launch_failed`, not an unstructured exception or a fabricated readiness timeout
+- **AND** subsequent sleeper retirement is not attempted
+
+#### Scenario: Existing classified outcomes remain distinct
+
+- **WHEN** lookup reports a missing container through its established get-NotFound path, a specific network NotFound/APIError or incompatibility is mapped, restart readiness merely times out, or sleeper retirement refuses
+- **THEN** the existing absence behavior, network error categories, timeout504 and retirement409 `migration_required` remain unchanged
+- **AND** initial launch lookup translation, unrelated raw lookup callers, authorization guards and the nested HTTP envelope retain their existing contracts
+
+### Requirement: Standalone lifecycle tests own their data root
+
+The Docker-manager credential-injection test module SHALL use a private test-owned temporary data root throughout imports, reloads and real metadata writes, under direct standalone and pytest execution. Neither an absent data-root setting nor a previously cached root SHALL redirect writes outside that ownership. Teardown SHALL restore prior data-root environment and relevant module state, and remove fixture-owned data on success or test failure. Existing credential, startup, DNS and runtime-selection assertions SHALL remain intact.
+
+#### Scenario: Standalone without a caller data directory
+
+- **WHEN** the standalone module runs without `BASE_DATA_DIR`
+- **THEN** all module tests pass and metadata is written only inside fixture-owned temporary storage, never under `/data`
+
+#### Scenario: Cached or caller-provided root
+
+- **WHEN** a prior import cached `/data` or a caller-owned path before the module's reload helper runs
+- **THEN** container-creation metadata still uses the private fixture root
+- **AND** the prior root and unrelated files remain unchanged
+
+#### Scenario: Ownership ends after success or failure
+
+- **WHEN** the fixture lifetime completes, including an assertion failure inside a test body
+- **THEN** the prior root setting and relevant cached-module state are restored and the private root no longer exists
+- **AND** cleanup does not remove caller-owned data
+
+#### Scenario: Pytest retains existing behavior
+
+- **WHEN** pytest selects the module without a caller-supplied data directory and alongside its adjacent lifecycle consumers
+- **THEN** existing cases and their assertions pass without skips, changed Docker guards or alternate production metadata behavior

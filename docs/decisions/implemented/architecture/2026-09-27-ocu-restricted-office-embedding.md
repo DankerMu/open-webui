@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-27
 supersedes: none
-references: 2026-09-23-ocu-preview-lifecycle, 2026-09-27-ocu-selected-runtime-embedding, issue-84, issue-29, issue-85
+references: 2026-09-23-ocu-preview-lifecycle, 2026-09-27-ocu-selected-runtime-embedding, issue-84, issue-29, issue-85, issue-310
 ---
 
 # Parent-controlled Office embedding with sanitized converted content
@@ -20,7 +20,9 @@ The existing authenticated preview route offers explicit `?embed=files` mode. It
 
 Files-only embedded mode has no runtime views, heartbeat, independent polling or autoselection. The parent drives re-resolution, owns download controls and checks source/origin/generation on replies. The trusted iframe keeps `allow-scripts allow-same-origin allow-forms`; generated HTML/SVG/XML remains outside this mode. Current-generation rendering alone reports loading/ready/error/missing/unsupported. Teardown invalidates pending results and releases owned effects.
 
-User-approved DOMPurify3.4.16 is vendored locally with license and verified registry integrity. DOCX and SheetJS converted HTML share one sanitization boundary in standalone and embedded modes. The allowed content subset preserves text, tables, formatting and inline raster images while excluding executable markup, document styling, event attributes, unsafe schemes and remote image sources. Safe HTTP(S) links use opener/referrer isolation; bookmarks use namespaced IDs. Mammoth document-supplied style maps are disabled. PPTX remains canvas-based.
+User-approved DOMPurify3.4.16 is vendored locally with license and verified registry integrity. DOCX and SheetJS converted HTML share one sanitization boundary in standalone and embedded modes. The allowed content subset preserves text, tables, formatting and inline raster images while excluding executable markup, document styling, event attributes, unsafe schemes and remote image sources. Safe HTTP(S) links use opener/referrer isolation. Mammoth document-supplied style maps are disabled. PPTX remains canvas-based.
+
+Office bookmarks decode fragments once and preserve an existing `user-content-` prefix, adding it otherwise. Only targets in the sanitized fragment are accepted; malformed encoding, absent targets and document-global-only targets lose their `href`.
 
 Standalone Markdown uses the same owned DOMPurify loader with an independent per-call policy. Marked output is sanitized into a detached fragment before trusted insertion; active markup, document styling and controls are excluded. Relative resources, HTTP(S) links/images, mailto, raster data images and namespaced heading fragments remain usable. Highlight, Mermaid and KaTeX process only sanitized content. Sanitizer failure shows a load error without document content, and retired selections cannot attach pending output. Office and Drawio retain their separate policies and sanitizer ownership in either load order.
 

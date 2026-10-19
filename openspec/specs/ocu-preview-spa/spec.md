@@ -228,6 +228,8 @@ Links SHALL permit relative files, fragments, HTTP/HTTPS and mailto. Images SHAL
 
 Standalone Drawio fullscreen UI SHALL close when its owning preview stage retires. Explicit file selection and listing-driven auto-selection, rename, revision change or removal SHALL NOT leave the old fullscreen content covering the replacement preview or empty state. Normal close, Escape, render-failure cleanup and retirement SHALL share idempotent completion, restore the prior scrolling state and leave later fullscreen interactions usable. Deferred fullscreen attachment SHALL NOT resurrect a retired preview's UI after its cleanup settles.
 
+Each fullscreen UI's parent-held theme subscription SHALL be removed when that child closes, including icon, Escape, backdrop and stage-retirement paths. Subsequent theme events SHALL NOT call the closed UI. Open UI and surviving parent preview theme updates SHALL continue; unrelated parent subscriptions SHALL remain intact.
+
 #### Scenario: Explicit file selection retires fullscreen
 
 - **WHEN** diagram A is fullscreen and the mounted file selector selects diagram B
@@ -247,6 +249,18 @@ Standalone Drawio fullscreen UI SHALL close when its owning preview stage retire
 
 - **WHEN** the preview retires while its fullscreen body attachment is pending
 - **THEN** cleanup settles without stale UI reappearing, affecting a newer preview or producing an unexpected browser error
+
+#### Scenario: Theme changes across child close
+
+- **WHEN** theme changes while fullscreen is open, then after icon, Escape or backdrop closes it
+- **THEN** the open popup receives the change but the closed popup receives no later theme callback
+- **AND** the surviving parent preview and its unrelated listeners remain responsive
+
+#### Scenario: Repeated and retired child subscriptions
+
+- **WHEN** fullscreen is repeatedly opened and closed or its owning preview stage retires, followed by parent theme events
+- **THEN** none of the closed child callbacks remain registered or receive those events
+- **AND** later fullscreen UI and existing stage-retirement behavior remain usable
 
 ### Requirement: Terminal upload failure feedback and cleanup
 
@@ -274,3 +288,36 @@ Standalone preview and terminal embedding SHALL share upload failure handling. A
 - **WHEN** a selected batch reaches its first failed upload
 - **THEN** later files in that selection are not attempted and the batch is not reported as completed
 - **AND** earlier successful uploads remain intact without automatic rollback or retry
+
+### Requirement: Office bookmark namespacing preserves local navigation
+
+Office previews SHALL preserve navigation to ordinary and already-namespaced bookmark targets after sanitization. Accepted fragments SHALL resolve only to IDs in the sanitized fragment, never to unrelated page nodes. Malformed encoding and absent targets SHALL lose their link destination. Existing sanitizer, external-link and image restrictions SHALL remain unchanged.
+
+#### Scenario: Real DOCX bookmark navigation
+
+- **WHEN** a genuine DOCX with ordinary and already-prefixed bookmarks is converted and displayed in embedded or standalone preview
+- **THEN** clicking each bookmark link moves its initially offscreen target into the visible preview area
+- **AND** the already-prefixed target receives no second namespace prefix
+
+#### Scenario: Invalid or out-of-fragment targets
+
+- **WHEN** converted Office markup contains an encoded valid fragment, malformed encoding, a missing target or a target found only elsewhere on the page
+- **THEN** the valid fragment navigates to its sanitized local target
+- **AND** malformed, missing and unrelated-page targets have no active link destination
+- **AND** other Office sanitization restrictions remain enforced
+
+### Requirement: Ordinary Drawio geometry remains fully visible
+
+Standalone ordinary Drawio preview SHALL NOT clip otherwise-fitting geometry, rounded corners or strokes through its decorative host box. A user SHALL NOT need fullscreen or manual zoom reduction to reveal that content. Selection and revision replacement SHALL preserve this behavior. Existing page, zoom, Fit and fullscreen controls SHALL remain usable without weakening fullscreen lifecycle ownership; intentional zoom beyond the available viewport is not a full-visibility guarantee.
+
+#### Scenario: Complete small diagram on first display
+
+- **WHEN** the existing plain, compressed or multipage diagram fixture containing a 120×60 rounded rectangle is displayed in ordinary preview
+- **THEN** all four edges, corners and painted stroke are visible without opening fullscreen or manually shrinking the diagram
+- **AND** actual transformed geometry and clipping bounds, corroborated by screenshots, establish visibility rather than SVG existence alone
+
+#### Scenario: Selection, revision and controls
+
+- **WHEN** diagram B is selected or the ordinary preview is replaced by a new revision, then page navigation, Zoom In/Out, Fit and fullscreen open/close are exercised
+- **THEN** expected ordinary and fullscreen geometry remains complete for these fixtures and the controls remain responsive
+- **AND** retired fullscreen UI and child callbacks retain their existing cleanup guarantees

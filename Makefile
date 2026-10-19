@@ -10,9 +10,9 @@ endif
 
 .PHONY: install start startAndBuild stop \
 	setup dev dev-bg dev-stop dev-status logs \
-	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-verify-office \
-	coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-harness-env test-harness-seed test-smoke-cleanup \
+	test-smoke-stub-cleanup test-ocu-stub-public test-diff-size-guard coverage-gate test-coverage-gate anti-drift build clean \
+	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -93,8 +93,32 @@ test-backend:
 test-frontend:
 	npx vitest run --passWithNoTests
 
+test-auth-bootstrap:
+	npx vitest run src/lib/utils/auth-bootstrap.test.ts $(AUTH_BOOTSTRAP_ARGS)
+
+test-diff-size-guard:
+	npx vitest run scripts/ci-diff-size.test.js
+
 test-verify-office:
 	uv run --no-sync pytest -q -p no:cacheprovider scripts/test_verify_office*.py
+
+test-smoke-stub-cleanup:
+	uv run --no-sync pytest -q -p no:cacheprovider scripts/test_smoke_stub_office.py
+
+test-harness-env:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_environment.py
+
+test-ocu-stub-public:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_ocu_stub_public.py
+
+test-harness-seed:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_harness_seed.py
+
+test-smoke-cleanup:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_smoke_proxy_cleanup.py open_webui/test/test_smoke_proxy_office.py open_webui/test/test_smoke_proxy_resources.py
+
+test-coverage-gate:
+	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_coverage_gate.py
 
 coverage-gate:
 	bash scripts/coverage-gate.sh
@@ -115,9 +139,7 @@ export SEED_PASSWORD ?= harness-admin-pw
 
 smoke:
 	bash scripts/dev-bg.sh status >/dev/null || bash scripts/dev-bg.sh start
-	bash scripts/seed.sh
-	hurl --test smoke/*.hurl --variable base_url=http://localhost:8080 \
-		--variable seed_email=$(SEED_EMAIL) --variable seed_password=$(SEED_PASSWORD)
+	bash scripts/smoke.sh
 
 smoke-stub:
 	bash scripts/smoke-stub.sh
@@ -128,6 +150,11 @@ smoke-proxy:
 e2e:
 	bash scripts/seed.sh
 	npx playwright test
+
+# Requires a running harness.
+e2e-auth-bootstrap:
+	bash scripts/seed.sh >/dev/null
+	umask 077; npx playwright test e2e/auth-bootstrap.e2e.ts --workers=1 --output=.run/auth-bootstrap-results
 
 # verify-ui ROUTE="/auth" runs one route's test; no ROUTE = all.
 verify-ui:

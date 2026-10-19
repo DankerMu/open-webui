@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: 2026-09-27-ocu-restricted-office-embedding, issue-97, issue-33, issue-36, issue-99
+references: 2026-09-27-ocu-restricted-office-embedding, issue-97, issue-33, issue-36, issue-99, issue-313, issue-314
 ---
 
 # Build-prepared Drawio materials with renderer-owned failure boundaries
@@ -20,7 +20,11 @@ Prepare the fixed upstream release before native verification and image construc
 
 Asset URLs derive from the preview module's public prefix. The real upstream viewer remains unmodified. Renderer checks follow its custom-shape and stencil resolution semantics for the current page. Missing required resources produce visible failure; retry invalidates only failed resource and dependent logical-library cache entries. Local page and zoom interactions remain available.
 
-Each body-owned fullscreen UI belongs to its preview's child lifetime. Close controls, Escape, render failure and stage retirement share one idempotent close handle. Guard retirement is immediate; upstream destruction waits for the pinned viewer's deferred body attachment to settle. Cleanup removes only the owning UI and preserves the original scrolling and resize-sensor state across overlapping fullscreen lifetimes, so an older pending close cannot disturb a newer modal.
+The ordinary `.drawio-host` owns a local `box-sizing: content-box` contract; GraphViewer owns its automatic content dimensions. Retained padding keeps the empty host's initial width nonzero for the pinned viewer's render guard. The global border-box reset, overflow policy, diagram geometry and viewer configuration remain unchanged.
+
+Each body-owned fullscreen UI belongs to its preview's child lifetime. Close controls, Escape, backdrop clicks, render failure and stage retirement share one idempotent close handle. Guard retirement is immediate; upstream destruction waits for the pinned viewer's deferred body attachment to settle. Cleanup removes only the owning UI and preserves the original scrolling and resize-sensor state across overlapping fullscreen lifetimes, so an older pending close cannot disturb a newer modal.
+
+The local-lightbox wrapper observes only the current receiver's synchronous `addListener` calls during the pinned factory and restores the original method property state in `finally`. Captured `darkModeChanged` callbacks transfer to the child lifetime before further setup. Cleanup removes them by identity immediately, including while destruction awaits attachment, without destroying the parent or clearing unrelated subscriptions. Factory exceptions, no-UI returns and setup failures release captured subscriptions; secondary cleanup failures do not replace the original failure.
 
 Office owns its approved sanitizer instance independently of the viewer's sanitizer and hooks. Script loading across these owners is serialized. Files embedding retains its Office-only contract: Drawio remains unsupported without diagram or viewer fetch. Generated-document iframe and response policies are unchanged.
 
@@ -34,6 +38,7 @@ The WebUI native verification stage must prepare the pinned materials inside the
 - **Add Node to the Python image for preparation** — introduces an unnecessary runtime and architecture-specific distribution dependency.
 - **Accept any SVG as successful rendering** — admits generic fallback geometry after required resources fail.
 - **Relocate fullscreen into a stage-owned modal root** — changes upstream placement and introduces clipping and stacking-context risks; lifetime-owned closure preserves the pinned viewer.
+- **Remove ordinary host padding** — restores post-render visibility but leaves the empty host zero-width during cold initialization, preventing the pinned viewer from rendering.
 
 ## Consequences
 
@@ -41,4 +46,12 @@ Online preparation requires the pinned archive or a verified cache. A process ki
 
 Component icon/stencil notices include additional redistribution restrictions and remain authoritative. Arbitrary document-authored remote fonts/images are outside the offline material guarantee. Native browser and publication evidence establish source acceptance; deployed image and offline restart acceptance remain separate.
 
+Content-box sizing enlarges the diagnostic fixture's outer decorative box from 145×120 to 185×160; `max-width` applies to the content box rather than the padded outer box. Viewport containment therefore remains an explicit geometry check, not a consequence assumed from the sizing declaration.
+
+The existing browser geometry helper checks visible painted stroke bounds in screen space against the viewport and actual clipping ancestors, with a 0.25px subpixel tolerance and screenshots. Plain, compressed and Page-one fixtures, mounted selection of diagram B and revision replacement retain their native 120×60 rounded rectangle. Zoom In/Out and Fit establish screen-size transitions; active fullscreen geometry and ordinary return use scaled measurements that allow the pinned viewer to encode scale in SVG attributes. This evidence covers the exercised small fixtures and control levels, not arbitrary diagrams, intentional zoom beyond available space or other browser engines. Geometry evidence is separate from the stage and theme lifetime cases below.
+
 The mounted-SPA browser harness covers explicit selection, listing-driven new-file selection, same-identity rename, revision refresh, removal/fallback and empty listings. Close-button, Escape, repeated retirement and controlled deferred-attachment cases check owned-node removal, scrolling restoration and newer-viewer usability. DOM activation of the mounted selector exercises its real event path without claiming pointer access through the fullscreen backdrop; stacking and embedded-mode policies remain unchanged.
+
+Theme cases exercise real media changes, icon/Escape/backdrop closes, repeated same-parent openings and stage retirement. They account for every retired UI's calls and exact parent-held callback identities while preserving live theme delivery and unrelated listeners. Separately labelled synthetic factory exception/no-UI probes cover subscription release and inherited/own method-state restoration through the actual wrapper.
+
+The theme fixture selects the existing `auto` mode on the tested parent instance to make media preferences visibly change its containers; production defaults are unchanged. Callback and DOM observations do not establish measured heap reclamation. Diagram geometry and cropping remain outside this theme-lifetime boundary.
