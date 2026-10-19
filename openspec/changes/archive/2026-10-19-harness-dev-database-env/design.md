@@ -47,7 +47,7 @@ Cases, all with harness=True:
 
 Control, harness=False:
 
-- **(d)** The same inherited `DATABASE_URL` as (a) without sourcing the policy resolves to that URL. This proves the injection reaches `env.py`, so the green in (a)–(c) cannot come from a broken seam. It asserts only the resolved URL equals the injected value.
+- **(d)** The same inherited `DATABASE_URL` as (a) without sourcing the policy, with dotenv disabled in the parent (`parent_flag='1'`), resolves to that URL. Without the flag the probe's own dotenv `DATABASE_*` set would rebuild the URL. This proves the injection reaches `env.py`, so the green in (a)–(c) cannot come from a broken seam. It asserts only the resolved URL equals the injected value.
 
 Expected in (a)–(c):
 

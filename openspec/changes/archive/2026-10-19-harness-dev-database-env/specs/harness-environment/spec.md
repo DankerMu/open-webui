@@ -17,5 +17,5 @@ Every backend started after sourcing the shared harness environment SHALL resolv
 
 #### Scenario: Same database URL without the harness
 
-- **WHEN** the application environment module is imported with an inherited database URL and without sourcing the harness environment
+- **WHEN** the application environment module is imported with an inherited database URL and without sourcing the harness environment, with no database variables or dotenv content
 - **THEN** the resolved database URL is the inherited one
