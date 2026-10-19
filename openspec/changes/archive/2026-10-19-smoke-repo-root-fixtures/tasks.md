@@ -4,7 +4,7 @@
 
 ## 2. Implement
 
-- [x] 2.1 Add failing cases to `test_harness_seed.py` first per design.md Seams: receiver records hurl `cwd` and raw `args`; `launch()` takes `cwd`; foreign dir at `tmp_path/'foreign'` with `smoke/foreign.hurl`; absolute-path invocation from it and bare-name invocation from `<workspace>/scripts`; resolved fixture operands equal exactly the workspace `smoke/*.hurl` set, none under foreign; private credential inputs; clean scratch.
+- [x] 2.1 Add failing cases to `test_harness_seed.py` first per design.md Seams: receiver records `cwd` on every row and Hurl's raw `args`; `launch()` takes `cwd`; foreign dir at `tmp_path/'foreign'` with `smoke/foreign.hurl`; absolute-path invocation from it, bare-name invocation from `<workspace>/scripts`, and Make-form invocation under `CDPATH=.` and `CDPATH=<foreign>` (fix pass 1); resolved fixture operands equal exactly the workspace `smoke/*.hurl` set, none under foreign; every curl/hurl row's cwd is the workspace; private credential inputs; clean scratch.
 - [x] 2.2 Anchor `scripts/smoke.sh` to its repository root (derive from the script path, `cd`, source `scripts/seed.sh`) before `seed_begin`, with a comment naming the failure mode.
 
 ## 3. Verify
