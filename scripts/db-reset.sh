@@ -12,5 +12,7 @@ export WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-dev-harness-secret}"
 # Dotenv DATABASE_* could rebuild DATABASE_URL and point Alembic outside .run/data;
 # this blocks dotenv content only, discovery still runs.
 export PYTHON_DOTENV_DISABLED=1
-(cd backend/open_webui && uv run --quiet alembic upgrade head)
+# A complete DATABASE_* set from the shell or a uv env-file would also rebuild DATABASE_URL.
+unset DATABASE_TYPE DATABASE_USER DATABASE_PASSWORD DATABASE_HOST DATABASE_PORT DATABASE_NAME
+(cd backend/open_webui && uv run --quiet --no-env-file alembic upgrade head)
 echo "db-reset: $DATA_DIR/webui.db recreated at alembic head"

@@ -88,18 +88,51 @@ import sys
 
 ALEMBIC_STEPS = (['upgrade', 'head'], ['downgrade', '-1'])
 argv = sys.argv[1:]
-if argv[:3] != ['run', '--quiet', 'alembic'] or argv[3:] not in ALEMBIC_STEPS:
+no_env_file = argv[2:3] == ['--no-env-file']
+command = argv[:2] + argv[3:] if no_env_file else argv
+if command[:3] != ['run', '--quiet', 'alembic'] or command[3:] not in ALEMBIC_STEPS:
     sys.exit(f'uv stand-in: refusing unexpected argv {argv!r}')
+child_env = dict(os.environ)
+# Models real uv: env-file entries never override the parent (pinned by the real-uv contract test).
+if not no_env_file and 'UV_ENV_FILE' in os.environ:
+    with open(os.environ['UV_ENV_FILE']) as env_file:
+        for line in env_file.read().splitlines():
+            key, separator, value = line.partition('=')
+            if separator:
+                child_env.setdefault(key, value)
+child_env.update(PROBE_CONFIG)
 record = {
     'argv': argv,
     'cwd': os.getcwd(),
     'flag': os.environ.get('PYTHON_DOTENV_DISABLED'),
     'data_dir': os.environ.get('DATA_DIR'),
     'database_url': os.environ.get('DATABASE_URL'),
+    'database_vars': [name for name in DATABASE_VARS if name in child_env],
 }
 print('ALEMBIC_RECORD=' + json.dumps(record, sort_keys=True), flush=True)
-os.execve(PYTHON, [PYTHON, '-c', PROBE], {**os.environ, **PROBE_CONFIG})
+os.execve(PYTHON, [PYTHON, '-c', PROBE], child_env)
 """
+
+_DATABASE_VARS = (
+    'DATABASE_TYPE',
+    'DATABASE_USER',
+    'DATABASE_PASSWORD',
+    'DATABASE_HOST',
+    'DATABASE_PORT',
+    'DATABASE_NAME',
+)
+_PRECEDENCE_KEY = 'HARNESS_UV_ENV_FILE_PRECEDENCE'
+
+
+def _fake_database_vars(host: str) -> dict[str, str]:
+    return dict(zip(_DATABASE_VARS, ('postgresql', 'fake-user', 'fake-password', host, '5432', 'fake_db')))
+
+
+def _write_uv_env_file(tmp_path: Path) -> Path:
+    entries = {**_fake_database_vars('uvenv-host.invalid'), _PRECEDENCE_KEY: 'env-file'}
+    env_file = tmp_path.resolve() / 'uv.env'
+    env_file.write_text(''.join(f'{key}={value}\n' for key, value in entries.items()))
+    return env_file
 
 
 def _allowlisted_env(parent_flag: str | None) -> dict[str, str]:
@@ -213,7 +246,10 @@ def _isolated_checkout(tmp_path: Path) -> tuple[Path, Path]:
     for name in ('db-reset.sh', 'db-verify.sh'):
         (checkout / 'scripts' / name).write_text((ROOT / 'scripts' / name).read_text())
     stand_in = tmp_path.resolve() / 'uv_stand_in.py'
-    constants = f'PYTHON = {sys.executable!r}\nPROBE = {_DOTENV_PROBE!r}\nPROBE_CONFIG = {_PROBE_CONFIG!r}\n'
+    constants = (
+        f'PYTHON = {sys.executable!r}\nPROBE = {_DOTENV_PROBE!r}\nPROBE_CONFIG = {_PROBE_CONFIG!r}\n'
+        f'DATABASE_VARS = {_DATABASE_VARS!r}\n'
+    )
     stand_in.write_text(constants + _UV_STAND_IN)
     bin_dir = tmp_path.resolve() / 'bin'
     bin_dir.mkdir()
@@ -223,7 +259,11 @@ def _isolated_checkout(tmp_path: Path) -> tuple[Path, Path]:
     return checkout, bin_dir
 
 
-@pytest.mark.parametrize('parent_flag', [None, 'false'], ids=['unset-parent-flag', 'false-parent-flag'])
+@pytest.mark.parametrize(
+    ('parent_flag', 'source'),
+    [(None, 'dotenv'), ('false', 'dotenv'), (None, 'shell'), (None, 'uv-env-file')],
+    ids=['unset-parent-flag', 'false-parent-flag', 'shell-database-vars', 'uv-env-file-database-vars'],
+)
 @pytest.mark.parametrize(
     ('script', 'steps'),
     [
@@ -232,7 +272,7 @@ def _isolated_checkout(tmp_path: Path) -> tuple[Path, Path]:
     ],
     ids=['db-reset', 'db-verify'],
 )
-def test_database_script_alembic_steps_reject_dotenv_database_target(tmp_path, script, steps, parent_flag):
+def test_database_script_alembic_steps_reject_dotenv_database_target(tmp_path, script, steps, parent_flag, source):
     checkout, bin_dir = _isolated_checkout(tmp_path)
     data_dir = checkout / '.run' / 'data'
     data_dir.mkdir(parents=True)
@@ -242,6 +282,10 @@ def test_database_script_alembic_steps_reject_dotenv_database_target(tmp_path, s
     sentinel.write_text('outside the resettable directory')
     env = _allowlisted_env(parent_flag)
     env['PATH'] = f'{bin_dir}{os.pathsep}{env["PATH"]}'
+    if source == 'shell':
+        env.update(_fake_database_vars('shell-host.invalid'))
+    elif source == 'uv-env-file':
+        env['UV_ENV_FILE'] = str(_write_uv_env_file(tmp_path))
 
     completed = subprocess.run(
         ['bash', f'scripts/{script}'], cwd=checkout, env=env, capture_output=True, text=True, timeout=600
@@ -263,13 +307,37 @@ def test_database_script_alembic_steps_reject_dotenv_database_target(tmp_path, s
     ] * len(steps)
     assert records == [
         {
-            'argv': ['run', '--quiet', 'alembic', *step],
+            'argv': ['run', '--quiet', '--no-env-file', 'alembic', *step],
             'cwd': str(checkout / 'backend' / 'open_webui'),
             'flag': '1',
             'data_dir': str(data_dir),
             'database_url': harness_url,
+            'database_vars': [],
         }
         for step in steps
     ]
     assert not any((data_dir / name).exists() for name in ('webui.db', 'webui.db-wal', 'webui.db-shm'))
     assert sentinel.read_text() == 'outside the resettable directory'
+
+
+@pytest.mark.parametrize(
+    ('flag', 'database_host'),
+    [(['--no-env-file'], None), ([], 'uvenv-host.invalid')],
+    ids=['no-env-file', 'env-file-control'],
+)
+def test_real_uv_no_env_file_hides_uv_env_file_entries(tmp_path, flag, database_host):
+    env = _allowlisted_env(None)
+    env.update(
+        UV_CACHE_DIR=str(tmp_path.resolve() / 'uv-cache'),
+        UV_ENV_FILE=str(_write_uv_env_file(tmp_path)),
+        **{_PRECEDENCE_KEY: 'parent'},
+    )
+    probe = f'import json, os; print(json.dumps([os.environ.get(k) for k in ("DATABASE_HOST", "{_PRECEDENCE_KEY}")]))'
+    command = ['uv', 'run', '--no-project', '--offline', '--no-config', '--python', sys.executable, *flag]
+
+    completed = subprocess.run(
+        [*command, 'python', '-c', probe], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=180
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert json.loads(completed.stdout) == [database_host, 'parent']
