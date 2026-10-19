@@ -174,7 +174,7 @@ def _prefixed_json(stdout: str, prefix: str) -> list[dict]:
     return [json.loads(line.removeprefix(prefix)) for line in stdout.splitlines() if line.startswith(prefix)]
 
 
-def _import_environment(*, harness: bool, parent_flag: str | None = None):
+def _import_environment(*, harness: bool, parent_flag: str | None = None, env_extra=None, uv_tmp_path=None):
     workspace = f'workspace-ui-{uuid4().hex}'
     data_dir = ROOT / '.run' / 'data' / workspace
     env = _allowlisted_env(parent_flag)
@@ -183,13 +183,21 @@ def _import_environment(*, harness: bool, parent_flag: str | None = None):
         DATA_DIR=str(data_dir),
         FRONTEND_BUILD_DIR=str(ROOT / '.run' / workspace / 'frontend-build'),
         WEBUI_SECRET_KEY=uuid4().hex,
+        **(env_extra or {}),
     )
     command = [sys.executable, '-c', _DOTENV_PROBE]
     if harness:
+        runner = 'exec "$1" -c "$2"'
+        if uv_tmp_path is not None:
+            env.update(
+                UV_CACHE_DIR=str(uv_tmp_path.resolve() / 'uv-cache'),
+                UV_ENV_FILE=str(_write_uv_env_file(uv_tmp_path)),
+            )
+            runner = f'exec {shlex.join(_REAL_UV_RUN[:-1])} "$1" python -c "$2"'
         command = [
             'bash',
             '-c',
-            'source scripts/dev-env.sh && exec "$1" -c "$2"',
+            f'source scripts/dev-env.sh && {runner}',
             'harness-environment-probe',
             sys.executable,
             _DOTENV_PROBE,
@@ -254,6 +262,36 @@ def test_non_harness_import_loads_dotenv_content_and_preserves_explicit_config()
         'explicit_config': 'false',
         'database_url': _DOTENV_URL,
     }
+
+
+_INHERITED_URL = 'postgresql://fake-user:fake-password@url-host.invalid:5432/fake_db'
+_FAKE_DATABASE_MARKERS = ('url-host.invalid', 'shell-host.invalid', 'uvenv-host.invalid', 'fake-user', 'fake-password')
+
+
+def _assert_harness_database(observed, data_dir, completed):
+    # The resolved target is the governing invariant, so it fails first.
+    assert observed['database_url'] == f'sqlite:///{data_dir}/webui.db'
+    output = completed.stdout + completed.stderr
+    assert not [marker for marker in _FAKE_DATABASE_MARKERS if marker in output]
+
+
+@pytest.mark.parametrize(
+    'env_extra',
+    [{'DATABASE_URL': _INHERITED_URL}, _fake_database_vars('shell-host.invalid')],
+    ids=['inherited-database-url', 'shell-database-vars'],
+)
+def test_dev_env_pins_database_against_inherited_shell(env_extra):
+    _assert_harness_database(*_import_environment(harness=True, env_extra=env_extra))
+
+
+def test_dev_env_pins_database_against_real_uv_env_file(tmp_path):
+    _assert_harness_database(*_import_environment(harness=True, uv_tmp_path=tmp_path))
+
+
+def test_non_harness_import_keeps_inherited_database_url():
+    # Dotenv is disabled so its own DATABASE_* set cannot rebuild the URL over the inherited one.
+    observed, _, _ = _import_environment(harness=False, parent_flag='1', env_extra={'DATABASE_URL': _INHERITED_URL})
+    assert observed['database_url'] == _INHERITED_URL
 
 
 def _isolated_checkout(tmp_path: Path) -> tuple[Path, Path]:

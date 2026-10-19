@@ -26,6 +26,10 @@ if [[ -L "$repo_root/.run" || -L "$repo_root/.run/data" || -L "$DATA_DIR" || -L 
   return 2 2>/dev/null || exit 2
 fi
 export DATA_DIR FRONTEND_BUILD_DIR
+# An inherited DATABASE_URL, DATABASE_* set or UV_ENV_FILE would move import-time migrations
+# and harness writes off $DATA_DIR (#549); pin the validated directory's database silently.
+unset DATABASE_TYPE DATABASE_USER DATABASE_PASSWORD DATABASE_HOST DATABASE_PORT DATABASE_NAME UV_ENV_FILE
+export DATABASE_URL="sqlite:///$DATA_DIR/webui.db"
 # Provenance for runtime receipts (#452): label the inherited flag before the override below
 # hides it. Only allowlisted labels are printed; any other value, empty included, is "other".
 if [[ -z "${PYTHON_DOTENV_DISABLED+x}" ]]; then
