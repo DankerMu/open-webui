@@ -162,6 +162,7 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 4. 2026-09-20 — Touch upstream files with the minimal diff and put new code in new modules; the fork must stay rebase-able onto upstream Open WebUI.
 5. 2026-09-20 — Model-generated HTML/SVG always runs in an opaque origin: sandboxed iframe without `allow-same-origin` when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level; never reuse `$settings.iframeSandbox*` (user-changeable) for the trusted OCU SPA or generated content.
 6. 2026-09-21 — The backend wipes `backend/open_webui/static/` at import and refills it from `FRONTEND_BUILD_DIR/static` (`config.py`); without a frontend build the avatar/favicon routes 500 and the tracked files stay deleted. `scripts/dev-bg.sh` stages `static/static` into `.run/frontend-build` for this reason — never rely on `build/` (or the hatch build hook) being present.
+7. 2026-10-18 — 隔离 UI 验证使用本轮独占的 Vite optimizer cache；先停本轮服务，再清理其缓存，不动默认前端缓存。机制与证明边界见[缓存归属决策](docs/decisions/implemented/testing/2026-10-12-isolated-browser-optimizer-cache.md)。
 
 ## Conventions
 
