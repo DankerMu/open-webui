@@ -2,7 +2,7 @@
 
 ### Requirement: Harness entry scripts anchor to their own checkout
 
-The OCU stub smoke, Office verification and proxy development entry scripts SHALL each resolve the checkout that contains them as a single-line absolute path, whatever the caller's working directory, exported `CDPATH`, or the availability of external `dirname` and `basename`. They SHALL NOT silently anchor at the filesystem root or at a directory outside that checkout. The proxy development script SHALL resolve its proxy configuration to an absolute path under the same conditions, including when the OCU checkout location is given as a relative path.
+The OCU stub smoke, Office verification and proxy development entry scripts SHALL each resolve the checkout that contains them as a single-line absolute path, whatever the caller's working directory, exported `CDPATH`, or the availability of external `dirname` and `basename`. They SHALL NOT silently anchor at the filesystem root or at a directory outside that checkout. When it launches nginx, the proxy development script SHALL hand nginx an absolute configuration path resolved under the same conditions, including when the OCU checkout location is given as a relative path.
 
 #### Scenario: Caller exports CDPATH
 
