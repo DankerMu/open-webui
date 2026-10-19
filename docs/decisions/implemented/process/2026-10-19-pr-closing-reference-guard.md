@@ -5,7 +5,7 @@ kind: process
 status: implemented
 date: 2026-10-19
 supersedes: none
-references: '#389; openspec/changes/pr-closing-reference-guard'
+references: '#389; openspec/changes/archive/2026-10-19-pr-closing-reference-guard; openspec/specs/pr-closing-reference-guard/spec.md'
 ---
 
 # Explicit intended issue closures gate the maintained merge command
