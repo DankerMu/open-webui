@@ -33,7 +33,7 @@ from pathlib import Path
 command = Path(sys.argv[0]).name
 args = sys.argv[1:]
 password = os.environ['OBS_PASSWORD']
-record = {'command': command, 'exposed': any(password in arg for arg in args)}
+record = {'command': command, 'cwd': os.getcwd(), 'exposed': any(password in arg for arg in args)}
 
 
 def save():
@@ -116,7 +116,7 @@ try:
         sys.stdout.write(str(status))
     elif command == 'hurl':
         # Raw argv is safe to keep: 'exposed' proves the password is absent from it.
-        record.update(cwd=os.getcwd(), args=args)
+        record['args'] = args
         values = {}
         for index, arg in enumerate(args):
             if arg in ('--variable', '--secret'):
@@ -478,7 +478,10 @@ def fixture_operands(args):
     return operands
 
 
-@pytest.mark.parametrize('invocation', ['absolute-from-foreign', 'bare-name-from-scripts'])
+@pytest.mark.parametrize(
+    'invocation',
+    ['absolute-from-foreign', 'bare-name-from-scripts', 'make-form-cdpath-dot', 'make-form-cdpath-foreign'],
+)
 def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
     workspace, _, _, record, base_env, state = harness
     email, password = f'root-{uuid4().hex}@harness.local', uuid4().hex
@@ -488,10 +491,22 @@ def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
     foreign = tmp_path / 'foreign'
     (foreign / 'smoke').mkdir(parents=True)
     (foreign / 'smoke' / 'foreign.hurl').write_text('GET http://127.0.0.1:9/foreign\nHTTP 200\n', encoding='utf-8')
-    if invocation == 'absolute-from-foreign':
-        argv, cwd = ['bash', str(workspace / 'scripts' / 'smoke.sh')], foreign
-    else:
-        argv, cwd = ['bash', 'smoke.sh'], workspace / 'scripts'
+    # A complete foreign checkout: if CDPATH bound `scripts/..` here, smoke would
+    # run to completion against foreign fixtures instead of failing early.
+    (foreign / 'scripts').mkdir()
+    shutil.copy2(workspace / 'scripts' / 'seed.sh', foreign / 'scripts' / 'seed.sh')
+    make_form = ['bash', 'scripts/smoke.sh'], workspace
+    argv, cwd = {
+        'absolute-from-foreign': (['bash', str(workspace / 'scripts' / 'smoke.sh')], foreign),
+        'bare-name-from-scripts': (['bash', 'smoke.sh'], workspace / 'scripts'),
+        'make-form-cdpath-dot': make_form,
+        'make-form-cdpath-foreign': make_form,
+    }[invocation]
+    # An exported CDPATH must not redirect or echo into the script's root lookup.
+    if invocation == 'make-form-cdpath-dot':
+        env['CDPATH'] = '.'
+    elif invocation == 'make-form-cdpath-foreign':
+        env['CDPATH'] = str(foreign)
     status, _, disclosed = launch(harness, PrivateInvocation(argv, env), cwd=cwd)
     require(not disclosed, 'Smoke diagnostics disclosed the seed password')
     rows = observations(record)
@@ -499,7 +514,7 @@ def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
         not any(row.get('receiver_failure') for row in rows), 'Transport receiver could not interpret executed argv'
     )
     require(not any(row['exposed'] for row in rows), 'Executed child argv disclosed the seed password')
-    require(status == 0, 'Smoke invoked outside the repository root failed')
+    require(status == 0, 'Smoke failed for this invocation form')
     hurl = [row for row in rows if row['command'] == 'hurl']
     require(len(hurl) == 1, 'Smoke did not run Hurl exactly once')
     selected = {Path(hurl[0]['cwd'], operand).resolve() for operand in fixture_operands(hurl[0]['args'])}
@@ -510,5 +525,10 @@ def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
         "Smoke selected the caller directory's fixtures",
     )
     require(selected == expected, "Smoke did not select exactly its repository's top-level fixtures")
-    require_completed_private_transports([row for row in rows if row['command'] in ('curl', 'hurl')])
+    transports = [row for row in rows if row['command'] in ('curl', 'hurl')]
+    require(
+        all(Path(row['cwd']).resolve() == workspace.resolve() for row in transports),
+        'Smoke resolved credentials or ran Hurl outside its repository root',
+    )
+    require_completed_private_transports(transports)
     require_clean_scratch(harness)
