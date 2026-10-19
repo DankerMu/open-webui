@@ -14,6 +14,7 @@
 
 	import UpdatePassword from './Account/UpdatePassword.svelte';
 	import { generateInitialsImage } from '$lib/utils';
+	import { refreshSessionUser } from '$lib/utils/session-refresh';
 	import { copyToClipboard } from '$lib/utils';
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import DropdownMenu from '$lib/components/common/DropdownMenu.svelte';
@@ -166,12 +167,12 @@
 		if (updatedUser && variablesRes) {
 			setVariableRows(variablesRes.variables ?? {});
 			// Get Session User Info
-			const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
+			try {
+				await refreshSessionUser(() => getSessionUser(localStorage.token), user.set);
+			} catch (error) {
 				toast.error(`${error}`);
-				return null;
-			});
-
-			await user.set(sessionUser);
+				user.set(null as never);
+			}
 			return true;
 		}
 		return false;
