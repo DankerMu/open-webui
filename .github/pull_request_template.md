@@ -2,6 +2,19 @@
 
 <!-- Intent + approach in 2–4 sentences. Link the decision record if the change is non-trivial (docs/decisions/). -->
 
+## Intended issue closures
+
+<!-- intended-closing-issues: [] -->
+
+<!-- Keep exactly one marker. Its JSON array lists full owner/repo#number identities;
+     [] explicitly means no issue closures. Include every issue GitHub should close. -->
+
+Before merging, run `make pr-merge-check PR_REPO=owner/repo PR_NUMBER=123 PR_HEAD=<full-reviewed-sha>`.
+Merge with `make pr-merge` using the same explicit inputs; it repeats the check.
+For OCU PRs, invoke these targets with `make -C <central-checkout>` rather than copying the guard.
+See the [merge process decision](https://github.com/DankerMu/open-webui/blob/main/docs/decisions/implemented/process/2026-10-19-pr-closing-reference-guard.md)
+for metadata rules and the local, non-atomic enforcement boundary.
+
 ## Type of change
 
 - [ ] feat
