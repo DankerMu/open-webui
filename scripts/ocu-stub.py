@@ -165,7 +165,7 @@ def _launch(chat_id: str) -> tuple[int, dict]:
     scenario = _scenario(chat_id)
     with _LOCK:
         if scenario is None and _states.get(chat_id, 'never_created') == 'never_created':
-            return 409, {'reason': 'never_created'}
+            return 409, {'detail': {'detail': 'chat has never had a sandbox', 'reason': 'never_created'}}
         _states[chat_id] = 'running'
     return 200, {'state': 'running'}
 

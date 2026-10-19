@@ -15,6 +15,8 @@ from open_webui.test.ocu_harness import (
     _insert_user,
     _owner_and_chat,
     _session_headers,
+    _StubResponse,
+    _StubSession,
     _unique,
     get_client,
     session_test_client,
@@ -323,6 +325,38 @@ def test_launch_never_created_is_409(monkeypatch):
         assert response.status_code == 409
         assert response.json() == {'reason': 'never_created'}
         assert stub.calls == [('launch', chat.id)]
+    finally:
+        asyncio.run(_cleanup_owner(owner.id, chat.id))
+
+
+@pytest.mark.parametrize(
+    'reason,expected_status,expected_body',
+    [
+        ('never_created', 409, {'reason': 'never_created'}),
+        ('other', 502, {'reason': 'ocu_upstream_error'}),
+    ],
+)
+def test_launch_maps_ocu_409_envelope_through_real_client(monkeypatch, caplog, reason, expected_status, expected_body):
+    from open_webui.utils.ocu_client import OcuClient
+
+    marker = 'private-upstream-marker'
+    token = 'route-ocu-token'
+    monkeypatch.setenv('OCU_INTERNAL_URL', 'http://ocu.example')
+    monkeypatch.setenv('OCU_INTERNAL_TOKEN', token)
+    envelope = {'detail': {'detail': marker, 'reason': reason}}
+    session = _StubSession(_StubResponse(status=409, payload=envelope))
+    _install_client(monkeypatch, OcuClient(session=session))
+    owner, chat = asyncio.run(_ws_owner_and_chat())
+    try:
+        caplog.clear()
+        response = _launch(chat.id, {**_session_headers(owner.id), **XR})
+        assert response.status_code == expected_status
+        assert response.json() == expected_body
+        assert marker not in response.text
+        assert marker not in ' '.join(record.getMessage() for record in caplog.records)
+        assert [(call['method'], call['path'], call['headers']) for call in session.calls] == [
+            ('POST', f'/internal/launch/{chat.id}', {'Authorization': f'Bearer {token}'})
+        ]
     finally:
         asyncio.run(_cleanup_owner(owner.id, chat.id))
 
