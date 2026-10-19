@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: issue-34, issue-36, 2026-09-20-ocu-chat-state-table, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-30-ocu-offline-image-delivery, 2026-10-09-ocu-office-backup-restore
+references: issue-34, issue-36, issue-337, 2026-09-20-ocu-chat-state-table, 2026-09-25-ocu-proxy-only-compose-topology, 2026-09-30-ocu-offline-image-delivery, 2026-10-09-ocu-office-backup-restore
 ---
 
 # Full cold backup and isolated release recovery
@@ -29,7 +29,7 @@ The entire recovery set is secret-bearing. Exclude the separately provisioned pr
 
 Activate the retained release through its own source and the canonical image inventory. Check database migration/tool compatibility, retain additive schema, prohibit build/pull and preserve proxy-only authorization and network policy. The operator verifies effective provider settings, live readiness and permissions before switching traffic. Restored sandboxes require explicit authorized launch.
 
-Prove running-data provenance using the broker's required mounts and environment, stack volume identities, and actual image configuration digests before stopping writers. Preflight the retained source before reserving activation identity. Resumable selection requires a private target-bound receipt and matching imported ownership marker covering the complete inventory; matching paths, tags or commits alone do not authorize adoption.
+Prove running-data provenance using the broker's required mounts and environment, stack volume identities, and actual stack-container image identities bound to the inventory's configuration through verified identity domains before stopping writers. Workspace-sandbox attribution retains its chat, name, label and mount predicates. Preflight the retained source before reserving activation identity. Resumable selection requires a private target-bound receipt and matching imported ownership marker covering the complete inventory; matching paths, tags or commits alone do not authorize adoption.
 
 ## Alternatives considered
 
