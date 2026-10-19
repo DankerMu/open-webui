@@ -115,6 +115,8 @@ try:
         save()
         sys.stdout.write(str(status))
     elif command == 'hurl':
+        # Raw argv is safe to keep: 'exposed' proves the password is absent from it.
+        record.update(cwd=os.getcwd(), args=args)
         values = {}
         for index, arg in enumerate(args):
             if arg in ('--variable', '--secret'):
@@ -249,13 +251,13 @@ def harness(tmp_path):
         thread.join(timeout=5)
 
 
-def launch(harness, invocation, interrupt=None):
+def launch(harness, invocation, interrupt=None, cwd=None):
     workspace = harness[0]
     process = None
     try:
         process = subprocess.Popen(
             invocation.argv,
-            cwd=workspace,
+            cwd=workspace if cwd is None else cwd,
             env=invocation.environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -459,3 +461,54 @@ def test_failed_transport_retires_owned_child_before_private_files(harness, tran
     finally:
         unrelated.terminate()
         unrelated.wait(timeout=5)
+
+
+_HURL_VALUE_OPTIONS = ('--variable', '--secret', '--variables-file', '--secrets-file')
+
+
+def fixture_operands(args):
+    operands, takes_value = [], False
+    for arg in args:
+        if takes_value:
+            takes_value = False
+        elif arg in _HURL_VALUE_OPTIONS:
+            takes_value = True
+        elif not arg.startswith('--'):
+            operands.append(arg)
+    return operands
+
+
+@pytest.mark.parametrize('invocation', ['absolute-from-foreign', 'bare-name-from-scripts'])
+def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
+    workspace, _, _, record, base_env, state = harness
+    email, password = f'root-{uuid4().hex}@harness.local', uuid4().hex
+    env = dict(base_env, SEED_EMAIL=email, SEED_PASSWORD=password, OBS_PASSWORD=password)
+    state['matches'] = lambda credentials: credentials == (email, password)
+    # A caller directory with its own fixture set must never receive the secrets file.
+    foreign = tmp_path / 'foreign'
+    (foreign / 'smoke').mkdir(parents=True)
+    (foreign / 'smoke' / 'foreign.hurl').write_text('GET http://127.0.0.1:9/foreign\nHTTP 200\n', encoding='utf-8')
+    if invocation == 'absolute-from-foreign':
+        argv, cwd = ['bash', str(workspace / 'scripts' / 'smoke.sh')], foreign
+    else:
+        argv, cwd = ['bash', 'smoke.sh'], workspace / 'scripts'
+    status, _, disclosed = launch(harness, PrivateInvocation(argv, env), cwd=cwd)
+    require(not disclosed, 'Smoke diagnostics disclosed the seed password')
+    rows = observations(record)
+    require(
+        not any(row.get('receiver_failure') for row in rows), 'Transport receiver could not interpret executed argv'
+    )
+    require(not any(row['exposed'] for row in rows), 'Executed child argv disclosed the seed password')
+    require(status == 0, 'Smoke invoked outside the repository root failed')
+    hurl = [row for row in rows if row['command'] == 'hurl']
+    require(len(hurl) == 1, 'Smoke did not run Hurl exactly once')
+    selected = {Path(hurl[0]['cwd'], operand).resolve() for operand in fixture_operands(hurl[0]['args'])}
+    expected = {path.resolve() for path in workspace.glob('smoke/*.hurl')}
+    require(len(expected) == 3, 'Workspace fixture set changed shape')
+    require(
+        not any(foreign.resolve() in path.parents for path in selected),
+        "Smoke selected the caller directory's fixtures",
+    )
+    require(selected == expected, "Smoke did not select exactly its repository's top-level fixtures")
+    require_completed_private_transports([row for row in rows if row['command'] in ('curl', 'hurl')])
+    require_clean_scratch(harness)
