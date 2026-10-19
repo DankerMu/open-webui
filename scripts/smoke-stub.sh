@@ -2,8 +2,12 @@
 # scripts/smoke-stub.sh — start the OCU stub, assert describe/launch/files/outputs/echo, stop.
 # Not on the smoke/*.hurl glob; `make smoke` does not invoke this.
 set -euo pipefail
-repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$repo_root"
+# Builtins only and an empty CDPATH: an exported CDPATH would bind `scripts/..`
+# to a foreign directory (and echo it), and a failing external dirname would
+# silently resolve the root to /.
+case "${BASH_SOURCE[0]}" in */*) script_dir="${BASH_SOURCE[0]%/*}" ;; *) script_dir=. ;; esac
+CDPATH='' cd -- "$script_dir/.." || exit $?
+repo_root="$PWD"
 
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
 probe_token="$(python3 -c 'import secrets; print("Tok!" + secrets.token_hex(12) + "#$%")')"
