@@ -1,13 +1,14 @@
 """Shared OCU TestClient harness for auth, workspace, and chat-state tests.
 
-Imported as a plain module via sys.path (not open_webui.*) so collection
-works when CI runs pytest without installing the project.
+Every consumer imports it as open_webui.test.ocu_harness, before any
+open_webui.env import.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -16,7 +17,25 @@ from urllib.parse import urlparse
 _CLIENT = None
 
 
+_DATABASE_VARS = (
+    'DATABASE_TYPE',
+    'DATABASE_USER',
+    'DATABASE_PASSWORD',
+    'DATABASE_HOST',
+    'DATABASE_PORT',
+    'DATABASE_NAME',
+)
+
+
 def configure_ocu_test_env() -> None:
+    # open_webui.env freezes the database target at import; configuring afterwards cannot take effect.
+    if 'open_webui.env' in sys.modules:
+        raise RuntimeError('configure_ocu_test_env must run before open_webui.env is imported')
+    # A complete DATABASE_* set from the shell, a uv env-file or dotenv makes open_webui.env rebuild
+    # DATABASE_URL, so import-time migrations and test writes would hit a non-harness database.
+    for name in _DATABASE_VARS:
+        os.environ.pop(name, None)
+    os.environ['PYTHON_DOTENV_DISABLED'] = '1'
     repo_root = Path(__file__).resolve().parents[3]
     data_dir = repo_root / '.run' / 'data'
     data_dir.mkdir(parents=True, exist_ok=True)
