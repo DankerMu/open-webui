@@ -5,15 +5,15 @@
 
 ## 2. Implement one guarded path
 
-- [ ] 2.1 Add the first behavior test before implementation, then implement explicit metadata and complete GitHub-resolved comparison in one script. Cover empty/exact/extra/missing/cross-repository identities and negated prose through resolved references.
-- [ ] 2.2 Bind reviewed head and target PR, complete pagination, and fail-closed acquisition/metadata errors, including missing/duplicate markers and non-open PRs; prove refusals invoke no merge or issue mutations. Add check-only and head-bound guarded merge behavior without retries/bypass.
-- [ ] 2.3 Add thin Makefile check/merge/test commands, PR-template intent and distribution guidance, and the owning process decision. OCU uses the central implementation; do not add a copied guard or hosted workflow.
+- [x] 2.1 Add the first behavior test before implementation, then implement explicit metadata and complete GitHub-resolved comparison in one script. Cover empty/exact/extra/missing/cross-repository identities and negated prose through resolved references.
+- [x] 2.2 Bind reviewed head and target PR, complete pagination, and fail-closed acquisition/metadata errors, including missing/duplicate markers and non-open PRs; prove refusals invoke no merge or issue mutations. Add check-only and head-bound guarded merge behavior without retries/bypass.
+- [x] 2.3 Add thin Makefile check/merge/test commands, PR-template intent and distribution guidance, and the owning process decision. OCU uses the central implementation; do not add a copied guard or hosted workflow.
 
 ## 3. Verify and deliver
 
-- [ ] 3.1 Run the owning behavior suite, actual CLI refusal/equality scenarios, relevant static and documentation gates; retain source-bound outputs and test discovery.
-- [ ] 3.2 Exercise the live check against this PR with explicit empty metadata; complete expanded independent review and use the guarded command for normal exact-head merge under the existing local-CI choice.
-- [ ] 3.3 Preserve public receipts, archive only this fixture and manually close #389 after delivery; leave unrelated issue states and the queue unchanged.
+- [x] 3.1 Run the owning behavior suite, actual CLI refusal/equality scenarios, relevant static and documentation gates; retain source-bound outputs and test discovery.
+- [x] 3.2 Exercise the live check against this PR with explicit empty metadata; complete expanded independent review and use the guarded command for normal exact-head merge under the existing local-CI choice.
+- [x] 3.3 Preserve public receipts, archive only this fixture and manually close #389 after delivery; leave unrelated issue states and the queue unchanged.
 
 ## Risk packs
 
