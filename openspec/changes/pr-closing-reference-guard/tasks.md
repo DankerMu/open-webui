@@ -1,7 +1,7 @@
 ## 1. Contract and fixture
 
 - [x] 1.1 Confirm owner-selected tracked central script/metadata home and absence of an existing implementation; scope the canonical command and preserved branch/issue-state boundaries.
-- [x] 1.2 Obtain expanded read-only fixture review and strict validation before production implementation.
+- [x] 1.2 Strict validation before production implementation. The Phase 0 fixture review left no retained record; the Phase 3 spec-compliance seat on PR #527 re-checked fixture sufficiency instead.
 
 ## 2. Implement one guarded path
 

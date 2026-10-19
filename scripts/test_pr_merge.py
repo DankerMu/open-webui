@@ -9,6 +9,8 @@ import pytest
 SCRIPT = Path(__file__).with_name('pr-merge.py')
 REPO = 'DankerMu/open-webui'
 HEAD = 'a' * 40
+BODY_107 = '<!-- intended-closing-issues: ["DankerMu/open-webui#107"] -->'
+BODY_107_389 = '<!-- intended-closing-issues: ["DankerMu/open-webui#107", "DankerMu/open-webui#389"] -->'
 
 
 def page(body='<!-- intended-closing-issues: [] -->', issues=(), *, cursor=None, more=False):
@@ -53,6 +55,8 @@ def run_guard(tmp_path, responses, *flags, repo=REPO, pr='389', head=HEAD):
         'response = responses[index]\n'
         'sys.stdout.write(response.get("stdout", json.dumps(response.get("json"))))\n'
         'sys.stderr.write(response.get("stderr", ""))\n'
+        'if response.get("revoke"):\n'
+        '    os.chmod(sys.argv[0], 0o600)\n'
         'sys.exit(response.get("exit", 0))\n'
     )
     executable.chmod(0o700)
@@ -60,7 +64,7 @@ def run_guard(tmp_path, responses, *flags, repo=REPO, pr='389', head=HEAD):
         [sys.executable, str(SCRIPT), '--repo', repo, '--pr', pr, '--head', head, *flags],
         env=dict(
             os.environ,
-            PATH=str(tmp_path) + os.pathsep + os.environ['PATH'],
+            PATH=str(tmp_path),  # only the fake gh: a disabled fake must never fall through to a real gh
             FAKE_GH_LOG=str(log),
             FAKE_GH_RESPONSES=str(fixtures),
         ),
@@ -144,113 +148,141 @@ def test_missing_intended_closure_does_not_match_same_number_in_another_reposito
 
 
 @pytest.mark.parametrize(
-    'body',
+    ('body', 'reason'),
     [
-        'Fixes #389',
-        '<!-- intended-closing-issues: [] -->\n<!-- intended-closing-issues: [] -->',
-        '<!-- intended-closing-issues: [] -->\n<!-- intended-closing-issues: [',
-        '<!-- intended-closing-issues [] -->',
-        '<!-- intended-closing-issues: [ -->',
-        '<!-- intended-closing-issues: {} -->',
-        '<!-- intended-closing-issues: null -->',
-        '<!-- intended-closing-issues: "#389" -->',
-        '<!-- intended-closing-issues: [389] -->',
-        '<!-- intended-closing-issues: ["#389"] -->',
-        '<!-- intended-closing-issues: ["open-webui#389"] -->',
-        '<!-- intended-closing-issues: ["DankerMu/open-webui#0"] -->',
-        '<!-- intended-closing-issues: ["DankerMu/open-webui#-1"] -->',
-        '<!-- intended-closing-issues: ["DankerMu/open-webui#1.0"] -->',
-        '<!-- intended-closing-issues: ["DankerMu/open-webui#107", "DANKERMU/OPEN-WEBUI#107"] -->',
+        ('Fixes #389', 'exactly one well-formed'),
+        ('<!-- intended-closing-issues: [] -->\n<!-- intended-closing-issues: [] -->', 'exactly one well-formed'),
+        ('<!-- intended-closing-issues: [] -->\n<!-- intended-closing-issues: [', 'exactly one well-formed'),
+        ('<!-- intended-closing-issues [] -->', 'exactly one well-formed'),
+        ('<!-- intended-closing-issues: [ -->', 'must contain a JSON array'),
+        ('<!-- intended-closing-issues: {} -->', 'must contain a JSON array'),
+        ('<!-- intended-closing-issues: null -->', 'must contain a JSON array'),
+        ('<!-- intended-closing-issues: "#389" -->', 'must contain a JSON array'),
+        ('<!-- intended-closing-issues: [389] -->', 'owner/repo#positive-number'),
+        ('<!-- intended-closing-issues: ["#389"] -->', 'full owner/repo identity'),
+        ('<!-- intended-closing-issues: ["open-webui#389"] -->', 'full owner/repo identity'),
+        ('<!-- intended-closing-issues: ["DankerMu/open-webui#0"] -->', 'owner/repo#positive-number'),
+        ('<!-- intended-closing-issues: ["DankerMu/open-webui#-1"] -->', 'owner/repo#positive-number'),
+        ('<!-- intended-closing-issues: ["DankerMu/open-webui#1.0"] -->', 'owner/repo#positive-number'),
+        (
+            '<!-- intended-closing-issues: ["DankerMu/open-webui#107", "DANKERMU/OPEN-WEBUI#107"] -->',
+            'duplicate intended issue: dankermu/open-webui#107',
+        ),
     ],
 )
-def test_missing_ambiguous_or_malformed_intent_never_merges(tmp_path, body):
+def test_missing_ambiguous_or_malformed_intent_never_merges(tmp_path, body, reason):
     result, calls = run_guard(tmp_path, [{'json': page(body)}], '--merge')
 
     assert result.returncode != 0
-    assert 'pr-merge:' in result.stderr
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert_read_only(calls)
 
 
 @pytest.mark.parametrize(
-    ('field', 'value'),
+    ('field', 'value', 'reason'),
     [
-        ('state', 'MERGED'),
-        ('state', 'CLOSED'),
-        ('headRefOid', 'b' * 40),
-        ('number', 390),
-        ('number', True),
-        ('url', 'https://github.com/DankerMu/open-computer-use/pull/389'),
-        ('id', ''),
-        ('body', None),
+        ('state', 'MERGED', 'target PR must be OPEN'),
+        ('state', 'CLOSED', 'target PR must be OPEN'),
+        ('headRefOid', 'b' * 40, 'head differs from the supplied reviewed head'),
+        ('number', 390, 'different target repository/PR'),
+        ('number', True, 'positive integer'),
+        ('url', 'https://github.com/DankerMu/open-computer-use/pull/389', 'different target PR URL'),
+        ('id', '', 'malformed PR metadata'),
+        ('body', None, 'malformed PR metadata'),
     ],
 )
-def test_unverifiable_or_unreviewed_pr_never_merges(tmp_path, field, value):
+def test_unverifiable_or_unreviewed_pr_never_merges(tmp_path, field, value, reason):
     response = page()
     response['data']['repository']['pullRequest'][field] = value
     result, calls = run_guard(tmp_path, [{'json': response}], '--merge')
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert_read_only(calls)
 
 
-@pytest.mark.parametrize('repo', ['DankerMu/open-computer-use', None])
-def test_response_must_bind_the_explicit_target_repository(tmp_path, repo):
+@pytest.mark.parametrize(
+    ('repo', 'reason'),
+    [('DankerMu/open-computer-use', 'different target repository/PR'), (None, 'malformed PR metadata')],
+)
+def test_response_must_bind_the_explicit_target_repository(tmp_path, repo, reason):
     response = page()
     response['data']['repository']['nameWithOwner'] = repo
     result, calls = run_guard(tmp_path, [{'json': response}], '--merge')
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert_read_only(calls)
 
 
 @pytest.mark.parametrize(
-    'response',
+    ('response', 'reason'),
     [
-        {'exit': 4, 'stderr': 'authentication unavailable'},
-        {'stdout': '{invalid'},
-        {'json': None},
-        {'json': []},
-        {'json': {}},
-        {'json': {'data': None}},
-        {'json': {'data': {'repository': None}}},
-        {'json': {'data': {'repository': {'nameWithOwner': REPO, 'pullRequest': None}}}},
-        {'json': dict(page(), errors=[{'message': 'partial references'}])},
-        {'json': dict(page(), errors=[])},
+        ({'exit': 4, 'stderr': 'authentication unavailable'}, 'reference acquisition failed (gh exit 4)'),
+        ({'stdout': '{invalid'}, 'invalid JSON'),
+        ({'json': None}, 'GraphQL errors or a malformed response'),
+        ({'json': []}, 'GraphQL errors or a malformed response'),
+        ({'json': {}}, 'null, partial or malformed PR metadata'),
+        ({'json': {'data': None}}, 'null, partial or malformed PR metadata'),
+        ({'json': {'data': {'repository': None}}}, 'null, partial or malformed PR metadata'),
+        (
+            {'json': {'data': {'repository': {'nameWithOwner': REPO, 'pullRequest': None}}}},
+            'null, partial or malformed PR metadata',
+        ),
+        ({'json': dict(page(), errors=[{'message': 'partial references'}])}, 'GraphQL errors'),
+        ({'json': dict(page(), errors=[])}, 'GraphQL errors'),
     ],
 )
-def test_api_failure_or_partial_response_cannot_become_empty_equality(tmp_path, response):
+def test_api_failure_or_partial_response_cannot_become_empty_equality(tmp_path, response, reason):
     result, calls = run_guard(tmp_path, [response], '--merge')
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert_read_only(calls)
 
 
 @pytest.mark.parametrize(
-    'connection',
+    ('connection', 'reason'),
     [
-        None,
-        {},
-        {'nodes': None, 'pageInfo': {'hasNextPage': False, 'endCursor': None}},
-        {'nodes': [], 'pageInfo': None},
-        {'nodes': [], 'pageInfo': {'hasNextPage': False}},
-        {'nodes': [], 'pageInfo': {'hasNextPage': 'false', 'endCursor': None}},
-        {'nodes': [None], 'pageInfo': {'hasNextPage': False, 'endCursor': 'last'}},
-        {'nodes': [{'number': 107}], 'pageInfo': {'hasNextPage': False, 'endCursor': 'last'}},
-        {
-            'nodes': [{'number': True, 'repository': {'nameWithOwner': REPO}}],
-            'pageInfo': {'hasNextPage': False, 'endCursor': 'last'},
-        },
+        (None, 'null, partial or malformed closing references'),
+        ({}, 'null, partial or malformed closing references'),
+        (
+            {'nodes': None, 'pageInfo': {'hasNextPage': False, 'endCursor': None}},
+            'malformed closing-reference pagination',
+        ),
+        ({'nodes': [], 'pageInfo': None}, 'null, partial or malformed closing references'),
+        ({'nodes': [], 'pageInfo': {'hasNextPage': False}}, 'null, partial or malformed closing references'),
+        (
+            {'nodes': [], 'pageInfo': {'hasNextPage': 'false', 'endCursor': None}},
+            'malformed closing-reference pagination',
+        ),
+        (
+            {'nodes': [None], 'pageInfo': {'hasNextPage': False, 'endCursor': 'last'}},
+            'malformed issue identity',
+        ),
+        (
+            {'nodes': [{'number': 107}], 'pageInfo': {'hasNextPage': False, 'endCursor': 'last'}},
+            'malformed issue identity',
+        ),
+        (
+            {
+                'nodes': [{'number': True, 'repository': {'nameWithOwner': REPO}}],
+                'pageInfo': {'hasNextPage': False, 'endCursor': 'last'},
+            },
+            'positive integer',
+        ),
     ],
 )
-def test_malformed_connection_or_issue_identity_is_not_a_complete_set(tmp_path, connection):
+def test_malformed_connection_or_issue_identity_is_not_a_complete_set(tmp_path, connection, reason):
     response = page()
     response['data']['repository']['pullRequest']['closingIssuesReferences'] = connection
     result, calls = run_guard(tmp_path, [{'json': response}], '--merge')
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert_read_only(calls)
 
@@ -288,50 +320,58 @@ def test_extra_closure_on_later_page_refuses_even_when_first_page_matches(tmp_pa
 
 
 @pytest.mark.parametrize(
-    ('field', 'value'),
+    ('field', 'value', 'reason'),
     [
-        ('id', 'PR_different'),
-        ('number', 390),
-        ('url', 'https://github.com/DankerMu/open-webui/pull/390'),
-        ('state', 'CLOSED'),
-        ('headRefOid', 'b' * 40),
-        ('body', '<!-- intended-closing-issues: ["DankerMu/open-webui#107"] -->'),
+        ('id', 'PR_different', 'changed during pagination'),
+        ('number', 390, 'different target repository/PR'),
+        ('url', 'https://github.com/DankerMu/open-webui/pull/390', 'different target PR URL'),
+        ('state', 'CLOSED', 'target PR must be OPEN'),
+        ('headRefOid', 'b' * 40, 'head differs from the supplied reviewed head'),
+        ('body', BODY_107, 'changed during pagination'),
     ],
 )
-def test_snapshot_drift_during_pagination_never_merges(tmp_path, field, value):
-    second = page(issues=[(REPO, 389)], cursor='last')
+def test_snapshot_drift_during_pagination_never_merges(tmp_path, field, value, reason):
+    # Both pages declare the union of their references, so only the drifted field can refuse.
+    second = page(BODY_107_389, [(REPO, 389)], cursor='last')
     second['data']['repository']['pullRequest'][field] = value
     result, calls = run_guard(
-        tmp_path, [{'json': page(issues=[(REPO, 107)], cursor='first', more=True)}, {'json': second}], '--merge'
+        tmp_path, [{'json': page(BODY_107_389, [(REPO, 107)], cursor='first', more=True)}, {'json': second}], '--merge'
     )
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert len(calls) == 2
     assert_read_only(calls)
 
 
 @pytest.mark.parametrize(
-    'second_response',
+    ('body', 'second_response', 'reason'),
     [
-        {'exit': 1},
-        {'json': dict(page(), errors=[{'message': 'page unavailable'}])},
-        {'json': page(issues=[(REPO, 389)], cursor='first', more=True)},
-        {'json': page(issues=[(REPO, 389)], more=True)},
-        {'json': page(issues=[(REPO, 389)], cursor='', more=True)},
-        {'json': page(cursor='second', more=True)},
-        {'json': page()},
-        {'json': page(issues=[(REPO, 107)], cursor='last')},
+        (BODY_107, {'exit': 1}, 'reference acquisition failed (gh exit 1)'),
+        (BODY_107, {'json': dict(page(BODY_107), errors=[{'message': 'page unavailable'}])}, 'GraphQL errors'),
+        (BODY_107_389, {'json': page(BODY_107_389, [(REPO, 389)], cursor='first', more=True)}, 'did not progress'),
+        (BODY_107_389, {'json': page(BODY_107_389, [(REPO, 389)], more=True)}, 'did not progress'),
+        (
+            BODY_107_389,
+            {'json': page(BODY_107_389, [(REPO, 389)], cursor='', more=True)},
+            'malformed closing-reference cursor',
+        ),
+        (BODY_107, {'json': page(BODY_107, cursor='second', more=True)}, 'did not progress'),
+        (BODY_107, {'json': page(BODY_107)}, 'did not progress'),
+        (BODY_107, {'json': page(BODY_107, [(REPO, 107)], cursor='last')}, 'overlapping closing-reference pages'),
     ],
 )
-def test_incomplete_nonprogressing_or_overlapping_pages_never_merge(tmp_path, second_response):
+def test_incomplete_nonprogressing_or_overlapping_pages_never_merge(tmp_path, body, second_response, reason):
+    # Every page declares the union of references the pages yield, so only the guard under test can refuse.
     result, calls = run_guard(
         tmp_path,
-        [{'json': page(issues=[(REPO, 107)], cursor='first', more=True)}, second_response],
+        [{'json': page(body, [(REPO, 107)], cursor='first', more=True)}, second_response],
         '--merge',
     )
 
     assert result.returncode != 0
+    assert reason in result.stderr
     assert 'check passed' not in result.stdout
     assert len(calls) == 2
     assert_read_only(calls)
@@ -362,6 +402,19 @@ def test_guarded_merge_checks_fresh_then_targets_only_reviewed_pr_and_propagates
     assert calls[1] == ['pr', 'merge', '389', '--repo', 'dankermu/open-webui', '--merge', '--match-head-commit', HEAD]
     if merge_exit:
         assert 'merge failed' in result.stderr
+
+
+def test_merge_exec_failure_reports_unknown_outcome_without_retry(tmp_path):
+    # The fake gh revokes its own execute bit after the check, so launching the merge raises OSError.
+    result, calls = run_guard(tmp_path, [{'json': page(), 'revoke': True}], '--merge')
+
+    assert result.returncode == 1
+    assert 'check passed' in result.stdout
+    assert 'merge outcome unknown' in result.stderr
+    assert 'inspect the PR state before retrying' in result.stderr
+    assert 'no retry attempted' in result.stderr
+    assert len(calls) == 1
+    assert calls[0][:2] == ['api', 'graphql']
 
 
 @pytest.mark.parametrize(

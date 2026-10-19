@@ -201,9 +201,16 @@ def main():
         sys.stdout.write(f'closing-reference check passed for {repo}#{number} at {head}\n')
         sys.stdout.flush()
         if args.merge:
-            response = gh(
-                ['pr', 'merge', str(number), '--repo', repo, '--merge', '--match-head-commit', head], capture=False
-            )
+            try:
+                response = gh(
+                    ['pr', 'merge', str(number), '--repo', repo, '--merge', '--match-head-commit', head], capture=False
+                )
+            except Fail as error:
+                # GitHub may have merged before the launch error or timeout surfaced.
+                raise Fail(
+                    'merge outcome unknown (gh unavailable or command timed out); '
+                    'inspect the PR state before retrying; no retry attempted'
+                ) from error
             if response.returncode:
                 sys.stderr.write(f'pr-merge: merge failed (gh exit {response.returncode}); no retry attempted\n')
                 return response.returncode if response.returncode > 0 else 1

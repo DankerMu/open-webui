@@ -31,7 +31,7 @@ make pr-merge-check PR_REPO=DankerMu/open-webui PR_NUMBER=123 PR_HEAD=0123456789
 make pr-merge PR_REPO=DankerMu/open-webui PR_NUMBER=123 PR_HEAD=0123456789abcdef0123456789abcdef01234567
 ```
 
-`pr-merge-check` is read-only. `pr-merge` acquires a fresh snapshot and repeats the complete check before invoking `gh pr merge --merge --match-head-commit` for the explicit target. The reviewed SHA is an operator-supplied review boundary, not a claim that this command performs review. Normal branch protection remains authoritative; merge failures propagate without retries, auto-merge or administrator bypasses.
+`pr-merge-check` is read-only. `pr-merge` acquires a fresh snapshot and repeats the complete check before invoking `gh pr merge --merge --match-head-commit` for the explicit target. The reviewed SHA is an operator-supplied review boundary, not a claim that this command performs review. Normal branch protection remains authoritative; merge failures propagate without retries, auto-merge or administrator bypasses. If the merge command cannot be launched or times out, the outcome is reported as unknown; inspect the PR state before retrying.
 
 OCU PRs use this central checkout, not a copied script:
 
@@ -53,5 +53,7 @@ The GraphQL acquisition binds the target identity, open state, reviewed head and
 ## Consequences
 
 The guard enforces only invocations through the maintained command. Direct GitHub UI/API merges are not intercepted. Metadata acquisition and merge are separate remote operations: there is no atomic body/reference compare-and-merge or server-side metadata lock. Head matching prevents source drift at merge, but concurrent body/reference edits after acquisition remain outside that guarantee. Operators must avoid concurrent metadata edits during merge.
+
+The oracle is GitHub `closingIssuesReferences`, which includes keyword-referenced and manually linked issues. Closing keywords in commit messages or the merge-commit title may close issues on the default branch independently; this guard does not inspect them and adds no text heuristic. Keep commit messages and merge-commit titles free of closing keywords.
 
 No dependency, application runtime, workflow or permission change is required. [`scripts/test_pr_merge.py`](../../../../scripts/test_pr_merge.py), run with `make test-pr-merge-guard`, exercises the public CLI against an external synthetic `gh` boundary, including refusal without mutations and head-bound merge outcomes. Reverting the command removes this local gate; it does not establish closure-set safety for manual merges.
