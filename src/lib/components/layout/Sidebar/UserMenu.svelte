@@ -6,6 +6,7 @@
 
 	import { getUsage } from '$lib/apis';
 	import { getLogoutRedirectUrl, getSessionUser, userSignOut } from '$lib/apis/auths';
+	import { refreshSessionUser } from '$lib/utils/session-refresh';
 
 	import { showSettings, mobile, showSidebar, user, config, settings } from '$lib/stores';
 
@@ -106,7 +107,7 @@
 <UserStatusModal
 	bind:show={showUserStatusModal}
 	onSave={async () => {
-		user.set(await getSessionUser(localStorage.token));
+		await refreshSessionUser(() => getSessionUser(localStorage.token), user.set);
 	}}
 />
 
@@ -203,7 +204,10 @@
 
 											if (res) {
 												toast.success($i18n.t('Status cleared successfully'));
-												user.set(await getSessionUser(localStorage.token));
+												await refreshSessionUser(
+													() => getSessionUser(localStorage.token),
+													user.set
+												);
 											} else {
 												toast.error($i18n.t('Failed to clear status'));
 											}

@@ -421,3 +421,90 @@ test('auth bootstrap keeps an adopted session when real 401 confirmation is unav
 	});
 	diagnostics.assertClean();
 });
+
+async function sessionUser(page: Page) {
+	return page.evaluate(async () => {
+		const response = await fetch('/api/v1/auths/', {
+			headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+			credentials: 'include'
+		});
+		if (!response.ok) throw new Error('Current session lookup failed');
+		return response.json();
+	});
+}
+
+test('account save keeps the signed-in user when the post-save refresh transport fails', async ({
+	page
+}) => {
+	const diagnostics = watchErrors(page);
+	const userId = await openSession(page);
+	const token = await page.evaluate(() => localStorage.getItem('token'));
+	const { name } = await sessionUser(page);
+	const variablesPath = '/api/v1/users/user/variables';
+	const mountLookup = page.waitForResponse(
+		(response) => sessionUrl(new URL(response.url())) && response.ok()
+	);
+	const mountVariables = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === variablesPath && response.ok()
+	);
+	await page.getByRole('button', { name: 'User menu' }).locator('visible=true').first().click();
+	await page.getByRole('menu').getByRole('button', { name, exact: true }).click();
+	const account = page.locator('#tab-account');
+	await mountLookup;
+	await mountVariables;
+	// The abort must only hit the post-save lookup: an aborted mount lookup leaves Name empty.
+	await expect(account.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(name);
+
+	diagnostics.allowAuthFailure(/TypeError: (Failed to fetch|Load failed)/, ['transport']);
+	let aborted = 0;
+	await page.route(sessionUrl, (route) => {
+		aborted += 1;
+		return route.abort('failed');
+	});
+	const profileSave = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === '/api/v1/auths/update/profile'
+	);
+	const variablesSave = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === `${variablesPath}/update`
+	);
+	await account.getByRole('button', { name: 'Save', exact: true }).click();
+	const [profile, variables] = await Promise.all([profileSave, variablesSave]);
+	expect([profile.status(), variables.status()]).toEqual([200, 200]);
+	const savedProfile = profile.request().postDataJSON();
+	await expect(page.getByText('Settings saved successfully!')).toBeVisible();
+	await expect.poll(() => aborted, { message: 'post-save lookup was aborted' }).toBeGreaterThan(0);
+
+	expect(
+		await page.evaluate(async () => {
+			const storesPath = '/src/lib/stores/index.ts';
+			const { user } = await import(storesPath);
+			let current: { id?: string } | null = null;
+			user.subscribe((value: { id?: string } | null) => (current = value))();
+			return current?.id ?? null;
+		}),
+		'a transport-failed refresh keeps the live user store'
+	).toBe(userId);
+	expect(new URL(page.url()).pathname).not.toBe('/auth');
+	await expect(account).toBeVisible();
+	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
+	expect(
+		await page.evaluate((expected) => localStorage.getItem('token') === expected, token),
+		'a transport-failed refresh keeps the persisted token'
+	).toBe(true);
+
+	await page.unroute(sessionUrl);
+	diagnostics.allowAuthFailure(null);
+	const fresh = await sessionUser(page);
+	expect(fresh.id).toBe(userId);
+	expect({
+		name: fresh.name,
+		profile_image_url: fresh.profile_image_url,
+		bio: fresh.bio ?? null
+	}).toEqual({
+		name: savedProfile.name,
+		profile_image_url: savedProfile.profile_image_url,
+		bio: savedProfile.bio
+	});
+	await expect(page).not.toHaveURL(/\/auth(\?|$)/);
+	diagnostics.assertClean();
+});
