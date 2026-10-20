@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Preserve the intended OCU selected-test scope and fixture ownership when verification combines root-level and orchestrator tests, without changing fixtures or dependency policy.
+Preserve the intended OCU selected-test scope and fixture ownership when verification combines root-level and orchestrator tests, without changing fixtures or dependency policy, and run the documented local unit command on the CI interpreter's minor version.
 
 ## Requirements
 
@@ -162,3 +162,18 @@ The orchestrator CI invocation SHALL make the repository checkout root importabl
 - **WHEN** evidence is published for the entrypoint correction
 - **THEN** it records exact commands, interpreter/dependency/environment identities, collection inventory and complete execution outcomes separately
 - **AND** failures and skips remain explicit, with local container evidence not described as a hosted-runner or native-Linux acceptance receipt
+
+### Requirement: Local unit command matches the CI interpreter
+
+The documented local OCU unit-test command SHALL run on the same CPython minor version as the orchestrator CI job, without relying on the interpreter uv would otherwise resolve. The pin SHALL NOT change test oracles, production code, the CI workflow or the deployed image interpreter, and SHALL NOT add interpreter-version skips or log filtering.
+
+#### Scenario: Documented command from a clean checkout
+
+- **WHEN** the documented `uv run --no-project` unit-test command runs from a clean OCU checkout root without an explicit interpreter override, whatever interpreter uv would otherwise resolve
+- **THEN** the command runs on CPython 3.13, matching the orchestrator CI job
+- **AND** the evidence shows the interpreter from the same invocation
+
+#### Scenario: Cancelled discovery oracle is unchanged
+
+- **WHEN** the MCP discovery cancellation tests run under the documented command
+- **THEN** their no-unobserved-error assertion is unchanged and passes without skips or message filtering
