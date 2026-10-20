@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Preserve the visible atomic-write outcome and failure provenance when final owned-directory cleanup fails in the outputs index, import receipts or Office state writers, when import-receipt temporary-file cleanup fails before commit, and when Office version-blob publication, blob removal or the receipt-replay barrier fails to close an owned directory, recording secondary cleanup failures through one shared rule.
+Preserve the visible atomic-write outcome and failure provenance when final owned-directory cleanup fails in the outputs index, import receipts or Office state writers, when import-receipt temporary-file cleanup fails before commit, and when Office version-blob publication, blob removal or the receipt-replay barrier fails to close an owned directory, recording secondary cleanup failures through one shared rule and reporting a close-only version-blob failure on the callback route as `state_close_failed`.
 
 ## Requirements
 
@@ -81,7 +81,7 @@ When an import-receipt write fails before replacement, the receipt writer SHALL 
 
 ### Requirement: Office blob and replay-barrier cleanup attempts every owned close
 
-Office version-blob publication, version-blob removal and the callback replay barrier SHALL attempt to close every owned directory descriptor exactly once without retrying a failed close. An earlier operation or synchronization failure SHALL remain the primary error with every close failure retained on it; a close-only failure SHALL remain observable. A close-only failure after a blob is linked SHALL NOT record version metadata for that attempt, and the content-addressed blob SHALL remain reusable by a later publication of the same content. A close-only replay-barrier failure during final or forcesave receipt replay SHALL be reported as HTTP 500 with reason `state_close_failed`, not `state_corrupt`; a replay-barrier synchronization failure SHALL remain `state_durability`, and replay ordering SHALL remain unchanged. This reason applies only to the replay barrier; other close-only failures keep their existing classification. No power-loss behavior or post-close descriptor state is claimed.
+Office version-blob publication, version-blob removal and the callback replay barrier SHALL attempt to close every owned directory descriptor exactly once without retrying a failed close. An earlier operation or synchronization failure SHALL remain the primary error with every close failure retained on it; a close-only failure SHALL remain observable. A close-only failure after a blob is linked SHALL NOT record version metadata for that attempt, and the content-addressed blob SHALL remain reusable by a later publication of the same content. A close-only replay-barrier failure during final or forcesave receipt replay SHALL be reported as HTTP 500 with reason `state_close_failed`, not `state_corrupt`; a replay-barrier synchronization failure SHALL remain `state_durability`, and replay ordering SHALL remain unchanged. On the callback route, `state_close_failed` covers the replay barrier and any close-only version-blob publication failure that reaches the callback; other close-only failures keep their existing classification. No power-loss behavior or post-close descriptor state is claimed.
 
 #### Scenario: A close fails part-way through cleanup
 
@@ -118,3 +118,33 @@ When a secondary cleanup failure is retained on a propagating primary error, OCU
 - **WHEN** an import-receipt replacement fails and its temporary-file removal also fails
 - **THEN** the propagating replacement error's `cleanup_errors` contains exactly the removal error
 - **AND** its only cleanup note reads `Temporary receipt cleanup also failed: <Type>: <error>`
+
+### Requirement: Callback reports a close-only version-blob failure as state_close_failed
+
+When a close-only version-blob publication failure reaches the Office callback, the callback SHALL return HTTP 500 with reason `state_close_failed`, not `state_corrupt`. Close-only means the publication failed only because a final owned-directory close failed, with no earlier write, link or synchronization failure. This applies whether the failure came from storing the callback's content or from publication recovery that the callback drives. The callback SHALL log the refusal as an error with that reason, as it does for the replay barrier.
+
+The failure SHALL remain observable as an `OSError` carrying every close failure, so callers outside the callback keep their existing handling.
+
+When the failure came from storing the callback's own content:
+
+- no version metadata SHALL be recorded;
+- a later delivery of the same content SHALL reuse the blob;
+- for a status-6 forcesave callback, the pending save sequence and saving state SHALL remain unchanged.
+
+A close failure whose error is out-of-space SHALL remain `storage_low`, with its existing recovery. No commit or power-loss durability is claimed.
+
+#### Scenario: Close-only failure while storing callback content
+
+- **WHEN** a callback's content is linked into the version store and synchronized, but a final directory close fails
+- **THEN** the callback returns HTTP 500 with reason `state_close_failed`
+- **AND** no new version is recorded
+
+#### Scenario: Forcesave keeps its pending save
+
+- **WHEN** a status-6 forcesave callback hits a close-only version-blob failure that is not out-of-space
+- **THEN** the session keeps its pending save sequence and saving state
+
+#### Scenario: Retry after a close-only failure
+
+- **WHEN** the same callback content is delivered again after a close-only version-blob failure
+- **THEN** the blob is reused and exactly one version is recorded
