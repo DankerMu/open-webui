@@ -90,18 +90,20 @@ nvm use && make setup
 
 ### Daily commands
 
-| Task                                                   | Command                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------- |
-| Start dev server (foreground)                          | `make dev`                                              |
-| Run all checks / changed-since-HEAD only               | `make check` / `make check-fast`                        |
-| Run unit tests                                         | `make test` (`make test-backend`, `make test-frontend`) |
-| Format / lint (upstream strength) / type-check / build | `make fmt`, `make lint`, `make typecheck`, `make build` |
-| L3 lint+size+complexity on the fork's change scope     | `make lint-scoped`                                      |
-| Coverage gate (fork-added files ≥ 80%)                 | `make coverage-gate`                                    |
-| Duplicate / dead code (scoped)                         | `make anti-drift`                                       |
-| Docs drift gate / decision records check               | `make doc-gate`, `make decisions-verify`                |
-| OCU stub smoke (not `make smoke`)                      | `make smoke-stub`                                       |
-| OCU gateway smoke (not `make smoke`)                   | `make smoke-proxy`                                      |
+| Task                                                   | Command                                                                    |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Start dev server (foreground)                          | `make dev`                                                                 |
+| Run all checks / changed-since-HEAD only               | `make check` / `make check-fast`                                           |
+| Run unit tests                                         | `make test` (`make test-backend`, `make test-frontend`)                    |
+| Format / lint (upstream strength) / type-check / build | `make fmt`, `make lint`, `make typecheck`, `make build`                    |
+| L3 lint+size+complexity on the fork's change scope     | `make lint-scoped`                                                         |
+| Coverage gate (fork-added files ≥ 80%)                 | `make coverage-gate`                                                       |
+| Duplicate / dead code (scoped)                         | `make anti-drift`                                                          |
+| Docs drift gate / decision records check               | `make doc-gate`, `make decisions-verify`                                   |
+| OCU stub smoke (not `make smoke`)                      | `make smoke-stub`                                                          |
+| OCU gateway smoke (not `make smoke`)                   | `make smoke-proxy`                                                         |
+| Closing-reference guard self-test                      | `make test-pr-merge-guard`                                                 |
+| Check / merge a PR by its reviewed head                | `make pr-merge-check`, `make pr-merge` (`PR_REPO=… PR_NUMBER=… PR_HEAD=…`) |
 
 All commands route through `Makefile`. Do not invent ad-hoc commands; if a workflow is missing, add a Makefile target that calls a script in `scripts/`.
 
@@ -186,6 +188,7 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 ### Pull requests
 
 - Use `.github/PULL_REQUEST_TEMPLATE.md`: Summary, Test plan, Runtime evidence, Risk, Canonicality check.
+- Intended issue closures: the PR body carries exactly one `<!-- intended-closing-issues: [...] -->` marker listing every issue GitHub should close (`[]` means none); issues are referenced as `(#N)`, never with closing keywords. A PR is merged only through `make pr-merge PR_REPO=<owner/repo> PR_NUMBER=<n> PR_HEAD=<full reviewed head SHA>` (OCU PRs through `make -C <central-checkout> pr-merge …`), which repeats `pr-merge-check` and refuses on a closing-reference mismatch; delete the remote and local branch afterwards. Decision: `docs/decisions/implemented/process/2026-10-19-pr-closing-reference-guard.md`.
 - Diff ≤ 400 lines excluding lockfiles/snapshots/i18n, or justified — review-only until the fork has CI.
 - Docs change with code in the same PR: AGENTS.md, `docs/plans/`, decision record (`docs/decisions/`, note-required rule). Prose quality: `.omp/skills/prose-contract/SKILL.md`.
 - Branch model: trunk-based on `main`; feature branches `<tool>/<short-slug>`; one task = one branch. `main` on the fork (`DankerMu/open-webui`) is protected: PR required, required check `All checks passed`, no force-push, no deletion, enforced for admins. Rewrite pushed feature-branch history only with `--force-with-lease`; no stacked-PR chains with manual retargeting.
