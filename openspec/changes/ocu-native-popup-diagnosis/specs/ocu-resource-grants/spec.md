@@ -2,7 +2,7 @@
 
 ### Requirement: Deterministic native popup observation
 
-The e2e oracle for message-link opening SHALL observe a natively created popup target through the browser target channel and SHALL not depend on Playwright's context init script reaching that target before the document's inline script runs: the collector the popup document posts to SHALL be installed by the observer on its own attached session before the paused target is resumed, the document projection SHALL distinguish an absent collector from an empty one, and every observation SHALL leave a sanitized, timestamped trace (gesture, target creation and attachment, resume, execution context, frame navigation, canonical request and response, Playwright page exposure, collector state per poll) under the UI evidence directory. Existing grant-chain, CSP, nosniff, console, storage/parent/cookie and cleanup assertions and all deadlines SHALL stay unchanged. A repeat entry point SHALL run one required spec N times against one owned stack, and SHALL fail before the stack starts on any incomplete or invalid configuration, while the default verification keeps running every required spec once.
+The e2e oracle for message-link opening SHALL observe a natively created popup target through the browser target channel and SHALL not depend on Playwright's context init script reaching that target before the document's inline script runs: the collector the popup document posts to SHALL come from one shared, self-guarding source, installed by the observer on its own attached session (acknowledged) before the observer resumes the paused target and by the context init script before Playwright resumes it, so that a second install is a no-op; the document projection SHALL distinguish an absent collector from an empty one, and every observation SHALL leave a sanitized, timestamped trace (gesture, target creation and attachment, resume, execution context, frame navigation, canonical request and response, Playwright page exposure, collector state per poll) under the UI evidence directory. Existing grant-chain, CSP, nosniff, console, storage/parent/cookie and cleanup assertions and all deadlines SHALL stay unchanged. A repeat entry point SHALL run one required spec N times against one owned stack, and SHALL fail before the stack starts on any incomplete or invalid configuration, while the default verification keeps running every required spec once.
 
 #### Scenario: Native SVG popup with the collector installed by the observer
 
@@ -16,5 +16,10 @@ The e2e oracle for message-link opening SHALL observe a natively created popup t
 
 #### Scenario: Repeat entry point validation
 
-- **WHEN** `OCU_UI_SPEC` or `OCU_UI_REPEAT` is set without the other, names a spec outside the allowed set, or a non-positive or non-integer repeat count
+- **WHEN** `OCU_UI_SPEC` or `OCU_UI_REPEAT` is set without the other, is an empty string, names a spec outside the allowed set, or a non-positive or non-integer repeat count
 - **THEN** the harness fails before any owned service starts; with a valid pair it runs only that spec with the given repeat count, and without the pair it runs every required spec once as before
+
+#### Scenario: Oracle independent of the context init script
+
+- **WHEN** the context init scripts that define the collector are removed and a native popup is observed
+- **THEN** the observer still reports the expected fixture event through its own installed collector, and the pre-change observer would have reported `collector: absent`

@@ -1,31 +1,35 @@
 ## 1. Fixture
 
-- [ ] 1.1 Standard fixture, read-only fixture review and strict validation before implementation.
+- [ ] 1.1 Expanded fixture, read-only fixture review and strict validation before implementation.
 
-## 2. Diagnose (native Linux host, no Docker)
+## 2. Oracle and trace
 
-- [ ] 2.1 Harness repeat entry point: `scripts/verify-ui-ocu.py` honours `OCU_UI_SPEC` + `OCU_UI_REPEAT` (both or neither; spec must be one of `REQUIRED_SPECS` or the diagnostic spec `ocu-popup-release.e2e.ts`; repeat a positive integer; otherwise `fail` before the stack starts); when set, the Playwright command runs only that spec with `--repeat-each`, and `verify_test_discovery` checks that spec alone. Makefile target `verify-ui-ocu-repeat` (`SPEC`, `REPEAT`); AGENTS.md daily-commands row. Unit test for the validation (env combinations → fail/accept) next to the harness.
-- [ ] 2.2 Trace and projection: `observeNativeOcuPopup` writes the sanitized timestamped JSONL described in proposal.md (one file per observation under `.run/ui-evidence/popup-trace/`); `POPUP_DOCUMENT_EXPRESSION` reports `collector` (`absent` | `empty` | `<n> events`) and `__fixturePosted`; `readPopupDocument`'s timeout message includes both; `scripts/ocu_stub_nested.py` sets `window.__fixturePosted = Date.now()` immediately before each `postMessage` in `page.html` and `diagram.svg`. No deadline, retry or assertion change.
-- [ ] 2.3 Sharp experiment: `e2e/ocu-popup-release.e2e.ts` (diagnostic only; same launch flags, same bridge, same modified click on the `link` chat's SVG link) attaches with `waitForDebuggerOnStart: true` and never resumes from the observer session; records, with timestamps, whether the document reaches `readyState=complete` within 20 s, and whether Playwright exposes a `page` for it; cleanup resumes and retires the target as the bridge already does. Run on the VPS through the repeat entry point (`REPEAT=5`); record the outcome verbatim in the evidence document.
-- [ ] 2.4 Native Linux repetitions, pre-change: `make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=20` on the VPS (Chromium and Playwright versions recorded); collect the popup traces; tabulate per repetition: outcome, collector state at the first poll, `__fixturePosted` versus the observer's resume ack versus `Runtime.executionContextCreated`, Playwright `page` event time if any.
+- [ ] 2.1 Before any edit: read `node_modules/playwright-core/lib/server/chromium/crPage.js` and record (file, lines) the order in which Playwright installs init scripts (`Page.addScriptToEvaluateOnNewDocument`) and resumes a new target (`Runtime.runIfWaitingForDebugger`); quote it in the PR.
+- [ ] 2.2 `e2e/ocu-fixtures.ts`: export `FIXTURE_COLLECTOR_SOURCE` (self-guarding, per design.md); `e2e/ocu-workspace.e2e.ts:303-309` and `e2e/ocu-resources.e2e.ts:30-38` pass it to `addInitScript`; `POPUP_DOCUMENT_EXPRESSION` adds `collector` and `posted`; `readPopupDocument` names both in its timeout message, deadlines unchanged; `scripts/ocu_stub_nested.py` sets `window.__fixturePosted = Date.now()` before each `postMessage`.
+- [ ] 2.3 Red: with both `addInitScript` calls temporarily removed, run A-T01 (`make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=1` once 2.6 exists, else the full `make verify-ui-ocu`) and record `collector: absent` from the pre-change observer for the HTML and SVG popups; restore the calls.
+- [ ] 2.4 `observeNativeOcuPopup`: for the selected target, `Page.enable` + `Page.addScriptToEvaluateOnNewDocument { source: FIXTURE_COLLECTOR_SOURCE }` awaited before the `finally` resume; the trace writer (`popupTrace`, design.md) with every mark listed in proposal.md, file named from `test.info().titlePath` and `repeatEachIndex`, written under `.run/ui-evidence/popup-trace/`; `.github/workflows/ci.yml` adds `.run/ui-evidence/popup-trace/**` to the `workspace-browser-failure` artifact (flag in the PR).
+- [ ] 2.5 Green: with the `addInitScript` calls removed again, the post-change observer reports `<n> events` on every run of both popups and all A-T01 assertions pass; restore the calls byte-identical; `make verify-ui-ocu` passes on macOS.
+- [ ] 2.6 Repeat entry point: `scripts/verify-ui-ocu.py` `repeat_selection()` (both unset → default; one set, empty string, unknown spec, non-positive or non-integer repeat → `fail` before any owned service starts; allowed specs are `REQUIRED_SPECS` plus `DIAGNOSTIC_SPECS`); `verify_test_discovery` lists only the selected spec; Playwright command appends the spec and `--repeat-each`; timing bounds scale only on the opt-in path; `playwright.ocu.config.ts` derives `testMatch` from `OCU_UI_SPEC` when set; Makefile targets `verify-ui-ocu-repeat` and `test-verify-ui-ocu-repeat`; AGENTS.md rows; unit test `scripts/test_verify_ui_ocu_repeat.py` covering the matrix (none, pair, each alone, `''`, unknown spec, diagnostic spec, `0`, `abc`, `-1`).
+- [ ] 2.7 macOS idempotence: `make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=3` passes with the same chats reused.
 
-## 3. Oracle (only if 2.3 shows first-resume release)
+## 3. Native Linux diagnosis (VPS, no Docker)
 
-- [ ] 3.1 The observer installs the collector on the attached session with `Page.addScriptToEvaluateOnNewDocument` before `Runtime.runIfWaitingForDebugger`; the trace records the install ack before the resume send. Mutant: install after resume (or omitted) → under the 2.4 repetitions at least one first poll reports `absent`/`empty` (red); green: every first poll reports `<n> events`, all A-T01 assertions and the four call sites unchanged.
-- [ ] 3.2 If 2.3 shows per-session release: stop, revise this fixture with the evidence, and run the fixture review again before any oracle change.
+- [ ] 3.1 Experiment: `e2e/ocu-popup-release.e2e.ts` per design.md (never resumes from the observer session; polls the full projection; records request sent/`page` exposed/`readyState`/`proof` with timestamps; retires through `retireBrowserTargets`); `make verify-ui-ocu-repeat SPEC=ocu-popup-release.e2e.ts REPEAT=5` on the VPS; record outcome A or B verbatim.
+- [ ] 3.2 `make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=20` on the VPS with the pre-change observer (2.2 in place, 2.4 not yet) and again with the post-change observer; collect the traces; tabulate per repetition.
 
-## 4. Verify
+## 4. Verify and record
 
-- [ ] 4.1 `make verify-ui-ocu` on macOS (default path, unchanged behaviour, screenshots and zero console errors); `make lint-scoped`; `make typecheck` ratchet; the harness unit test; `make doc-gate`; `make decisions-verify` if a decision record is added (one is expected: the oracle owns the collector; `docs/decisions/implemented/testing/`).
-- [ ] 4.2 Evidence document `docs/evidence/issue-95/` with the experiment record, the repetition table, sanitized trace excerpts and the version table; #95 comment with mechanism, oracle and what remains unattributed; archive this change.
+- [ ] 4.1 `make lint-scoped`; `make typecheck` ratchet; `make test-verify-ui-ocu-repeat`; `make doc-gate`; `make decisions-verify` (decision record `docs/decisions/implemented/testing/`: the popup oracle owns its collector).
+- [ ] 4.2 Evidence document `docs/evidence/issue-95/` (experiment record, repetition tables, sanitized trace excerpts, version table, what remains unattributed); #95 comment; archive this change.
 
 ## Risk packs
 
 Selected:
 
-- Evidence: timestamped, sanitized, correlated captures on native Linux; the experiment settles the release semantics before the oracle changes.
+- Evidence: timestamped, sanitized, correlated captures on native Linux; the experiment attributes the mechanism; the mutant gate proves the oracle no longer depends on Playwright's injection.
 - Security assertions preserved: no popup assertion, deadline, CSP, sandbox or retry change; traces redact grants and chat ids.
-- Harness contract: the repeat entry point is opt-in, validated, and leaves `make verify-ui-ocu` unchanged.
+- Harness contract: the repeat entry point is opt-in, validated (empty string included), and leaves `make verify-ui-ocu` unchanged; idempotence run before the 20.
+- CI change: one artifact path, flagged in the PR.
 
 Not selected:
 
