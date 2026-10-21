@@ -2,7 +2,11 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './e2e',
-	testMatch: '**/ocu-{workspace,resources,controls,reconciliation,drawio,tree,office}.e2e.ts',
+	// OCU_UI_SPEC (repeat entry point, scripts/verify-ui-ocu.py) selects one spec, including the
+	// diagnostic ones excluded from the default list; unset keeps the explicit required list.
+	testMatch: process.env.OCU_UI_SPEC
+		? [`**/${process.env.OCU_UI_SPEC}`]
+		: '**/ocu-{workspace,resources,controls,reconciliation,drawio,tree,office}.e2e.ts',
 	timeout: 60_000,
 	workers: 1,
 	expect: { timeout: 20_000 },

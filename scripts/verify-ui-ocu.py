@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from ocu_stub_office import OFFICE_SCENARIOS, office_document
 from smoke_proxy_resources import mint_short_session
 from smoke_proxy_support import (
+    Fail,
     distinct_ports,
     fail,
     git_run,
@@ -91,11 +92,50 @@ REQUIRED_SPECS = (
     'ocu-tree.e2e.ts',
     'ocu-office.e2e.ts',
 )
+# Collected only through the repeat entry point (OCU_UI_SPEC); never part of the default run.
+DIAGNOSTIC_SPECS = ('ocu-popup-release.e2e.ts',)
+REPEAT_RE = re.compile(r'^[1-9][0-9]*$')
+
+
+def repeat_selection() -> tuple[str, int, str | None] | None:
+    """Validate OCU_UI_SPEC + OCU_UI_REPEAT (+ optional OCU_UI_GREP) before any owned service starts.
+
+    None means the default run; otherwise (spec, repeat, grep_or_None).
+    """
+    spec = os.environ.get('OCU_UI_SPEC')
+    repeat = os.environ.get('OCU_UI_REPEAT')
+    grep = os.environ.get('OCU_UI_GREP')
+    if grep is not None and (spec is None or repeat is None):
+        fail('OCU_UI_GREP requires OCU_UI_SPEC and OCU_UI_REPEAT')
+    if spec is None and repeat is None:
+        return None
+    if spec is None or repeat is None:
+        fail('OCU_UI_SPEC and OCU_UI_REPEAT must be set together')
+    if spec not in REQUIRED_SPECS + DIAGNOSTIC_SPECS:
+        fail(f'OCU_UI_SPEC must name one of {", ".join(REQUIRED_SPECS + DIAGNOSTIC_SPECS)}')
+    if not REPEAT_RE.match(repeat):
+        fail('OCU_UI_REPEAT must be a positive integer')
+    if grep == '':
+        fail('OCU_UI_GREP must not be empty')
+    return spec, int(repeat), grep
+
+
+def harness_alarm(repeat_count: int) -> int:
+    # The only timing change on the opt-in path: one spec repeated n times may outlast the default run.
+    return max(1500, 900 + 600 * repeat_count)
 
 
 class BrowserHarness(Smoke):
-    def __init__(self) -> None:
+    def __init__(self, selection: tuple[str, int, str | None] | None = None) -> None:
         super().__init__()
+        self.specs = (selection[0],) if selection else REQUIRED_SPECS
+        self.repeat_count = selection[1] if selection else 1
+        self.spec_env = {'OCU_UI_SPEC': selection[0]} if selection else {}
+        self.spec_args = [f'e2e/{selection[0]}'] if selection else []
+        self.repeat_args = ['--repeat-each', str(selection[1])] if selection else []
+        grep = selection[2] if selection else None
+        # List form only: the title filter never passes through a shell.
+        self.grep_args = ['--grep', grep] if grep else []
         self.original_pidfiles = {
             name: (self.root / '.run' / name).read_bytes() if (self.root / '.run' / name).exists() else None
             for name in ('backend.pid', 'frontend.pid')
@@ -305,7 +345,15 @@ class BrowserHarness(Smoke):
 
     def verify_test_discovery(self, browser_env: dict[str, str]) -> None:
         listing = subprocess.run(
-            [str(self.root / 'node_modules/.bin/playwright'), 'test', '--config', 'playwright.ocu.config.ts', '--list'],
+            [
+                str(self.root / 'node_modules/.bin/playwright'),
+                'test',
+                '--config',
+                'playwright.ocu.config.ts',
+                '--list',
+                *self.spec_args,
+                *self.grep_args,
+            ],
             cwd=self.root,
             env=browser_env,
             capture_output=True,
@@ -323,7 +371,7 @@ class BrowserHarness(Smoke):
                 listing.stdout,
             )
         )
-        for spec in REQUIRED_SPECS:
+        for spec in self.specs:
             if spec not in discovered:
                 fail(f'required Playwright spec contributes no tests: {spec}')
 
@@ -498,6 +546,7 @@ class BrowserHarness(Smoke):
             'OCU_E2E_CONTEXT': str(context),
             'OCU_E2E_EMAIL': identity,
             'OCU_E2E_PASSWORD': password,
+            **self.spec_env,
         }
         self.verify_test_discovery(browser_env)
         # Reporter output and automatic traces stay private until credential redaction.
@@ -511,6 +560,9 @@ class BrowserHarness(Smoke):
                     'playwright.ocu.config.ts',
                     '--output',
                     str(self.scratch / 'test-results'),
+                    *self.spec_args,
+                    *self.repeat_args,
+                    *self.grep_args,
                 ],
                 cwd=self.root,
                 env=browser_env,
@@ -519,10 +571,12 @@ class BrowserHarness(Smoke):
                 start_new_session=True,
             )
             self.owned.append(browser.pid)
+            # 600 s per repetition: unchanged on the default path (repeat_count is 1 there).
+            browser_timeout = 600 * self.repeat_count
             try:
-                code = browser.wait(timeout=600)
+                code = browser.wait(timeout=browser_timeout)
             except subprocess.TimeoutExpired:
-                fail('workspace browser verification exceeded 600 seconds')
+                fail(f'workspace browser verification exceeded {browser_timeout} seconds')
             finally:
                 # Retire every inherited mint before consuming credentials or releasing private assets.
                 kill_tree(browser.pid)
@@ -540,10 +594,16 @@ class BrowserHarness(Smoke):
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    signal.signal(signal.SIGALRM, lambda _signum, _frame: fail('workspace harness exceeded 1500 seconds'))
-    signal.alarm(1500)
     try:
-        return run_owned_lifecycle(BrowserHarness(), log)
+        selection = repeat_selection()
+    except Fail as cop:
+        log.error('verify-ui-ocu: %s', cop)
+        return 1
+    alarm = harness_alarm(selection[1] if selection else 1)
+    signal.signal(signal.SIGALRM, lambda _signum, _frame: fail(f'workspace harness exceeded {alarm} seconds'))
+    signal.alarm(alarm)
+    try:
+        return run_owned_lifecycle(BrowserHarness(selection), log)
     finally:
         signal.alarm(0)
 

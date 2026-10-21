@@ -1,0 +1,25 @@
+Wed Oct 21 09:17:17 AM UTC 2026
+250ca17abcf7bca51d44a3cd68faa597c0397b15
+OCU_UI_SPEC="ocu-popup-release.e2e.ts" OCU_UI_REPEAT="5"  python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+verify-ui-ocu: all required browser cases completed
+Listing tests:
+  ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session
+Total: 1 test in 1 file
+
+Running 5 tests using 1 worker
+
+popup-release outcome {"outcome":"B","requestSent":false,"pageExposed":true,"readyState":"complete","proof":"unexpected","collector":"absent","posted":null,"path":"blank"} trace=.run/ui-evidence/popup-trace/ocu-popup-release-e2e-ts-popup-release-semantics-paused-SVG-popup-never-resumed-from-the-probe-session-0-1.jsonl
+  ✓  1 e2e/ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session (22.9s)
+popup-release outcome {"outcome":"B","requestSent":false,"pageExposed":true,"readyState":"complete","proof":"unexpected","collector":"absent","posted":null,"path":"blank"} trace=.run/ui-evidence/popup-trace/ocu-popup-release-e2e-ts-popup-release-semantics-paused-SVG-popup-never-resumed-from-the-probe-session-1-1.jsonl
+  ✓  2 e2e/ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session (22.8s)
+popup-release outcome {"outcome":"B","requestSent":false,"pageExposed":true,"readyState":"complete","proof":"unexpected","collector":"absent","posted":null,"path":"blank"} trace=.run/ui-evidence/popup-trace/ocu-popup-release-e2e-ts-popup-release-semantics-paused-SVG-popup-never-resumed-from-the-probe-session-2-1.jsonl
+  ✓  3 e2e/ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session (23.0s)
+popup-release outcome {"outcome":"B","requestSent":false,"pageExposed":true,"readyState":"complete","proof":"unexpected","collector":"absent","posted":null,"path":"blank"} trace=.run/ui-evidence/popup-trace/ocu-popup-release-e2e-ts-popup-release-semantics-paused-SVG-popup-never-resumed-from-the-probe-session-3-1.jsonl
+  ✓  4 e2e/ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session (22.8s)
+popup-release outcome {"outcome":"B","requestSent":false,"pageExposed":true,"readyState":"complete","proof":"unexpected","collector":"absent","posted":null,"path":"blank"} trace=.run/ui-evidence/popup-trace/ocu-popup-release-e2e-ts-popup-release-semantics-paused-SVG-popup-never-resumed-from-the-probe-session-4-1.jsonl
+  ✓  5 e2e/ocu-popup-release.e2e.ts:156:1 › popup release semantics: paused SVG popup never resumed from the probe session (22.9s)
+
+  5 passed (2.4m)
+exit=0
+Wed Oct 21 09:20:26 AM UTC 2026

@@ -7,6 +7,7 @@ import {
 	type BrowserCdpController,
 	type CdpTargetSession
 } from '../scripts/ocu-target-bridge.mjs';
+import { popupTrace, redactChat, tracePopupEvent, type PopupTrace } from './ocu-popup-trace';
 
 export type OcuClickProbe = {
 	path: string;
@@ -40,6 +41,18 @@ export const context: {
 } = JSON.parse(fs.readFileSync(contextFile, 'utf8'));
 export const evidence = '.run/ui-evidence';
 fs.mkdirSync(evidence, { recursive: true });
+
+export const tracePath = (url: string) => redactChat(sanitizedLocation(url));
+
+/** Self-guarding collector: a second install (Playwright's or the observer's) is a no-op. */
+export const FIXTURE_COLLECTOR_SOURCE = `if (!window.__fixtureCollector) {
+	window.__fixtureCollector = true;
+	window.fixtureEvents = [];
+	window.addEventListener('message', (event) => {
+		if (event.data?.type === 'fixture-opaque' || event.data?.type === 'fixture-svg')
+			window.fixtureEvents.push({ origin: event.origin, ...event.data });
+	});
+}`;
 
 export function redactOcu(text: string): string {
 	return text
@@ -330,6 +343,8 @@ function collectPopupError(
 		});
 }
 
+type PopupTargetInfo = { targetId: string; type: string; url?: string; browserContextId?: string };
+
 type PopupNavigation = {
 	frameId: string;
 	loaderId: string;
@@ -366,7 +381,7 @@ function collectPopupNavigation(
 	return false;
 }
 
-async function sourceTargetContext(
+export async function sourceTargetContext(
 	browser: BrowserContext,
 	source: Page,
 	targets: Array<{ targetId: string; browserContextId?: string }>
@@ -414,7 +429,7 @@ async function awaitPopupDestination(
 	throw new Error('Native popup destination identity mismatch');
 }
 
-const POPUP_DOCUMENT_EXPRESSION = `JSON.stringify((() => {
+export const POPUP_DOCUMENT_EXPRESSION = `JSON.stringify((() => {
 	const proof = document.querySelector('#proof')?.textContent;
 	const inline = document.querySelector('#inline');
 	const image = document.querySelector('#image');
@@ -424,6 +439,8 @@ const POPUP_DOCUMENT_EXPRESSION = `JSON.stringify((() => {
 		proof: proof === 'null|blocked|blocked|blocked' ? proof : 'unexpected',
 		inlineColor: inline ? getComputedStyle(inline).color : null,
 		imageNaturalWidth: image?.naturalWidth ?? null, imageComplete: image?.complete ?? null,
+		collector: window.fixtureEvents === undefined ? 'absent' : (window.fixtureEvents.length ? window.fixtureEvents.length + ' events' : 'empty'),
+		posted: window.__fixturePosted ?? null,
 		fixtureEvents: (window.fixtureEvents ?? []).map((event) => ({
 			origin: event.origin === 'null' ? 'null' : 'unexpected',
 			type: ['fixture-opaque', 'fixture-svg'].includes(event.type) ? event.type : 'unexpected',
@@ -449,6 +466,8 @@ export type PopupDocument = {
 	inlineColor: string | null;
 	imageNaturalWidth: number | null;
 	imageComplete: boolean | null;
+	collector: string;
+	posted: number | null;
 	fixtureEvents: PopupFixtureEvent[];
 };
 
@@ -465,10 +484,11 @@ function expectedPopupEvent(event: PopupFixtureEvent, type: 'html' | 'svg') {
 async function readPopupDocument(
 	bridge: CdpTargetSession,
 	type: 'html' | 'svg',
-	valid: () => boolean
+	valid: () => boolean,
+	trace: PopupTrace
 ): Promise<PopupDocument> {
 	const deadline = Date.now() + 20_000;
-	let lastDocument: unknown;
+	let lastDocument: PopupDocument | undefined;
 	do {
 		if (!valid()) throw new Error('Native popup target lost or ambiguous');
 		const result = await bridge.send('Runtime.evaluate', {
@@ -477,8 +497,10 @@ async function readPopupDocument(
 		});
 		if (result.exceptionDetails || typeof result.result?.value !== 'string')
 			throw new Error('Native popup DOM evaluation failed');
-		const document = JSON.parse(result.result.value);
+		const document: PopupDocument = JSON.parse(result.result.value);
 		lastDocument = document;
+		const { readyState, collector, posted } = document;
+		trace.mark('poll', { readyState, collector, posted });
 		if (
 			document.readyState === 'complete' &&
 			document.fixtureEvents.some((event: PopupFixtureEvent) => expectedPopupEvent(event, type))
@@ -486,7 +508,9 @@ async function readPopupDocument(
 			return document;
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	} while (Date.now() < deadline);
-	throw new Error(`Native popup fixture event missing: ${JSON.stringify(lastDocument)}`);
+	throw new Error(
+		`Native popup fixture event missing (collector: ${lastDocument?.collector}, posted: ${lastDocument?.posted}): ${JSON.stringify(lastDocument)}`
+	);
 }
 
 async function capturePopupScreenshot(bridge: CdpTargetSession, path: string) {
@@ -512,10 +536,11 @@ async function visitPopupDocument(
 	valid: () => boolean,
 	screenshotPath: string,
 	initial: Omit<PopupObservation, 'document' | 'evaluate' | 'screenshot'>,
+	trace: PopupTrace,
 	visit?: (popup: PopupObservation) => Promise<void>
 ) {
 	if (!bridge) throw new Error('Native popup CDP attachment missing');
-	const document = await readPopupDocument(bridge, type, valid);
+	const document = await readPopupDocument(bridge, type, valid, trace);
 	if (!valid()) throw new Error('Native popup target lost or ambiguous');
 	await capturePopupScreenshot(bridge, screenshotPath);
 	if (bridge.eventErrors) throw new Error('Native popup CDP event collection failed');
@@ -555,6 +580,7 @@ export async function observeNativeOcuPopup(
 ) {
 	const owner = browser.browser();
 	if (!owner) throw new Error('Native popup observation requires a Chromium browser');
+	const trace = popupTrace();
 	const root = await openBrowserCdp(owner);
 	let targetId: string | undefined;
 	let bridge: CdpTargetSession | undefined;
@@ -582,11 +608,23 @@ export async function observeNativeOcuPopup(
 	const canonical = new URL(expectedPath, context.origin).href;
 	let failure: unknown;
 	let cleanupErrors: string[] = [];
+	const onPage = (opened: Page) => trace.mark('page.event', { path: tracePath(opened.url()) });
+	let onCreated: ((event: { targetInfo: PopupTargetInfo }) => void) | undefined;
 	try {
 		await root.send('Target.setDiscoverTargets', { discover: true });
 		const { targetInfos } = await root.send('Target.getTargets');
 		const existing = new Set(targetInfos.map(({ targetId }) => targetId));
 		const contextId = await sourceTargetContext(browser, source, targetInfos);
+		onCreated = ({ targetInfo }) => {
+			if (existing.has(targetInfo.targetId)) return;
+			trace.mark('target.created', {
+				type: targetInfo.type,
+				sameContext: targetInfo.browserContextId === contextId,
+				path: tracePath(targetInfo.url ?? '')
+			});
+		};
+		root.on('Target.targetCreated', onCreated);
+		browser.on('page', onPage);
 		const candidates = new Set<string>();
 		const created = Promise.withResolvers<string>();
 		void created.promise.catch(() => undefined);
@@ -600,6 +638,7 @@ export async function observeNativeOcuPopup(
 			const selected = candidate && candidates.size === 1;
 			if (candidate && !selected) created.reject(new Error('Native popup target not unique'));
 			if (waitingForDebugger) paused.add(sessionId);
+			trace.mark('target.attached', { selected, waitingForDebugger, type: targetInfo.type });
 			const job = (async () => {
 				const attached = root.session(
 					sessionId,
@@ -607,6 +646,7 @@ export async function observeNativeOcuPopup(
 						? (method, params: PopupCdpEvent) => {
 								collectPopupError(errors, method, params);
 								onNetwork?.(method, params, sessionId);
+								tracePopupEvent(trace, method, params, canonical, tracePath);
 								if (collectPopupNavigation(navigations, method, params, canonical))
 									ownedTarget = targetInfo.targetId;
 							}
@@ -620,16 +660,27 @@ export async function observeNativeOcuPopup(
 						const { targetInfo: adopted } = await attached.send('Target.getTargetInfo');
 						if (adopted.targetId !== targetInfo.targetId || adopted.browserContextId !== contextId)
 							throw new Error('Native popup adopted session identity mismatch');
+						// An unpaused attach would leave the collector install to Playwright's init script alone.
+						if (!waitingForDebugger) throw new Error('Native popup target attached unpaused');
 						await Promise.all([
 							attached.send('Runtime.enable'),
 							attached.send('Log.enable'),
 							attached.send('Network.enable')
 						]);
+						// The observer installs the collector before its own resume, so the popup's inline
+						// script finds the listener whichever client (Playwright or this) releases first.
+						await attached.send('Page.enable');
+						await attached.send('Page.addScriptToEvaluateOnNewDocument', {
+							source: FIXTURE_COLLECTOR_SOURCE
+						});
+						trace.mark('collector.install.ack');
 					}
 				} finally {
 					// Even foreign, existing and ambiguous targets belong to the browser, not this observer.
 					if (waitingForDebugger) {
+						trace.mark('resume.send', { selected });
 						await attached.send('Runtime.runIfWaitingForDebugger');
+						trace.mark('resume.ack', { selected });
 						paused.delete(sessionId);
 					}
 				}
@@ -653,11 +704,14 @@ export async function observeNativeOcuPopup(
 			flatten: true,
 			filter: [{ type: 'page', exclude: false }, { exclude: true }]
 		});
+		trace.mark('click.start');
 		await click();
+		trace.mark('click.end');
 		targetId = await cdpDeadline(created.promise, 'target-created-timeout');
 		if (candidates.size !== 1 || targetLost) throw new Error('Native popup target not unique');
 		const valid = () => !targetLost && candidates.size === 1;
 		const destination = await awaitPopupDestination(root, targetId, contextId, expectedPath, valid);
+		trace.mark('destination', { path: tracePath(destination) });
 		await expect
 			.poll(() => [...navigations.values()].some((row) => row.final?.url === destination))
 			.toBe(true);
@@ -701,6 +755,7 @@ export async function observeNativeOcuPopup(
 			valid,
 			screenshotPath,
 			{ grant, errors, targetId },
+			trace,
 			visit
 		);
 		expect(root.eventErrors, 'native root protocol observers remain healthy').toBe(0);
@@ -722,10 +777,14 @@ export async function observeNativeOcuPopup(
 			cleanupErrors.push('target retirement');
 		} finally {
 			cleanupErrors.push(...attachmentErrors);
+			browser.off('page', onPage);
+			if (onCreated) root.off('Target.targetCreated', onCreated);
 			if (onAttached) root.off('Target.attachedToTarget', onAttached);
 			root.off('Target.targetDestroyed', onLost);
 			root.off('Target.targetCrashed', onLost);
 			await root.close().catch(() => cleanupErrors.push('root socket'));
+			trace.mark('retired', { errors: cleanupErrors });
+			trace.close();
 		}
 	}
 	if (failure && cleanupErrors.length)

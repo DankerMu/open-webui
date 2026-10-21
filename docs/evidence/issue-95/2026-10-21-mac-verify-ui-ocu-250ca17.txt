@@ -1,0 +1,94 @@
+2026年10月21日 星期三 07时05分22秒 UTC
+250ca17abcf7bca51d44a3cd68faa597c0397b15
+python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+Listing tests:
+  ocu-controls.e2e.ts:186:1 › A-T07 Send-first holds Workspace disabled until an authenticated server id arrives
+  ocu-controls.e2e.ts:234:1 › A-T07 Workspace-first sends through its saved id with first-message title and tags
+  ocu-controls.e2e.ts:268:1 › A-T07 generated message pair joins an in-flight Workspace save without creating an orphan
+  ocu-controls.e2e.ts:289:1 › A-T07 Workspace joins an in-flight generated pair save without creating a second chat
+  ocu-controls.e2e.ts:313:1 › A-T07 failed save stays in draft and explicitly retries without workspace requests
+  ocu-controls.e2e.ts:350:1 › A-T07 stale save after navigation never adopts old identity or opens workspace
+  ocu-controls.e2e.ts:388:1 › A-T10 delayed A describe cannot replace B; empty runtime and explicit stopped Launch
+  ocu-controls.e2e.ts:440:1 › A-T10 stopped runtime automatically returns to Files and re-arms the selected Office preview
+  ocu-controls.e2e.ts:472:1 › A-T10 runtime iframe identity, selected Files, native Artifacts, and twenty transport teardowns
+  ocu-controls.e2e.ts:561:1 › A-T07 narrow Workspace entry stays reachable with Controls closed and in the mobile drawer
+  ocu-controls.e2e.ts:592:1 › A-T01 positive control confirms credentials are observable on owner documents
+  ocu-controls.e2e.ts:611:1 › workspace chrome fits Files themes and remaining-height runtime views
+  ocu-drawio.e2e.ts:30:1 › authorized owner standalone Drawio renders local image, AND stencil and math
+  ocu-drawio.e2e.ts:164:1 › workspace Files keeps Drawio as opaque XML without fetching the viewer
+  ocu-office.e2e.ts:59:1 › Office first open reaches parent-accepted editing through the gateway
+  ocu-office.e2e.ts:124:1 › Office save waits for reported status confirmation after parent Save
+  ocu-office.e2e.ts:245:1 › Office unsupported creation keeps readonly preview and download without close
+  ocu-office.e2e.ts:315:1 › Office maximize keeps the same live editor document and usable overlay Save
+  ocu-office.e2e.ts:387:1 › Office maximize overlay remains reachable in the narrow Drawer layout
+  ocu-office.e2e.ts:443:1 › Office conflict save-as keeps the live original editor and adds a deduplicated File
+  ocu-office.e2e.ts:650:1 › Office unpublished content restores the captured version before opening the editor
+  ocu-office.e2e.ts:665:1 › Office stale session rechecks unpublished content once before starting from the current file
+  ocu-office.e2e.ts:692:1 › B-T12 refresh prompts only for a dirty editor and dismissal preserves it
+  ocu-office.e2e.ts:706:1 › B-T12 dirty sidebar close publishes with progress and a saved report
+  ocu-office.e2e.ts:719:1 › B-T12 dirty chat switch isolates B and returns A saved until explicit Edit
+  ocu-office.e2e.ts:735:1 › B-T13 automatic close saves as report (2).docx with distinct published identity
+  ocu-reconciliation.e2e.ts:37:1 › A-T11 message-less workspace hint discovers the first output while Controls stays closed
+  ocu-reconciliation.e2e.ts:85:1 › A-T11 a no-event output is found by background polling while the panel is closed
+  ocu-reconciliation.e2e.ts:108:1 › A-T06 owner history restores persisted Files and Office preview after native backend and stub restart
+  ocu-resources.e2e.ts:38:2 › A-T01 sidebar resources lose expired authority and recover through canonical navigation
+  ocu-resources.e2e.ts:38:2 › A-T01 direct resources lose expired authority and recover through canonical navigation
+  ocu-resources.e2e.ts:123:1 › A-T01 native message popup keeps its document through expiry and reopens the canonical link
+  ocu-tree.e2e.ts:84:1 › nested Files tree shows headers, indentation, collapse and selection geometry
+  ocu-tree.e2e.ts:259:1 › refresh updates the selected file row glyph without replacing its selectable identity
+  ocu-tree.e2e.ts:389:1 › broker TSV metadata shows sheet icons without granting Office capabilities
+  ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+  ocu-workspace.e2e.ts:534:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions
+  ocu-workspace.e2e.ts:617:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download
+  ocu-workspace.e2e.ts:648:1 › B0 owner upload through the gateway appears in Files
+Total: 40 tests in 7 files
+
+Running 40 tests using 1 worker
+
+  ✓   1 e2e/ocu-controls.e2e.ts:186:1 › A-T07 Send-first holds Workspace disabled until an authenticated server id arrives (2.2s)
+  ✓   2 e2e/ocu-controls.e2e.ts:234:1 › A-T07 Workspace-first sends through its saved id with first-message title and tags (1.5s)
+  ✓   3 e2e/ocu-controls.e2e.ts:268:1 › A-T07 generated message pair joins an in-flight Workspace save without creating an orphan (1.4s)
+  ✓   4 e2e/ocu-controls.e2e.ts:289:1 › A-T07 Workspace joins an in-flight generated pair save without creating a second chat (1.4s)
+  ✓   5 e2e/ocu-controls.e2e.ts:313:1 › A-T07 failed save stays in draft and explicitly retries without workspace requests (2.1s)
+  ✓   6 e2e/ocu-controls.e2e.ts:350:1 › A-T07 stale save after navigation never adopts old identity or opens workspace (2.1s)
+  ✓   7 e2e/ocu-controls.e2e.ts:388:1 › A-T10 delayed A describe cannot replace B; empty runtime and explicit stopped Launch (3.7s)
+  ✓   8 e2e/ocu-controls.e2e.ts:440:1 › A-T10 stopped runtime automatically returns to Files and re-arms the selected Office preview (3.3s)
+  ✓   9 e2e/ocu-controls.e2e.ts:472:1 › A-T10 runtime iframe identity, selected Files, native Artifacts, and twenty transport teardowns (9.2s)
+  ✓  10 e2e/ocu-controls.e2e.ts:561:1 › A-T07 narrow Workspace entry stays reachable with Controls closed and in the mobile drawer (2.1s)
+  ✓  11 e2e/ocu-controls.e2e.ts:592:1 › A-T01 positive control confirms credentials are observable on owner documents (1.9s)
+  ✓  12 e2e/ocu-controls.e2e.ts:611:1 › workspace chrome fits Files themes and remaining-height runtime views (4.8s)
+  ✓  13 e2e/ocu-drawio.e2e.ts:30:1 › authorized owner standalone Drawio renders local image, AND stencil and math (1.7s)
+  ✓  14 e2e/ocu-drawio.e2e.ts:164:1 › workspace Files keeps Drawio as opaque XML without fetching the viewer (1.9s)
+  ✓  15 e2e/ocu-office.e2e.ts:59:1 › Office first open reaches parent-accepted editing through the gateway (1.5s)
+  ✓  16 e2e/ocu-office.e2e.ts:124:1 › Office save waits for reported status confirmation after parent Save (2.3s)
+  ✓  17 e2e/ocu-office.e2e.ts:245:1 › Office unsupported creation keeps readonly preview and download without close (2.3s)
+  ✓  18 e2e/ocu-office.e2e.ts:315:1 › Office maximize keeps the same live editor document and usable overlay Save (2.4s)
+  ✓  19 e2e/ocu-office.e2e.ts:387:1 › Office maximize overlay remains reachable in the narrow Drawer layout (1.7s)
+  ✓  20 e2e/ocu-office.e2e.ts:443:1 › Office conflict save-as keeps the live original editor and adds a deduplicated File (2.9s)
+  ✓  21 e2e/ocu-office.e2e.ts:650:1 › Office unpublished content restores the captured version before opening the editor (3.3s)
+  ✓  22 e2e/ocu-office.e2e.ts:665:1 › Office stale session rechecks unpublished content once before starting from the current file (2.6s)
+  ✓  23 e2e/ocu-office.e2e.ts:692:1 › B-T12 refresh prompts only for a dirty editor and dismissal preserves it (3.6s)
+  ✓  24 e2e/ocu-office.e2e.ts:706:1 › B-T12 dirty sidebar close publishes with progress and a saved report (3.3s)
+  ✓  25 e2e/ocu-office.e2e.ts:719:1 › B-T12 dirty chat switch isolates B and returns A saved until explicit Edit (4.6s)
+  ✓  26 e2e/ocu-office.e2e.ts:735:1 › B-T13 automatic close saves as report (2).docx with distinct published identity (10.1s)
+  ✓  27 e2e/ocu-reconciliation.e2e.ts:37:1 › A-T11 message-less workspace hint discovers the first output while Controls stays closed (1.9s)
+  ✓  28 e2e/ocu-reconciliation.e2e.ts:85:1 › A-T11 a no-event output is found by background polling while the panel is closed (8.0s)
+  ✓  29 e2e/ocu-reconciliation.e2e.ts:108:1 › A-T06 owner history restores persisted Files and Office preview after native backend and stub restart (2.0s)
+  ✓  30 e2e/ocu-resources.e2e.ts:38:2 › A-T01 sidebar resources lose expired authority and recover through canonical navigation (23.8s)
+  ✓  31 e2e/ocu-resources.e2e.ts:38:2 › A-T01 direct resources lose expired authority and recover through canonical navigation (22.8s)
+  ✓  32 e2e/ocu-resources.e2e.ts:123:1 › A-T01 native message popup keeps its document through expiry and reopens the canonical link (23.2s)
+  ✓  33 e2e/ocu-tree.e2e.ts:84:1 › nested Files tree shows headers, indentation, collapse and selection geometry (4.5s)
+  ✓  34 e2e/ocu-tree.e2e.ts:259:1 › refresh updates the selected file row glyph without replacing its selectable identity (2.6s)
+  ✓  35 e2e/ocu-tree.e2e.ts:389:1 › broker TSV metadata shows sheet icons without granting Office capabilities (5.1s)
+  ✓  36 e2e/ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded (2.6s)
+  ✓  37 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (4.3s)
+  ✓  38 e2e/ocu-workspace.e2e.ts:534:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions (5.7s)
+  ✓  39 e2e/ocu-workspace.e2e.ts:617:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download (3.1s)
+  ✓  40 e2e/ocu-workspace.e2e.ts:648:1 › B0 owner upload through the gateway appears in Files (4.9s)
+
+  40 passed (3.5m)
+verify-ui-ocu: all required browser cases completed
+exit=0
+2026年10月21日 星期三 07时09分27秒 UTC

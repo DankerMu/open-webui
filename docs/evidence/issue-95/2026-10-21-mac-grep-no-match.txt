@@ -1,0 +1,15 @@
+# no-match grep: make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=1 GREP=A-T99
+# 2026-10-21T06:34:05Z
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="1" OCU_UI_GREP="A-T99" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+
+Error: No tests found.
+Make sure that arguments are regular expressions matching test files.
+You may need to escape symbols like "$" or "*" and quote the arguments.
+workspace failure logs: <scratch>/webui-clone/.run/ui-evidence/workspace-ui-788emtj3
+smoke-proxy: configured Playwright test discovery failed (1)
+Listing tests:
+Total: 0 tests in 0 files
+make: *** [verify-ui-ocu-repeat] Error 1
+exit=2
+# 2026-10-21T06:34:23Z done

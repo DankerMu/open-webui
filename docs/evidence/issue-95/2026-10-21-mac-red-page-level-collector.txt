@@ -1,0 +1,70 @@
+# 2.4 RED: page-level collector mutation (see t24-mutation.diff), pre-change observer (no observer-owned install)
+# 2026-10-21T05:55:40Z make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=1
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="1" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+workspace failure logs: <scratch>/webui-clone/.run/ui-evidence/workspace-ui-gptllmqu
+smoke-proxy: workspace browser verification failed (1)
+Listing tests:
+  ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+  ocu-workspace.e2e.ts:535:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions
+  ocu-workspace.e2e.ts:618:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download
+  ocu-workspace.e2e.ts:649:1 › B0 owner upload through the gateway appears in Files
+Total: 5 tests in 1 file
+
+Running 5 tests using 1 worker
+
+  ✓  1 e2e/ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded (2.8s)
+  ✘  2 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (24.4s)
+  ✓  3 e2e/ocu-workspace.e2e.ts:535:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions (6.0s)
+  ✓  4 e2e/ocu-workspace.e2e.ts:618:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download (3.1s)
+  ✓  5 e2e/ocu-workspace.e2e.ts:649:1 › B0 owner upload through the gateway appears in Files (4.9s)
+
+
+  1) e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+
+    Error: Native popup fixture event missing (collector: absent, posted: 1792562182581): {"path":"[redacted]","origin":"http://127.0.0.1:64417","readyState":"complete","proof":"null|blocked|blocked|blocked","inlineColor":"rgb(0, 128, 0)","imageNaturalWidth":1,"imageComplete":true,"collector":"absent","posted":1792562182581,"fixtureEvents":[]}
+
+       at ocu-fixtures.ts:503
+
+      501 | 		await new Promise((resolve) => setTimeout(resolve, 100));
+      502 | 	} while (Date.now() < deadline);
+    > 503 | 	throw new Error(
+          | 	      ^
+      504 | 		`Native popup fixture event missing (collector: ${lastDocument?.collector}, posted: ${lastDocument?.posted}): ${JSON.stringify(lastDocument)}`
+      505 | 	);
+      506 | }
+        at readPopupDocument (<scratch>/webui-clone/e2e/ocu-fixtures.ts:503:8)
+        at visitPopupDocument (<scratch>/webui-clone/e2e/ocu-fixtures.ts:534:19)
+        at observeNativeOcuPopup (<scratch>/webui-clone/e2e/ocu-fixtures.ts:714:17)
+        at <scratch>/webui-clone/e2e/ocu-workspace.e2e.ts:421:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .run/workspace-ui-gptllmqu/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    .run/workspace-ui-gptllmqu/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: .run/workspace-ui-gptllmqu/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    .run/workspace-ui-gptllmqu/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab/trace.zip
+    Usage:
+
+        npx playwright show-trace .run/workspace-ui-gptllmqu/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+  4 passed (50.5s)
+make: *** [verify-ui-ocu-repeat] Error 1
+exit=2
+# 2026-10-21T05:57:00Z done
+
+# restore check (cmp against the pre-mutation copies)
+cmp e2e/ocu-workspace.e2e.ts restore/ocu-workspace.e2e.ts: identical (exit=0)
+cmp e2e/ocu-resources.e2e.ts restore/ocu-resources.e2e.ts: identical (exit=0)
+cmp e2e/ocu-fixtures.ts restore/ocu-fixtures.ts: identical (exit=0)

@@ -102,6 +102,8 @@ nvm use && make setup
 | Docs drift gate / decision records check               | `make doc-gate`, `make decisions-verify`                                   |
 | OCU stub smoke (not `make smoke`)                      | `make smoke-stub`                                                          |
 | OCU gateway smoke (not `make smoke`)                   | `make smoke-proxy`                                                         |
+| Repeat one OCU browser spec against one owned stack    | `make verify-ui-ocu-repeat` (`SPEC=… REPEAT=…`, optional `GREP=…`)         |
+| Repeat entry-point validation unit test                | `make test-verify-ui-ocu-repeat`                                           |
 | Closing-reference guard self-test                      | `make test-pr-merge-guard`                                                 |
 | Check / merge a PR by its reviewed head                | `make pr-merge-check`, `make pr-merge` (`PR_REPO=… PR_NUMBER=… PR_HEAD=…`) |
 

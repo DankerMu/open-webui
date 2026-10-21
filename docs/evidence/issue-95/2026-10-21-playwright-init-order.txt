@@ -1,0 +1,55 @@
+# 2.1 Playwright init-script / resume order (task 2.1)
+# playwright-core version: 1.63.0
+# NOTE: the fixture names node_modules/playwright-core/lib/server/coreBundle.js; in 1.63.0 the bundle is at
+#       node_modules/playwright-core/lib/coreBundle.js (lib/server/ holds only chromium/appIcon.png and electron/).
+# located by: grep -n 'allInitScripts()' and 'Runtime.runIfWaitingForDebugger' -> FrameSession (class at line 37518), _initialize at line 37577
+
+$ grep -n "FrameSession = class\|async _initialize(hasUIWindow)\|allInitScripts()\|Runtime.runIfWaitingForDebugger\|await Promise.all(promises2)" node_modules/playwright-core/lib/coreBundle.js | sed -n 1,20p
+11163:        await Promise.all(promises2);
+21511:          await Promise.all(promises2);
+22906:      allInitScripts() {
+35027:        await this._sendMayFail("Runtime.runIfWaitingForDebugger");
+37518:    FrameSession = class _FrameSession {
+37577:      async _initialize(hasUIWindow) {
+37662:          for (const initScript of this._crPage._page.allInitScripts())
+37670:        promises2.push(this._client.send("Runtime.runIfWaitingForDebugger"));
+37672:        await Promise.all(promises2);
+37840:        session2._sendMayFail("Runtime.runIfWaitingForDebugger");
+38015:        await Promise.all(promises2);
+38233:        session2.send("Runtime.runIfWaitingForDebugger").catch((e) => {
+38236:          session2._sendMayFail("Runtime.runIfWaitingForDebugger", {});
+38589:        await Promise.all(promises2);
+42569:        await Promise.all(promises2);
+42626:        await Promise.all(promises2);
+42802:        await Promise.all(promises2);
+42905:          session2.send("Runtime.runIfWaitingForDebugger")
+43182:          session2._sendMayFail("Runtime.runIfWaitingForDebugger");
+45595:        await Promise.all(promises2);
+
+$ sed -n 37577p;37661,37672p node_modules/playwright-core/lib/coreBundle.js  (quoted block)
+      async _initialize(hasUIWindow) {
+          promises2.push(this._updateFileChooserInterception(true));
+          for (const initScript of this._crPage._page.allInitScripts())
+            promises2.push(this._evaluateOnNewDocument(
+              initScript,
+              "main",
+              true
+              /* runImmediately */
+            ));
+        }
+        promises2.push(this._client.send("Runtime.runIfWaitingForDebugger"));
+        promises2.push(this._firstNonInitialNavigationCommittedPromise);
+        await Promise.all(promises2);
+
+$ sed -n 38064,38068p node_modules/playwright-core/lib/coreBundle.js  (_evaluateOnNewDocument sends Page.addScriptToEvaluateOnNewDocument on the same this._client)
+      async _evaluateOnNewDocument(initScript, world, runImmediately) {
+        const worldName = world === "utility" ? this._crPage.utilityWorldName : void 0;
+        const { identifier } = await this._client.send("Page.addScriptToEvaluateOnNewDocument", { source: initScript.source, worldName, runImmediately });
+        this._initScriptIds.set(initScript, identifier);
+      }
+
+# Finding: inside FrameSession._initialize the loop over this._crPage._page.allInitScripts() pushes
+# this._evaluateOnNewDocument(...) (whose first statement sends Page.addScriptToEvaluateOnNewDocument on this._client)
+# into promises2 BEFORE promises2.push(this._client.send("Runtime.runIfWaitingForDebugger")) (line 37670).
+# Both go out on the same CDP session (this._client) in push order, so Playwright's install precedes its own resume.
+exit=0

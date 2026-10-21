@@ -12,7 +12,7 @@ endif
 	setup dev dev-bg dev-stop dev-status logs \
 	check check-fast fmt fmt-check lint lint-scoped typecheck test test-unit test-backend test-frontend test-auth-bootstrap test-verify-office test-pr-merge-guard test-harness-env test-harness-seed test-harness-script-root test-smoke-cleanup \
 	test-smoke-stub-cleanup test-ocu-stub-public test-diff-size-guard pr-merge-check pr-merge coverage-gate test-coverage-gate anti-drift build clean \
-	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
+	smoke smoke-stub smoke-proxy e2e e2e-auth-bootstrap verify-ui verify-ui-ocu verify-ui-ocu-repeat test-verify-ui-ocu-repeat verify-office pyodide-fetch verify-pyodide-offline db-reset seed db-verify test-guardrails doc-gate decisions-verify
 
 default: check
 
@@ -181,6 +181,15 @@ verify-ui:
 
 verify-ui-ocu:
 	python3 scripts/verify-ui-ocu.py
+
+# Diagnostic: one spec (required or diagnostic) repeated REPEAT times against one owned stack;
+# optional GREP narrows to matching test titles (Playwright --grep). An empty SPEC/REPEAT reaches
+# the script as an empty string and fails there before any service starts; an empty GREP is not exported.
+verify-ui-ocu-repeat:
+	OCU_UI_SPEC="$(SPEC)" OCU_UI_REPEAT="$(REPEAT)" $(if $(GREP),OCU_UI_GREP="$(GREP)",) python3 scripts/verify-ui-ocu.py
+
+test-verify-ui-ocu-repeat:
+	uv run --no-sync pytest -q -p no:cacheprovider scripts/test_verify_ui_ocu_repeat.py
 
 verify-office:
 	bash scripts/verify-office.sh $(OFFICE_ARGS)

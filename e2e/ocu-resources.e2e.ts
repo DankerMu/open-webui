@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
 import {
+	FIXTURE_COLLECTOR_SOURCE,
 	context,
 	evidence,
 	observeNativeOcuPopup,
@@ -30,13 +31,7 @@ async function openFiles(page: Page, scenario: string) {
 }
 
 test.beforeEach(async ({ context: browser }) => {
-	await browser.addInitScript(() => {
-		window.fixtureEvents = [];
-		window.addEventListener('message', (event) => {
-			if (event.data?.type === 'fixture-opaque' || event.data?.type === 'fixture-svg')
-				window.fixtureEvents.push({ origin: event.origin, ...event.data });
-		});
-	});
+	await browser.addInitScript(FIXTURE_COLLECTOR_SOURCE);
 });
 
 for (const mode of ['sidebar', 'direct'] as const) {
