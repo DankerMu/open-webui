@@ -2,7 +2,7 @@
 
 ## Boundary
 
-This record covers the engine qualification owned by [#442](https://github.com/DankerMu/open-webui/issues/442) on one host: this macOS machine's Docker Desktop. It separates what the engine was observed to do from the explanation offered for it. A native Linux engine was not available in this round; its row below is untested, and #442's acceptance criteria for a supported profile (assigned ports on the gateway plus a real BrowserViewer download) stay open.
+This record covers the engine qualification owned by [#442](https://github.com/DankerMu/open-webui/issues/442) on one host: this macOS machine's Docker Desktop. It separates what the engine was observed to do from the explanation offered for it. The native Linux row was completed on 2026-10-21 in [the native Linux record](2026-10-21-native-linux-gateway-publication.md), which also covers #442's acceptance criteria for a supported profile (assigned ports on the gateway plus a real BrowserViewer download).
 
 #197's acceptance criteria are unchanged by this record, and its separate 14-test, zero-failure production-profile integration result on this same engine stays valid evidence: those tests exercise tool calls and workspace files, not the published browser or terminal ports.
 
@@ -18,7 +18,7 @@ The probe image is `alpine:3.20` for the host architecture (`linux/arm64`); the 
 | Host                    | Darwin 25.6.0 arm64 (macOS)                             |
 | Probe network           | user bridge `10.242.0.0/24`, gateway `10.242.0.1`       |
 | Probe image             | `alpine:3.20` (`linux/arm64`)                           |
-| Native Linux engine row | untested in this round                                  |
+| Native Linux engine row | see the 2026-10-21 record (all five specs assigned)     |
 
 ## Probe commands
 
@@ -58,13 +58,13 @@ spec=0.0.0.0::9222 exit=0 ports={"9222/tcp":[{"HostIp":"0.0.0.0","HostPort":"625
 | gateway, explicit port | no (125) | n/a                | daemon error, see above             |
 | loopback, dynamic port | yes      | `62490`            | `HostIp=127.0.0.1`                  |
 | wildcard, dynamic port | yes      | `62534`            | `HostIp=0.0.0.0`                    |
-| native Linux, any spec | untested | untested           | untested                            |
+| native Linux, any spec | yes      | assigned           | see the 2026-10-21 record           |
 
 The two gateway-dynamic rows reproduce the issue's observation: the daemon accepts the request, the container runs, and `NetworkSettings.Ports` stays empty while the immutable binding carries the gateway. The loopback and wildcard controls isolate the difference to the gateway address.
 
 ## Explanation (not an established root cause)
 
-The explicit-port error says the forwarder tried to listen on `10.242.0.1:39222` on the host and the address could not be assigned. That is consistent with Docker Desktop forwarding published ports onto the macOS host, which does not own the Linux VM's bridge gateway address. The dynamic-port case fails silently rather than with that error, so this explanation is inferred from the explicit-port behaviour, not confirmed from the daemon.
+The explicit-port error says the forwarder tried to listen on `10.242.0.1:39222` on the host and the address could not be assigned. That is consistent with Docker Desktop forwarding published ports onto the macOS host, which does not own the Linux VM's bridge gateway address. The dynamic-port case fails silently rather than with that error, so this explanation is inferred from the explicit-port behaviour, not confirmed from the daemon. The native Linux host in the 2026-10-21 record runs the same containerd image store and assigns every spec, so the image store is not the discriminator.
 
 ## OCU behaviour after the #442 slice
 
@@ -135,4 +135,4 @@ Run with `OCU_ENGINE_PROBE=1`: 1 passed; both ports unassigned. `host.platform` 
 
 ## Next step
 
-Run the qualification test on a native Linux engine and attach its record to #442. If both ports are assigned there, complete AC2 (BrowserViewer connects and a real download lands in the workspace) on that engine; #197's BrowserViewer/download item needs that engine regardless of this slice.
+Done on 2026-10-21: the qualification test passed with both ports assigned on a native Linux engine and AC2 completed there; see [the native Linux record](2026-10-21-native-linux-gateway-publication.md).
