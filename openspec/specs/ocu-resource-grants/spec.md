@@ -77,3 +77,27 @@ Sidebar, direct top-level file navigation and message-link opening SHALL load re
 
 - **WHEN** a cookie-less opaque document targets a canonical cookie file path, an unsupported grant method, credentialed/custom-header CORS, or a non-file API
 - **THEN** no additional authority or global CORS permission is granted; unsupported gateway methods and paths do not contact OCU
+
+### Requirement: Deterministic native popup observation
+
+The e2e oracle for message-link opening SHALL observe a natively created popup target through the browser target channel and SHALL not depend on Playwright's context init script reaching that target before the document's inline script runs: the collector the popup document posts to SHALL come from one shared, self-guarding source, installed by the observer on its own attached session (acknowledged) before the observer resumes the paused target, which SHALL have attached paused (otherwise the observation fails), and by the context init script before Playwright resumes it, so that a second install is a no-op; the document projection SHALL distinguish an absent collector from an empty one, and every observation SHALL leave a sanitized, timestamped trace (gesture, target creation and attachment, resume, execution context, frame navigation, canonical request and response, Playwright page exposure, collector state per poll) under the UI evidence directory. Existing grant-chain, CSP, nosniff, console, storage/parent/cookie and cleanup assertions and all deadlines SHALL stay unchanged. A repeat entry point SHALL run one required or diagnostic spec N times against one owned stack, optionally narrowed to tests matching a grep, and SHALL fail before the stack starts on any incomplete or invalid configuration, while the default verification keeps running every required spec once.
+
+#### Scenario: Native SVG popup with the collector installed by the observer
+
+- **WHEN** the modified click opens the generated SVG in a new tab and the SVG's inline script posts its event during parsing
+- **THEN** the projection reports the expected `fixture-svg` event with origin `null` and all probes `blocked`, the trace shows the collector install acknowledged before the observer's resume, and the proof, grant chain and CSP assertions hold
+
+#### Scenario: Absent collector is reported, not masked
+
+- **WHEN** the collector is not present in the popup document at a poll
+- **THEN** the projection reports `collector: absent` and a timeout names that state together with the document's posted timestamp, instead of reporting an empty event list
+
+#### Scenario: Repeat entry point validation
+
+- **WHEN** `OCU_UI_SPEC` or `OCU_UI_REPEAT` is set without the other, is an empty string, names a spec outside the allowed set, or a non-positive or non-integer repeat count
+- **THEN** the harness fails before any owned service starts; with a valid pair it runs only that spec with the given repeat count (narrowed by the grep when one is given; a grep without the pair, an empty grep, or a grep matching no test fails), and without the pair it runs every required spec once as before
+
+#### Scenario: Oracle independent of the context init script
+
+- **WHEN** the collector is installed only at page level, so Playwright does not propagate it to a natively created popup target
+- **THEN** the observer still reports the expected fixture event through the collector it installed on its own session, and the sidebar and direct-tab documents keep theirs
