@@ -534,6 +534,16 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 test('A-T10 empty, large, stopped, unavailable and coherent identity transitions', async ({
 	page
 }) => {
+	// Repeated runs on one stack must start from the provisioned rows and empty preferences.
+	setScenario('deleted', 'deleted');
+	setScenario('partial', 'partial');
+	for (const chatId of [context.chats.deleted, context.chats.partial]) {
+		const response = await page.request.put(`/api/v1/ocu/workspaces/${chatId}/prefs`, {
+			headers: { 'X-Requested-With': 'ocu-workspace' },
+			data: {}
+		});
+		expect(response.status()).toBe(200);
+	}
 	const seen = observe(page, context.chats.partial);
 	let panel = await openWorkspace(page, 'empty');
 	await expect(panel.getByText('No workspace files yet.')).toBeVisible();
