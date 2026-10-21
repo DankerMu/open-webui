@@ -84,7 +84,7 @@ A zero-gap synthetic `page.mouse.click` on the canvas (first attempt) produced n
 - With the CLI's own default config (chromium, no `outputDir`) the download landed in `/home/assistant/.playwright-cli/ocu442-payload.bin`, inside the private home volume that the workspace listing never shows, not in `/mnt/user-data/files`; the viewer's `Browser.setDownloadBehavior` does not govern a Playwright-created context. This is independent of the user and working directory, so it applies to production. The CLI daemon (`run-cli-server`) keeps its config across invocations, so a config change needs a daemon restart.
 - The recorded run copied the production config, plus `browserName: chromium` and `launchOptions.channel: chromium`, to `/home/assistant/.playwright/cli.config.json`, restarted the daemon and browser, and ran `playwright-cli open` from `/home/assistant`. Nothing else in the sandbox, server, proxy, viewer or WebUI was changed; the gateway binding, the relay admission and the download path through the viewer are the production ones.
 
-Follow-up: [#582](https://github.com/DankerMu/open-webui/issues/582).
+Follow-up: [#582](https://github.com/DankerMu/open-webui/issues/582), resolved; the production behaviour after the fix is recorded in [the #582 evidence](../issue-582/2026-10-21-browser-cli-config-loading.md).
 
 ## Residual resources
 
