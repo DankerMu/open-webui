@@ -1,0 +1,286 @@
+2026年10月20日 星期二 23时59分08秒 EDT
+=== Testing Docker image: ocu582-computer-use:7585eb3 ===
+
+[1/14] Runtime versions and Node tools
+  PASS: approved Node/npm, installed engines, Mermaid, tsx, tsc and PDF behavior
+{"node":"22.23.2","npm":"10.9.8","platform":"linux","arch":"x64"}
+{"root":"/home/node_modules","name":"@mermaid-js/mermaid-cli","version":"11.17.0","engines":{"node":"^18.19 || >=20.0"}}
+{"root":"/home/node_modules","name":"docx","version":"9.13.0","engines":{"node":">=10"}}
+{"root":"/home/node_modules","name":"graphviz","version":"0.0.9","engines":{"node":">=0.6.8"}}
+{"root":"/home/node_modules","name":"markdown-pdf","version":"11.0.0","engines":{"node":">=0.10.0"}}
+{"root":"/home/node_modules","name":"markdown-toc","version":"1.2.0","engines":{"node":">=0.10.0"}}
+{"root":"/home/node_modules","name":"markdownlint-cli","version":"0.49.1","engines":{"node":">=22"}}
+{"root":"/home/node_modules","name":"markdownlint-cli2","version":"0.23.3","engines":{"node":">=22"}}
+{"root":"/home/node_modules","name":"marked","version":"18.1.1","engines":{"node":">= 20"}}
+{"root":"/home/node_modules","name":"pdf-lib","version":"1.17.1","engines":{}}
+{"root":"/home/node_modules","name":"pdfjs-dist","version":"6.4.299","engines":{"node":">=22.13.0 || >=24"}}
+{"root":"/home/node_modules","name":"playwright","version":"1.62.1","engines":{"node":">=20"}}
+{"root":"/home/node_modules","name":"pptxgenjs","version":"4.0.1","engines":{}}
+{"root":"/home/node_modules","name":"react","version":"19.3.1","engines":{"node":">=0.10.0"}}
+{"root":"/home/node_modules","name":"react-dom","version":"19.3.1","engines":{}}
+{"root":"/home/node_modules","name":"react-icons","version":"5.7.0","engines":{}}
+{"root":"/home/node_modules","name":"remark-cli","version":"12.0.1","engines":{}}
+{"root":"/home/node_modules","name":"remark-preset-lint-recommended","version":"7.0.1","engines":{}}
+{"root":"/home/node_modules","name":"sharp","version":"0.35.5","engines":{"node":">=20.9.0"}}
+{"root":"/home/node_modules","name":"tsx","version":"4.23.15","engines":{"node":">=18.0.0"}}
+{"root":"/home/node_modules","name":"typescript","version":"7.0.2","engines":{"node":">=16.20.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"@mermaid-js/mermaid-cli","version":"11.17.0","engines":{"node":"^18.19 || >=20.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"docx","version":"9.13.0","engines":{"node":">=10"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"graphviz","version":"0.0.9","engines":{"node":">=0.6.8"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"markdown-pdf","version":"11.0.0","engines":{"node":">=0.10.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"markdown-toc","version":"1.2.0","engines":{"node":">=0.10.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"markdownlint-cli","version":"0.49.1","engines":{"node":">=22"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"markdownlint-cli2","version":"0.23.3","engines":{"node":">=22"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"marked","version":"18.1.1","engines":{"node":">= 20"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"pdf-lib","version":"1.17.1","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"pdfjs-dist","version":"6.4.299","engines":{"node":">=22.13.0 || >=24"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"playwright","version":"1.62.1","engines":{"node":">=20"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"pptxgenjs","version":"4.0.1","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"react","version":"19.3.1","engines":{"node":">=0.10.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"react-dom","version":"19.3.1","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"react-icons","version":"5.7.0","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"remark-cli","version":"12.0.1","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"remark-preset-lint-recommended","version":"7.0.1","engines":{}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"sharp","version":"0.35.5","engines":{"node":">=20.9.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"tsx","version":"4.23.15","engines":{"node":">=18.0.0"}}
+{"root":"/usr/local/lib/node_modules_global/lib/node_modules","name":"typescript","version":"7.0.2","engines":{"node":">=16.20.0"}}
+tsx: typed fixture = 42
+bad.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.
+tsc: emitted result = 42; invalid assignment rejected with TS2322
+Mermaid browser configuration: {"executablePath": "/opt/pw-browsers/chromium-1200/chrome-linux64/chrome", "args": ["--no-sandbox"]}
+Generating single mermaid chart
+Mermaid SVG: {"labels": ["", "RuntimeInput", "RuntimeOutput"], "directed_edges": 1}
+pdfjs-dist: {"pages":1,"text":"Node runtime PDF fixture"}
+  PASS: Python 3
+
+[2/14] CommonJS require()
+  PASS: require('react')
+  PASS: require('pptxgenjs')
+  PASS: require('pdf-lib')
+  PASS: require('docx')
+  PASS: require('sharp')
+  PASS: require('react-dom/server')
+  PASS: require('react-icons/fa')
+  PASS: marked renders a heading
+
+[3/14] ES Modules import
+  PASS: import 'react'
+  PASS: import 'pptxgenjs'
+  PASS: import 'pdf-lib'
+
+[4/14] html2pptx import
+  SKIP: html2pptx (package path may vary)
+
+[5/14] CLI tools
+  PASS: mmdc in PATH
+  PASS: mmdc --version exit 0
+  PASS: tsc in PATH
+  PASS: tsc --version exit 0
+  PASS: tsx in PATH
+  PASS: tsx --version exit 0
+  PASS: claude in PATH
+  PASS: claude --version exit 0
+  PASS: codex in PATH
+  PASS: codex --version exit 0
+  PASS: opencode in PATH
+  PASS: opencode --version exit 0
+  PASS: list-subagent-models in PATH
+  PASS: list-subagent-models is executable
+  PASS: list-subagent-models claude returns valid JSON with >=3 models
+  PASS: list-subagent-models opencode returns valid JSON from canonical cli-defaults
+  PASS: entrypoint writes OPENCODE_CONFIG_EXTRA to /tmp/opencode.json intact (51 bytes)
+
+[6/14] Python packages
+  PASS: python import docx
+  PASS: python import pptx
+  PASS: python import openpyxl
+  PASS: python pandas (DataFrame + sum)
+  PASS: python numpy (arange + sum)
+  PASS: python scipy (stats.norm)
+  PASS: python opencv (cvtColor)
+  PASS: python imageio (write + read round-trip)
+  PASS: python pillow (Image.new)
+  PASS: python playwright
+
+[7/14] User npm install
+  PASS: lodash in /home/assistant/node_modules
+  PASS: system packages intact (498)
+
+[8/14] npm configuration
+  PASS: npm prefix configured correctly (/usr/local)
+
+[9/14] Volume size
+  PASS: /home/assistant < 1MB (144KB)
+
+[10/14] Permissions and guard files
+  PASS: .entrypoint.sh executable
+  PASS: .gitconfig exists
+  PASS: package.json guard exists
+  PASS: files owned by assistant
+
+[11/14] Per-CLI dispatch smoke + marker gating
+  PASS: SUBAGENT_CLI=claude — marker /tmp/.cli-runtime-initialised landed
+  PASS: SUBAGENT_CLI=claude — .bashrc autostart line wires to ${SUBAGENT_CLI:-claude}
+  PASS: SUBAGENT_CLI=claude — .bashrc autostart honours NO_AUTOSTART env + /tmp/.no_autostart sentinel
+  PASS: SUBAGENT_CLI=claude — old CLAUDE_AUTOSTARTED marker fully purged from .bashrc
+  PASS: SUBAGENT_CLI=codex — marker /tmp/.cli-runtime-initialised landed
+  PASS: SUBAGENT_CLI=codex — .bashrc autostart line wires to ${SUBAGENT_CLI:-claude}
+  PASS: SUBAGENT_CLI=codex — .bashrc autostart honours NO_AUTOSTART env + /tmp/.no_autostart sentinel
+  PASS: SUBAGENT_CLI=codex — old CLAUDE_AUTOSTARTED marker fully purged from .bashrc
+  PASS: SUBAGENT_CLI=opencode — marker /tmp/.cli-runtime-initialised landed
+  PASS: SUBAGENT_CLI=opencode — marker gating works (heredoc skipped on second run)
+  PASS: SUBAGENT_CLI=opencode — .bashrc autostart line wires to ${SUBAGENT_CLI:-claude}
+  PASS: SUBAGENT_CLI=opencode — .bashrc autostart honours NO_AUTOSTART env + /tmp/.no_autostart sentinel
+  PASS: SUBAGENT_CLI=opencode — old CLAUDE_AUTOSTARTED marker fully purged from .bashrc
+
+[12/14] NO_AUTOSTART escape hatch
+  PASS: NO_AUTOSTART=1 — autostart skipped, plain bash reached
+  PASS: /tmp/.no_autostart sentinel — autostart skipped, plain bash reached
+
+[13/14] cli-defaults/ canonical configs present and parseable
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/opencode.json exists in image
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/codex.json exists in image
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/README.md exists in image
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/opencode.json parses as JSON
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/codex.json parses as JSON
+No GITLAB_TOKEN - git/glab will work without auth (public repos only)
+No ANTHROPIC_AUTH_TOKEN - Claude Code will not work
+Tip: plain bash with NO_AUTOSTART=1 bash  OR  touch /tmp/.no_autostart
+  PASS: /opt/cli-defaults/opencode.json carries _spdx=FSL-1.1-Apache-2.0
+
+[14/14] Entrypoint execution
+  PASS: entrypoint exits 0 with default command
+  PASS: entrypoint printed expected status banner
+  PASS: entrypoint printed sub-agent autostart escape hint
+
+[browser-cli-config] Production CLI config loads from /home/assistant and /tmp; --config replaces it
+  FAIL: browser CLI config regression exited 1
+open from /home/assistant: exit 0
+### Browser `default` opened with pid 82.
+- default:
+  - browser-type: chromium
+  - user-data-dir: <in-memory>
+  - headed: false
+---
+### Ran Playwright code
+```js
+await page.goto('about:blank');
+```
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../../mnt/user-data/files/page-2026-10-21T04-00-14-298Z.yml)
+snapshot from /home/assistant:
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../../mnt/user-data/files/page-2026-10-21T04-00-14-668Z.yml)
+open from /tmp: exit 0
+### Browser `default` opened with pid 336.
+- default:
+  - browser-type: chromium
+  - user-data-dir: <in-memory>
+  - headed: false
+---
+### Ran Playwright code
+```js
+await page.goto('about:blank');
+```
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../mnt/user-data/files/page-2026-10-21T04-00-18-235Z.yml)
+snapshot from /tmp:
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../mnt/user-data/files/page-2026-10-21T04-00-18-595Z.yml)
+open own-config from /tmp: exit 0
+### Browser `default` opened with pid 502.
+- default:
+  - browser-type: chromium
+  - user-data-dir: <in-memory>
+  - headed: false
+---
+### Ran Playwright code
+```js
+await page.goto('about:blank');
+```
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../mnt/user-data/files/page-2026-10-21T04-00-22-147Z.yml)
+snapshot own-config from /tmp:
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../mnt/user-data/files/page-2026-10-21T04-00-22-509Z.yml)
+snapshot link points into /mnt/user-data/files despite --config own-config from /tmp
+FAILED own-config from /tmp
+
+[browser-relay] Captured open releases streams and preserves live CDP
+  PASS: captured browser open completes; live CDP relay is reused
+Fresh container: no prior relay or CDP listener
+Captured open 1: exit 0
+### Browser `default` opened with pid 43.
+- default:
+  - browser-type: chrome
+  - user-data-dir: <in-memory>
+  - headed: false
+---
+### Ran Playwright code
+```js
+await page.goto('about:blank');
+```
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../../tmp/relay-output/page-2026-10-21T04-00-27-631Z.yml)
+(node:155) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Live CDP via 0.0.0.0:9222 -> 127.0.0.1:9223; relay PID 32
+Captured open 2: exit 0
+### Browser `default` opened with pid 191.
+- default:
+  - browser-type: chrome
+  - user-data-dir: <in-memory>
+  - headed: false
+---
+### Ran Playwright code
+```js
+await page.goto('about:blank');
+```
+### Page
+- Page URL: about:blank
+### Snapshot
+- [Snapshot](../../tmp/relay-output/page-2026-10-21T04-00-31-865Z.yml)
+(node:305) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Live CDP via 0.0.0.0:9222 -> 127.0.0.1:9223; relay PID 32
+32
+
+===============================
+  PASSED: 73
+  FAILED: 1
+
+  Failures:
+
+  - browser CLI config regression exited 1
+
+  RESULT: FAIL
+exit=1
