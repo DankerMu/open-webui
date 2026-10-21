@@ -1,0 +1,35 @@
+owui-chat-18b98a1c-8f35-4e27-b6df-4b018c2db5b4
+owui-chat-d20f538b-fc0c-41be-9511-ed70b716bb31
+owui-chat-196e40f5-0084-405b-975e-770b8a247749
+ Volume ocu442_postgres-data  Removed
+ Volume ocu442_webui-data  Removed
+ Network ocu442-control  Removed
+ocu442-sandbox
+5
+== inventory
+containers=0 networks=0 volumes=3
+python:3.12-alpine
+ubuntu:24.04
+postgres:17-alpine
+0
+/dev/vda2        59G   28G   30G  49% /
+setup-restarted
+chat-18b98a1c-8f35-4e27-b6df-4b018c2db5b4-workspace local
+chat-196e40f5-0084-405b-975e-770b8a247749-workspace local
+chat-d20f538b-fc0c-41be-9511-ed70b716bb31-workspace local
+chat-18b98a1c-8f35-4e27-b6df-4b018c2db5b4-workspace map[] 2026-10-21T12:16:54+08:00
+chat-196e40f5-0084-405b-975e-770b8a247749-workspace map[] 2026-10-21T11:50:54+08:00
+chat-d20f538b-fc0c-41be-9511-ed70b716bb31-workspace map[] 2026-10-21T11:52:43+08:00
+== final inventory
+containers=0 networks=0 volumes=3 images=3
+python:3.12-alpine
+ubuntu:24.04
+postgres:17-alpine
+/dev/vda2        59G   28G   30G  49% /
+Downloading ctranslate2 (37.7MiB)
+Downloading shapely (3.0MiB)
+== final inventory (after volume removal)
+containers=0 networks=0 volumes=0 images=3
+python:3.12-alpine
+ubuntu:24.04
+postgres:17-alpine
