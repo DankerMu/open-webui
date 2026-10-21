@@ -11,3 +11,11 @@
 ## 3. Verify
 
 - [x] 3.1 `make lint-scoped`; `make typecheck` ratchet.
+
+## Recorded at archive
+
+- Implemented by DankerMu/open-webui#588 (merge `5e4a9bd`, reviewed head `e50cb82`); DankerMu/open-webui#586 closed.
+- Deviations: none in the change. The PR's first red description named the stale selection as the cause, but the red run proved only the row cause; a rows-only control (prefs reset removed) then failed in the `partial` chat at `:602`, so both resets are needed.
+- Evidence (macOS): red 1 passed / 1 failed at `:567`; green `GREP='A-T10 empty' REPEAT=2` 2 passed; whole-spec `REPEAT=3` 15 passed; `make verify-ui-ocu` 40 passed; `make lint-scoped`, `make typecheck` 7775/7775, prettier.
+- Review: one round, one seat (correctness, test evidence, spec compliance), clean; one note on the red attribution, settled by the control.
+- Open: duplicate `setScenario` helpers in `e2e/ocu-fixtures.ts` and `e2e/ocu-workspace.e2e.ts`; the in-memory per-chat refresh limiter is not reset between repetitions.
