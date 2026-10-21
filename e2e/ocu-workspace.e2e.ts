@@ -1,6 +1,7 @@
 import { expect, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { finishOnboarding, openAuthenticatedPage, test } from './ocu-auth';
 import {
+	FIXTURE_COLLECTOR_SOURCE,
 	createScenarioChat,
 	observeNativeOcuPopup,
 	recordAnchorClicks,
@@ -300,13 +301,7 @@ test('A-T01 generated HTML keeps opaque origin in sidebar, message link and dire
 			await anonymous.dispose();
 		}
 		const parent = observe(page);
-		await browser.addInitScript(() => {
-			window.fixtureEvents = [];
-			window.addEventListener('message', (event) => {
-				if (event.data?.type === 'fixture-opaque' || event.data?.type === 'fixture-svg')
-					window.fixtureEvents.push({ origin: event.origin, ...event.data });
-			});
-		});
+		await browser.addInitScript(FIXTURE_COLLECTOR_SOURCE);
 		const panel = await openWorkspace(page, 'normal');
 		const sidebarOffset = records().length;
 		await panel.getByRole('button', { name: 'page.html' }).click();

@@ -68,6 +68,7 @@ try { localStorage.getItem('token'); storage='leaked' } catch {}
 try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
 try { void document.cookie; cookie='leaked' } catch {}
 document.querySelector('#proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
+window.__fixturePosted = Date.now();
 window.parent.postMessage({type:'fixture-opaque',storage,parentAccess,cookie},'*');
 fetch('data.json').then(response=>response.json()).then(data=>document.querySelector('#fetch').textContent=data.value);
 document.fonts.load('32px ResourceFixture').then(faces=>{
@@ -106,6 +107,7 @@ try { localStorage.getItem('token'); storage='leaked' } catch {}
 try { window.parent.localStorage.getItem('token'); parentAccess='leaked' } catch {}
 try { void document.cookie; cookie='leaked' } catch {}
 document.getElementById('proof').textContent=[self.origin,storage,parentAccess,cookie].join('|');
+window.__fixturePosted = Date.now();
 window.parent.postMessage({type:'fixture-svg',storage,parentAccess,cookie},'*');
 ]]></script></svg>""",
     ),

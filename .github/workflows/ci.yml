@@ -145,6 +145,7 @@ jobs:
             test-results/ocu-workspace.e2e.ts-*/error-context.md
             .run/ui-evidence/workspace-*.png
             .run/ui-evidence/workspace-network-failure.json
+            .run/ui-evidence/popup-trace/**
             .run/ui-evidence/workspace-ui-*/vite.log
             .run/ui-evidence/workspace-ui-*/proxy.log
       - run: make dev-stop
