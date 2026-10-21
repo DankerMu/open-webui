@@ -1,0 +1,95 @@
+Wed Oct 21 09:26:24 AM UTC 2026
+250ca17abcf7bca51d44a3cd68faa597c0397b15
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="20" OCU_UI_GREP="A-T01" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+workspace failure logs: <vps>/open-webui/.run/ui-evidence/workspace-ui-vh0c_g2t
+smoke-proxy: workspace browser verification failed (1)
+Listing tests:
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+Total: 1 test in 1 file
+
+Running 20 tests using 1 worker
+
+  ✓   1 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.4s)
+  ✓   2 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.0s)
+  ✓   3 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.4s)
+  ✓   4 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.7s)
+  ✓   5 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.7s)
+  ✓   6 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.1s)
+  ✓   7 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.1s)
+  ✓   8 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.7s)
+  ✓   9 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.3s)
+  ✓  10 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.4s)
+  ✓  11 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.8s)
+  ✓  12 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.2s)
+  ✓  13 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.8s)
+  ✓  14 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.4s)
+  ✓  15 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.5s)
+  ✘  16 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (3ms)
+  ✓  17 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.8s)
+  ✓  18 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.8s)
+  ✘  19 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (3ms)
+  ✓  20 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.8s)
+
+
+  1) e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+
+    TimeoutError: page.waitForURL: Timeout 20000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+       at ocu-auth.ts:67
+
+      65 | 	}, ownerCredentials());
+      66 | 	await page.locator('button[type="submit"]').first().click();
+    > 67 | 	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
+         | 	           ^
+      68 | 	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
+      69 | 	await finishOnboarding(page);
+      70 | }
+        at signIn (<vps>/open-webui/e2e/ocu-auth.ts:67:13)
+        at Object.base.extend.ownerState.scope (<vps>/open-webui/e2e/ocu-auth.ts:13:5)
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    .run/workspace-ui-vh0c_g2t/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab-repeat15/trace.zip
+    Usage:
+
+        npx playwright show-trace .run/workspace-ui-vh0c_g2t/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab-repeat15/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+
+    TimeoutError: page.waitForURL: Timeout 20000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+       at ocu-auth.ts:67
+
+      65 | 	}, ownerCredentials());
+      66 | 	await page.locator('button[type="submit"]').first().click();
+    > 67 | 	await page.waitForURL(/\/$|\/c\//, { timeout: 20_000 });
+         | 	           ^
+      68 | 	await expect(page.locator('button[aria-label="Controls"]')).toBeVisible();
+      69 | 	await finishOnboarding(page);
+      70 | }
+        at signIn (<vps>/open-webui/e2e/ocu-auth.ts:67:13)
+        at Object.base.extend.ownerState.scope (<vps>/open-webui/e2e/ocu-auth.ts:13:5)
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    .run/workspace-ui-vh0c_g2t/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab-repeat18/trace.zip
+    Usage:
+
+        npx playwright show-trace .run/workspace-ui-vh0c_g2t/test-results/ocu-workspace.e2e.ts-A-T01-92614-message-link-and-direct-tab-repeat18/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+    e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab 
+  18 passed (5.1m)
+make: *** [Makefile:189: verify-ui-ocu-repeat] Error 1
+exit=2
+Wed Oct 21 09:32:19 AM UTC 2026

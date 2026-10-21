@@ -1,0 +1,26 @@
+# REPEAT=3 narrowed to A-T01: make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=3 GREP=A-T01
+# 2026-10-21T06:33:26Z
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="3" OCU_UI_GREP="A-T01" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+verify-ui-ocu: all required browser cases completed
+Listing tests:
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+Total: 1 test in 1 file
+
+Running 3 tests using 1 worker
+
+  ✓  1 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (4.2s)
+  ✓  2 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (4.0s)
+  ✓  3 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (4.2s)
+
+  3 passed (20.7s)
+exit=0
+# 2026-10-21T06:34:05Z done
+
+# trace poll lines
+{"t":"2026-10-21T06:33:53.801Z","ms":1792564433801,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564433710}
+{"t":"2026-10-21T06:33:59.281Z","ms":1792564439281,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564439190}
+{"t":"2026-10-21T06:33:54.114Z","ms":1792564434114,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564434022}
+{"t":"2026-10-21T06:33:58.999Z","ms":1792564438999,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564438915}
+{"t":"2026-10-21T06:34:04.245Z","ms":1792564444245,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564444155}
+{"t":"2026-10-21T06:34:04.558Z","ms":1792564444558,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792564444467}

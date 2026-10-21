@@ -1,0 +1,54 @@
+# 2.6 GREEN (final bytes): same page-level mutation as the red run, post-change observer
+# mutation diff:
++	FIXTURE_COLLECTOR_SOURCE,
+-test.beforeEach(async ({ context: browser }) => {
+-	await browser.addInitScript(() => {
+-		window.fixtureEvents = [];
+-		window.addEventListener('message', (event) => {
+-			if (event.data?.type === 'fixture-opaque' || event.data?.type === 'fixture-svg')
+-				window.fixtureEvents.push({ origin: event.origin, ...event.data });
+-		});
+-	});
++test.beforeEach(async ({ page }) => {
++	await page.addInitScript(FIXTURE_COLLECTOR_SOURCE);
++	FIXTURE_COLLECTOR_SOURCE,
+-		await browser.addInitScript(() => {
+-			window.fixtureEvents = [];
+-			window.addEventListener('message', (event) => {
+-				if (event.data?.type === 'fixture-opaque' || event.data?.type === 'fixture-svg')
+-					window.fixtureEvents.push({ origin: event.origin, ...event.data });
+-			});
+-		});
++		await page.addInitScript(FIXTURE_COLLECTOR_SOURCE);
++		await direct.addInitScript(FIXTURE_COLLECTOR_SOURCE);
+# 2026-10-21T06:12:13Z make verify-ui-ocu-repeat SPEC=ocu-workspace.e2e.ts REPEAT=1
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="1" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+verify-ui-ocu: all required browser cases completed
+Listing tests:
+  ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+  ocu-workspace.e2e.ts:535:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions
+  ocu-workspace.e2e.ts:618:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download
+  ocu-workspace.e2e.ts:649:1 › B0 owner upload through the gateway appears in Files
+Total: 5 tests in 1 file
+
+Running 5 tests using 1 worker
+
+  ✓  1 e2e/ocu-workspace.e2e.ts:191:1 › A-T07 unsaved Workspace persists before access and temporary chats stay excluded (2.6s)
+  ✓  2 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (4.4s)
+  ✓  3 e2e/ocu-workspace.e2e.ts:535:1 › A-T10 empty, large, stopped, unavailable and coherent identity transitions (6.0s)
+  ✓  4 e2e/ocu-workspace.e2e.ts:618:1 › A-T10 real Office renderer succeeds and corrupt Office preserves parent download (3.0s)
+  ✓  5 e2e/ocu-workspace.e2e.ts:649:1 › B0 owner upload through the gateway appears in Files (4.8s)
+
+  5 passed (26.8s)
+exit=0
+# 2026-10-21T06:12:56Z done
+
+# trace poll lines (copied to i95/traces-mac/green-repeat1/)
+{"t":"2026-10-21T06:12:41.272Z","ms":1792563161272,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792563161194}
+{"t":"2026-10-21T06:12:41.597Z","ms":1792563161597,"kind":"poll","readyState":"complete","collector":"1 events","posted":1792563161503}
+
+# restore check (cmp against the pre-mutation copies)
+cmp e2e/ocu-workspace.e2e.ts restore/ocu-workspace.e2e.ts: identical (exit=0)
+cmp e2e/ocu-resources.e2e.ts restore/ocu-resources.e2e.ts: identical (exit=0)

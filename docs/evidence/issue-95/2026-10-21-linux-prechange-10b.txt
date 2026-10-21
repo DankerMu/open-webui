@@ -1,0 +1,27 @@
+Wed Oct 21 09:35:51 AM UTC 2026
+250ca17abcf7bca51d44a3cd68faa597c0397b15
+ e2e/ocu-fixtures.ts | 8 +-------
+ 1 file changed, 1 insertion(+), 7 deletions(-)
+OCU_UI_SPEC="ocu-workspace.e2e.ts" OCU_UI_REPEAT="10" OCU_UI_GREP="A-T01" python3 scripts/verify-ui-ocu.py
+harness-env: parent PYTHON_DOTENV_DISABLED=unset
+verify-ui-ocu: all required browser cases completed
+Listing tests:
+  ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab
+Total: 1 test in 1 file
+
+Running 10 tests using 1 worker
+
+  ✓   1 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.2s)
+  ✓   2 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.2s)
+  ✓   3 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.9s)
+  ✓   4 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.0s)
+  ✓   5 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.0s)
+  ✓   6 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.5s)
+  ✓   7 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.7s)
+  ✓   8 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.4s)
+  ✓   9 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (11.2s)
+  ✓  10 e2e/ocu-workspace.e2e.ts:281:1 › A-T01 generated HTML keeps opaque origin in sidebar, message link and direct tab (10.9s)
+
+  10 passed (2.5m)
+exit=0
+Wed Oct 21 09:39:10 AM UTC 2026
