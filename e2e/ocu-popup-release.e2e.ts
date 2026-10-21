@@ -7,7 +7,7 @@ import {
 	tracePath,
 	type PopupDocument
 } from './ocu-fixtures';
-import { popupTrace, tracePopupEvent, type PopupTrace } from './ocu-popup-trace';
+import { popupTrace, redactChat, tracePopupEvent, type PopupTrace } from './ocu-popup-trace';
 import {
 	cdpDeadline,
 	openBrowserCdp,
@@ -115,7 +115,7 @@ async function pollProjection(trace: PopupTrace, state: ProbeState, grantedPath:
 				readyState: polled.readyState,
 				collector: polled.collector,
 				posted: polled.posted,
-				path: polled.path,
+				path: redactChat(polled.path),
 				proof: polled.proof,
 				requestSent: state.requestSent,
 				pageExposed: state.pageExposed
@@ -142,7 +142,7 @@ function outcomeFields(state: ProbeState) {
 		proof: state.last?.proof ?? null,
 		collector: state.last?.collector ?? null,
 		posted: state.last?.posted ?? null,
-		path: state.last?.path ?? null
+		path: redactChat(state.last?.path ?? null)
 	};
 }
 

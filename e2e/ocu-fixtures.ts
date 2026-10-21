@@ -660,6 +660,8 @@ export async function observeNativeOcuPopup(
 						const { targetInfo: adopted } = await attached.send('Target.getTargetInfo');
 						if (adopted.targetId !== targetInfo.targetId || adopted.browserContextId !== contextId)
 							throw new Error('Native popup adopted session identity mismatch');
+						// An unpaused attach would leave the collector install to Playwright's init script alone.
+						if (!waitingForDebugger) throw new Error('Native popup target attached unpaused');
 						await Promise.all([
 							attached.send('Runtime.enable'),
 							attached.send('Log.enable'),
