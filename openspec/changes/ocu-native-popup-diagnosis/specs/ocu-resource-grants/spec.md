@@ -6,7 +6,7 @@ The e2e oracle for message-link opening SHALL observe a natively created popup t
 
 #### Scenario: Native SVG popup with the collector installed by the observer
 
-- **WHEN** the modified click opens the generated SVG in a new tab on a native Linux host and the SVG's inline script posts its event during parsing
+- **WHEN** the modified click opens the generated SVG in a new tab and the SVG's inline script posts its event during parsing
 - **THEN** the projection reports the expected `fixture-svg` event with origin `null` and all probes `blocked`, the trace shows the collector install acknowledged before the observer's resume, and the proof, grant chain and CSP assertions hold
 
 #### Scenario: Absent collector is reported, not masked
@@ -21,5 +21,5 @@ The e2e oracle for message-link opening SHALL observe a natively created popup t
 
 #### Scenario: Oracle independent of the context init script
 
-- **WHEN** the context init scripts that define the collector are removed and a native popup is observed
-- **THEN** the observer still reports the expected fixture event through its own installed collector, and the pre-change observer would have reported `collector: absent`
+- **WHEN** the collector is installed only at page level, so Playwright does not propagate it to a natively created popup target
+- **THEN** the observer still reports the expected fixture event through the collector it installed on its own session, and the sidebar and direct-tab documents keep theirs
