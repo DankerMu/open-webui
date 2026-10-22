@@ -150,6 +150,8 @@ jobs:
             .run/ui-evidence/workspace-ui-*/proxy.log
             .run/ui-evidence/workspace-ui-*/stub.log
             .run/ui-evidence/workspace-ui-*/backend.log
+            .run/ui-evidence/workspace-ui-*/stub-restart.log
+            .run/ui-evidence/workspace-ui-*/backend-restart.log
             .run/ui-evidence/workspace-ui-*/test-results/**
       - run: make dev-stop
         if: always()

@@ -56,7 +56,7 @@ CI upload (`ci.yml`):
 - **Replace** the two dead `test-results/ocu-workspace.e2e.ts-*` lines with:
   - `test-results/*/test-failed-*.png` and `test-results/*/error-context.md`, which are the baseline specs' root output;
   - `.run/ui-evidence/workspace-ui-*/test-results/**`;
-  - `.run/ui-evidence/workspace-ui-*/stub.log` and `.run/ui-evidence/workspace-ui-*/backend.log`.
+  - `.run/ui-evidence/workspace-ui-*/stub.log`, `backend.log`, `stub-restart.log` and `backend-restart.log`. `run_stack()` always restarts the stub and backend before the browser starts (`scripts/verify-ui-ocu.py:542`), so the `*-restart.log` files hold the browser-phase server logs.
 - **Keep** the existing lines and `if-no-files-found: error`.
 
 Redaction boundary (decision record):

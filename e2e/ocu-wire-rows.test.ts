@@ -223,6 +223,17 @@ describe('wire rows do not depend on CDP event order', () => {
 			{ url: GRANTED, status: 200, headers: { 'content-type': 'text/html' } }
 		]);
 	});
+
+	it('(a6) keeps recorded response fields when a non-redirect request event repeats', () => {
+		const { rows } = replay([
+			refused.request,
+			refused.authority,
+			refused.status,
+			refused.failed,
+			refused.request
+		]);
+		expect(rows).toEqual([refusedRow]);
+	});
 });
 
 describe('refusal diagnostics', () => {
@@ -339,12 +350,19 @@ describe('buffer-hit record', () => {
 	});
 
 	it('clears rows, buffers, native responses and hits on dispose', () => {
+		// Before dispose: probe-1 has authority and a matched buffer hit, an orphan event is pending.
 		const { wires } = replay([
 			refused.status,
+			refused.request,
+			refused.authority,
 			readable.request,
 			readable.response,
-			readable.authority
+			['Network.loadingFinished', { requestId: 'orphan' }]
 		]);
+		expect(wires.bufferHits()).toEqual({
+			[DENIED]: { responseReceivedExtraInfo: 1 },
+			'(no request)': { loadingFinished: 1 }
+		});
 		wires.clear();
 		expect([wires.rows.size, wires.nativeResponses.length, wires.bufferHits()]).toEqual([0, 0, {}]);
 		wires.observe(...refused.request);

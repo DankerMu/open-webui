@@ -23,12 +23,12 @@ When the browser run fails, the `run()` failure branch of `scripts/verify-ui-ocu
 - screenshots (`test-failed-*.png`) as they are;
 - `error-context.md` and `wire-rows.json` (the observer's wire rows, written by `ResourceObserver.refused()` before it throws on a timeout), each passed through `redact(…, self.secrets)`. `self.secrets` is the harness secret list at copy time: the JWT, the sign-in token, the password, the stub token, `WEBUI_SECRET_KEY` and the minted session tokens. `redact` also registers and removes every `/ocu/f/<token>` grant segment it finds in the text.
 
-`trace.zip` is never copied. Destination names come only from the scratch directory listing. Each file is copied in its own `try`. A copy or redaction failure is logged with the case and file name, and the branch still re-raises the original exception.
+`trace.zip` is never copied. Destination names come only from the scratch directory listing. The server logs are copied first. Each case file is then copied in its own `try`. A copy or redaction failure is logged with the case and file name. A failure to list the cases is logged with its exception type and skips the case copy. In both cases the branch still re-raises the original exception.
 
 The `workspace-browser-failure` CI artifact uploads:
 
 - the copied case evidence;
-- the redacted `stub.log` and `backend.log`;
+- the redacted `stub.log`, `backend.log`, `stub-restart.log` and `backend-restart.log`. `run_stack()` restarts the owned stub and backend before the browser starts, so the server output of the browser phase is in the `*-restart.log` files;
 - the baseline specs' root `test-results/*/test-failed-*.png` and `test-results/*/error-context.md`.
 
 `if-no-files-found: error` stays.
@@ -43,7 +43,7 @@ The baseline `error-context.md` is uploaded unredacted. The baseline specs run a
 
 ## Consequences
 
-- A failing OCU case leaves its screenshot, its redacted error context and its redacted wire rows. A failing baseline case leaves its screenshot and error context.
+- A failing OCU case leaves its screenshot and its redacted error context. Redacted wire rows are left only when the failure is a `refused()` timeout. Other failures, for example the signed-expiry assertion (#606), leave screenshots and error context only. A failing baseline case leaves its screenshot and error context.
 - Residual risk: a screenshot can show a short-lived grant URL in direct mode. That token comes from a throwaway CI harness instance with an ephemeral secret key. The same exposure already exists for `.run/ui-evidence/workspace-*.png`.
 - Investigations that need the network timeline use `wire-rows.json`, the `wire-buffer-hits` stdout line and the popup trace, not a Playwright trace.
 - `e2e/**/*.test.ts` joins the Vitest roots, so the side-effect-free `e2e/ocu-wire-rows.ts` has its paired unit test. This extends [frontend test discovery](2026-10-11-frontend-test-discovery.md).

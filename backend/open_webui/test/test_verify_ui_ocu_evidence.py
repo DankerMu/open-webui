@@ -119,3 +119,27 @@ def test_missing_results_still_retain_logs_and_raise_the_original(harness):
 
     assert raised.value is original
     assert retained(evidence) == ['stub.log']
+
+
+def test_unlistable_results_still_retain_logs_and_raise_the_original(harness, monkeypatch, caplog):
+    smoke, _, original, evidence = harness
+    (smoke.scratch / 'stub-restart.log').write_text(f'restart {SECRET}', encoding='utf-8')
+    results = smoke.scratch / 'test-results'
+    real_iterdir = Path.iterdir
+
+    def unlistable(self):
+        if self == results:
+            raise OSError(f'cannot list {SECRET}')
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, 'iterdir', unlistable)
+
+    with caplog.at_level(logging.ERROR, logger='verify-ui-ocu'), pytest.raises(OriginalFailure) as raised:
+        smoke.run()
+
+    assert raised.value is original
+    assert retained(evidence) == ['stub-restart.log', 'stub.log']
+    assert (evidence / 'stub-restart.log').read_text(encoding='utf-8') == 'restart [redacted]'
+    errors = [record.getMessage() for record in caplog.records if 'not listed' in record.getMessage()]
+    assert errors == ['workspace failure evidence not listed (OSError)']
+    assert SECRET not in caplog.text

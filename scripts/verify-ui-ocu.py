@@ -334,28 +334,40 @@ class BrowserHarness(Smoke):
             if self.scratch:
                 evidence = self.root / '.run/ui-evidence' / self.scratch.name
                 evidence.mkdir(parents=True, exist_ok=True)
-                self.retain_failed_cases(evidence / 'test-results')
                 for name in ('stub', 'backend', 'stub-restart', 'backend-restart', 'vite', 'proxy', 'drawio-prepare'):
                     source = self.scratch / f'{name}.log'
                     if source.is_file():
                         data = source.read_text(encoding='utf-8', errors='replace')
                         data = redact(data, self.secrets)
                         (evidence / f'{name}.log').write_text(data, encoding='utf-8')
+                self.retain_failed_cases(evidence / 'test-results')
                 log.error('workspace failure logs: %s', evidence)
             raise
 
-    def retain_failed_cases(self, destination: Path) -> None:
-        """Best-effort copy of failed cases' screenshots and redacted text; traces stay private."""
+    def failed_case_files(self) -> list[tuple[str, list[Path]]]:
+        """Each failed case's screenshots and text files; trace.zip is never selected."""
         results = self.scratch / 'test-results'
         cases = sorted(path for path in results.iterdir() if path.is_dir()) if results.is_dir() else []
+        selected = []
         for case in cases:
             screenshots = sorted(case.glob('test-failed-*.png'))
             texts = [case / name for name in ('error-context.md', 'wire-rows.json') if (case / name).is_file()]
-            if not screenshots and not (case / 'error-context.md').is_file():
-                continue
-            # Destination names come only from this listing; trace.zip is never selected.
-            target = destination / case.name
-            for source in [*screenshots, *texts]:
+            if screenshots or (case / 'error-context.md').is_file():
+                selected.append((case.name, [*screenshots, *texts]))
+        return selected
+
+    def retain_failed_cases(self, destination: Path) -> None:
+        """Best-effort copy of failed cases' screenshots and redacted text; traces stay private."""
+        try:
+            cases = self.failed_case_files()
+        except Exception as error:
+            # The original browser failure is re-raised by run(); an unreadable listing must not mask it.
+            log.error('workspace failure evidence not listed (%s)', type(error).__name__)
+            return
+        for case_name, sources in cases:
+            # Destination names come only from the scratch listing.
+            target = destination / case_name
+            for source in sources:
                 try:
                     target.mkdir(parents=True, exist_ok=True)
                     if source.suffix == '.png':
@@ -367,7 +379,7 @@ class BrowserHarness(Smoke):
                     # The original browser failure is re-raised by run(); one bad file must not mask it.
                     log.error(
                         'workspace failure evidence not retained: %s/%s (%s)',
-                        case.name,
+                        case_name,
                         source.name,
                         type(error).__name__,
                     )

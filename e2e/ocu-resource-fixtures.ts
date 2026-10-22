@@ -200,11 +200,17 @@ export class ResourceObserver {
 			await expect.poll(() => rows().some((row) => matchesRefusal(row, refusal))).toBe(true);
 		} catch (error) {
 			// Playwright sets testInfo.status only after the body returns, so dump the rows here.
-			fs.writeFileSync(
-				test.info().outputPath('wire-rows.json'),
-				redactOcu(JSON.stringify(rows(), null, 2))
-			);
-			throw new Error(describeRefusal(refusal, rows()), { cause: error });
+			let note = '';
+			try {
+				fs.writeFileSync(
+					test.info().outputPath('wire-rows.json'),
+					redactOcu(JSON.stringify(rows(), null, 2))
+				);
+			} catch (writeError) {
+				// The refusal diagnostic below is the failure; a lost evidence file must not replace it.
+				note = ` (wire rows not written: ${(writeError as Error).name})`;
+			}
+			throw new Error(describeRefusal(refusal, rows()) + note, { cause: error });
 		}
 		const row = rows().find((row) => matchesRefusal(row, refusal))!;
 		expect(row.origin).toBe('null');
