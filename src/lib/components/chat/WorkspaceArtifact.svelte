@@ -37,6 +37,7 @@
 	import OfficeConflictDialog from './OfficeConflictDialog.svelte';
 	import OfficeOpenPreflight from './OfficeOpenPreflight.svelte';
 	import WorkspaceSelectedFile from './WorkspaceSelectedFile.svelte';
+	import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
@@ -102,7 +103,7 @@
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
-	$: office = selected && ['docx', 'xlsx', 'pptx'].includes(selected.type);
+	$: office = selected && !selected.too_large && ['docx', 'xlsx', 'pptx'].includes(selected.type);
 	$: officeEnabled =
 		enabled &&
 		isSavedChatId(chatId) &&
@@ -130,6 +131,7 @@
 		((editorActive && !editorError) || (!editorActive && officeSession?.state === 'refused'));
 	$: generated =
 		selected &&
+		!selected.too_large &&
 		!office &&
 		!editorActive &&
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
@@ -621,6 +623,11 @@
 										<svelte:component this={KindIcon} className="size-4 shrink-0" />
 									</span>
 									<span class="min-w-0 flex-1 truncate text-sm">{row.name}</span>
+									{#if row.file.too_large}<span
+											data-too-large
+											class="shrink-0 text-xs text-amber-600 dark:text-amber-400"
+											>{$i18n.t('Too large')}</span
+										>{/if}
 									<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
 										>{formatFileSize(row.file.size)}</span
 									>
@@ -773,24 +780,12 @@
 								></iframe>{/key}
 						{/if}
 					{:else}
-						<div
-							class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-center"
-						>
-							<span data-file-kind={selectedKind} class="contents">
-								<svelte:component
-									this={SelectedKindIcon}
-									className="size-8 shrink-0 text-gray-400"
-								/>
-							</span>
-							<p class="text-sm text-gray-500 dark:text-gray-400" role="status">
-								{$i18n.t('Preview not supported for this file type. Download the file to open it.')}
-							</p>
-							<a
-								class="h-8 rounded-md border border-gray-200 px-3 text-xs font-medium leading-8 text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-								href={downloadUrl}
-								download={selected.name}>{$i18n.t('Download')}</a
-							>
-						</div>
+						<WorkspaceDownloadFallback
+							file={selected}
+							kind={selectedKind}
+							icon={SelectedKindIcon}
+							href={downloadUrl}
+						/>
 					{/if}
 				</div>
 			</div>

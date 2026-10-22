@@ -42,7 +42,7 @@ def stub_server(tmp_path):
     port = _free_port()
     record = tmp_path / 'record.jsonl'
     fixtures = tmp_path / 'fixtures.json'
-    fixtures.write_text(json.dumps({'drawio-owner': 'drawio'}), encoding='utf-8')
+    fixtures.write_text(json.dumps({'drawio-owner': 'drawio', 'oversized-owner': 'oversized'}), encoding='utf-8')
     env = os.environ.copy()
     env.update(
         {
@@ -149,6 +149,30 @@ def test_drawio_fixture_lists_and_serves_renderer_document(stub_server):
     cells = {cell.get('id'): cell.attrib.get('style', '') for cell in model.findall('root/mxCell')}
     assert 'img/telecommunication/Cellphone_128x128.png' in cells['phone']
     assert 'mxgraph.electrical.logic_gates.and' in cells['and']
+
+
+def test_oversized_fixture_marks_only_big_entries_and_serves_their_download(stub_server):
+    base, _record = stub_server
+    status, _headers, body = _get(f'{base}/api/outputs/oversized-owner', {})
+    assert status == 200
+    listing = json.loads(body)
+    rows = {entry['path']: entry for entry in listing['files']}
+    assert listing['total'] == 4
+    assert sorted(rows) == ['big.docx', 'big.html', 'diagram.svg', 'page.html']
+    for name in ('big.html', 'big.docx'):
+        assert rows[name]['too_large'] is True
+        assert rows[name]['hash'] is None
+        # One byte over the OCU broker's 100 MiB per-file limit.
+        assert rows[name]['size'] == 100 * 1024 * 1024 + 1
+        status, _headers, payload = _get(f'{base}/files/oversized-owner/{name}?download=1', {})
+        assert status == 200
+        assert payload and len(payload) < 1024
+    assert rows['big.docx']['type'] == 'docx'
+    assert rows['big.html']['mime'] == 'text/html'
+    for name in ('page.html', 'diagram.svg'):
+        assert rows[name]['too_large'] is False
+        assert rows[name]['hash'] == 'fixture'
+        assert rows[name]['size'] == 128
 
 
 @pytest.mark.parametrize(

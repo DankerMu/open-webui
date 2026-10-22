@@ -144,6 +144,61 @@ describe('ocu workspace client', () => {
 		expect(requests[1]).toMatchObject({ credentials: 'same-origin', cache: 'no-store' });
 	});
 
+	describe('too_large listing marker', () => {
+		const entry = {
+			file_id: 'f1',
+			path: 'big.html',
+			name: 'big.html',
+			url: '/ocu/files/chat-1/big.html',
+			type: 'html',
+			mime: 'text/html',
+			revision: 3,
+			size: 104857601
+		};
+		const respond = (file: object) =>
+			vi.stubGlobal(
+				'fetch',
+				vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							chat_id: 'chat-1',
+							revision: 3,
+							total: 1,
+							next_cursor: null,
+							files: [file]
+						})
+					)
+				)
+			);
+
+		it.each([
+			['true', { ...entry, too_large: true }, true],
+			['false', { ...entry, too_large: false }, false],
+			['absent', entry, undefined]
+		] as const)('accepts a listing whose marker is %s', async (_label, file, marker) => {
+			respond(file);
+			const result = await listWorkspaceFiles('/ocu', 'chat-1');
+			expect(result.kind).toBe('listing');
+			const [listed] = result.kind === 'listing' ? result.listing.files : [];
+			expect(listed).toEqual(file);
+			expect(listed.too_large).toBe(marker);
+			expect(listed.too_large === true).toBe(marker === true);
+		});
+
+		it.each([
+			['a string', 'yes'],
+			['a number', 1],
+			['null', null],
+			['an object', {}]
+		] as const)('rejects a marker that is %s as an invalid response', async (_label, value) => {
+			respond({ ...entry, too_large: value });
+			await expect(listWorkspaceFiles('/ocu', 'chat-1')).rejects.toMatchObject({
+				status: 200,
+				reason: 'invalid_response'
+			});
+		});
+	});
+
 	it('rejects an unqualified or mismatched 304 instead of accepting an empty listing', async () => {
 		vi.stubGlobal(
 			'fetch',

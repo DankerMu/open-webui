@@ -655,6 +655,69 @@ test('A-T10 real Office renderer succeeds and corrupt Office preserves parent do
 	expect(seen.errors).toEqual([]);
 });
 
+test('oversized files list as too-large rows that offer only download', async ({ page }) => {
+	const seen = observe(page);
+	const chatId = await createScenarioChat(page, 'oversized');
+	context.chats.oversized = chatId;
+	const fetched: string[] = [];
+	page.context().on('request', (request) => {
+		const address = new URL(request.url());
+		if (address.pathname.startsWith('/ocu/')) fetched.push(address.pathname + address.search);
+	});
+	const panel = await openWorkspace(page, 'oversized');
+	const list = panel.locator('ul[aria-label="Workspace file list"]');
+	await expect(list.locator('> li')).toHaveCount(4);
+	const row = (name: string) => panel.getByRole('button', { name, exact: true });
+	for (const name of ['big.html', 'big.docx']) {
+		await expect(row(name).locator('[data-too-large]')).toHaveText('Too large');
+		await expect(row(name).locator('[data-file-size]')).toHaveText('100.0 MB');
+	}
+	for (const name of ['page.html', 'diagram.svg'])
+		await expect(row(name).locator('[data-too-large]')).toHaveCount(0);
+	await row('page.html').click();
+	await expect(panel.locator('iframe[title="page.html"]')).toBeVisible();
+
+	const preview = panel.locator('[data-selected-preview]');
+	for (const [name, body] of [
+		['big.html', 'oversized html stand-in\n'],
+		['big.docx', 'oversized docx stand-in\n']
+	] as const) {
+		await row(name).click();
+		await expect(row(name)).toHaveAttribute('aria-pressed', 'true');
+		await expect(preview.getByRole('status')).toHaveText(
+			'This file is larger than the 100 MiB preview limit.'
+		);
+		await expect(panel.locator('iframe')).toHaveCount(0);
+		await expect(panel.getByText('Connecting Office preview')).toHaveCount(0);
+		const bar = panel.locator('[data-selected-bar]');
+		await expect(bar.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+		await expect(bar.getByRole('button', { name: 'Version history' })).toHaveCount(0);
+		const href = `/ocu/files/${chatId}/${name}?download=1`;
+		await expect(panel.getByRole('link', { name: `Download ${name}` })).toHaveAttribute(
+			'href',
+			href
+		);
+		const fallback = preview.getByRole('link', { name: 'Download', exact: true });
+		await expect(fallback).toHaveAttribute('href', href);
+		const [download] = await Promise.all([page.waitForEvent('download'), fallback.click()]);
+		expect(download.suggestedFilename()).toBe(name);
+		const bytes: Buffer[] = [];
+		for await (const chunk of await download.createReadStream()) bytes.push(Buffer.from(chunk));
+		expect(Buffer.concat(bytes).toString()).toBe(body);
+		await page.screenshot({
+			path: `${evidence}/workspace-oversized-${name.replace('.', '-')}.png`,
+			fullPage: true
+		});
+	}
+	// The observer sees frame loads (positive control); no big file is fetched except by download.
+	expect(fetched).toContain(`/ocu/files/${chatId}/page.html?revision=1`);
+	const big = fetched.filter((target) => /\/big\.(html|docx)/.test(target));
+	expect(big.filter((target) => !target.endsWith('?download=1'))).toEqual([]);
+	expect(fetched.filter((target) => target.startsWith('/ocu/api/office/'))).toEqual([]);
+	expect(fetched.filter((target) => target.includes('embed=files'))).toEqual([]);
+	expect(seen.errors).toEqual([]);
+});
+
 test('B0 owner upload through the gateway appears in Files', async ({ page }) => {
 	const seen = observe(page);
 	const chatId = await createScenarioChat(page, 'empty');
