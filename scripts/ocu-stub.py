@@ -37,6 +37,10 @@ WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 # Upstream generated fixtures use a weaker CSP so the proxy's forced
 # sandbox CSP is observable. Binary/download keep this upstream policy.
 WEAK_CSP = "default-src 'self'"
+# OCU lists a file over its 100 MiB per-file limit with hash None and too_large True;
+# the stub serves a small body because downloads are not size-checked.
+OVERSIZED_SIZE = 104857601
+OVERSIZED = {'big.html': b'oversized html stand-in\n', 'big.docx': b'oversized docx stand-in\n'}
 STATIC = {
     'preview.js': ('text/javascript; charset=utf-8', b'export const ocuStub = true;\n'),
     'deep/preview.js': ('text/javascript; charset=utf-8', b'export const ocuStubDeep = true;\n'),
@@ -112,6 +116,8 @@ def _scenario_file(chat_id: str, name: str, query: dict) -> tuple[int, bytes, st
         return 200, b'not a ZIP document', mime, _file_headers(name, query)
     if scenario == 'valid' and name == 'valid.docx':
         return 200, VALID_OFFICE.read_bytes(), mime, _file_headers(name, query)
+    if scenario == 'oversized' and name in OVERSIZED:
+        return 200, OVERSIZED[name], 'application/octet-stream', _file_headers(name, query)
     if scenario is not None and re.fullmatch(r'item-[0-9]{3}\.txt', name):
         return 200, name.encode(), 'text/plain; charset=utf-8', _file_headers(name, query)
     nested = nested_payload(name) if scenario == 'nested' else None
@@ -148,6 +154,7 @@ def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
         'size': 128,
         'mtime_ns': 1,
         'hash': 'fixture',
+        'too_large': False,
         'modified': False,
     }
 
@@ -197,12 +204,17 @@ def _fixture_outputs(chat_id: str) -> dict:
         **{name: ['report.docx'] for name in OFFICE_SCENARIOS - {'office_save_as'}},
         'office_save_as': [],
         'nested': nested_names(),
+        'oversized': ['page.html', 'diagram.svg', *OVERSIZED],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
     files = (
         [nested_listing_entry(chat_id, name, PREFIX, revision, _fixture_file) for name in names]
         if scenario == 'nested'
         else [_fixture_file(chat_id, name, revision) for name in names]
     )
+    if scenario == 'oversized':
+        for entry in files:
+            if entry['path'] in OVERSIZED:
+                entry.update(size=OVERSIZED_SIZE, hash=None, too_large=True)
     return {
         'chat_id': chat_id,
         'revision': revision,

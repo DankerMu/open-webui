@@ -15,6 +15,8 @@ export type WorkspaceFile = {
 	mime: string;
 	revision: number;
 	size: number;
+	// OCU marks a file over its per-file limit; absent means not too large.
+	too_large?: boolean;
 };
 
 export type WorkspaceListing = {
@@ -95,7 +97,8 @@ const validWorkspaceFile = (file: WorkspaceFile): boolean =>
 	typeof file.type === 'string' &&
 	typeof file.mime === 'string' &&
 	Number.isSafeInteger(file.size) &&
-	file.size >= 0;
+	file.size >= 0 &&
+	(file.too_large === undefined || typeof file.too_large === 'boolean');
 
 export const listWorkspaceFiles = async (
 	baseUrl: string,

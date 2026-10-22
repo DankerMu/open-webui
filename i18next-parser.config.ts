@@ -26,7 +26,11 @@ export default {
 	namespaceSeparator: false,
 	output: 'src/lib/i18n/locales/$LOCALE/$NAMESPACE.json',
 	pluralSeparator: '_',
-	input: ['src/**/*.{js,svelte}', 'src/lib/components/chat/workspace-reconciliation.ts'],
+	input: [
+		'src/**/*.{js,svelte}',
+		'src/lib/components/chat/workspace-reconciliation.ts',
+		'src/lib/components/chat/office-leave-guard.ts'
+	],
 	sort: true,
 	verbose: true,
 	failOnWarnings: false,
