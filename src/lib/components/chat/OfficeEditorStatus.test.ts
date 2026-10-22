@@ -31,6 +31,7 @@ async function render(props: {
 	onReopen?: () => void;
 	onToggleMaximize?: () => void;
 	onHistory?: () => void;
+	onClose?: () => void;
 }) {
 	const component = mount(OfficeEditorStatus, {
 		target: document.body,
@@ -217,6 +218,26 @@ describe('Office editor status projection', () => {
 			live: false
 		});
 		expect(document.body.textContent).not.toContain('Workspace file changed');
+		await unmount(component);
+	});
+
+	it('keeps the status word whole and lets the row wrap its controls instead (#595)', async () => {
+		const component = await render({
+			session: session({ state: 'conflict', reason: 'workspace_changed', workspaceChanged: true }),
+			live: true,
+			onClose: () => {}
+		});
+		const row = document.querySelector<HTMLElement>('[data-office-status]');
+		const status = [...document.querySelectorAll<HTMLElement>('p[role="status"]')].find(
+			(element) => element.textContent === 'Conflict'
+		);
+		expect(document.body.textContent).toContain('Workspace file changed');
+		expect(row?.classList.contains('[word-break:normal]')).toBe(true);
+		expect(status).toBeDefined();
+		expect(status!.classList.contains('min-w-0')).toBe(true);
+		expect(status!.classList.contains('flex-auto')).toBe(true);
+		expect(status!.classList.contains('break-words')).toBe(true);
+		expect(status!.classList.contains('flex-1')).toBe(false);
 		await unmount(component);
 	});
 
