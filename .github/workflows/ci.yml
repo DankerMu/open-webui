@@ -141,13 +141,16 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           path: |
-            test-results/ocu-workspace.e2e.ts-*/test-failed-*.png
-            test-results/ocu-workspace.e2e.ts-*/error-context.md
+            test-results/*/test-failed-*.png
+            test-results/*/error-context.md
             .run/ui-evidence/workspace-*.png
             .run/ui-evidence/workspace-network-failure.json
             .run/ui-evidence/popup-trace/**
             .run/ui-evidence/workspace-ui-*/vite.log
             .run/ui-evidence/workspace-ui-*/proxy.log
+            .run/ui-evidence/workspace-ui-*/stub.log
+            .run/ui-evidence/workspace-ui-*/backend.log
+            .run/ui-evidence/workspace-ui-*/test-results/**
       - run: make dev-stop
         if: always()
 
