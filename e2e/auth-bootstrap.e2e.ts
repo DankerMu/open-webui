@@ -448,7 +448,7 @@ test('account save keeps the signed-in user when the post-save refresh transport
 		(response) => new URL(response.url()).pathname === variablesPath && response.ok()
 	);
 	await page.getByRole('button', { name: 'User menu' }).locator('visible=true').first().click();
-	await page.getByRole('menu').getByRole('button', { name, exact: true }).click();
+	await page.getByRole('menu').getByRole('button').filter({ hasText: name }).click();
 	const account = page.locator('#tab-account');
 	await mountLookup;
 	await mountVariables;

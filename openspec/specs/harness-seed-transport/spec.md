@@ -1,6 +1,7 @@
 # harness-seed-transport Specification
 
 ## Purpose
+
 Keep generic harness seed credentials out of transport subprocess arguments, bind private credential files to the lifetime of their owning seed or smoke invocation, and bind smoke fixtures to the invoked script's checkout.
 
 ## Requirements

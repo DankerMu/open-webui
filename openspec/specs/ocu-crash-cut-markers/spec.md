@@ -1,6 +1,7 @@
 # ocu-crash-cut-markers Specification
 
 ## Purpose
+
 Ensure transactional crash-test workers announce a cut only when its complete name is readable, without changing the operation boundary being tested or weakening recovery evidence.
 
 ## Requirements

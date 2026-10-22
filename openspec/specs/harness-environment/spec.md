@@ -1,6 +1,7 @@
 # harness-environment Specification
 
 ## Purpose
+
 Keep development and isolated UI backend startup, and harness database migration scripts, independent of dotenv file contents while preserving ordinary application startup behavior; keep the harness database scripts' migration target, the backend pytest session's database target and the development and UI launchers' database target independent of inherited or uv env-file database variables; anchor the harness entry scripts to their own checkout whatever the caller's CDPATH or PATH; and report the overridden parent flag state for runtime provenance.
 
 ## Requirements
