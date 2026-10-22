@@ -1,6 +1,7 @@
 # coverage-gate-status Specification
 
 ## Purpose
+
 Make the standalone coverage gate reflect test-run failure independently of the measured coverage report, while preserving repository baseline conventions.
 
 ## Requirements

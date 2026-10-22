@@ -17,12 +17,14 @@
 ## Risk packs
 
 Selected:
+
 - File IO / path safety / overwrite: 1.1/1.2/2.1/2.2, retained opened resource across replacement and explicit closure; production path guards untouched.
 - Concurrency / shared state / ordering: 2.1/2.2/2.3, observer window and shared os.read patch ordering, restore-before-close.
 - Error handling / rollback / partial outputs: 2.3/2.4, original failure propagation and cleanup; all publication/refusal assertions retained.
 - Documentation / migration notes: 2.5, current observer ownership contract.
 
 Not selected:
+
 - Public API / CLI / script entry: test-private helper only; all eight callers migrate under2.2, no production API.
 - Config / project setup: no environment, workflow or setup change.
 - Schema / columns / units / field names: no persisted schema change.

@@ -1,6 +1,7 @@
 # ocu-workspace-read-observers Specification
 
 ## Purpose
+
 Keep workspace-content safety observations bound to the actual protected file throughout replacement, without confusing later resources or weakening pause and no-read assertions.
 
 ## Requirements

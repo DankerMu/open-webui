@@ -15,11 +15,13 @@
 ## Risk packs
 
 Selected:
+
 - Concurrency / shared state / ordering: 2.1 and 2.3 cover EOF/handler/owner ordering and bounded joins.
 - Error handling / rollback / partial outputs: 2.2 and 2.3 prove runtime propagation, teardown contrast and resource retirement.
 - Documentation / migration notes: 2.4 documents the test's synchronization contract.
 
 Not selected:
+
 - Public API / CLI / script entry: no invocation/interface change; existing deploy execution retained in 2.3.
 - Config / project setup: no config or environment change.
 - File IO / path safety / overwrite: no file operations change; real network socket retirement belongs to selected lifecycle evidence.

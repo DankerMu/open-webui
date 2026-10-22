@@ -15,12 +15,14 @@
 ## Risk packs
 
 Selected:
+
 - File IO / path safety / overwrite: 2.1/2.2, owned same-directory staging and exact atomic visibility; no production file changes.
 - Concurrency / shared state / ordering: 2.1/2.3, held-write schedule and unchanged kill/cut boundaries.
 - Error handling / rollback / partial outputs: 2.1/2.2/2.3, incomplete staging is not readiness; original recovery/refusal and cleanup assertions retained.
 - Documentation / migration notes: 2.4, current readiness contract in existing README.
 
 Not selected:
+
 - Public API / CLI / script entry: no external invocation change; four embedded workers exercised by 2.3.
 - Config / project setup: no environment, PYTHONPATH or workflow change.
 - Schema / columns / units / field names: no application schema change.

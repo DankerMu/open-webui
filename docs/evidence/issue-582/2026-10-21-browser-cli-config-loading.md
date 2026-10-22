@@ -13,12 +13,12 @@ This record closes [#582](https://github.com/DankerMu/open-webui/issues/582): th
 
 ## Image check (Docker Desktop, `linux/amd64`)
 
-| Run | Image | Result | Raw |
-| --- | --- | --- | --- |
-| red, new check on the unchanged image | `ocu442-sandbox:8c23438` | 73 passed / 1 failed: from `/home/assistant` the snapshot went to `.playwright-cli/`; from `/tmp` `Chromium distribution 'chrome' is not found` | [log](2026-10-21-image-check-red-8c23438.txt) |
-| green | `ocu582-computer-use:7585eb3` | 74 passed / 0 failed; both directories link into `/mnt/user-data/files` | [log](2026-10-21-image-check-green-7585eb3.txt) |
-| red, `--config` probe on the first fix | `ocu582-computer-use:7585eb3` | 73 / 1: with `--config` the snapshot still went to `/mnt/user-data/files` (the exported variable won) | [log](2026-10-21-image-check-red-config-flag-7585eb3.txt) |
-| green, final wrapper | `ocu582-computer-use:95ed972` | 74 / 0; `--config` probe links `(own-output/page-…yml)` | [log](2026-10-21-image-check-green-95ed972.txt) |
+| Run                                    | Image                         | Result                                                                                                                                          | Raw                                                       |
+| -------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| red, new check on the unchanged image  | `ocu442-sandbox:8c23438`      | 73 passed / 1 failed: from `/home/assistant` the snapshot went to `.playwright-cli/`; from `/tmp` `Chromium distribution 'chrome' is not found` | [log](2026-10-21-image-check-red-8c23438.txt)             |
+| green                                  | `ocu582-computer-use:7585eb3` | 74 passed / 0 failed; both directories link into `/mnt/user-data/files`                                                                         | [log](2026-10-21-image-check-green-7585eb3.txt)           |
+| red, `--config` probe on the first fix | `ocu582-computer-use:7585eb3` | 73 / 1: with `--config` the snapshot still went to `/mnt/user-data/files` (the exported variable won)                                           | [log](2026-10-21-image-check-red-config-flag-7585eb3.txt) |
+| green, final wrapper                   | `ocu582-computer-use:95ed972` | 74 / 0; `--config` probe links `(own-output/page-…yml)`                                                                                         | [log](2026-10-21-image-check-green-95ed972.txt)           |
 
 Mutants A (variable reverted), B (channel pin removed) and C (unconditional export) each failed only the new check; their logs are in the PR body of open-computer-use#160.
 
