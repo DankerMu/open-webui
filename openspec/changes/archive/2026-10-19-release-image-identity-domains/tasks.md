@@ -23,6 +23,7 @@
 ## Risk packs
 
 Selected:
+
 - Public API / CLI / script entry: 2.3/3.2, real CLI and bootstrap/version/recovery consumers.
 - Config / project setup: 1.2/2.4/3.2, explicit engine/store and local-daemon qualification; no global daemon setting change.
 - File IO / path safety / overwrite: 2.1/3.1/3.3, bounded archive parsing, staged bytes, no tag/destination overwrite.
@@ -35,4 +36,5 @@ Selected:
 - Documentation / migration notes: 2.4/3.4, current digest and supported-reader semantics.
 
 Not selected:
+
 - Auth / permissions / secrets: no authentication or authorization change; existing permissions/source exclusion remain invariants. Synthetic local credentials only, no secret stores or LAN instance access; public evidence must pass secret scanning.

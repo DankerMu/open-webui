@@ -1,6 +1,7 @@
 # ci-diff-size Specification
 
 ## Purpose
+
 Apply the existing pull-request diff-size limit to countable changes from complete-file deletions as well as additions and modifications.
 
 ## Requirements

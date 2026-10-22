@@ -1,6 +1,7 @@
 # ocu-office-derived-image Specification
 
 ## Purpose
+
 Qualify a minimal DocumentServer derivative whose native editor initialization is independent of module arrival order, with source-bound image identities and unchanged Office security and acceptance guarantees.
 
 ## Requirements

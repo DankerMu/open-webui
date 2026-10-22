@@ -1,19 +1,19 @@
 {
-  "artifact": "verification.json.xz",
-  "artifact_sha256": "f046eae9c20046558d129be93c561391d24d5aff81d90182046134c0c0242dcd",
-  "compressed_bytes": 369064,
-  "decompressed_bytes": 6876308,
-  "scanner": "gitleaks dir, --redact, JSON report, against decompressed verification.json",
-  "exit": 1,
-  "finding_count": 279,
-  "unclassified_findings": 0,
-  "adjudication": "Every generic-api-key finding is a standalone source/test-file SHA256 value. Each cited line was parsed and its digest recomputed against the actual file. These are hash metadata, not credentials; scanner exit1 is retained.",
-  "verified_file_key_counts": {
-    "auth_guard.py": 69,
-    "tokens.py": 70,
-    "test_auth_guard.py": 70,
-    "test_office_tokens.py": 70
-  },
-  "full_command_output_findings_and_per_line_verification": "scan-findings.json.xz",
-  "owned_decompressed_scan_root_removed": true
+	"artifact": "verification.json.xz",
+	"artifact_sha256": "f046eae9c20046558d129be93c561391d24d5aff81d90182046134c0c0242dcd",
+	"compressed_bytes": 369064,
+	"decompressed_bytes": 6876308,
+	"scanner": "gitleaks dir, --redact, JSON report, against decompressed verification.json",
+	"exit": 1,
+	"finding_count": 279,
+	"unclassified_findings": 0,
+	"adjudication": "Every generic-api-key finding is a standalone source/test-file SHA256 value. Each cited line was parsed and its digest recomputed against the actual file. These are hash metadata, not credentials; scanner exit1 is retained.",
+	"verified_file_key_counts": {
+		"auth_guard.py": 69,
+		"tokens.py": 70,
+		"test_auth_guard.py": 70,
+		"test_office_tokens.py": 70
+	},
+	"full_command_output_findings_and_per_line_verification": "scan-findings.json.xz",
+	"owned_decompressed_scan_root_removed": true
 }
