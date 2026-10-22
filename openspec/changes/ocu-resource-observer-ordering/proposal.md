@@ -2,11 +2,11 @@
 
 The A-T01 resources browser cases fail intermittently on hosted runners (#601). Every variant has failed at least once:
 
-| Run | Attempt | Variant | Spec location |
-| --- | --- | --- | --- |
-| `39725722716` | 2 | direct | `e2e/ocu-resources.e2e.ts:38` |
-| `39733674904` | 1 | sidebar | `:38` |
-| `39733674904` | 2 | native popup | `:123`, reached through `:164` |
+| Run           | Attempt | Variant      | Spec location                  |
+| ------------- | ------- | ------------ | ------------------------------ |
+| `39725722716` | 2       | direct       | `e2e/ocu-resources.e2e.ts:38`  |
+| `39733674904` | 1       | sidebar      | `:38`                          |
+| `39733674904` | 2       | native popup | `:123`, reached through `:164` |
 
 The same SHAs passed on other attempts.
 
@@ -15,11 +15,13 @@ The same SHAs passed on other attempts.
 - **Effect.** With `retries: 0` (`playwright.ocu.config.ts:13`), each failure fails `make verify-ui`, then the required check `All checks passed`, which blocks `make pr-merge`. So far there are 3 failures in 7 hosted Runtime attempts.
 
 Code facts (`e2e/ocu-resource-fixtures.ts`):
+
 - `onNetwork` (`:177-205`) only buffers out-of-order request-side authority (`requestWillBeSentExtraInfo` into `wireAuthority`, `:138-155`). For every other event it returns early when no row exists yet for the key (`:184-185`). A `responseReceived`, `responseReceivedExtraInfo`, `loadingFinished` or `loadingFailed` that arrives before `requestWillBeSent` is silently dropped.
 - CDP does not order `*ExtraInfo` events, or events relayed from the network service, against the renderer's `requestWillBeSent`. A dropped `responseReceivedExtraInfo` leaves `status` undefined for a CORS-blocked probe, whose status only comes from that event (`:199`). A dropped `loadingFailed` leaves `cors` and `failure` unset. Either way `matches` can never become true.
 - `observeRequest` replaces the row wholesale (`wires.set`, `:164`). An event merged into an earlier row would therefore be lost too.
 
 Diagnosis gaps:
+
 - The timeout message does not say which probe or which field is missing.
 - The CI upload step (`.github/workflows/ci.yml:135-150`) looks for `test-results/ocu-workspace.e2e.ts-*`. The OCU browser run, however, writes Playwright output to `.run/workspace-ui-*/test-results` (`scripts/verify-ui-ocu.py:561-562`, since `732e1a413`). That pattern also excludes baseline specs, which hid the #599 failure context. No failing case's screenshot or error context has been uploaded since.
 - Playwright traces stay private until credential redaction (`scripts/verify-ui-ocu.py:552`).

@@ -1,6 +1,7 @@
 ## Design
 
 Change surface:
+
 - `e2e/ocu-wire-rows.ts` (new). A side-effect-free module holding the row, buffer and merge logic and the diagnostic formatter, so it can be imported without `OCU_E2E_CONTEXT`, unlike `e2e/ocu-fixtures.ts:28-29`. Its paired unit test is `e2e/ocu-wire-rows.test.ts`.
 - `vite.config.ts`. The vitest `include` gains `e2e/**/*.test.ts`. This is a one-line diff to a fork-touched file.
 - `e2e/ocu-resource-fixtures.ts`. `ResourceObserver` delegates to the module, and `refused()` produces the timeout diagnostics and writes `wire-rows.json`.
@@ -10,6 +11,7 @@ Change surface:
 - `docs/decisions/implemented/testing/` record.
 
 Merge rules (`onNetwork`):
+
 - **Request-side authority.** `requestWillBeSentExtraInfo` keeps going to `wireAuthority` as today.
 - **Early response-side events.** A `responseReceived`, `responseReceivedExtraInfo`, `loadingFinished` or `loadingFailed` event for a key with no row is buffered per key as partial fields:
   - `status` from `responseReceived.response.status`, or from `responseReceivedExtraInfo.statusCode`;
@@ -17,6 +19,7 @@ Merge rules (`onNetwork`):
   - `cors` and `failure`.
 
   A buffered `responseReceived` also keeps the payload needed for `nativeResponses`.
+
 - **Row creation.** When `observeRequest` creates the row, it applies the buffered fields and the buffered `nativeResponses` entry, then clears the buffer.
 - **Row already present.** If a row already exists, `observeRequest` updates `url`, `method` and the authority flags. It keeps the response-side fields already recorded.
 - **Repeated status.** A later `responseReceivedExtraInfo` or `responseReceived` sets `status` as today, so the last write wins, with the same semantics as now.
@@ -29,6 +32,7 @@ Merge rules (`onNetwork`):
 Governing invariant: for a request without redirects, the final row for a request key holds the same fields whatever the arrival order of that key's CDP events; only the time each field is written varies. For a redirected request, the row holds the last hop's fields.
 
 Diagnostics:
+
 - **What fails.** When `refused(index …)` times out, the thrown error names:
   - the probe index;
   - the redacted URL (`redactOcu`);
@@ -39,6 +43,7 @@ Diagnostics:
 - **Wire-row dump.** Right before `refused()` throws on a timeout, it writes `wire-rows.json` (rows through `redactOcu`) to the test's output directory (`testInfo.outputPath`). Playwright sets `testInfo.status` only after the test body returns, so a test body cannot detect "on failure" itself.
 
 Evidence retention (`verify-ui-ocu.py` `run()` failure branch, in addition to today's logs):
+
 - For each directory under `scratch/test-results/` that contains `test-failed-*.png` or `error-context.md`, copy into `.run/ui-evidence/<scratch>/test-results/<same dir name>/`:
   - the PNGs as they are;
   - `error-context.md` and `wire-rows.json`, each passed through `redact(…, self.secrets)`. `redact` also finds and redacts grant segments in every text.
@@ -47,6 +52,7 @@ Evidence retention (`verify-ui-ocu.py` `run()` failure branch, in addition to to
 - Copying is best effort. Each file is copied in its own `try`, and a copy or redaction error is logged with the file name. The branch then re-raises the original exception, so the real test failure is never replaced (`scripts/verify-ui-ocu.py:331-345`).
 
 CI upload (`ci.yml`):
+
 - **Replace** the two dead `test-results/ocu-workspace.e2e.ts-*` lines with:
   - `test-results/*/test-failed-*.png` and `test-results/*/error-context.md`, which are the baseline specs' root output;
   - `.run/ui-evidence/workspace-ui-*/test-results/**`;
@@ -54,11 +60,13 @@ CI upload (`ci.yml`):
 - **Keep** the existing lines and `if-no-files-found: error`.
 
 Redaction boundary (decision record):
+
 - **Excluded from CI artifacts:** traces, because they hold request headers and bodies.
 - **Admitted:** screenshots, plus text evidence passed through `redact(…, self.secrets)`. `self.secrets` is the harness secret list at copy time: the JWT, the sign-in token, the password, the stub token, `WEBUI_SECRET_KEY` (`scripts/verify-ui-ocu.py:475`) and the minted session tokens (`:586`). `redact` also finds and redacts the `/ocu/f/<token>` grant segments in each text.
 - **Residual risk:** a screenshot can show a short-lived grant URL in direct mode. That token comes from a throwaway CI harness instance with an ephemeral secret key, and the same exposure exists today for `.run/ui-evidence/workspace-*.png`.
 
 Must preserve:
+
 - what every `matches` predicate means;
 - `retries: 0`, the 20 s timeout and the sidebar, direct and popup case structure;
 - the `expireDocument` refusal checks;
@@ -67,6 +75,7 @@ Must preserve:
 - that `if-no-files-found: error` keeps failing an upload with nothing to upload.
 
 Required evidence:
+
 - **(a) Observer ordering**, in `e2e/ocu-wire-rows.test.ts` under vitest. Each sequence must yield the same final row as the in-order control, except (a5), which has its own expected row. (a1)–(a3) are red on `main`, shown by replaying them through the unchanged `ResourceObserver.onNetwork` logic: the row lacks `status`, `cors` or `failure`, or there is no row at all. (a5) is already green on `main`, because `wires.set` rebuilds the row. It guards the new keep-fields rule and goes red only if the redirect reset is missing.
   - (a1) `responseReceivedExtraInfo` (403), then `requestWillBeSent`, then `requestWillBeSentExtraInfo`, then `loadingFailed` (CORS);
   - (a2) `loadingFailed`, then `requestWillBeSent`;
@@ -81,6 +90,7 @@ Required evidence:
   - the retained text files contain no value from the harness `self.secrets` at copy time and no unredacted `/ocu/f/<token>` segment.
 
   Also force a baseline-spec failure: its root `test-results/*/error-context.md` exists for upload.
+
 - **(c2) Best-effort copy.** A unit test in `backend/open_webui/test/test_verify_ui_ocu_evidence.py`, run with `make test-backend`. With one unreadable or unredactable file, the remaining files are still copied, the error is logged, and the original exception propagates.
 - **(d) Stability.**
   - `make verify-ui-ocu-repeat SPEC=ocu-resources.e2e.ts REPEAT=10 GREP="A-T01"` locally, and `make verify-ui-ocu` once;
@@ -89,6 +99,7 @@ Required evidence:
   Two green hosted runs are not proof that the fix works; about 3 failures in 7 attempts have been observed. The PR reports the `wire-buffer-hits` values from those runs and states the cause as confirmed only if hits occurred.
 
 Non-goals:
+
 - raising timeouts or adding retries;
 - changing CSP, sandbox, CORS or the gateway;
 - #429;
