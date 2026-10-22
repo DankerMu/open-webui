@@ -73,10 +73,10 @@
 
 {#if showBar}
 	<div
-		class="flex min-h-8 shrink-0 flex-wrap items-center gap-2 border-b border-gray-100 px-1 py-1 text-xs text-gray-600 dark:border-gray-800 dark:text-gray-300"
+		class="flex min-h-8 shrink-0 flex-wrap items-center gap-2 border-b border-gray-100 px-1 py-1 text-xs text-gray-600 [word-break:normal] dark:border-gray-800 dark:text-gray-300"
 		data-office-status
 	>
-		{#if statusText}<p class="min-w-0 flex-1" role="status">{statusText}</p>{/if}
+		{#if statusText}<p class="min-w-0 flex-auto break-words" role="status">{statusText}</p>{/if}
 		{#if showNotice}<p role="status">{$i18n.t('Workspace file changed')}</p>{/if}
 		{#if showSave}
 			<button
