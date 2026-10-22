@@ -297,7 +297,8 @@ export async function departHeldOfficeClose(
 	recordOffset: number,
 	before: OfficeFrameIdentity,
 	action: () => Promise<unknown> | unknown,
-	savingScreenshot: string
+	savingScreenshot: string,
+	afterRelease?: () => Promise<void>
 ) {
 	await rememberLiveOfficeWindow(page);
 	const path = officeClosePath(chatId, owner.sessionId);
@@ -321,6 +322,7 @@ export async function departHeldOfficeClose(
 		expect(closeArrivals(recordOffset, chatId, owner.sessionId)).toHaveLength(0);
 		await page.screenshot({ path: `${evidence}/${savingScreenshot}`, fullPage: true });
 		gate.release();
+		await afterRelease?.();
 		const acceptedClose = await closeResponse;
 		expect(closeResponseFailure).toBeUndefined();
 		expect(acceptedClose?.status()).toBe(202);
@@ -709,7 +711,14 @@ export async function walkRemovalNotice(page: Page, chatId: string, recordOffset
 		recordOffset,
 		prepared.before,
 		() => refresh.click({ noWaitAfter: true }),
-		'office-removal-notice-saving.png'
+		'office-removal-notice-saving.png',
+		// The held departure keeps the pre-removal workspace on screen, so the notice shows only once
+		// the guard's 1 s status poll reads the closed session after release; it lives only until the
+		// next listing reload (3 s after the removing refresh ends), which starts by clearing it.
+		() =>
+			expect(prepared.panel.getByText('Selected file was removed', { exact: true })).toBeVisible({
+				timeout: 3_000
+			})
 	);
 	expect(mutationPosts(recordOffset, chatId, '/close')).toHaveLength(1);
 	expect(mutationPosts(recordOffset, chatId, '/resolve')).toEqual([]);
@@ -718,9 +727,6 @@ export async function walkRemovalNotice(page: Page, chatId: string, recordOffset
 	await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
 	await expect(
 		page.locator('[data-sonner-toast]').filter({ hasText: SAVED_AS_REPORT })
-	).toBeVisible();
-	await expect(
-		prepared.panel.getByText('Selected file was removed', { exact: true })
 	).toBeVisible();
 	await page.screenshot({ path: `${evidence}/office-removal-notice-saved.png`, fullPage: true });
 	await expectSavedCopyListed(

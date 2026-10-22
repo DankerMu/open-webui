@@ -147,8 +147,8 @@ function clearedPreferences() {
 }
 
 describe('Office removal-triggered close', () => {
-	// The broker lists regular files only (outputs_broker.py S_ISREG), so a symlink swapped in
-	// for report.docx reaches the sidebar as the same listing drop as a deletion.
+	// The broker skips symbolic links while enumerating (outputs_broker.py S_ISLNK), so a symlink
+	// swapped in for report.docx reaches the sidebar as the same listing drop as a deletion.
 	it.each(['deleted', 'replaced by a symbolic link'])(
 		'names the saved copy when the open file is %s',
 		async () => {
