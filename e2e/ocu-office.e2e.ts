@@ -34,7 +34,8 @@ import {
 	walkAutomaticSaveAs,
 	walkDirtyChatSwitch,
 	walkDirtySidebarClose,
-	walkOfficeRefresh
+	walkOfficeRefresh,
+	walkRemovalNotice
 } from './ocu-office-leave-fixtures';
 
 function collectDiagnostics(page: Page) {
@@ -741,6 +742,19 @@ test('B-T13 automatic close saves as report (2).docx with distinct published ide
 		await openAuthenticatedPage(page);
 		const chatId = await createScenarioChat(page, 'office_save_as');
 		await walkAutomaticSaveAs(page, chatId, recordOffset);
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
+test('B-T13 listing refresh that drops the open file names the saved copy', async ({ page }) => {
+	const recordOffset = fs.statSync(context.record).size;
+	const observed = collectDiagnostics(page);
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office_save_as');
+		await walkRemovalNotice(page, chatId, recordOffset);
 		expect(observed.diagnostics).toEqual([]);
 	} finally {
 		observed.dispose();

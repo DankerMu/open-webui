@@ -159,7 +159,7 @@ function ownerStatusReads(offset: number, chatId: string, sessionId: string) {
 	);
 }
 
-function mutationPosts(offset: number, chatId: string, suffix: '/save' | '/resolve') {
+function mutationPosts(offset: number, chatId: string, suffix: '/save' | '/resolve' | '/close') {
 	return chatOfficeRecords(offset, chatId).filter(
 		(row) => row.method === 'POST' && typeof row.target === 'string' && row.target.endsWith(suffix)
 	);
@@ -297,7 +297,8 @@ export async function departHeldOfficeClose(
 	recordOffset: number,
 	before: OfficeFrameIdentity,
 	action: () => Promise<unknown> | unknown,
-	savingScreenshot: string
+	savingScreenshot: string,
+	afterRelease?: () => Promise<void>
 ) {
 	await rememberLiveOfficeWindow(page);
 	const path = officeClosePath(chatId, owner.sessionId);
@@ -321,6 +322,7 @@ export async function departHeldOfficeClose(
 		expect(closeArrivals(recordOffset, chatId, owner.sessionId)).toHaveLength(0);
 		await page.screenshot({ path: `${evidence}/${savingScreenshot}`, fullPage: true });
 		gate.release();
+		await afterRelease?.();
 		const acceptedClose = await closeResponse;
 		expect(closeResponseFailure).toBeUndefined();
 		expect(acceptedClose?.status()).toBe(202);
@@ -643,7 +645,24 @@ export async function walkAutomaticSaveAs(page: Page, chatId: string, recordOffs
 	).toBeVisible();
 	await page.screenshot({ path: `${evidence}/office-leave-save-as-saved.png`, fullPage: true });
 	await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
-	const panel = await workspaceFilesPanel(page);
+	await expectSavedCopyListed(
+		page,
+		chatId,
+		await workspaceFilesPanel(page),
+		terminalStatus,
+		prepared.original,
+		'office-leave-save-as-listing.png'
+	);
+}
+
+async function expectSavedCopyListed(
+	page: Page,
+	chatId: string,
+	panel: Locator,
+	terminalStatus: OfficeSessionStatus,
+	original: ListedOfficeFile,
+	screenshot: string
+) {
 	const refresh = panel.getByRole('button', { name: 'Refresh workspace files', exact: true });
 	const listingCycle = page.waitForResponse(
 		(response) =>
@@ -669,12 +688,53 @@ export async function walkAutomaticSaveAs(page: Page, chatId: string, recordOffs
 	expect(saved!.path).toBe(terminalStatus.saved_as!.path);
 	expect(saved!.path).toBe('report (2).docx');
 	expect(saved!.url).toBe(listedFileUrl(chatId, 'report (2).docx'));
-	await page.screenshot({ path: `${evidence}/office-leave-save-as-listing.png`, fullPage: true });
+	await page.screenshot({ path: `${evidence}/${screenshot}`, fullPage: true });
 	await expectPublishedOfficeContent(
 		page,
 		chatId,
 		saved!.file_id,
-		expectedSaveAsBytes(prepared.original.bytes),
+		expectedSaveAsBytes(original.bytes),
 		saved!.url
+	);
+}
+
+export async function walkRemovalNotice(page: Page, chatId: string, recordOffset: number) {
+	const prepared = await prepareDirtyEditor(page, chatId);
+	const refresh = prepared.panel.getByRole('button', {
+		name: 'Refresh workspace files',
+		exact: true
+	});
+	const closed = await departHeldOfficeClose(
+		page,
+		chatId,
+		prepared.owner,
+		recordOffset,
+		prepared.before,
+		() => refresh.click({ noWaitAfter: true }),
+		'office-removal-notice-saving.png',
+		// The held departure keeps the pre-removal workspace on screen, so the notice shows only once
+		// the guard's 1 s status poll reads the closed session after release; it lives only until the
+		// next listing reload (3 s after the removing refresh ends), which starts by clearing it.
+		() =>
+			expect(prepared.panel.getByText('Selected file was removed', { exact: true })).toBeVisible({
+				timeout: 3_000
+			})
+	);
+	expect(mutationPosts(recordOffset, chatId, '/close')).toHaveLength(1);
+	expect(mutationPosts(recordOffset, chatId, '/resolve')).toEqual([]);
+	expect(closed.terminal.saved_as).toMatchObject({ path: 'report (2).docx' });
+	expect(closed.terminal.file_id).toBe(closed.terminal.saved_as!.file_id);
+	await expect(page.locator(FRAME_SELECTOR)).toHaveCount(0);
+	await expect(
+		page.locator('[data-sonner-toast]').filter({ hasText: SAVED_AS_REPORT })
+	).toBeVisible();
+	await page.screenshot({ path: `${evidence}/office-removal-notice-saved.png`, fullPage: true });
+	await expectSavedCopyListed(
+		page,
+		chatId,
+		prepared.panel,
+		closed.terminal,
+		prepared.original,
+		'office-removal-notice-listing.png'
 	);
 }
