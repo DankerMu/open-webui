@@ -8,6 +8,9 @@ import {
 	type CdpTargetSession
 } from '../scripts/ocu-target-bridge.mjs';
 import { popupTrace, redactChat, tracePopupEvent, type PopupTrace } from './ocu-popup-trace';
+import { redactOcu } from './ocu-wire-rows';
+
+export { redactOcu };
 
 export type OcuClickProbe = {
 	path: string;
@@ -53,12 +56,6 @@ export const FIXTURE_COLLECTOR_SOURCE = `if (!window.__fixtureCollector) {
 			window.fixtureEvents.push({ origin: event.origin, ...event.data });
 	});
 }`;
-
-export function redactOcu(text: string): string {
-	return text
-		.replace(/\/ocu\/f\/[^/\s"'<>?#]+/g, '/ocu/f/[grant]')
-		.replace(/wss?:\/\/[^\s"'<>]+\/devtools\/[^\s"'<>]+/g, '[private CDP endpoint]');
-}
 
 export function sanitizedLocation(raw: string): string | null {
 	try {
