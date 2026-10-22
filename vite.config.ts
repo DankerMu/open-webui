@@ -32,6 +32,7 @@ export default defineConfig({
 					// Keep copied build snapshots out of test discovery.
 					include: [
 						'src/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+						'e2e/**/*.test.ts',
 						'scripts/**/*.{test,spec}.?(c|m)[jt]s?(x)'
 					],
 					server: { deps: { inline: [/^svelte(?:\/.*)?$/] } }

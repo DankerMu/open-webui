@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
 	expect,
+	test,
 	type BrowserContext,
 	type CDPSession,
 	type ConsoleMessage,
@@ -15,7 +16,6 @@ import {
 import {
 	context,
 	records,
-	redactOcu,
 	assertGrantedFile,
 	isGrantedFile,
 	captureBrowserTargetPaths,
@@ -23,6 +23,14 @@ import {
 	type GrantedDocument,
 	type OcuClickProbe
 } from './ocu-fixtures';
+import {
+	WireRows,
+	describeRefusal,
+	formatBufferHits,
+	matchesRefusal,
+	redactOcu,
+	type Refusal
+} from './ocu-wire-rows';
 
 export type EvaluateDocument = (expression: string) => Promise<unknown>;
 const RESOURCE_NAMES = [
@@ -72,43 +80,11 @@ export async function expectResources(evaluate: EvaluateDocument) {
 	expect(await evaluate(`document.getElementById('clicked').textContent`)).toBe('clicked');
 }
 
-type NetworkEvent = {
-	requestId?: string;
-	request?: { url: string; method: string; headers: Record<string, string> };
-	response?: { url: string; status: number; headers: Record<string, string> };
-	headers?: Record<string, string>;
-	statusCode?: number;
-	corsErrorStatus?: { corsError: string };
-	errorText?: string;
-};
-type WireRequest = {
-	url: string;
-	method: string;
-	origin?: string;
-	status?: number;
-	cookie: boolean;
-	authorization: boolean;
-	authorityObserved: boolean;
-	finished?: boolean;
-	cors?: string;
-	failure?: string;
-};
-
 export class ResourceObserver {
 	readonly responses: Response[] = [];
 	readonly requests: Array<{ url: string; method: string }> = [];
 	readonly diagnostics: Array<{ url: string; text: string }> = [];
-	private readonly wires = new Map<string, WireRequest>();
-	private readonly wireAuthority = new Map<
-		string,
-		{ cookie: boolean; authorization: boolean; origin?: string }
-	>();
-	private readonly nativeResponses: Array<{
-		url: string;
-		status: number;
-		headers: Record<string, string>;
-		origin?: string;
-	}> = [];
+	private readonly wires = new WireRows((request) => this.requests.push(request));
 	private readonly allowances = new Map<string, number>();
 	private readonly disposers: Array<() => Promise<void>> = [];
 	constructor(readonly browser: BrowserContext) {
@@ -135,74 +111,8 @@ export class ResourceObserver {
 			browser.off('weberror', webError);
 		});
 	}
-	private observeAuthority(key: string, headers: Record<string, string>) {
-		// Keep presence only; private Cookie/Authorization values must not enter diagnostics.
-		const names = Object.keys(headers).map((name) => name.toLowerCase());
-		const origin = Object.entries(headers).find(([name]) => name.toLowerCase() === 'origin')?.[1];
-		const authority = {
-			cookie: names.includes('cookie'),
-			authorization: names.includes('authorization'),
-			origin: origin === undefined ? undefined : origin === 'null' ? 'null' : 'unexpected'
-		};
-		this.wireAuthority.set(key, authority);
-		const observed = this.wires.get(key);
-		if (observed) {
-			observed.cookie ||= authority.cookie;
-			observed.authorization ||= authority.authorization;
-			observed.authorityObserved = true;
-			if (observed.origin !== 'unexpected') observed.origin = authority.origin ?? observed.origin;
-		}
-	}
-	private observeRequest(key: string, request: NonNullable<NetworkEvent['request']>) {
-		const names = Object.keys(request.headers).map((name) => name.toLowerCase());
-		const authority = this.wireAuthority.get(key);
-		const origin = Object.entries(request.headers).find(
-			([name]) => name.toLowerCase() === 'origin'
-		)?.[1];
-		const marker =
-			origin === undefined ? authority?.origin : origin === 'null' ? 'null' : 'unexpected';
-		this.wires.set(key, {
-			url: request.url,
-			method: request.method,
-			cookie: names.includes('cookie') || authority?.cookie === true,
-			authorization: names.includes('authorization') || authority?.authorization === true,
-			authorityObserved: authority !== undefined,
-			origin: authority?.origin === 'unexpected' ? 'unexpected' : marker
-		});
-		this.requests.push({ url: request.url, method: request.method });
-	}
-	onNetwork = (method: string, payload: unknown, session = 'native') => {
-		const event = payload as NetworkEvent;
-		if (!event.requestId) return;
-		const key = `${session}:${event.requestId}`;
-		if (method === 'Network.requestWillBeSentExtraInfo' && event.headers) {
-			this.observeAuthority(key, event.headers);
-			return;
-		}
-		if (method === 'Network.requestWillBeSent' && event.request)
-			this.observeRequest(key, event.request);
-		const row = this.wires.get(key);
-		if (!row) return;
-		if (method === 'Network.responseReceived' && event.response) {
-			row.status = event.response.status;
-			this.nativeResponses.push({
-				...event.response,
-				origin: row.origin,
-				headers: Object.fromEntries(
-					Object.entries(event.response.headers).map(([name, value]) => [
-						name.toLowerCase(),
-						String(value)
-					])
-				)
-			});
-		}
-		if (method === 'Network.responseReceivedExtraInfo') row.status = event.statusCode;
-		if (method === 'Network.loadingFinished') row.finished = true;
-		if (method === 'Network.loadingFailed') {
-			row.cors = event.corsErrorStatus?.corsError;
-			row.failure = event.errorText;
-		}
-	};
+	onNetwork = (method: string, payload: unknown, session = 'native') =>
+		this.wires.observe(method, payload, session);
 	async attach(target: Page | Frame) {
 		let session: CDPSession;
 		try {
@@ -247,12 +157,14 @@ export class ResourceObserver {
 			const url = new URL(name, document.url).href;
 			const found = () =>
 				this.responses.some((response) => response.url() === url && response.status() === 200) ||
-				this.nativeResponses.some((response) => response.url === url && response.status === 200);
+				this.wires.nativeResponses.some(
+					(response) => response.url === url && response.status === 200
+				);
 			await expect.poll(found, name).toBe(true);
 			const response = this.responses.find(
 				(response) => response.url() === url && response.status() === 200
 			);
-			const native = this.nativeResponses.find(
+			const native = this.wires.nativeResponses.find(
 				(response) => response.url === url && response.status === 200
 			);
 			const headers = response?.headers() ?? native!.headers;
@@ -281,28 +193,26 @@ export class ResourceObserver {
 			}
 		}
 	}
-	async refused(
-		url: string,
-		method: string,
-		status: number,
-		offset: number,
-		visibility: 'cors' | 'authorization' = 'cors'
-	) {
-		const matches = (row: WireRequest) => {
-			const corsRefusal =
-				row.cors === 'MissingAllowOriginHeader' && row.failure === 'net::ERR_FAILED';
-			const readableRefusal =
-				row.status === 401 && row.finished === true && !row.cors && !row.failure;
-			return (
-				row.url === url &&
-				row.method === method &&
-				row.status === status &&
-				row.authorityObserved &&
-				(visibility === 'authorization' ? corsRefusal || readableRefusal : corsRefusal)
-			);
-		};
-		await expect.poll(() => [...this.wires.values()].some(matches)).toBe(true);
-		const row = [...this.wires.values()].find(matches)!;
+	async refused(refusal: Refusal, offset: number) {
+		const { url, method, status } = refusal;
+		const rows = () => [...this.wires.rows.values()];
+		try {
+			await expect.poll(() => rows().some((row) => matchesRefusal(row, refusal))).toBe(true);
+		} catch (error) {
+			// Playwright sets testInfo.status only after the body returns, so dump the rows here.
+			let note = '';
+			try {
+				fs.writeFileSync(
+					test.info().outputPath('wire-rows.json'),
+					redactOcu(JSON.stringify(rows(), null, 2))
+				);
+			} catch (writeError) {
+				// The refusal diagnostic below is the failure; a lost evidence file must not replace it.
+				note = ` (wire rows not written: ${(writeError as Error).name})`;
+			}
+			throw new Error(describeRefusal(refusal, rows()) + note, { cause: error });
+		}
+		const row = rows().find((row) => matchesRefusal(row, refusal))!;
 		expect(row.origin).toBe('null');
 		expect(
 			row.authorityObserved,
@@ -343,11 +253,14 @@ export class ResourceObserver {
 		);
 		for (let index = 0; index < paths.length; index++)
 			await this.refused(
-				new URL(paths[index], context.origin).href,
-				'POST',
-				index === 0 ? 401 : 403,
-				offset,
-				index === 0 ? 'authorization' : 'cors'
+				{
+					probe: index,
+					url: new URL(paths[index], context.origin).href,
+					method: 'POST',
+					status: index === 0 ? 401 : 403,
+					visibility: index === 0 ? 'authorization' : 'cors'
+				},
+				offset
 			);
 	}
 	assertErrors(extra: Array<{ url: string; text: string }> = []) {
@@ -357,6 +270,11 @@ export class ResourceObserver {
 	}
 	async close() {
 		const results = await Promise.allSettled(this.disposers.reverse().map((dispose) => dispose()));
+		// Every test, pass or fail: the list reporter prints test stdout into the CI log.
+		const hits = this.wires.bufferHits();
+		console.log(formatBufferHits(hits));
+		test.info().annotations.push({ type: 'wire-buffer-hits', description: JSON.stringify(hits) });
+		this.wires.clear();
 		expect(
 			results.every((result) => result.status === 'fulfilled'),
 			'resource observers retired'
@@ -442,7 +360,10 @@ export async function expireDocument(
 	const url = new URL(`data.json?expiry=${nonce}`, document.url).href;
 	await evaluate(`window.probeExpiredResource(${JSON.stringify(nonce)})`);
 	expect(await evaluate(`document.getElementById('expiry').textContent`)).toBe('blocked');
-	await observer.refused(url, 'GET', 404, offset);
+	await observer.refused(
+		{ probe: 'expiry', url, method: 'GET', status: 404, visibility: 'cors' },
+		offset
+	);
 	await expectResources(evaluate);
 	expect(
 		(await evaluate('location.href')) === document.url,

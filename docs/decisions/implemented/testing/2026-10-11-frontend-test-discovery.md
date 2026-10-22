@@ -16,7 +16,7 @@ Vitest does not use Git ignore rules to exclude copied test suites. Build snapsh
 
 ## Decision
 
-The Vitest branch of `vite.config.ts` owns discovery for Make, npm and coverage consumers. Only `src/` and `scripts/` are test roots. Patterns retain Vitest's test/spec filename families and default exclusions; uncommitted tests within those roots remain discoverable.
+The Vitest branch of `vite.config.ts` owns discovery for Make, npm and coverage consumers. Only `src/`, `scripts/` and `e2e/` (`*.test.ts` only, added by [browser failure evidence](2026-10-22-browser-failure-evidence-redaction.md)) are test roots. Patterns retain Vitest's test/spec filename families and default exclusions; uncommitted tests within those roots remain discoverable.
 
 User-owned snapshots are not test inputs and need no cleanup. Adding an official test root requires updating this shared policy and checking complete suite discovery.
 
