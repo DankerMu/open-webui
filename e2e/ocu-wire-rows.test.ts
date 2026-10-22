@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { WireRows, type WireRequest } from './ocu-wire-rows';
+import {
+	WireRows,
+	describeRefusal,
+	formatBufferHits,
+	matchesRefusal,
+	type Refusal,
+	type WireRequest
+} from './ocu-wire-rows';
 
 type Step = [method: string, payload: Record<string, unknown>];
 
@@ -113,7 +120,13 @@ function replay(steps: Step[], session?: string) {
 		wires.observe(method, payload, session);
 		snapshots.push(...[...wires.rows.values()].map((row) => ({ ...row })));
 	}
-	return { rows: [...wires.rows.values()], native: wires.nativeResponses, requests, snapshots };
+	return {
+		wires,
+		rows: [...wires.rows.values()],
+		native: wires.nativeResponses,
+		requests,
+		snapshots
+	};
 }
 
 describe('wire rows do not depend on CDP event order', () => {
@@ -208,6 +221,142 @@ describe('wire rows do not depend on CDP event order', () => {
 		]);
 		expect(native).toEqual([
 			{ url: GRANTED, status: 200, headers: { 'content-type': 'text/html' } }
+		]);
+	});
+});
+
+describe('refusal diagnostics', () => {
+	const corsProbe: Refusal = {
+		probe: 1,
+		url: `${ORIGIN}/ocu/f/secret-grant/chat-1/denied`,
+		method: 'POST',
+		status: 403,
+		visibility: 'cors'
+	};
+	const authorizationProbe: Refusal = {
+		probe: 0,
+		url: DENIED,
+		method: 'POST',
+		status: 401,
+		visibility: 'authorization'
+	};
+	const readable401: WireRequest = {
+		url: DENIED,
+		method: 'POST',
+		origin: 'null',
+		status: 401,
+		cookie: false,
+		authorization: false,
+		authorityObserved: true,
+		finished: true
+	};
+
+	it('keeps the refusal predicate meanings', () => {
+		expect(matchesRefusal(refusedRow, { ...corsProbe, url: DENIED })).toBe(true);
+		expect(matchesRefusal(readable401, authorizationProbe)).toBe(true);
+		expect(matchesRefusal(readable401, { ...authorizationProbe, visibility: 'cors' })).toBe(false);
+		expect(matchesRefusal({ ...refusedRow, status: 401 }, authorizationProbe)).toBe(true);
+		expect(
+			matchesRefusal({ ...refusedRow, authorityObserved: false }, { ...corsProbe, url: DENIED })
+		).toBe(false);
+		expect(matchesRefusal({ ...refusedRow, method: 'GET' }, { ...corsProbe, url: DENIED })).toBe(
+			false
+		);
+	});
+
+	it('names the probe, the redacted URL and "no row" when nothing has the URL and method', () => {
+		expect(
+			describeRefusal(corsProbe, [refusedRow, { ...refusedRow, url: corsProbe.url, method: 'GET' }])
+		).toBe(
+			'refusal not observed for probe 1 POST http://localhost:5173/ocu/f/[grant]/chat-1/denied; ' +
+				'expected status=403 authorityObserved=true cors=MissingAllowOriginHeader failure=net::ERR_FAILED; no row'
+		);
+	});
+
+	it('lists each unmet field with authority only as presence', () => {
+		const partial: WireRequest = {
+			url: corsProbe.url,
+			method: 'POST',
+			origin: 'null',
+			cookie: true,
+			authorization: true,
+			authorityObserved: false
+		};
+		expect(
+			describeRefusal(corsProbe, [
+				partial,
+				{ ...partial, status: 403, authorityObserved: true, cors: 'MissingAllowOriginHeader' }
+			])
+		).toBe(
+			'refusal not observed for probe 1 POST http://localhost:5173/ocu/f/[grant]/chat-1/denied; ' +
+				'expected status=403 authorityObserved=true cors=MissingAllowOriginHeader failure=net::ERR_FAILED; ' +
+				'row 1: status=undefined≠403 authorityObserved=false≠true cors=undefined≠MissingAllowOriginHeader failure=undefined≠net::ERR_FAILED; ' +
+				'row 2: failure=undefined≠net::ERR_FAILED'
+		);
+	});
+
+	it('names both acceptable refusals when an authorization probe meets neither', () => {
+		expect(describeRefusal(authorizationProbe, [{ ...readable401, finished: undefined }])).toBe(
+			'refusal not observed for probe 0 POST http://localhost:5173/ocu/api/denial-probe; ' +
+				'expected status=401 authorityObserved=true cors=MissingAllowOriginHeader failure=net::ERR_FAILED ' +
+				'(or readable: status=401 finished=true, no cors/failure); ' +
+				'row 1: either (cors=undefined≠MissingAllowOriginHeader failure=undefined≠net::ERR_FAILED) or (finished=undefined≠true)'
+		);
+	});
+});
+
+describe('buffer-hit record', () => {
+	it('counts an early response-side event under its redacted probe URL and event type', () => {
+		const { wires } = replay([refused.status, refused.request, refused.authority, refused.failed]);
+		expect(wires.bufferHits()).toEqual({ [DENIED]: { responseReceivedExtraInfo: 1 } });
+		expect(formatBufferHits(wires.bufferHits())).toBe(
+			'wire-buffer-hits {"http://localhost:5173/ocu/api/denial-probe":{"responseReceivedExtraInfo":1}}'
+		);
+	});
+
+	it('redacts grant segments and reports an empty record for in-order events', () => {
+		const early = replay([readable.response, readable.finished, readable.request]);
+		expect(early.wires.bufferHits()).toEqual({
+			'http://localhost:5173/ocu/f/[grant]/chat-1/style.css': {
+				responseReceived: 1,
+				loadingFinished: 1
+			}
+		});
+		expect(formatBufferHits(early.wires.bufferHits())).toBe(
+			'wire-buffer-hits {"http://localhost:5173/ocu/f/[grant]/chat-1/style.css":{"responseReceived":1,"loadingFinished":1}}'
+		);
+		const ordered = replay([readable.request, readable.response, readable.finished]);
+		expect(formatBufferHits(ordered.wires.bufferHits())).toBe('wire-buffer-hits {}');
+		expect(formatBufferHits({ [`${ORIGIN}/ocu/f/raw-token/a`]: { loadingFailed: 2 } })).toBe(
+			'wire-buffer-hits {"http://localhost:5173/ocu/f/[grant]/a":{"loadingFailed":2}}'
+		);
+	});
+
+	it('reports buffered events whose request never arrived', () => {
+		const { wires, rows } = replay([refused.failed]);
+		expect(rows).toEqual([]);
+		expect(wires.bufferHits()).toEqual({ '(no request)': { loadingFailed: 1 } });
+	});
+
+	it('clears rows, buffers, native responses and hits on dispose', () => {
+		const { wires } = replay([
+			refused.status,
+			readable.request,
+			readable.response,
+			readable.authority
+		]);
+		wires.clear();
+		expect([wires.rows.size, wires.nativeResponses.length, wires.bufferHits()]).toEqual([0, 0, {}]);
+		wires.observe(...refused.request);
+		expect([...wires.rows.values()]).toEqual([
+			{
+				url: DENIED,
+				method: 'POST',
+				origin: 'null',
+				cookie: false,
+				authorization: false,
+				authorityObserved: false
+			}
 		]);
 	});
 });

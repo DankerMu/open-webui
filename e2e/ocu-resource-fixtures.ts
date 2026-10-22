@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
 	expect,
+	test,
 	type BrowserContext,
 	type CDPSession,
 	type ConsoleMessage,
@@ -22,7 +23,14 @@ import {
 	type GrantedDocument,
 	type OcuClickProbe
 } from './ocu-fixtures';
-import { redactOcu, WireRows, type WireRequest } from './ocu-wire-rows';
+import {
+	WireRows,
+	describeRefusal,
+	formatBufferHits,
+	matchesRefusal,
+	redactOcu,
+	type Refusal
+} from './ocu-wire-rows';
 
 export type EvaluateDocument = (expression: string) => Promise<unknown>;
 const RESOURCE_NAMES = [
@@ -185,28 +193,20 @@ export class ResourceObserver {
 			}
 		}
 	}
-	async refused(
-		url: string,
-		method: string,
-		status: number,
-		offset: number,
-		visibility: 'cors' | 'authorization' = 'cors'
-	) {
-		const matches = (row: WireRequest) => {
-			const corsRefusal =
-				row.cors === 'MissingAllowOriginHeader' && row.failure === 'net::ERR_FAILED';
-			const readableRefusal =
-				row.status === 401 && row.finished === true && !row.cors && !row.failure;
-			return (
-				row.url === url &&
-				row.method === method &&
-				row.status === status &&
-				row.authorityObserved &&
-				(visibility === 'authorization' ? corsRefusal || readableRefusal : corsRefusal)
+	async refused(refusal: Refusal, offset: number) {
+		const { url, method, status } = refusal;
+		const rows = () => [...this.wires.rows.values()];
+		try {
+			await expect.poll(() => rows().some((row) => matchesRefusal(row, refusal))).toBe(true);
+		} catch (error) {
+			// Playwright sets testInfo.status only after the body returns, so dump the rows here.
+			fs.writeFileSync(
+				test.info().outputPath('wire-rows.json'),
+				redactOcu(JSON.stringify(rows(), null, 2))
 			);
-		};
-		await expect.poll(() => [...this.wires.rows.values()].some(matches)).toBe(true);
-		const row = [...this.wires.rows.values()].find(matches)!;
+			throw new Error(describeRefusal(refusal, rows()), { cause: error });
+		}
+		const row = rows().find((row) => matchesRefusal(row, refusal))!;
 		expect(row.origin).toBe('null');
 		expect(
 			row.authorityObserved,
@@ -247,11 +247,14 @@ export class ResourceObserver {
 		);
 		for (let index = 0; index < paths.length; index++)
 			await this.refused(
-				new URL(paths[index], context.origin).href,
-				'POST',
-				index === 0 ? 401 : 403,
-				offset,
-				index === 0 ? 'authorization' : 'cors'
+				{
+					probe: index,
+					url: new URL(paths[index], context.origin).href,
+					method: 'POST',
+					status: index === 0 ? 401 : 403,
+					visibility: index === 0 ? 'authorization' : 'cors'
+				},
+				offset
 			);
 	}
 	assertErrors(extra: Array<{ url: string; text: string }> = []) {
@@ -261,6 +264,11 @@ export class ResourceObserver {
 	}
 	async close() {
 		const results = await Promise.allSettled(this.disposers.reverse().map((dispose) => dispose()));
+		// Every test, pass or fail: the list reporter prints test stdout into the CI log.
+		const hits = this.wires.bufferHits();
+		console.log(formatBufferHits(hits));
+		test.info().annotations.push({ type: 'wire-buffer-hits', description: JSON.stringify(hits) });
+		this.wires.clear();
 		expect(
 			results.every((result) => result.status === 'fulfilled'),
 			'resource observers retired'
@@ -346,7 +354,10 @@ export async function expireDocument(
 	const url = new URL(`data.json?expiry=${nonce}`, document.url).href;
 	await evaluate(`window.probeExpiredResource(${JSON.stringify(nonce)})`);
 	expect(await evaluate(`document.getElementById('expiry').textContent`)).toBe('blocked');
-	await observer.refused(url, 'GET', 404, offset);
+	await observer.refused(
+		{ probe: 'expiry', url, method: 'GET', status: 404, visibility: 'cors' },
+		offset
+	);
 	await expectResources(evaluate);
 	expect(
 		(await evaluate('location.href')) === document.url,
