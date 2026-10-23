@@ -47,7 +47,7 @@ Selection SHALL use file_id and revision, survive rename and reject late generat
 
 ### Requirement: Separate generated and Office preview trust
 
-Generated HTML/SVG/XML SHALL load its canonical current-chat cookie URL in an iframe fixed to allow-scripts allow-forms. Office SHALL use the merged restricted preview protocol in a separate trusted iframe fixed to allow-scripts allow-same-origin allow-forms. Parent responses SHALL be validated by source/origin/schema/chat/file/generation and stale responses ignored. User iframe settings SHALL not widen either policy. Corrupt/unsupported Office SHALL yield a visible per-file state and usable parent-owned download fallback, not blank success.
+Generated HTML/SVG/XML not marked too_large SHALL load its canonical current-chat cookie URL in an iframe fixed to allow-scripts allow-forms. Office SHALL use the merged restricted preview protocol in a separate trusted iframe fixed to allow-scripts allow-same-origin allow-forms. Parent responses SHALL be validated by source/origin/schema/chat/file/generation and stale responses ignored. User iframe settings SHALL not widen either policy. A file marked too_large SHALL load neither iframe, whatever its type. Corrupt/unsupported Office SHALL yield a visible per-file state and usable parent-owned download fallback, not blank success.
 
 #### Scenario: Real Office consumer
 
@@ -194,7 +194,7 @@ The selected region SHALL retain the accessible name `Selected workspace file`. 
 
 ### Requirement: Selected preview is framed without changing preview behavior
 
-The preview surface below the bar SHALL be rounded, bordered and clipped at its corners, and fill remaining height; its iframe SHALL have no border of its own. Generated-content and Office iframe sandbox, source and title values SHALL remain identical to the accepted reference. Preview selection, keyed lifecycle, message validation and deadlines SHALL remain unchanged. Office pending status SHALL retain its existing text and `role="status"`, with a decorative spinner; failure SHALL retain its status text/role and `Retry Office preview` action in a styled error block. Unsupported files SHALL show a centered decorative kind icon, existing status text and a download action styled as a button. This secondary action SHALL be an anchor named `Download`, without the filename, so the single existing `Download <name>` link selector remains unambiguous. It SHALL perform the same download, not add an open/copy/revision action.
+The preview surface below the bar SHALL be rounded, bordered and clipped at its corners, and fill remaining height; its iframe SHALL have no border of its own. Generated-content and Office iframe sandbox, source and title values SHALL remain identical to the accepted reference. Preview selection, keyed lifecycle, message validation and deadlines SHALL remain unchanged. Office pending status SHALL retain its existing text and `role="status"`, with a decorative spinner; failure SHALL retain its status text/role and `Retry Office preview` action in a styled error block. Unsupported files, and files marked too_large with a status text naming the preview size limit, SHALL show a centered decorative kind icon, existing status text and a download action styled as a button. This secondary action SHALL be an anchor named `Download`, without the filename, so the single existing `Download <name>` link selector remains unambiguous. It SHALL perform the same download, not add an open/copy/revision action.
 
 #### Scenario: Generated, Office and unsupported branches
 
