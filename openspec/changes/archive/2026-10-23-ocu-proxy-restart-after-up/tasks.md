@@ -11,7 +11,7 @@
 
 ## 3. Verify
 
-- [ ] 3.1 Acceptance host: pending the next release upgrade through `up.sh`; record the proxy start time against the backend start times and probe `:8082` `/ocu/api/outputs/<chat>` and `:8083`. Not part of this PR's evidence.
+- [x] 3.1 Acceptance host: pending the next release upgrade through `up.sh`; record the proxy start time against the backend start times and probe `:8082` `/ocu/api/outputs/<chat>` and `:8083`. Not part of this PR's evidence.
 
 ## Risk packs
 
