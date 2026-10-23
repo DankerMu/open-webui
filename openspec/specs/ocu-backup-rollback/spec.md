@@ -141,3 +141,54 @@ When a recovery helper container that captures or restores a volume exits unsucc
 
 - **WHEN** the helper capturing a volume exits with an error reporting `unsafe symlink a/b`
 - **THEN** the backup error names the volume and contains `unsafe symlink a/b`
+
+### Requirement: Restore canonicalizes restored chat ids before reading host state
+
+Before the restore cursor check reads a chat's host index, it SHALL canonicalize the chat id taken from the restored database with the same rule the broker listing uses. A chat id that is not canonical SHALL fail the restore with a recovery error before any host path derived from that id is opened.
+
+#### Scenario: Tampered chat id in the restored database
+
+- **WHEN** the restored database lists a live chat `../x` that also has a chat-state row with id `../x`
+- **THEN** the restore fails with a recovery error and no path derived from that id is opened
+
+### Requirement: Backup keeps file names that are not valid UTF-8
+
+Capture SHALL accept a member whose file name, directory name or symlink target is not valid UTF-8, on both the GNU tar and the Python path, and extraction on either path SHALL recreate it with the same bytes.
+
+#### Scenario: GBK-named file
+
+- **WHEN** a captured tree holds a file whose name is GBK bytes that are not valid UTF-8
+- **THEN** capture, verify and extract succeed and the extracted file has the same name bytes and contents
+
+#### Scenario: Non-UTF-8 directory name
+
+- **WHEN** a captured tree holds a directory whose name is not valid UTF-8, containing a file
+- **THEN** the extracted directory has the same name bytes and holds the same file
+
+#### Scenario: Non-UTF-8 symlink target on the Python path
+
+- **WHEN** the Python capture path captures a symlink whose target bytes are not valid UTF-8, under the verbatim policy, and the archive is extracted on the GNU path
+- **THEN** the extracted symlink has the same target bytes
+
+### Requirement: Backup refuses an uncapturable tree before it stops the stack
+
+Before backup stops any service, it SHALL scan, read-only and with the link policy of each tree's recovery component, every tree it will capture: the chat data directory, the skills cache, the WebUI data volume and each workspace volume of the selected deployment. If the scan finds a member that capture would refuse (an unsupported member type such as a socket or FIFO, a symlink the policy refuses, a second name inside the tree for the same symlink, too many members or too many bytes), or the WebUI initializer marker is missing, backup SHALL fail with that refusal while every service keeps its state, without stopping a container, sending the DocumentServer shutdown command, or allocating a recovery-set stage. An entry that disappears while the running tree is scanned SHALL be skipped. The capture after quiesce SHALL keep all of its own checks.
+
+#### Scenario: Escaping link in a deployment-owned tree
+
+- **WHEN** the skills cache contains a symlink to `/etc/passwd` and an operator starts a backup
+- **THEN** backup fails naming the link, and no container was stopped
+
+#### Scenario: FIFO in a workspace volume
+
+- **WHEN** a workspace volume of the deployment contains a FIFO
+- **THEN** backup fails naming the unsupported member, and no container was stopped
+
+### Requirement: Verify refuses non-canonical workspace keys
+
+Recovery-set verification SHALL refuse a workspace entry whose key is not already the canonical form of its chat id, before any restore step creates a volume from that key.
+
+#### Scenario: Uppercase workspace key
+
+- **WHEN** a recovery set lists its workspace archive under the key `CHAT-ID` while the record is bound to `chat-id`
+- **THEN** verify fails with a recovery error naming the key as not canonical, and restore of the same set fails before creating any workspace volume
