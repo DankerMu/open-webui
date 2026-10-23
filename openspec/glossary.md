@@ -13,7 +13,7 @@ OCU 为一个聊天启动的 Docker 容器 `owui-chat-{chat_id}`，Agent 在其�
 _Avoid_: container (when meaning the chat's runtime), VM, agent box
 
 **工作区文件 (workspace files)**:
-一个聊天里用户与 Agent 共用的唯一文件目录：上传的与生成的文件都在这里，双方都可修改。宿主机上是 `{BASE_DATA_DIR}/{chat_id}/outputs`（目录名沿用），沙箱内挂载为 `/mnt/user-data/files`；侧栏列出的就是它。Agent 的私有临时区 `/home/assistant` 不属于工作区文件。Plan 2 的 B0 落地之前，沙箱内仍是只读的 uploads 与可写的 outputs 两个路径。
+一个聊天里用户与 Agent 共用的唯一文件目录：上传的与生成的文件都在这里，双方都可修改。宿主机上是 `{BASE_DATA_DIR}/{chat_id}/outputs`（目录名沿用），沙箱内挂载为 `/mnt/user-data/files`；侧栏列出的就是它。Agent 的私有临时区 `/home/assistant` 不属于工作区文件。沙箱内没有单独的 uploads 或 outputs 路径。
 _Avoid_: 产物 / outputs（Plan 1 旧称，只在指宿主机目录名或既有接口名时使用）, uploads（作为用户可见的分类）, artifacts (reserved for WebUI's native HTML/SVG Artifact panel)
 
 **revision**:
