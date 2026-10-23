@@ -31,6 +31,7 @@ import {
 	redactOcu,
 	type Refusal
 } from './ocu-wire-rows';
+import { waitPastWallClock } from './ocu-wall-clock';
 
 export type EvaluateDocument = (expression: string) => Promise<unknown>;
 const RESOURCE_NAMES = [
@@ -352,9 +353,13 @@ export async function expireDocument(
 	expect(expiry * 1000 > Date.now(), 'fresh proof completed before actual session expiry').toBe(
 		true
 	);
-	const crossed = Promise.withResolvers<void>();
-	setTimeout(crossed.resolve, expiry * 1000 - Date.now() + 150);
-	await crossed.promise;
+	await waitPastWallClock(expiry * 1000, {
+		now: Date.now,
+		sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+		marginMs: 150,
+		// Tolerates a backward wall-clock step of up to 2 s during the wait (#606).
+		capMs: 2000
+	});
 	expect(Date.now() > expiry * 1000, 'actual signed expiry crossed').toBe(true);
 	const nonce = randomUUID();
 	const url = new URL(`data.json?expiry=${nonce}`, document.url).href;

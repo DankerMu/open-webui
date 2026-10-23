@@ -32,6 +32,6 @@ Fixture level: compact
 Upstream suggested level: absent (issue says S); compact: one test fixture plus a pure helper, no product code
 Blast radius: the three A-T01 browser cases; a wrong wait either probes too early (false pass/fail) or hangs
 Selected risk packs: Concurrency / ordering (clock and timer); Error handling (bounded failure message)
-Evidence floor: the new unit test red before the helper exists / with the old one-shot logic, green after; make test-frontend; make verify-ui-ocu; make verify-ui-ocu-repeat SPEC=e2e/ocu-resources.e2e.ts REPEAT=10
+Evidence floor: the new unit test red before the helper exists / with the old one-shot logic, green after; make test-frontend; make verify-ui-ocu; make verify-ui-ocu-repeat SPEC=ocu-resources.e2e.ts REPEAT=10
 design.md: omitted at compact level
 ```

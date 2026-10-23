@@ -12,7 +12,7 @@
   - (e) forward jump during the first sleep past `deadline + capMs`: returns after that one sleep, no error;
   - (f) deadline already past on entry: returns without sleeping.
 - [ ] 2.2 `e2e/ocu-wall-clock.ts` and the `expireDocument` change; keep the `actual signed expiry crossed` assertion and the error text of the first assertion.
-- [ ] 2.3 Green: `make test-frontend` (or the Vitest run covering `e2e/**/*.test.ts`), `make typecheck`, `make lint-scoped`, `make verify-ui-ocu`, `make verify-ui-ocu-repeat SPEC=e2e/ocu-resources.e2e.ts REPEAT=10`. The PR carries fresh output from this session for the last two: command, exit code and pass counts (issue AC3).
+- [ ] 2.3 Green: `make test-frontend` (or the Vitest run covering `e2e/**/*.test.ts`), `make typecheck`, `make lint-scoped`, `make verify-ui-ocu`, `make verify-ui-ocu-repeat SPEC=ocu-resources.e2e.ts REPEAT=10`. The PR carries fresh output from this session for the last two: command, exit code and pass counts (issue AC3).
 
 ## Risk packs
 
