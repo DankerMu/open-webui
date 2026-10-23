@@ -1,4 +1,11 @@
-import { expect, type Locator, type Page, type Response, type Route } from '@playwright/test';
+import {
+	expect,
+	type Locator,
+	type Page,
+	type Request,
+	type Response,
+	type Route
+} from '@playwright/test';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import type { OfficeSessionStatus, OfficeVersions } from '../src/lib/apis/ocu/office';
@@ -165,10 +172,18 @@ function mutationPosts(offset: number, chatId: string, suffix: '/save' | '/resol
 	);
 }
 
-export async function holdOfficeCloseBeforeBroker(page: Page, pathname: string) {
+export async function holdOfficeCloseBeforeBroker(
+	page: Page,
+	pathname: string,
+	{
+		method = 'POST',
+		select = () => true
+	}: { method?: string; select?: (request: Request) => boolean } = {}
+) {
 	let releaseRoute!: () => void;
 	let enteredRoute!: () => void;
 	let arrivals = 0;
+	let held: Request | undefined;
 	const release = new Promise<void>((resolve) => {
 		releaseRoute = resolve;
 	});
@@ -178,9 +193,11 @@ export async function holdOfficeCloseBeforeBroker(page: Page, pathname: string) 
 	const address = `${context.origin}${pathname}`;
 	let work: Promise<void> | undefined;
 	const handler = (route: Route) => {
-		if (route.request().method() !== 'POST') return route.continue();
+		const request = route.request();
+		if (request.method() !== method || !select(request)) return route.continue();
 		arrivals += 1;
 		if (arrivals !== 1) return route.continue();
+		held = request;
 		work = (async () => {
 			enteredRoute();
 			await release;
@@ -194,6 +211,7 @@ export async function holdOfficeCloseBeforeBroker(page: Page, pathname: string) 
 		waitUntilHeld: () => entered,
 		release: () => releaseRoute(),
 		arrivals: () => arrivals,
+		request: () => held,
 		async dispose() {
 			releaseRoute();
 			await page.unroute(address, handler);
@@ -704,22 +722,39 @@ export async function walkRemovalNotice(page: Page, chatId: string, recordOffset
 		name: 'Refresh workspace files',
 		exact: true
 	});
-	const closed = await departHeldOfficeClose(
-		page,
-		chatId,
-		prepared.owner,
-		recordOffset,
-		prepared.before,
-		() => refresh.click({ noWaitAfter: true }),
-		'office-removal-notice-saving.png',
-		// The held departure keeps the pre-removal workspace on screen, so the notice shows only once
-		// the guard's 1 s status poll reads the closed session after release; it lives only until the
-		// next listing reload (3 s after the removing refresh ends), which starts by clearing it.
-		() =>
-			expect(prepared.panel.getByText('Selected file was removed', { exact: true })).toBeVisible({
-				timeout: 3_000
-			})
-	);
+	// The removing refresh's `selected_file_id: null` write keeps its reconciliation run open; the
+	// next run starts by clearing the notice, so hold the write until the notice has been asserted.
+	const prefs = await holdOfficeCloseBeforeBroker(page, `/api/v1/ocu/workspaces/${chatId}/prefs`, {
+		method: 'PUT',
+		select: (request) => request.postDataJSON()?.selected_file_id === null
+	});
+	let closed: Awaited<ReturnType<typeof departHeldOfficeClose>>;
+	try {
+		closed = await departHeldOfficeClose(
+			page,
+			chatId,
+			prepared.owner,
+			recordOffset,
+			prepared.before,
+			() => refresh.click({ noWaitAfter: true }),
+			'office-removal-notice-saving.png',
+			// The held departure keeps the pre-removal workspace on screen, so the notice shows only
+			// once the guard's 1 s status poll reads the closed session after release.
+			async () => {
+				await expect.poll(() => prefs.arrivals()).toBe(1);
+				await prefs.waitUntilHeld();
+				await expect(
+					prepared.panel.getByText('Selected file was removed', { exact: true })
+				).toBeVisible();
+				expect(prefs.arrivals()).toBe(1);
+				prefs.release();
+				const cleared = await prefs.request()!.response();
+				expect(cleared?.ok()).toBe(true);
+			}
+		);
+	} finally {
+		await prefs.dispose();
+	}
 	expect(mutationPosts(recordOffset, chatId, '/close')).toHaveLength(1);
 	expect(mutationPosts(recordOffset, chatId, '/resolve')).toEqual([]);
 	expect(closed.terminal.saved_as).toMatchObject({ path: 'report (2).docx' });
