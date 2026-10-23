@@ -68,7 +68,7 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 backend/open_webui/     FastAPI app — routers/ models/ utils/ socket/ retrieval/ migrations/
 src/routes/             SvelteKit pages ((app)/, auth/, s/)
 src/lib/                components/ apis/ stores/ utils/ i18n/ (generated) pyodide/ (vendored)
-docs/plans/             Plan 1 (implemented, epic #2) / Plan 2 (in progress, epic #107)
+docs/plans/             Plan 1 (implemented, epic #2) / Plan 2 (implemented; acceptance follow-ups open on epic #107)
 docs/decisions/         decision records — proposed/ implemented/ rejected/ archived/
 docs/postmortem/        postmortem contract (write one when an incident meets the criteria)
 smoke/ e2e/             hurl API smoke, Playwright UI baseline
@@ -129,6 +129,9 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 | GET /api/v1/ocu/workspaces/{chat_id}            | hurl smoke: owner 200 + status; foreign-chat 404                                                                  | `make smoke`                                     | HTTP 200 + `status` (owner, OCU down → unavailable); HTTP 404 (foreign chat id)                                                                                   |
 | OCU reverse-proxy gateway                       | real WebUI owner/nonowner cookies + stub private observations                                                     | `make smoke-proxy`                               | HTTP 401/403/404 provenance, no OCU contact on denials, response containment, exact SHA                                                                           |
 | Workspace sidebar and saved-chat transitions    | Playwright: files/preview, Browser/Terminal tabs, persistence and reconciliation with deterministic OCU responses | `make verify-ui-ocu`                             | Screenshots in `.run/ui-evidence/`, assertions pass, zero unexpected console/page errors; not a real-model or deployment certification                            |
+| Office stub contract                            | stub Office routes, named scenarios, conflict resolutions, chat isolation, replay                                 | `make smoke-stub`                                | exit 0; fixture level, not proof of a real save                                                                                                                   |
+| Office routes through the gateway               | `smoke/proxy/office.hurl`: seven Office browser routes, owner/nonowner cookies, mutation header                   | `make smoke-proxy`                               | HTTP status + body assertions; denials never reach OCU                                                                                                            |
+| Office sidebar editor                           | Playwright `ocu-office.e2e.ts`, no DocumentServer: open, save, maximize, conflict save-as, recovery, leave guard  | `make verify-ui-ocu`                             | Screenshots in `.run/ui-evidence/`, assertions pass; not a real-editor save                                                                                       |
 | Local real-editor Office round trip (not PR CI) | Pinned DocumentServer + production broker keyboard edit/save/fresh reopen; published OOXML and LibreOffice        | `make verify-office`                             | Three-format content checks, independent reopening, unjudged fidelity record under `.run/`, owned-resource cleanup; paired controls via `make test-verify-office` |
 
 - Every command in this table resolves to a `Makefile` target. A row whose command does not exist is forbidden.
@@ -219,15 +222,17 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 
 Governance decision (verbatim): 「人工不审代码，只审最终功能呈现」. Humans gate on functional acceptance; code-level assurance on the paths below is **mechanical evidence plus reviewer-subagent cross-review** (`.claude/agents/reviewer.md`), not human white-box review. A diff touching a listed path must attach the listed evidence and a reviewer pass before it is called done.
 
-| Path                                                                            | Risk class                       | Requirement (every row also needs reviewer cross-review)      |
-| ------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------- |
-| `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/` | auth, permissions                | tests for the 401/403/404 matrix + `make smoke`               |
-| `backend/open_webui/models/chats.py` (`is_chat_owner`)                          | authorization predicate          | unit tests for owner/shared/admin cases                       |
-| `backend/open_webui/routers/ocu_workspaces.py`                                  | authorization, sandbox lifecycle | Plan 1 A-T08/A-T12 fixtures + `make smoke`                    |
-| `backend/open_webui/migrations/versions/`                                       | schema, irreversible             | `make db-verify` + migration named in a plan                  |
-| `backend/open_webui/socket/`                                                    | cross-user event leakage         | tests that events reach only `user:{id}` rooms                |
-| `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py`        | upstream spine                   | minimal diff + `make smoke`                                   |
-| `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte`          | iframe sandbox / CSP             | Plan 1 A-T01 Playwright case (opaque origin, no token access) |
+| Path                                                                                                          | Risk class                                             | Requirement (every row also needs reviewer cross-review)                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/`                               | auth, permissions                                      | tests for the 401/403/404 matrix + `make smoke`                                                                       |
+| `backend/open_webui/models/chats.py` (`is_chat_owner`)                                                        | authorization predicate                                | unit tests for owner/shared/admin cases                                                                               |
+| `backend/open_webui/routers/ocu_workspaces.py`                                                                | authorization, sandbox lifecycle                       | Plan 1 A-T08/A-T12 fixtures + `make smoke`                                                                            |
+| `backend/open_webui/migrations/versions/`                                                                     | schema, irreversible                                   | `make db-verify` + migration named in a plan                                                                          |
+| `backend/open_webui/socket/`                                                                                  | cross-user event leakage                               | tests that events reach only `user:{id}` rooms                                                                        |
+| `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py`                                      | upstream spine                                         | minimal diff + `make smoke`                                                                                           |
+| `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte`                                        | iframe sandbox / CSP                                   | Plan 1 A-T01 Playwright case (opaque origin, no token access)                                                         |
+| `src/lib/components/chat/office-editor-frame.ts` (`embed=office` editor host)                                 | iframe trust class admitting the DocumentServer origin | `make test-frontend` + `make verify-ui-ocu`; real save via `make verify-office`, or the PR states it was not verified |
+| `src/lib/components/chat/office-leave-guard.ts`, `src/lib/stores/ocu-office.ts`, `src/lib/apis/ocu/office.ts` | unsaved edits on leave, cross-chat Office state        | `make test-frontend` + `make verify-ui-ocu`                                                                           |
 
 ## Agent Operating Rules
 
