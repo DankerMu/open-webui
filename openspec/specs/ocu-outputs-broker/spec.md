@@ -8,7 +8,7 @@ Give OCU outputs persistent file identities and monotonic per-chat revisions wit
 
 ### Requirement: Persistent identity and event revisions
 
-The broker SHALL persist active path and content-fingerprint indexes, UUID file_ids, tombstones and one monotonic counter per chat. Each observed addition, size change, rename or deletion SHALL increment the counter once and stamp the affected entry or tombstone. Unchanged entries SHALL retain their id and revision. Listing revision SHALL be the current counter, preserved across broker/process restarts. Entry metadata SHALL include relative path, name, size, mtime_ns, revision and cached SHA-256; mtime SHALL not determine identity or version.
+The broker SHALL persist active path and content-fingerprint indexes, UUID file_ids, tombstones and one monotonic counter per chat. Each observed addition, size change, rename or deletion SHALL increment the counter once and stamp the affected entry or tombstone. Unchanged entries SHALL retain their id and revision. Listing revision SHALL be the current counter, preserved across broker/process restarts. Entry metadata SHALL include relative path, name, size, mtime_ns, revision and cached SHA-256, except that an entry whose size exceeds the per-file limit SHALL carry a null hash; mtime SHALL not determine identity or version.
 
 #### Scenario: Independent entry stamps
 
@@ -20,9 +20,14 @@ The broker SHALL persist active path and content-fingerprint indexes, UUID file_
 - **WHEN** a new broker/process reads an existing valid index
 - **THEN** unchanged entries retain their ids/stamps and the next event advances the persisted counter
 
+#### Scenario: File crosses the per-file limit
+
+- **WHEN** an indexed file grows beyond the per-file limit, and later shrinks back below it
+- **THEN** each crossing is one size-change event that keeps the file's id, and the entry's hash is null while the file is oversized and a fresh SHA-256 once it is back within the limit
+
 ### Requirement: Cached hash rename evidence
 
-The broker SHALL hash newly observed files and detected size changes and persist those fingerprints. Equal-size/equal-SHA256 pairs of paths removed and added in the same reconciliation SHALL be matched one-to-one deterministically as renames, retaining id and incrementing revision once. Equal-content files SHALL have distinct identities. Historical tombstones SHALL never be candidates for rename resurrection. Same-size in-place changes remain a documented detection blind spot.
+The broker SHALL hash newly observed files and detected size changes within the per-file limit and persist those fingerprints. Files over the per-file limit SHALL NOT be read or hashed and SHALL have no fingerprint. Equal-size/equal-SHA256 pairs of paths removed and added in the same reconciliation SHALL be matched one-to-one deterministically as renames, retaining id and incrementing revision once; entries without a hash SHALL never be rename candidates. Equal-content files SHALL have distinct identities. Historical tombstones SHALL never be candidates for rename resurrection. Same-size in-place changes remain a documented detection blind spot.
 
 #### Scenario: Rename retains identity
 
@@ -39,6 +44,11 @@ The broker SHALL hash newly observed files and detected size changes and persist
 - **WHEN** multiple removed and added paths share one size/hash
 - **THEN** deterministic one-to-one matching preserves separate ids without assigning one id to two active entries
 
+#### Scenario: Oversized files are never paired
+
+- **WHEN** two oversized files of equal size are moved in the same reconciliation
+- **THEN** each old id is tombstoned and each new path receives a new id
+
 ### Requirement: Observed deletion and path reuse
 
 A deletion observed by reconciliation SHALL persist a tombstone. A subsequently recreated path SHALL receive a new UUID, even if its bytes equal the tombstoned file. A delete/recreate entirely between polls SHALL follow active-path matching and SHALL be documented as unobservable without a file event system.
@@ -50,7 +60,7 @@ A deletion observed by reconciliation SHALL persist a tombstone. A subsequently 
 
 ### Requirement: Unchanged discovery and bounded pages
 
-Reconciliation SHALL discover current paths/sizes before reporting unchanged, hash no unchanged files and avoid rewriting an unchanged index. Pages SHALL be sorted by relative path and report total plus a revision-bound next cursor. Malformed/out-of-range/stale cursors SHALL fail explicitly. Defaults SHALL be page100 with maximum1000, active-file limit10000, per-file limit100MiB and index limit64MiB; explicitly configured positive limits SHALL be enforced before publishing a successor, without truncation or counter reset.
+Reconciliation SHALL discover current paths/sizes before reporting unchanged, hash no unchanged files and avoid rewriting an unchanged index. Pages SHALL be sorted by relative path and report total plus a revision-bound next cursor. Malformed/out-of-range/stale cursors SHALL fail explicitly. Defaults SHALL be page100 with maximum1000, active-file limit10000, per-file limit100MiB and index limit64MiB; explicitly configured positive limits SHALL be enforced before publishing a successor, without truncation or counter reset. A regular file over the per-file limit SHALL be listed as an entry without a hash instead of failing reconciliation, and SHALL count toward the active-file limit; registering an oversized host write SHALL still fail explicitly.
 
 #### Scenario: Unchanged large directory
 
@@ -64,8 +74,13 @@ Reconciliation SHALL discover current paths/sizes before reporting unchanged, ha
 
 #### Scenario: Configured limit exceeded
 
-- **WHEN** a scan or proposed index exceeds an active-file, file-size or index-size bound
-- **THEN** reconciliation fails explicitly and the prior persisted index remains unchanged
+- **WHEN** a scan or proposed index exceeds an active-file or index-size bound, or a host write to be registered exceeds the file-size bound
+- **THEN** the operation fails explicitly and the prior persisted index remains unchanged
+
+#### Scenario: Oversized file does not hide the listing
+
+- **WHEN** one regular file in the outputs tree exceeds the per-file limit
+- **THEN** reconciliation succeeds without reading that file, and the page lists every other file plus an entry for the oversized file with a file_id, a revision and no hash
 
 ### Requirement: Serialized atomic index updates
 
@@ -105,7 +120,7 @@ The broker SHALL enumerate only non-hidden regular files beneath the chat output
 
 Each broker discovery SHALL enforce constructor-configurable positive-integer ceilings no greater than 50000 enumerated entries, 10000 visited directories and256 simultaneous scan directory descriptors. Every enumerated entry SHALL count before filtering or further inspection, including hidden names, symlinks, directories and special files; hidden subtree contents SHALL not be enumerated. The outputs root SHALL count as one visited directory when present. The descriptor count SHALL include the borrowed root, owned current/pending directories and the directory iterator's duplicate descriptor. Exact limits SHALL be allowed; excess work or descriptor acquisition SHALL be refused before it occurs, apart from retrieving the first excess entry to detect overflow.
 
-Exhaustion of these budgets and scan-related directory-open/enumeration EMFILE or ENFILE SHALL raise an explicit resource-limit failure, not retryable filesystem instability or a successful truncated listing. Failed reconciliation SHALL preserve predecessor index bytes, file identities, revisions and counter. Every scan-owned descriptor SHALL be released on failure or success; caller-owned borrowed roots SHALL remain open until their owner closes them. Existing visibility, root safety, active-file/file-size/index/page bounds, hashing and identity semantics SHALL remain unchanged. No new environment or endpoint configuration SHALL widen these ceilings.
+Exhaustion of these budgets and scan-related directory-open/enumeration EMFILE or ENFILE SHALL raise an explicit resource-limit failure, not retryable filesystem instability or a successful truncated listing. Failed reconciliation SHALL preserve predecessor index bytes, file identities, revisions and counter. Every scan-owned descriptor SHALL be released on failure or success; caller-owned borrowed roots SHALL remain open until their owner closes them. Existing visibility, root safety, active-file/index/page bounds, hashing and identity semantics SHALL remain unchanged; a file over the per-file limit SHALL be listed without a hash as specified by "Unchanged discovery and bounded pages". No new environment or endpoint configuration SHALL widen these ceilings.
 
 #### Scenario: Entry budget includes otherwise invisible work
 
