@@ -14,12 +14,12 @@
 
 ## 3. WebUI fork (after the OCU PR merges)
 
-- [ ] 3.1 Tests first (design evidence plan, fork part).
-- [ ] 3.2 `src/lib/apis/ocu/index.ts` type, validator, URL rule (D6).
-- [ ] 3.3 Sidebar row marker, action exclusions, fallback branch (D6); i18n via `npm run i18n:parse`.
-- [ ] 3.4 `scripts/ocu-stub.py` scenario and stub test; Playwright case.
-- [ ] 3.5 Decision record `docs/decisions/implemented/architecture/2026-10-23-ocu-unsupported-output-name.md` (D1–D6, the rejected options from #617: skip-and-report, keep fail-loud, reject at write time); note that `ocu-workspace-oversized-file`'s "files not marked too_large … behave as before" yields to the `ocu-workspace-files` exceptions for unsupported entries.
-- [ ] 3.6 Green: `make test-frontend`, `make typecheck`, `make lint-scoped`, `make verify-ui-ocu`, `make decisions-verify`, `make doc-gate`.
+- [x] 3.1 Tests first (design evidence plan, fork part).
+- [x] 3.2 `src/lib/apis/ocu/index.ts` type, validator, URL rule (D6).
+- [x] 3.3 Sidebar row marker, action exclusions, fallback branch (D6); i18n via `npm run i18n:parse`.
+- [x] 3.4 `scripts/ocu-stub.py` scenario and stub test; Playwright case.
+- [x] 3.5 Decision record `docs/decisions/implemented/architecture/2026-10-23-ocu-unsupported-output-name.md` (D1–D6, the rejected options from #617: skip-and-report, keep fail-loud, reject at write time); note that `ocu-workspace-oversized-file`'s "files not marked too_large … behave as before" yields to the `ocu-workspace-files` exceptions for unsupported entries.
+- [x] 3.6 Green: `make test-frontend`, `make typecheck`, `make lint-scoped`, `make verify-ui-ocu`, `make decisions-verify`, `make doc-gate`.
 
 ## Risk packs
 
