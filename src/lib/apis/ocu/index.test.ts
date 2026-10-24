@@ -6,6 +6,7 @@ import {
 	launchWorkspace,
 	putWorkspacePrefs,
 	refreshWorkspace,
+	workspaceFileUrl,
 	WorkspaceRequestError
 } from './index';
 
@@ -194,6 +195,89 @@ describe('ocu workspace client', () => {
 			respond({ ...entry, too_large: value });
 			await expect(listWorkspaceFiles('/ocu', 'chat-1')).rejects.toMatchObject({
 				status: 200,
+				reason: 'invalid_response'
+			});
+		});
+	});
+
+	describe('unsupported_name listing marker', () => {
+		// OCU's display forms: b'\xb1\xa8.docx' decoded with backslashreplace, and a backslash name.
+		const surrogate = {
+			file_id: '5f0c6a52-unsupported',
+			path: 'sub/\\xb1\\xa8.docx',
+			name: '\\xb1\\xa8.docx',
+			url: null,
+			type: 'docx',
+			mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			revision: 2,
+			size: 10,
+			too_large: false,
+			unsupported_name: true
+		};
+		const backslash = {
+			...surrogate,
+			file_id: '9d41e7b0-unsupported',
+			path: 'a\\b.html',
+			name: 'a\\b.html',
+			type: 'html',
+			mime: 'text/html'
+		};
+		const supported = {
+			file_id: 'f1',
+			path: 'page.html',
+			name: 'page.html',
+			url: '/ocu/files/chat-1/page.html',
+			type: 'html',
+			mime: 'text/html',
+			revision: 1,
+			size: 10
+		};
+		const respond = (...files: object[]) =>
+			vi.stubGlobal(
+				'fetch',
+				vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							chat_id: 'chat-1',
+							revision: 2,
+							total: files.length,
+							next_cursor: null,
+							files
+						})
+					)
+				)
+			);
+
+		it('accepts unsupported entries with a null URL and a display path beside a normal file', async () => {
+			const files = [surrogate, backslash, { ...supported, unsupported_name: false }];
+			respond(...files);
+			const result = await listWorkspaceFiles('/ocu', 'chat-1');
+			expect(result).toEqual({ kind: 'listing', listing: expect.anything(), etag: null });
+			expect(result.kind === 'listing' && result.listing.files).toEqual(files);
+		});
+
+		it('returns no URL for an unsupported entry instead of rejecting its display path', () => {
+			expect(workspaceFileUrl('/ocu', 'chat-1', surrogate)).toBe('');
+			expect(workspaceFileUrl('/ocu', 'chat-1', backslash)).toBe('');
+			expect(workspaceFileUrl('/ocu', 'chat-1', supported)).toBe('/ocu/files/chat-1/page.html');
+		});
+
+		it.each([
+			['a string marker', { ...supported, unsupported_name: 'yes' }],
+			['a number marker', { ...supported, unsupported_name: 1 }],
+			['a null marker', { ...supported, unsupported_name: null }],
+			['an object marker', { ...supported, unsupported_name: {} }],
+			[
+				'a URL on an unsupported entry',
+				{ ...surrogate, path: 'x.docx', name: 'x.docx', url: '/ocu/files/chat-1/x.docx' }
+			],
+			['a missing URL on an unsupported entry', { ...surrogate, url: undefined }],
+			['an empty path on an unsupported entry', { ...surrogate, path: '' }],
+			['a null URL without the marker', { ...supported, url: null }],
+			['a null URL with the marker false', { ...supported, url: null, unsupported_name: false }]
+		] as const)('rejects %s as an invalid response', async (_label, file) => {
+			respond(supported, file);
+			await expect(listWorkspaceFiles('/ocu', 'chat-1')).rejects.toMatchObject({
 				reason: 'invalid_response'
 			});
 		});
