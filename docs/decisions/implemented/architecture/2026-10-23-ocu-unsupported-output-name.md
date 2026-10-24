@@ -104,10 +104,13 @@ chat is live with a cursor and otherwise on its first listing. The OCU README
 states this beside its rollback paragraph and gives a command that lists
 unsupported paths per chat.
 
-**Rollback order.** A WebUI fork without this change rejects a listing that
-holds an unsupported entry (null URL), which is the same visible result as the
-old 500. A WebUI with this change accepts a listing without the marker. Deploy
-the WebUI first, then OCU; roll back in the same order.
+**Rollback order.** A WebUI with this change accepts a listing without the
+marker, so deploy the WebUI first, then OCU. No rollback order keeps an affected
+chat listable. A WebUI fork without this change rejects a listing that holds an
+unsupported entry as `invalid_response`: its file URL check refuses the `\` in
+the display path and the null URL. An older OCU rejects the chat's index with
+500 (one-way, above). Chats without an unsupported entry list normally in either
+order.
 
 **Archive.** The archive no longer packs backslash-named files, which earlier
 releases included; a Windows extractor could have treated the backslash as a
