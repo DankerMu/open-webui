@@ -47,7 +47,7 @@ Selection SHALL use file_id and revision, survive rename and reject late generat
 
 ### Requirement: Separate generated and Office preview trust
 
-Generated HTML/SVG/XML not marked too_large SHALL load its canonical current-chat cookie URL in an iframe fixed to allow-scripts allow-forms. Office SHALL use the merged restricted preview protocol in a separate trusted iframe fixed to allow-scripts allow-same-origin allow-forms. Parent responses SHALL be validated by source/origin/schema/chat/file/generation and stale responses ignored. User iframe settings SHALL not widen either policy. A file marked too_large SHALL load neither iframe, whatever its type. Corrupt/unsupported Office SHALL yield a visible per-file state and usable parent-owned download fallback, not blank success.
+Generated HTML/SVG/XML not marked too_large SHALL load its canonical current-chat cookie URL in an iframe fixed to allow-scripts allow-forms. Office SHALL use the merged restricted preview protocol in a separate trusted iframe fixed to allow-scripts allow-same-origin allow-forms. Parent responses SHALL be validated by source/origin/schema/chat/file/generation and stale responses ignored. User iframe settings SHALL not widen either policy. A file marked too_large or unsupported_name SHALL load neither iframe, whatever its type. Corrupt/unsupported Office SHALL yield a visible per-file state and usable parent-owned download fallback, not blank success.
 
 #### Scenario: Real Office consumer
 
@@ -184,7 +184,7 @@ More files SHALL remain a named, muted full-width control after the loaded rows,
 
 ### Requirement: Selected file has a compact metadata and download bar
 
-The selected region SHALL retain the accessible name `Selected workspace file`. Its one-row hairline-bordered bar SHALL show a decorative kind icon consistent with the list, a medium-weight truncated filename with full-name tooltip, muted directory only for nested files, and muted canonical formatted size. It SHALL use existing theme-aware compact row utilities and leave action space on the right. The icon download action SHALL remain an anchor with the unchanged URL, download filename and accessible name `Download <name>`, plus a tooltip. It SHALL NOT add a filename-labelled button or another action.
+The selected region SHALL retain the accessible name `Selected workspace file`. Its one-row hairline-bordered bar SHALL show a decorative kind icon consistent with the list, a medium-weight truncated filename with full-name tooltip, muted directory only for nested files, and muted canonical formatted size. It SHALL use existing theme-aware compact row utilities and leave action space on the right. The icon download action SHALL remain an anchor with the unchanged URL, download filename and accessible name `Download <name>`, plus a tooltip; a file marked unsupported_name has no URL and SHALL show no download action. It SHALL NOT add a filename-labelled button or another action.
 
 #### Scenario: Root and nested selected metadata
 
@@ -194,7 +194,7 @@ The selected region SHALL retain the accessible name `Selected workspace file`. 
 
 ### Requirement: Selected preview is framed without changing preview behavior
 
-The preview surface below the bar SHALL be rounded, bordered and clipped at its corners, and fill remaining height; its iframe SHALL have no border of its own. Generated-content and Office iframe sandbox, source and title values SHALL remain identical to the accepted reference. Preview selection, keyed lifecycle, message validation and deadlines SHALL remain unchanged. Office pending status SHALL retain its existing text and `role="status"`, with a decorative spinner; failure SHALL retain its status text/role and `Retry Office preview` action in a styled error block. Unsupported files, and files marked too_large with a status text naming the preview size limit, SHALL show a centered decorative kind icon, existing status text and a download action styled as a button. This secondary action SHALL be an anchor named `Download`, without the filename, so the single existing `Download <name>` link selector remains unambiguous. It SHALL perform the same download, not add an open/copy/revision action.
+The preview surface below the bar SHALL be rounded, bordered and clipped at its corners, and fill remaining height; its iframe SHALL have no border of its own. Generated-content and Office iframe sandbox, source and title values SHALL remain identical to the accepted reference. Preview selection, keyed lifecycle, message validation and deadlines SHALL remain unchanged. Office pending status SHALL retain its existing text and `role="status"`, with a decorative spinner; failure SHALL retain its status text/role and `Retry Office preview` action in a styled error block. Unsupported files, and files marked too_large with a status text naming the preview size limit, SHALL show a centered decorative kind icon, existing status text and a download action styled as a button. This secondary action SHALL be an anchor named `Download`, without the filename, so the single existing `Download <name>` link selector remains unambiguous. It SHALL perform the same download, not add an open/copy/revision action. A file marked unsupported_name SHALL show the icon and a status text explaining that the name cannot be opened here, without a download action.
 
 #### Scenario: Generated, Office and unsupported branches
 
@@ -221,3 +221,17 @@ The A-T10 identity-transition browser case SHALL start from the state it asserts
 
 - **WHEN** A-T10 runs once on a freshly provisioned stack
 - **THEN** the reset writes the provisioned rows and empty preferences, and the case asserts the same states and screenshots as before
+
+### Requirement: Unsupported-name workspace files are listed without actions
+
+The workspace sidebar SHALL list an entry marked `unsupported_name` with its display name and an "Unsupported name" marker, SHALL offer no Office, preview or download action for it, and SHALL explain on selection that the name cannot be opened here. A listing entry whose `unsupported_name` is present and not a boolean, or whose URL is null while it is not marked unsupported, SHALL make the listing invalid.
+
+#### Scenario: Unsupported entry in the sidebar
+
+- **WHEN** a listing contains a normal file and an entry marked `unsupported_name` with a null URL
+- **THEN** both rows are shown, the unsupported row carries the marker and no action, and selecting it shows the explanation without a download link
+
+#### Scenario: Malformed marker
+
+- **WHEN** a listing entry has a non-boolean `unsupported_name`, or a null URL without the marker
+- **THEN** the listing is rejected as an invalid response
