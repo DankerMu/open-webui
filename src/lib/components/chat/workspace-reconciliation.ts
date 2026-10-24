@@ -409,7 +409,8 @@ export function createWorkspaceReconciliation(options: {
 			!result.files.some((file) => file.file_id === latestSelection)
 		) {
 			setWorkspacePresentation(id, generation, {
-				notice: options.translate('Selection changed during refresh; refresh again')
+				notice: options.translate('Selection changed during refresh; refresh again'),
+				noticeClearsOnListing: true
 			});
 			return null;
 		}
@@ -422,7 +423,8 @@ export function createWorkspaceReconciliation(options: {
 			result.etag
 		);
 		setWorkspacePresentation(id, generation, {
-			phase: current.status === 'stopped' ? 'stopped' : result.files.length ? 'ready' : 'empty'
+			phase: current.status === 'stopped' ? 'stopped' : result.files.length ? 'ready' : 'empty',
+			...resolvedNotice(id)
 		});
 		if (
 			latestSelection &&
@@ -445,6 +447,10 @@ export function createWorkspaceReconciliation(options: {
 		return result;
 	}
 
+	// Read at the success write, so a notice written earlier in this run is judged by its own flag.
+	function resolvedNotice(id: string) {
+		return get(ocuWorkspaces)[id]?.noticeClearsOnListing ? { notice: '' } : {};
+	}
 	function acceptDescription(
 		id: string,
 		generation: number,
@@ -476,7 +482,8 @@ export function createWorkspaceReconciliation(options: {
 		}
 		if (body.status === 'unavailable')
 			setWorkspacePresentation(id, generation, {
-				phase: body.reason === 'ocu_unreachable' ? 'disconnected' : 'unavailable'
+				phase: body.reason === 'ocu_unreachable' ? 'disconnected' : 'unavailable',
+				...resolvedNotice(id)
 			});
 	}
 	async function executeRun(
@@ -515,7 +522,8 @@ export function createWorkspaceReconciliation(options: {
 						? options.translate('Refresh failed; existing files remain available')
 						: error instanceof WorkspaceRequestError
 							? options.translate('Workspace {{reason}}', { reason: error.reason })
-							: options.translate('Workspace request failed')
+							: options.translate('Workspace request failed'),
+			noticeClearsOnListing: true
 		});
 	}
 	function finishRun(id: string, generation: number, controller: AbortController, owner: number) {
@@ -549,9 +557,10 @@ export function createWorkspaceReconciliation(options: {
 		const controller = (abort = new AbortController());
 		if (mode !== 'more') consumeWorkspaceDirty(id);
 		const current = get(ocuWorkspaces)[id];
+		// A background poll keeps the notice; a user-started run clears it.
 		setWorkspacePresentation(id, generation, {
 			busy: mode !== 'poll',
-			notice: '',
+			...(mode === 'poll' ? {} : { notice: '' }),
 			phase: current.status === undefined ? 'loading' : current.phase
 		});
 		try {
@@ -667,8 +676,13 @@ export function createWorkspaceReconciliation(options: {
 	function more() {
 		return run('more');
 	}
+	function clearNotice(id: string) {
+		const current = get(ocuWorkspaces)[id];
+		if (current) setWorkspacePresentation(id, current.generation, { notice: '' });
+	}
 	function selectFile(id: string, file: WorkspaceFile) {
 		if (activeId !== id) return Promise.resolve();
+		clearNotice(id);
 		selectWorkspaceFile(id, file.file_id);
 		return writePrefs(id, { view: 'files', open: true, selected_file_id: file.file_id });
 	}
@@ -683,6 +697,7 @@ export function createWorkspaceReconciliation(options: {
 		launch,
 		more,
 		writePrefs,
+		clearNotice,
 		selectFile,
 		resolvePath,
 		handleLinkClick,

@@ -24,6 +24,8 @@ export type OcuWorkspaceState = {
 	etag?: string;
 	phase: 'loading' | 'ready' | 'empty' | 'error' | 'stopped' | 'disconnected' | 'unavailable';
 	notice: string;
+	// A failure or selection-changed notice that the next applied listing resolves.
+	noticeClearsOnListing: boolean;
 	busy: boolean;
 	generation: number;
 };
@@ -77,6 +79,7 @@ const EMPTY_WORKSPACE: OcuWorkspaceState = {
 	pendingPrefs: {},
 	phase: 'loading',
 	notice: '',
+	noticeClearsOnListing: false,
 	busy: false,
 	nextCursor: null
 };
@@ -284,15 +287,22 @@ export const consumeWorkspaceDirty = (chatId: string) => {
 	});
 };
 
+type WorkspaceNoticeUpdate =
+	| { notice?: undefined; noticeClearsOnListing?: undefined }
+	| { notice: string; noticeClearsOnListing?: boolean };
+
+// The only writer of notice; every notice write also writes its listing-clear flag.
 export const setWorkspacePresentation = (
 	chatId: string,
 	generation: number,
-	update: Partial<Pick<OcuWorkspaceState, 'phase' | 'notice' | 'busy'>>
+	update: Partial<Pick<OcuWorkspaceState, 'phase' | 'busy'>> & WorkspaceNoticeUpdate
 ) => {
+	const { notice, noticeClearsOnListing = false, ...rest } = update;
+	const next = notice === undefined ? rest : { ...rest, notice, noticeClearsOnListing };
 	ocuWorkspaces.update((workspaces) => {
 		const current = workspaces[chatId];
 		return current && current.generation === generation
-			? { ...workspaces, [chatId]: { ...current, ...update } }
+			? { ...workspaces, [chatId]: { ...current, ...next } }
 			: workspaces;
 	});
 };

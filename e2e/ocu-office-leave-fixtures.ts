@@ -722,8 +722,8 @@ export async function walkRemovalNotice(page: Page, chatId: string, recordOffset
 		name: 'Refresh workspace files',
 		exact: true
 	});
-	// The removing refresh's `selected_file_id: null` write keeps its reconciliation run open; the
-	// next run starts by clearing the notice, so hold the write until the notice has been asserted.
+	// The removing refresh's `selected_file_id: null` write keeps its reconciliation run open; hold
+	// it until the notice has been asserted, so the assertion reads that run's own notice.
 	const prefs = await holdOfficeCloseBeforeBroker(page, `/api/v1/ocu/workspaces/${chatId}/prefs`, {
 		method: 'PUT',
 		select: (request) => request.postDataJSON()?.selected_file_id === null

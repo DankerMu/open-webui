@@ -603,7 +603,12 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	});
 	await expect(panel.getByText('Selected file was removed')).toBeVisible();
 	await expect(panel.locator('iframe[title="final.html"]')).toHaveCount(0);
+	const dismiss = panel.getByRole('alert').getByRole('button', { name: 'Dismiss notice' });
+	await expect(dismiss).toBeVisible();
 	await page.screenshot({ path: `${evidence}/workspace-deleted.png`, fullPage: true });
+	await dismiss.click();
+	await expect(panel.getByText('Selected file was removed')).toHaveCount(0);
+	await expect(panel.getByRole('button', { name: 'Refresh workspace files' })).toBeFocused();
 
 	panel = await openWorkspace(page, 'partial');
 	const retainedReport = waitForGrantedFile(

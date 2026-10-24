@@ -13,6 +13,7 @@ import {
 	queueWorkspacePrefs,
 	retireGeneration,
 	selectWorkspaceView,
+	setWorkspacePresentation,
 	stageWorkspacePrefs
 } from './ocu';
 
@@ -93,6 +94,27 @@ describe('ocu workspace store', () => {
 			open: true,
 			userClosed: false,
 			autoOpened: true
+		});
+	});
+
+	it('writes the listing-clear flag with every notice write and drops stale generations', () => {
+		const generation = beginGeneration('A');
+		const flag = () => get(ocuWorkspaces)['A'].noticeClearsOnListing;
+		expect(flag()).toBe(false);
+		setWorkspacePresentation('A', generation, { notice: 'failed', noticeClearsOnListing: true });
+		expect(get(ocuWorkspaces)['A'].notice).toBe('failed');
+		expect(flag()).toBe(true);
+		setWorkspacePresentation('A', generation, { busy: true, phase: 'ready' });
+		expect(flag()).toBe(true);
+		setWorkspacePresentation('A', generation, { notice: 'removed' });
+		expect(flag()).toBe(false);
+		setWorkspacePresentation('A', generation - 1, {
+			notice: 'stale',
+			noticeClearsOnListing: true
+		});
+		expect(get(ocuWorkspaces)['A']).toMatchObject({
+			notice: 'removed',
+			noticeClearsOnListing: false
 		});
 	});
 
