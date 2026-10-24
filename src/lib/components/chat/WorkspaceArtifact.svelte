@@ -38,6 +38,7 @@
 	import OfficeOpenPreflight from './OfficeOpenPreflight.svelte';
 	import WorkspaceSelectedFile from './WorkspaceSelectedFile.svelte';
 	import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
+	import WorkspaceNotice from './WorkspaceNotice.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
@@ -65,6 +66,7 @@
 	const READY_DEADLINE = 10_000;
 	const RESULT_DEADLINE = 30_000;
 	let localNotice = '';
+	let refreshButton: HTMLButtonElement, filesButton: HTMLButtonElement;
 	let previewState = '';
 	let previewError = false;
 	let officeFrame: HTMLIFrameElement | undefined;
@@ -327,6 +329,7 @@
 			)
 				return;
 			localNotice = '';
+			controller.clearNotice(chatId);
 			selectWorkspaceView(chatId, view);
 			void controller.writePrefs(chatId, { view, open: true }).catch(() => {
 				if (live) localNotice = $i18n.t('Workspace preference could not be saved');
@@ -347,6 +350,11 @@
 	function loadMore() {
 		localNotice = '';
 		void controller.more();
+	}
+	function dismissNotice() {
+		localNotice = '';
+		controller.clearNotice(chatId);
+		(busy ? filesButton : refreshButton).focus();
 	}
 	function stopEditor() {
 		editor.dispose();
@@ -429,6 +437,7 @@
 				<button
 					class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
 					type="button"
+					bind:this={refreshButton}
 					on:click={refresh}
 					disabled={busy}
 					aria-label={$i18n.t('Refresh workspace files')}
@@ -457,6 +466,7 @@
 				? 'bg-white font-medium shadow-sm dark:bg-gray-700'
 				: 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'}"
 			type="button"
+			bind:this={filesButton}
 			on:click={() => selectView('files')}
 			aria-pressed={workspace?.view === 'files'}
 			><Folder className="size-4" />{$i18n.t('Files')}</button
@@ -488,12 +498,7 @@
 			>
 		{/if}
 	</nav>
-	{#if notice}<p
-			class="flex shrink-0 items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-			role="alert"
-		>
-			<Info className="size-4 shrink-0" />{notice}
-		</p>{/if}
+	{#if notice}<WorkspaceNotice {notice} onDismiss={dismissNotice} />{/if}
 	{#if runtimeUrl}
 		<div
 			class="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"

@@ -2,7 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { showArtifacts, showCallOverlay, showControls, showEmbeds } from '$lib/stores';
-import { closeWorkspacePanel, ocuWorkspaces, selectWorkspaceFile } from '$lib/stores/ocu';
+import {
+	closeWorkspacePanel,
+	ocuWorkspaces,
+	selectWorkspaceFile,
+	selectWorkspaceView
+} from '$lib/stores/ocu';
 import { chat, file, listing, describeBody } from '../../../../test/ocu-workspace-fixtures';
 import { createWorkspaceReconciliation } from './workspace-reconciliation';
 
@@ -568,5 +573,210 @@ describe('one active-chat workspace producer', () => {
 		await vi.waitFor(() => expect(get(ocuWorkspaces).B?.status).toBe('running'));
 		expect(get(ocuWorkspaces)[chat]?.status).toBeUndefined();
 		expect(transport.describeCalls).toEqual([chat, 'B']);
+	});
+});
+
+describe('workspace notice lifetime', () => {
+	type Listed = Awaited<ReturnType<Transport['list']>>;
+	const pageA = file('a.html');
+	const pageB = file('b.html');
+	const listed =
+		(files: ReturnType<typeof file>[], revision: number) => async (): Promise<Listed> => ({
+			kind: 'listing',
+			listing: listing(files, null, revision),
+			etag: null
+		});
+	const offline = async (): Promise<Listed> => {
+		throw new Error('listing offline');
+	};
+	const notice = () => get(ocuWorkspaces)[chat].notice;
+	const REFRESH_FAILED = 'Refresh failed; existing files remain available';
+	const REMOVED = 'Selected file was removed';
+
+	async function mounted(files: ReturnType<typeof file>[]) {
+		vi.useFakeTimers();
+		const transport = fixture();
+		transport.api.list = listed(files, 1);
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(get(ocuWorkspaces)[chat].phase).toBe('ready');
+		return { transport, owner };
+	}
+	async function removedSelection() {
+		const context = await mounted([pageA, pageB]);
+		await context.owner.selectFile(chat, pageB);
+		context.transport.api.list = listed([pageA], 2);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(notice()).toBe(REMOVED);
+		return context;
+	}
+
+	it('keeps a removal notice across two background polls with unchanged listings', async () => {
+		const { transport } = await removedSelection();
+		const reads = transport.describeCalls.length;
+		await vi.advanceTimersByTimeAsync(3_000);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(transport.describeCalls).toHaveLength(reads + 2);
+		expect(notice()).toBe(REMOVED);
+	});
+
+	it.each(['refresh', 'retry', 'launch', 'more'] as const)(
+		'clears the notice when the user starts %s',
+		async (command) => {
+			const { owner } = await removedSelection();
+			const pending = owner[command]();
+			expect(notice()).toBe('');
+			await pending;
+			expect(notice()).toBe('');
+		}
+	);
+
+	it('clears the notice when the user selects a file', async () => {
+		const { owner, transport } = await removedSelection();
+		const writes = transport.writes.length;
+		const saved = owner.selectFile(chat, pageA);
+		expect(notice()).toBe('');
+		await saved;
+		expect(transport.writes).toHaveLength(writes + 1);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('a.html');
+	});
+
+	it('clears a failure notice on a later listing or an unavailable report, not on a later failure', async () => {
+		const { owner, transport } = await mounted([pageA]);
+		transport.api.list = offline;
+		await owner.refresh();
+		expect(notice()).toBe(REFRESH_FAILED);
+		transport.api.list = listed([pageA], 1);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(notice()).toBe('');
+		transport.api.list = offline;
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(notice()).toBe('Workspace request failed');
+		transport.api.describe = async (_token, id) => {
+			transport.describeCalls.push(id);
+			return { ...describeBody, status: 'unavailable', reason: 'not_created' };
+		};
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(get(ocuWorkspaces)[chat].phase).toBe('unavailable');
+		expect(notice()).toBe('');
+	});
+
+	it('keeps a failure notice when a later poll ends without applying a listing', async () => {
+		const { owner, transport } = await mounted([pageA]);
+		transport.api.list = offline;
+		await owner.refresh();
+		expect(notice()).toBe(REFRESH_FAILED);
+		const reads = transport.describeCalls.length;
+		transport.api.list = listed([], 0);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(transport.describeCalls).toHaveLength(reads + 1);
+		expect(get(ocuWorkspaces)[chat].files).toEqual([pageA]);
+		expect(notice()).toBe(REFRESH_FAILED);
+	});
+
+	it('clears the selection-changed notice on the next successful listing', async () => {
+		const { owner, transport } = await mounted([pageA, pageB]);
+		await owner.selectFile(chat, pageA);
+		const held = Promise.withResolvers<Listed>();
+		transport.api.list = () => held.promise;
+		await vi.advanceTimersByTimeAsync(3_000);
+		const saved = owner.selectFile(chat, pageB);
+		held.resolve(await listed([pageA], 2)());
+		await vi.advanceTimersByTimeAsync(0);
+		await saved;
+		expect(notice()).toBe('Selection changed during refresh; refresh again');
+		transport.api.list = listed([pageA, pageB], 3);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('b.html');
+		expect(notice()).toBe('');
+	});
+
+	it('keeps a removal notice written in the same run that cleared a failure notice', async () => {
+		const { owner, transport } = await mounted([pageA, pageB]);
+		await owner.selectFile(chat, pageB);
+		transport.api.list = offline;
+		await owner.refresh();
+		expect(notice()).toBe(REFRESH_FAILED);
+		transport.api.list = listed([pageA], 2);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(notice()).toBe(REMOVED);
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(notice()).toBe(REMOVED);
+	});
+
+	const VIEW_UNAVAILABLE = 'Workspace view is unavailable';
+	const outages = [
+		['not_created', 'unavailable'],
+		['ocu_unreachable', 'disconnected']
+	] as const;
+	function reportUnavailable(transport: ReturnType<typeof fixture>, reason: string) {
+		transport.api.describe = async (_token, id) => {
+			transport.describeCalls.push(id);
+			return { ...describeBody, status: 'unavailable', reason };
+		};
+	}
+	async function failedRefresh() {
+		const context = await mounted([pageA]);
+		context.transport.api.list = offline;
+		await context.owner.refresh();
+		expect(notice()).toBe(REFRESH_FAILED);
+		expect(get(ocuWorkspaces)[chat].noticeClearsOnListing).toBe(true);
+		return context;
+	}
+
+	it.each(outages)(
+		'keeps the view notice when an unavailable %s report resets a view',
+		async (reason, phase) => {
+			const { transport } = await mounted([pageA]);
+			selectWorkspaceView(chat, 'browser');
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe(VIEW_UNAVAILABLE);
+		}
+	);
+
+	it.each(outages)(
+		'replaces a failure notice with the view notice on an unavailable %s report',
+		async (reason, phase) => {
+			const { transport } = await failedRefresh();
+			selectWorkspaceView(chat, 'browser');
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe(VIEW_UNAVAILABLE);
+		}
+	);
+
+	it.each(outages)(
+		'clears a failure notice on an unavailable %s report in the files view',
+		async (reason, phase) => {
+			const { transport } = await failedRefresh();
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe('');
+		}
+	);
+
+	it('keeps a removal notice across leaving and re-entering the chat until dismissed', async () => {
+		const { owner, transport } = await removedSelection();
+		transport.api.describe = async (_token, id) => {
+			transport.describeCalls.push(id);
+			return { ...describeBody, chat_id: id };
+		};
+		owner.observe('B', true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(transport.describeCalls.at(-1)).toBe('B');
+		const generation = get(ocuWorkspaces)[chat].generation;
+		owner.observe(chat, true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(transport.describeCalls.slice(-2)).toEqual(['B', chat]);
+		expect(get(ocuWorkspaces)[chat].generation).toBeGreaterThan(generation);
+		expect(notice()).toBe(REMOVED);
+		owner.clearNotice(chat);
+		expect(notice()).toBe('');
 	});
 });
