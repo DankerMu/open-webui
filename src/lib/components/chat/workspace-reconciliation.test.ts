@@ -2,7 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { showArtifacts, showCallOverlay, showControls, showEmbeds } from '$lib/stores';
-import { closeWorkspacePanel, ocuWorkspaces, selectWorkspaceFile } from '$lib/stores/ocu';
+import {
+	closeWorkspacePanel,
+	ocuWorkspaces,
+	selectWorkspaceFile,
+	selectWorkspaceView
+} from '$lib/stores/ocu';
 import { chat, file, listing, describeBody } from '../../../../test/ocu-workspace-fixtures';
 import { createWorkspaceReconciliation } from './workspace-reconciliation';
 
@@ -699,5 +704,79 @@ describe('workspace notice lifetime', () => {
 		expect(notice()).toBe(REMOVED);
 		await vi.advanceTimersByTimeAsync(3_000);
 		expect(notice()).toBe(REMOVED);
+	});
+
+	const VIEW_UNAVAILABLE = 'Workspace view is unavailable';
+	const outages = [
+		['not_created', 'unavailable'],
+		['ocu_unreachable', 'disconnected']
+	] as const;
+	function reportUnavailable(transport: ReturnType<typeof fixture>, reason: string) {
+		transport.api.describe = async (_token, id) => {
+			transport.describeCalls.push(id);
+			return { ...describeBody, status: 'unavailable', reason };
+		};
+	}
+	async function failedRefresh() {
+		const context = await mounted([pageA]);
+		context.transport.api.list = offline;
+		await context.owner.refresh();
+		expect(notice()).toBe(REFRESH_FAILED);
+		expect(get(ocuWorkspaces)[chat].noticeClearsOnListing).toBe(true);
+		return context;
+	}
+
+	it.each(outages)(
+		'keeps the view notice when an unavailable %s report resets a view',
+		async (reason, phase) => {
+			const { transport } = await mounted([pageA]);
+			selectWorkspaceView(chat, 'browser');
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe(VIEW_UNAVAILABLE);
+		}
+	);
+
+	it.each(outages)(
+		'replaces a failure notice with the view notice on an unavailable %s report',
+		async (reason, phase) => {
+			const { transport } = await failedRefresh();
+			selectWorkspaceView(chat, 'browser');
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe(VIEW_UNAVAILABLE);
+		}
+	);
+
+	it.each(outages)(
+		'clears a failure notice on an unavailable %s report in the files view',
+		async (reason, phase) => {
+			const { transport } = await failedRefresh();
+			reportUnavailable(transport, reason);
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(get(ocuWorkspaces)[chat]).toMatchObject({ phase, view: 'files' });
+			expect(notice()).toBe('');
+		}
+	);
+
+	it('keeps a removal notice across leaving and re-entering the chat until dismissed', async () => {
+		const { owner, transport } = await removedSelection();
+		transport.api.describe = async (_token, id) => {
+			transport.describeCalls.push(id);
+			return { ...describeBody, chat_id: id };
+		};
+		owner.observe('B', true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(transport.describeCalls.at(-1)).toBe('B');
+		const generation = get(ocuWorkspaces)[chat].generation;
+		owner.observe(chat, true);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(transport.describeCalls.slice(-2)).toEqual(['B', chat]);
+		expect(get(ocuWorkspaces)[chat].generation).toBeGreaterThan(generation);
+		expect(notice()).toBe(REMOVED);
+		owner.clearNotice(chat);
+		expect(notice()).toBe('');
 	});
 });

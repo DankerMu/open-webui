@@ -606,6 +606,7 @@ test('A-T10 empty, large, stopped, unavailable and coherent identity transitions
 	const dismiss = panel.getByRole('alert').getByRole('button', { name: 'Dismiss notice' });
 	await expect(dismiss).toBeVisible();
 	await page.screenshot({ path: `${evidence}/workspace-deleted.png`, fullPage: true });
+	await expect(panel.getByRole('button', { name: 'Refresh workspace files' })).toBeEnabled();
 	await dismiss.click();
 	await expect(panel.getByText('Selected file was removed')).toHaveCount(0);
 	await expect(panel.getByRole('button', { name: 'Refresh workspace files' })).toBeFocused();
