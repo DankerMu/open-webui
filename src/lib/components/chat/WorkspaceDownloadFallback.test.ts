@@ -2,12 +2,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mount, unmount } from 'svelte';
 import { file, i18n, url } from '../../../../test/ocu-workspace-fixtures';
+import type { WorkspaceFile } from '$lib/apis/ocu';
 import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
 import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
 
 let component: Record<string, unknown> | undefined;
 
-function render(props: { file: ReturnType<typeof file>; href: string }) {
+function render(props: { file: WorkspaceFile; href: string }) {
 	component = mount(WorkspaceDownloadFallback, {
 		target: document.body,
 		props: { ...props, kind: 'other', icon: DocumentPage },
@@ -36,5 +37,15 @@ describe('workspace download fallback', () => {
 		expect(links[0].textContent?.trim()).toBe('Download');
 		expect(links[0].getAttribute('href')).toBe(`${url}notes.bin?download=1`);
 		expect(links[0].getAttribute('download')).toBe('notes.bin');
+	});
+
+	it('an unsupported name shows why it cannot be opened, with its kind icon and no download', () => {
+		const entry = { ...file('a\\b.bin'), url: null, unsupported_name: true };
+		render({ file: entry, href: '' });
+		expect(document.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+			'This file name cannot be opened here. Rename it in the terminal to open or download it.'
+		);
+		expect(document.querySelector('[data-file-kind="other"] svg')).not.toBeNull();
+		expect(document.querySelectorAll('a')).toHaveLength(0);
 	});
 });

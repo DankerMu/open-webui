@@ -10,13 +10,16 @@ export type WorkspaceFile = {
 	file_id: string;
 	path: string;
 	name: string;
-	url: string;
+	// null only for an unsupported_name entry, which OCU cannot serve by URL.
+	url: string | null;
 	type: string;
 	mime: string;
 	revision: number;
 	size: number;
 	// OCU marks a file over its per-file limit; absent means not too large.
 	too_large?: boolean;
+	// OCU marks a name it cannot serve (non-UTF-8 byte or backslash); path/name are display forms.
+	unsupported_name?: boolean;
 };
 
 export type WorkspaceListing = {
@@ -54,9 +57,10 @@ export const workspaceRuntimeUrl = (
 
 export const workspaceFileUrl = (baseUrl: string, chatId: string, file: WorkspaceFile): string => {
 	const base = `${workspaceBase(baseUrl)}/files/${encodeURIComponent(chatId)}/`;
+	if (typeof file.path !== 'string' || !file.path)
+		throw new WorkspaceRequestError(0, 'invalid_response');
+	if (file.unsupported_name === true) return '';
 	if (
-		typeof file.path !== 'string' ||
-		!file.path ||
 		file.path
 			.split('/')
 			.some((segment) => !segment || segment === '.' || segment === '..' || segment.includes('\\'))
@@ -87,6 +91,12 @@ const validListingEnvelope = (body: WorkspaceListing, chatId: string): boolean =
 	Number.isSafeInteger(body.total) &&
 	body.total >= 0;
 
+// An unsupported name has a null URL; every other entry has a string URL.
+const validMarkers = (file: WorkspaceFile): boolean =>
+	(file.too_large === undefined || typeof file.too_large === 'boolean') &&
+	(file.unsupported_name === undefined || typeof file.unsupported_name === 'boolean') &&
+	(file.unsupported_name === true ? file.url === null : typeof file.url === 'string');
+
 const validWorkspaceFile = (file: WorkspaceFile): boolean =>
 	!!file &&
 	typeof file.file_id === 'string' &&
@@ -98,7 +108,7 @@ const validWorkspaceFile = (file: WorkspaceFile): boolean =>
 	typeof file.mime === 'string' &&
 	Number.isSafeInteger(file.size) &&
 	file.size >= 0 &&
-	(file.too_large === undefined || typeof file.too_large === 'boolean');
+	validMarkers(file);
 
 export const listWorkspaceFiles = async (
 	baseUrl: string,

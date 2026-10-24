@@ -76,6 +76,11 @@ const mimeKinds: Record<string, WorkspaceFileKind> = {
 	'text/x-c': 'code'
 };
 
+// OCU serves neither a too-large file's preview nor any URL for an unsupported name.
+export function servable(file: WorkspaceFile): boolean {
+	return !file.too_large && !file.unsupported_name;
+}
+
 // Recognized MIME wins over broker type; display kinds never grant preview/edit eligibility.
 export function workspaceFileKind(file: WorkspaceFile): WorkspaceFileKind {
 	const mime = file.mime.split(';', 1)[0].trim().toLowerCase();

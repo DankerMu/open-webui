@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { WorkspaceFile } from '$lib/apis/ocu';
 import {
 	buildWorkspaceFileRows,
+	servable,
 	workspaceFileKind,
 	type WorkspaceFileRow
 } from './workspace-file-rows';
@@ -186,5 +187,16 @@ describe('workspace display kinds', () => {
 		['spreadsheet', 'image/avif', 'image']
 	])('prefers recognized MIME, falling back to type: %s / %s', (type, mime, expected) => {
 		expect(workspaceFileKind({ ...file('name'), type, mime })).toBe(expected);
+	});
+});
+
+describe('servable workspace files', () => {
+	it.each([
+		['an ordinary file', {}, true],
+		['explicit false markers', { too_large: false, unsupported_name: false }, true],
+		['a too-large file', { too_large: true }, false],
+		['an unsupported name', { url: null, unsupported_name: true }, false]
+	] as const)('decides servability for %s', (_label, markers, expected) => {
+		expect(servable({ ...file('name'), ...markers })).toBe(expected);
 	});
 });

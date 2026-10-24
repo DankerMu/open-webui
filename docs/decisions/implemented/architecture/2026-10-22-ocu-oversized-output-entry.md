@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-22
 supersedes: none
-references: DankerMu/open-webui#594, DankerMu/open-computer-use#164, ocu-oversized-output-entry
+references: DankerMu/open-webui#594, DankerMu/open-computer-use#164, ocu-oversized-output-entry, 2026-10-23-ocu-unsupported-output-name
 ---
 
 # Oversized output files are listed as hashless entries offering only download
@@ -27,9 +27,12 @@ and revision events like any other, still counts toward the active-file limit,
 and is left out of content fingerprints and rename pairing. A moved oversized
 file therefore gets a new `file_id`, and the old one is tombstoned. Crossing the
 limit in either direction is a size change that keeps the `file_id`. The index
-validator accepts `hash: null` only when the size is over the limit, so
-`SCHEMA_VERSION` is unchanged and existing indexes load without migration. The
-listing derives `too_large` from the null hash; no second marker is persisted.
+validator accepts `hash: null` on a supported path only when the size is over
+the limit, and requires it for an unsupported path
+(`2026-10-23-ocu-unsupported-output-name`), so `SCHEMA_VERSION` is unchanged and
+existing indexes load without migration. The listing derives `too_large` from
+the null hash on an entry that is not `unsupported_name`; no second marker is
+persisted.
 Office publish of an oversized file and every other resource bound still fail
 with 413. Office open of an oversized entry resolves its `file_id` and refuses
 with 413 `file_too_large` without reading content.
@@ -78,7 +81,8 @@ previous-release activation" requirement in `ocu-backup-rollback`. Under the
 older image, restore validation lists the chat through the broker
 (`_require_cursor_lag` in OCU `deploy/recovery_resources.py`) and fails with a
 corrupt-index error. The OCU README gives the command that finds affected chats,
-with `<chat_dir>` set to `BASE_DATA_DIR`:
+with `<chat_dir>` set to `BASE_DATA_DIR`. It also matches chats holding
+unsupported-name entries, which are equally incompatible:
 
 ```bash
 grep -l '"hash":null' <chat_dir>/*/.ocu/index.json
@@ -105,8 +109,9 @@ can roll back alone. The safe order is still WebUI first, then OCU.
      returns 413 for the whole chat again. Move the file out of `outputs/` before
      the older image lists that chat.
 
-**Raising the limit later.** The validator rejects a null hash on a file within
-the limit. Raising the limit therefore needs a one-time migration before the new
-limit is served: every null-hash entry whose size falls under the new limit is
-rehashed. Tombstones also keep null hashes but have no file left to read, so the
-same migration must decide their shape.
+**Raising the limit later.** The validator rejects a null hash on a supported
+file within the limit. Raising the limit therefore needs a one-time migration
+before the new limit is served: every null-hash entry with a supported name
+whose size falls under the new limit is rehashed. Tombstones also keep null
+hashes but have no file left to read, so the same migration must decide their
+shape.

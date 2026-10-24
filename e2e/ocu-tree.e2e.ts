@@ -485,3 +485,51 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 		await page.unroute(listingRoute, injectTsv);
 	}
 });
+
+test('unsupported-name files list with a marker and offer no action', async ({ page }) => {
+	const chatId = await createScenarioChat(page, 'unsupported_name');
+	const fetched: string[] = [];
+	page.context().on('request', (request) => {
+		const address = new URL(request.url());
+		if (address.pathname.startsWith('/ocu/')) fetched.push(address.pathname + address.search);
+	});
+	const panel = await openWorkspace(page, chatId);
+	await expect(panel.locator('ul[aria-label="Workspace file list"] > li')).toHaveCount(4);
+	const row = (name: string) => panel.getByRole('button', { name, exact: true });
+	// OCU display forms: b'\xb1\xa8\xb8\xe6.docx' decoded with backslashreplace, and a backslash name.
+	const unsupported = ['\\xb1\\xa8\\xb8\\xe6.docx', 'a\\b.html'];
+	for (const name of unsupported)
+		await expect(row(name).locator('[data-unsupported-name]')).toHaveText('Unsupported name');
+	for (const name of ['page.html', 'diagram.svg'])
+		await expect(row(name).locator('[data-unsupported-name]')).toHaveCount(0);
+	await row('page.html').click();
+	await expect(panel.locator('iframe[title="page.html"]')).toBeVisible();
+
+	const selected = panel.locator('[aria-label="Selected workspace file"]');
+	const bar = selected.locator('[data-selected-bar]');
+	for (const [index, name] of unsupported.entries()) {
+		await row(name).click();
+		await expect(row(name)).toHaveAttribute('aria-pressed', 'true');
+		await expect(bar.locator('[data-selected-name]')).toHaveText(name);
+		await expect(selected.locator('[data-selected-preview]').getByRole('status')).toHaveText(
+			'This file name cannot be opened here. Rename it in the terminal to open or download it.'
+		);
+		await expect(panel.locator('iframe')).toHaveCount(0);
+		await expect(panel.getByText('Connecting Office preview')).toHaveCount(0);
+		await expect(selected.locator('a')).toHaveCount(0);
+		await expect(bar.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+		await expect(bar.getByRole('button', { name: 'Version history', exact: true })).toHaveCount(0);
+		await page.screenshot({
+			path: `${evidence}/workspace-unsupported-name-${index + 1}.png`,
+			fullPage: true
+		});
+	}
+	// The observer sees frame loads (positive control); no file request is made for the unsupported rows.
+	expect(fetched).toContain(`/ocu/files/${chatId}/page.html?revision=1`);
+	const files = fetched.filter((target) => target.startsWith(`/ocu/files/${chatId}/`));
+	expect(files.filter((target) => !target.startsWith(`/ocu/files/${chatId}/page.html`))).toEqual(
+		[]
+	);
+	expect(fetched.filter((target) => target.startsWith('/ocu/api/office/'))).toEqual([]);
+	expect(fetched.filter((target) => target.includes('embed=files'))).toEqual([]);
+});

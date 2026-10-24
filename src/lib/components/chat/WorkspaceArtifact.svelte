@@ -16,7 +16,7 @@
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
-	import { buildWorkspaceFileRows, workspaceFileKind } from './workspace-file-rows';
+	import { buildWorkspaceFileRows, servable, workspaceFileKind } from './workspace-file-rows';
 	import {
 		OFFICE_EDITOR_ALLOW,
 		OFFICE_EDITOR_SANDBOX,
@@ -38,6 +38,7 @@
 	import OfficeOpenPreflight from './OfficeOpenPreflight.svelte';
 	import WorkspaceSelectedFile from './WorkspaceSelectedFile.svelte';
 	import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
+	import WorkspaceFileMarker from './WorkspaceFileMarker.svelte';
 	import WorkspaceNotice from './WorkspaceNotice.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -105,7 +106,7 @@
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
-	$: office = selected && !selected.too_large && ['docx', 'xlsx', 'pptx'].includes(selected.type);
+	$: office = selected && servable(selected) && ['docx', 'xlsx', 'pptx'].includes(selected.type);
 	$: officeEnabled =
 		enabled &&
 		isSavedChatId(chatId) &&
@@ -133,7 +134,7 @@
 		((editorActive && !editorError) || (!editorActive && officeSession?.state === 'refused'));
 	$: generated =
 		selected &&
-		!selected.too_large &&
+		servable(selected) &&
 		!office &&
 		!editorActive &&
 		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
@@ -628,11 +629,7 @@
 										<svelte:component this={KindIcon} className="size-4 shrink-0" />
 									</span>
 									<span class="min-w-0 flex-1 truncate text-sm">{row.name}</span>
-									{#if row.file.too_large}<span
-											data-too-large
-											class="shrink-0 text-xs text-amber-600 dark:text-amber-400"
-											>{$i18n.t('Too large')}</span
-										>{/if}
+									<WorkspaceFileMarker file={row.file} />
 									<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
 										>{formatFileSize(row.file.size)}</span
 									>
@@ -649,7 +646,7 @@
 					disabled={busy}>{$i18n.t('More files')}</button
 				>{/if}
 		{/if}
-		{#if selected && downloadUrl}
+		{#if selected && (downloadUrl || selected.unsupported_name)}
 			<div
 				use:officeMaximizeOverlay={editorMaximized}
 				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible bg-white dark:bg-gray-900"

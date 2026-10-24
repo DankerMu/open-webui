@@ -42,7 +42,8 @@ def stub_server(tmp_path):
     port = _free_port()
     record = tmp_path / 'record.jsonl'
     fixtures = tmp_path / 'fixtures.json'
-    fixtures.write_text(json.dumps({'drawio-owner': 'drawio', 'oversized-owner': 'oversized'}), encoding='utf-8')
+    scenarios = {'drawio-owner': 'drawio', 'oversized-owner': 'oversized', 'unsupported-owner': 'unsupported_name'}
+    fixtures.write_text(json.dumps(scenarios), encoding='utf-8')
     env = os.environ.copy()
     env.update(
         {
@@ -173,6 +174,30 @@ def test_oversized_fixture_marks_only_big_entries_and_serves_their_download(stub
         assert rows[name]['too_large'] is False
         assert rows[name]['hash'] == 'fixture'
         assert rows[name]['size'] == 128
+
+
+def test_unsupported_name_fixture_lists_display_forms_without_urls(stub_server):
+    base, _record = stub_server
+    status, _headers, body = _get(f'{base}/api/outputs/unsupported-owner', {})
+    assert status == 200
+    listing = json.loads(body)
+    rows = {entry['path']: entry for entry in listing['files']}
+    assert listing['total'] == 4
+    # OCU display forms: b'\xb1\xa8\xb8\xe6.docx' decoded with backslashreplace, and a backslash name.
+    surrogate, backslash = '\\xb1\\xa8\\xb8\\xe6.docx', 'a\\b.html'
+    assert sorted(rows) == sorted(['page.html', 'diagram.svg', surrogate, backslash])
+    for name, kind in ((surrogate, 'docx'), (backslash, 'html')):
+        assert rows[name]['unsupported_name'] is True
+        assert rows[name]['url'] is None
+        assert rows[name]['hash'] is None
+        assert rows[name]['too_large'] is False
+        assert rows[name]['name'] == name
+        assert rows[name]['type'] == kind
+    assert len({rows[name]['file_id'] for name in rows}) == 4
+    for name in ('page.html', 'diagram.svg'):
+        assert rows[name]['unsupported_name'] is False
+        assert rows[name]['url'] == f'/ocu/files/unsupported-owner/{name}'
+        assert rows[name]['hash'] == 'fixture'
 
 
 @pytest.mark.parametrize(

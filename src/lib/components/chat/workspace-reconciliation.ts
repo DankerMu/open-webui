@@ -261,7 +261,7 @@ export function createWorkspaceReconciliation(options: {
 		selectedId: string | undefined,
 		seenIds: Set<string>,
 		wantedPath?: string,
-		seenPaths?: Set<string>
+		seenPaths?: Set<string | null>
 	) {
 		if (!cursor) return true;
 		return (
@@ -280,7 +280,7 @@ export function createWorkspaceReconciliation(options: {
 		page: WorkspaceListing,
 		files: WorkspaceFile[],
 		ids: Set<string>,
-		paths: Set<string>,
+		paths: Set<string | null>,
 		cursor: string | null,
 		revision: number | undefined
 	): string | null {

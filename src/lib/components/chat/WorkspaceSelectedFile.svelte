@@ -61,15 +61,17 @@
 				>
 			</Tooltip>
 		{/if}
-		<Tooltip content={$i18n.t('Download')} className="flex">
-			<a
-				class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
-				href={downloadUrl}
-				download={selected.name}
-				><span class="sr-only">{$i18n.t('Download')} {selected.name}</span><Download
-					className="size-4"
-				/></a
-			>
-		</Tooltip>
+		{#if downloadUrl}
+			<Tooltip content={$i18n.t('Download')} className="flex">
+				<a
+					class="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-800"
+					href={downloadUrl}
+					download={selected.name}
+					><span class="sr-only">{$i18n.t('Download')} {selected.name}</span><Download
+						className="size-4"
+					/></a
+				>
+			</Tooltip>
+		{/if}
 	</div>
 </div>

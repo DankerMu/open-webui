@@ -41,6 +41,9 @@ WEAK_CSP = "default-src 'self'"
 # the stub serves a small body because downloads are not size-checked.
 OVERSIZED_SIZE = 104857601
 OVERSIZED = {'big.html': b'oversized html stand-in\n', 'big.docx': b'oversized docx stand-in\n'}
+# OCU lists a name it cannot serve with its display form (bytes backslashreplace-decoded),
+# url None, hash None and unsupported_name True: b'\xb1\xa8\xb8\xe6.docx' and a backslash name.
+UNSUPPORTED = {'\\xb1\\xa8\\xb8\\xe6.docx': 'fixture-unsupported-docx', 'a\\b.html': 'fixture-unsupported-html'}
 STATIC = {
     'preview.js': ('text/javascript; charset=utf-8', b'export const ocuStub = true;\n'),
     'deep/preview.js': ('text/javascript; charset=utf-8', b'export const ocuStubDeep = true;\n'),
@@ -155,6 +158,7 @@ def _fixture_file(chat_id: str, name: str, revision: int = 1) -> dict:
         'mtime_ns': 1,
         'hash': 'fixture',
         'too_large': False,
+        'unsupported_name': False,
         'modified': False,
     }
 
@@ -205,6 +209,7 @@ def _fixture_outputs(chat_id: str) -> dict:
         'office_save_as': [],
         'nested': nested_names(),
         'oversized': ['page.html', 'diagram.svg', *OVERSIZED],
+        'unsupported_name': ['page.html', 'diagram.svg', *UNSUPPORTED],
     }.get(scenario, ['page.html', 'diagram.svg', 'report.html'])
     files = (
         [nested_listing_entry(chat_id, name, PREFIX, revision, _fixture_file) for name in names]
@@ -215,6 +220,10 @@ def _fixture_outputs(chat_id: str) -> dict:
         for entry in files:
             if entry['path'] in OVERSIZED:
                 entry.update(size=OVERSIZED_SIZE, hash=None, too_large=True)
+    if scenario == 'unsupported_name':
+        for entry in files:
+            if entry['path'] in UNSUPPORTED:
+                entry.update(file_id=UNSUPPORTED[entry['path']], url=None, hash=None, unsupported_name=True)
     return {
         'chat_id': chat_id,
         'revision': revision,
