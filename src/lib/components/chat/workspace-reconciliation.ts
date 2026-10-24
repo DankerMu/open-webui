@@ -51,6 +51,29 @@ type LinkResolution =
 	| { kind: 'inconclusive' };
 type Command = 'poll' | 'refresh' | 'launch' | 'more' | 'retry';
 
+// A link matches its file by URL; an unsupported-name entry has no URL, so a link
+// matches it by display path, decoded once per segment (never used to build a URL).
+function linkedFileMatcher(
+	wantedUrl: string,
+	encodedPath: string,
+	urlOf: (file: WorkspaceFile) => string | null
+) {
+	let decoded: string | undefined;
+	try {
+		decoded = encodedPath
+			.split('/')
+			.map((segment) => decodeURIComponent(segment))
+			.join('/');
+	} catch {
+		// URIError: the link holds percent-encoded bytes that are not UTF-8; it matches no marked entry.
+	}
+	return (files: WorkspaceFile[]) =>
+		files.find((file) => urlOf(file) === wantedUrl) ??
+		(decoded === undefined
+			? undefined
+			: files.find((file) => file.unsupported_name === true && file.path === decoded));
+}
+
 type Transport = {
 	describe: typeof getWorkspace;
 	list: typeof listWorkspaceFiles;
@@ -260,15 +283,10 @@ export function createWorkspaceReconciliation(options: {
 		required: number,
 		selectedId: string | undefined,
 		seenIds: Set<string>,
-		wantedPath?: string,
-		seenPaths?: Set<string | null>
+		wantedSeen: boolean
 	) {
 		if (!cursor) return true;
-		return (
-			loaded >= required &&
-			(!selectedId || seenIds.has(selectedId)) &&
-			(!wantedPath || !!seenPaths?.has(wantedPath))
-		);
+		return loaded >= required && (!selectedId || seenIds.has(selectedId)) && wantedSeen;
 	}
 	function acceptedCache(id: string, expected: string | undefined, actual: string) {
 		const cached = get(ocuWorkspaces)[id];
@@ -280,7 +298,6 @@ export function createWorkspaceReconciliation(options: {
 		page: WorkspaceListing,
 		files: WorkspaceFile[],
 		ids: Set<string>,
-		paths: Set<string | null>,
 		cursor: string | null,
 		revision: number | undefined
 	): string | null {
@@ -289,7 +306,6 @@ export function createWorkspaceReconciliation(options: {
 		for (const file of page.files) {
 			if (ids.has(file.file_id)) throw new WorkspaceRequestError(0, 'invalid_response');
 			ids.add(file.file_id);
-			paths.add(file.url);
 			files.push(file);
 		}
 		if (page.next_cursor === cursor && cursor !== null)
@@ -313,8 +329,9 @@ export function createWorkspaceReconciliation(options: {
 	): Promise<ListingWindow | null> {
 		let files = [...initial];
 		let seenIds = new Set(files.map((file) => file.file_id));
-		let seenPaths = new Set(files.map((file) => file.url));
-		const wantedUrl = wantedPath ? encodedFileUrl(baseUrl, id, wantedPath) : undefined;
+		const wanted = wantedPath
+			? linkedFileMatcher(encodedFileUrl(baseUrl, id, wantedPath), wantedPath, (file) => file.url)
+			: undefined;
 		let cursor = startCursor;
 		let revision = startRevision;
 		let etag: string | undefined;
@@ -333,17 +350,17 @@ export function createWorkspaceReconciliation(options: {
 				const cached = acceptedCache(id, cachedEtag, response.etag);
 				files = [...cached.files];
 				seenIds = new Set(files.map((file) => file.file_id));
-				seenPaths = new Set(files.map((file) => file.url));
 				cursor = cached.nextCursor;
 				revision = cached.listingRevision;
 				etag = response.etag;
 			} else {
 				const page = response.listing;
 				if (!cursor) etag = response.etag ?? undefined;
-				cursor = appendPage(page, files, seenIds, seenPaths, cursor, revision);
+				cursor = appendPage(page, files, seenIds, cursor, revision);
 				revision = page.revision;
 			}
-			if (windowReady(cursor, files.length, required, selectedId, seenIds, wantedUrl, seenPaths))
+			const wantedSeen = !wanted || !!wanted(files);
+			if (windowReady(cursor, files.length, required, selectedId, seenIds, wantedSeen))
 				return { files, revision: revision!, cursor, etag };
 			cachedEtag = undefined;
 		}
@@ -577,15 +594,17 @@ export function createWorkspaceReconciliation(options: {
 	async function resolvePath(id: string, encodedPath: string): Promise<LinkResolution> {
 		if (activeId !== id || !mounted) return { kind: 'inconclusive' };
 		const current = get(ocuWorkspaces)[id];
-		const wantedUrl = encodedFileUrl('/ocu', id, encodedPath);
-		const match = (files: WorkspaceFile[]) =>
-			files.find((file) => {
+		const match = linkedFileMatcher(
+			encodedFileUrl('/ocu', id, encodedPath),
+			encodedPath,
+			(file) => {
 				try {
-					return workspaceFileUrl('/ocu', id, file) === wantedUrl;
+					return workspaceFileUrl('/ocu', id, file);
 				} catch {
-					return false;
+					return null;
 				}
-			});
+			}
+		);
 		const loaded = match(current?.files ?? []);
 		if (loaded) return { kind: 'found', file: loaded };
 		const result = await run('poll', encodedPath);

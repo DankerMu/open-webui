@@ -9,74 +9,15 @@ import {
 	selectWorkspaceView
 } from '$lib/stores/ocu';
 import { chat, file, listing, describeBody } from '../../../../test/ocu-workspace-fixtures';
-import { createWorkspaceReconciliation } from './workspace-reconciliation';
+import {
+	clickFileLink,
+	controller,
+	firstPage,
+	fixture,
+	type Transport
+} from './workspace-reconciliation-test';
 
-type Transport = NonNullable<Parameters<typeof createWorkspaceReconciliation>[0]['transport']>;
 let stop: (() => void) | undefined;
-const firstPage = {
-	kind: 'listing' as const,
-	listing: listing([file('page.html')]),
-	etag: 'W/"first"'
-};
-
-function fixture() {
-	const describeCalls: string[] = [];
-	const listCalls: Array<{ cursor?: string; etag?: string }> = [];
-	const writes: Array<{ chatId: string; prefs: object }> = [];
-	let launches = 0;
-	let refreshes = 0;
-	const api: Transport = {
-		describe: async (_token, id) => {
-			describeCalls.push(id);
-			return { ...describeBody };
-		},
-		list: async (_base, _id, cursor, options) => {
-			listCalls.push({ cursor, etag: options?.etag });
-			return firstPage;
-		},
-		launch: async () => {
-			launches++;
-			return { state: 'running' };
-		},
-		refresh: async () => {
-			refreshes++;
-			return { revision: 1 };
-		},
-		prefs: async (_token, id, prefs) => {
-			writes.push({ chatId: id, prefs });
-			return { prefs };
-		}
-	};
-	return {
-		api,
-		describeCalls,
-		listCalls,
-		writes,
-		get launches() {
-			return launches;
-		},
-		get refreshes() {
-			return refreshes;
-		}
-	};
-}
-const controller = (api: Transport, visible?: () => boolean) =>
-	createWorkspaceReconciliation({
-		token: () => 'owner-session',
-		translate: (key: string) => key,
-		available: () => true,
-		transport: api,
-		visible
-	});
-
-function clickFileLink(owner: ReturnType<typeof controller>, id: string, path: string) {
-	const anchor = document.createElement('a');
-	anchor.href = `${window.location.origin}/ocu/files/${id}/${path}`;
-	const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
-	Object.defineProperty(event, 'target', { value: anchor });
-	owner.handleLinkClick(event, id);
-	expect(event.defaultPrevented).toBe(true);
-}
 
 beforeEach(() => {
 	ocuWorkspaces.set({});
@@ -433,6 +374,70 @@ describe('one active-chat workspace producer', () => {
 		stop = owner.mount();
 		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].files).toHaveLength(1));
 		clickFileLink(owner, chat, 'missing.html');
+		await vi.waitFor(() =>
+			expect(get(ocuWorkspaces)[chat].notice).toBe('Selected file was removed')
+		);
+		expect(get(ocuWorkspaces)[chat].selectedFileId).toBeUndefined();
+	});
+
+	const marked = (path: string, id: string) => ({
+		...file(path, id),
+		url: null,
+		unsupported_name: true
+	});
+	const listOnce = (transport: ReturnType<typeof fixture>, files: ReturnType<typeof file>[]) => {
+		transport.api.list = async () => ({ kind: 'listing', listing: listing(files), etag: null });
+	};
+
+	it('selects a listed unsupported-name entry from a link to its percent-encoded display path', async () => {
+		const transport = fixture();
+		listOnce(transport, [file('page.html'), marked('a\\b.html', 'marked-id')]);
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].files).toHaveLength(2));
+		clickFileLink(owner, chat, 'a%5Cb.html');
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('marked-id'));
+		expect(get(ocuWorkspaces)[chat].notice).toBe('');
+		await vi.waitFor(() =>
+			expect(transport.writes.at(-1)?.prefs).toMatchObject({ selected_file_id: 'marked-id' })
+		);
+	});
+
+	it('stops paging on the page that holds the linked unsupported-name entry', async () => {
+		const transport = fixture();
+		const cursors: Array<string | undefined> = [];
+		const pages: Record<string, ReturnType<typeof listing>> = {
+			first: listing([file('page.html')], 'second', 1, 3),
+			second: listing([marked('a\\b.html', 'marked-id')], 'third', 1, 3),
+			third: listing([file('last.html')], null, 1, 3)
+		};
+		transport.api.list = async (_base, _id, cursor) => {
+			cursors.push(cursor);
+			return { kind: 'listing', listing: pages[cursor ?? 'first'], etag: null };
+		};
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].nextCursor).toBe('second'));
+		clickFileLink(owner, chat, 'a%5Cb.html');
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].selectedFileId).toBe('marked-id'));
+		expect(get(ocuWorkspaces)[chat].notice).toBe('');
+		expect(cursors).toEqual([undefined, undefined, 'second']);
+		expect(get(ocuWorkspaces)[chat].nextCursor).toBe('third');
+	});
+
+	it.each([
+		{ case: 'a path no entry has', listed: 'a\\b.html', link: 'missing.html' },
+		{ case: 'an undecodable path, without throwing', listed: 'bad\\xB1.txt', link: 'bad%B1.txt' }
+	])('reports a missing link target for $case beside an unsupported-name entry', async (row) => {
+		const transport = fixture();
+		listOnce(transport, [file('page.html'), marked(row.listed, 'marked-id')]);
+		const owner = controller(transport.api);
+		owner.observe(chat, true);
+		stop = owner.mount();
+		await vi.waitFor(() => expect(get(ocuWorkspaces)[chat].files).toHaveLength(2));
+		clickFileLink(owner, chat, row.link);
 		await vi.waitFor(() =>
 			expect(get(ocuWorkspaces)[chat].notice).toBe('Selected file was removed')
 		);
