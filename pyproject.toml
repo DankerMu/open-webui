@@ -229,6 +229,7 @@ skip-string-normalization = true
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["*.md"]  # backend.yaml's unpinned ruff>=0.16 formats Python fences in Markdown by default (locked 0.15.18 only with --preview) and fails "Python CI" on archived docs (#632)
 
 [tool.ruff.format]
 quote-style = "single"
