@@ -27,7 +27,7 @@ Alternative rejected: a nested object tree rendered recursively. A flat ordered 
 
 ### D3. `WorkspaceFileTree.svelte`
 
-Props: `rows`, `selectedFileId`, `listClass` (height classes from the parent), `onSelect(file)`. It owns the collapse `Set` (panel lifetime, as today) and renders the `<ul aria-label="Workspace file list">`. `WorkspaceArtifact.svelte` keeps the empty/error states, `More files`, and the selected region; it computes `selectedDirectory` from the selected row's `parent`, so `fileFolder` is deleted. The parent passes the existing height classes as `listClass` (`max-h-[40%] shrink-0` with a selection, else `flex-1`); #643 replaces them.
+Props: `rows`, `selectedFileId`, `listClass` (height classes from the parent), `onSelect(file)`, `collapsed`. The collapse `Set` is owned by `WorkspaceArtifact.svelte` and bound into the tree (`bind:collapsed`): the tree unmounts while Browser or Terminal is shown, so a tree-owned set would reset on every view switch, which the panel-lifetime rule forbids (implementation deviation from the first draft, recorded in the decision record). The tree renders the `<ul aria-label="Workspace file list">`. `WorkspaceArtifact.svelte` keeps the empty/error states, `More files`, and the selected region; it computes `selectedDirectory` from the selected row's `parent`, so `fileFolder` is deleted. The parent passes the existing height classes as `listClass` (`max-h-[40%] shrink-0` with a selection, else `flex-1`); #643 replaces them.
 
 `FILE_KIND_ICONS` moves to `<script context="module">` in `WorkspaceFileTree.svelte` and is exported; `WorkspaceArtifact.svelte` imports it for `SelectedKindIcon`. One definition, no copy.
 
