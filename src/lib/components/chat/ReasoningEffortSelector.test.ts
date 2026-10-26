@@ -160,6 +160,17 @@ describe('composer thinking-strength selector', () => {
 		expect(params).toEqual({ reasoning_effort: 'max', thinking: null });
 	});
 
+	it('offers no Off for the always-thinking Qwen3.8 model', async () => {
+		render(['qwen3.8-2.4t-a95b']);
+		expect(params).toEqual({ reasoning_effort: 'medium', thinking: null });
+		expect(await items()).toEqual([
+			['Low', 'false'],
+			['Medium', 'true'],
+			['High', 'false'],
+			['XHigh', 'false']
+		]);
+	});
+
 	it('does not write once settled', () => {
 		render(['qwen3.8-27b'], { reasoning_effort: 'high', thinking: null });
 		expect(setParams).not.toHaveBeenCalled();

@@ -18,6 +18,7 @@ const MODELS = [
 	{ id: 'fixture-generic-two', name: 'Generic fixture two' }
 ];
 const MEDIUM = { reasoning_effort: 'medium', thinking: null };
+const HIGH = { reasoning_effort: 'high', thinking: null };
 const OFF = { reasoning_effort: null, thinking: { type: 'disabled' } };
 
 type Sent = { chat_id?: string; model: string; params: Record<string, unknown> };
@@ -236,6 +237,34 @@ test('a new chat opened in place on a generic model does not inherit the family 
 	const generic = await send(page, 'generic first');
 	expect(generic.model).toBe('fixture-generic');
 	expect(effortKeys(generic.params)).toEqual({});
+});
+
+test('New Chat in place on a generic default leaves the previous chat saved choice alone', async ({
+	page
+}) => {
+	await page.goto('/?models=qwen3.8-27b');
+	await finishOnboarding(page);
+	await pick(page, 'High');
+	expect(effortKeys((await send(page, 'qwen with high')).params)).toEqual(HIGH);
+	const id = page.url().split('/c/')[1];
+	await expect.poll(async () => effortKeys(await savedParams(page, id))).toEqual(HIGH);
+	// An unsent draft in an in-place chat is stored under the new-chat key and restored by New Chat,
+	// whose restore writes params for the chat id it still sees.
+	await page.locator('#chat-input').fill('unsent draft');
+	await expect
+		.poll(() => page.evaluate(() => sessionStorage.getItem('chat-input')))
+		.toContain('unsent draft');
+	// The session's last selection is the model a new chat starts with (Chat.svelte initNewChat).
+	await page.evaluate(() => (sessionStorage.selectedModels = JSON.stringify(['fixture-generic'])));
+	await page.locator('a[href="/"][aria-label="New Chat"]:visible').first().click();
+	await expect(page.locator('#model-selector-model-button')).toHaveAttribute(
+		'aria-label',
+		'Selected model: Generic fixture'
+	);
+	await expect(trigger(page)).toHaveAttribute('aria-label', 'Thinking strength: Default');
+	// Past the 400 ms params save and the draft restore's params write.
+	await page.waitForTimeout(1000);
+	expect(effortKeys(await savedParams(page, id))).toEqual(HIGH);
 });
 
 test('auto-submitted ?q= request on a Qwen model carries Medium', async ({ page }) => {

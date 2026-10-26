@@ -192,6 +192,17 @@ describe('reconciledParams', () => {
 		expect(reconciledParams(max, GENERIC, { vocabulary: GENERIC, params: max })).toBe(max);
 	});
 
+	it('normalizes a mixed shape left by a Controls edit after Off', () => {
+		const mixed = { reasoning_effort: 'medium', thinking: { type: 'disabled' } };
+		expect(reconciledParams(mixed, QWEN, { vocabulary: QWEN, params: mixed })).toEqual(
+			level('medium')
+		);
+		const generic = { reasoning_effort: 'high', thinking: { type: 'disabled' } };
+		expect(reconciledParams(generic, GENERIC, { vocabulary: GENERIC, params: generic })).toBe(
+			generic
+		);
+	});
+
 	it('leaves free text alone on a family and on a switch to a family', () => {
 		const text = { reasoning_effort: 'minimal' };
 		expect(reconciledParams(text, QWEN, { vocabulary: QWEN, params: text })).toBe(text);

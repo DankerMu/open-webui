@@ -72,15 +72,12 @@ export function withoutChoice(params: ChatParams): ChatParams {
 	return rest;
 }
 
-// Rule 3: a model switch within the chat that changes the vocabulary.
-function afterSwitch(params: ChatParams, vocabulary: Vocabulary | null): ChatParams {
-	if (!vocabulary?.default) return withoutChoice(params);
+// A family model keeps a choice its levels contain (in its exact request shape), gets its default
+// for an empty or unsupported choice, and leaves free text alone.
+function familyParams(params: ChatParams, family: Vocabulary, fallback: EffortChoice): ChatParams {
 	const choice = currentChoice(params);
 	if (choice === undefined && !isEmpty(params)) return params;
-	return withChoice(
-		params,
-		choice && vocabulary.levels.includes(choice) ? choice : vocabulary.default
-	);
+	return withChoice(params, choice && family.levels.includes(choice) ? choice : fallback);
 }
 
 export function reconciledParams(
@@ -95,11 +92,8 @@ export function reconciledParams(
 	if (!previous || previous.params !== params)
 		return fallback && isEmpty(params) ? withChoice(params, fallback) : params;
 
-	if (previous.vocabulary !== vocabulary) return afterSwitch(params, vocabulary);
-
-	// Same vocabulary (a generic-to-generic switch or a Controls edit).
-	const choice = currentChoice(params);
-	if (fallback && (isEmpty(params) || (choice && !vocabulary!.levels.includes(choice))))
-		return withChoice(params, fallback);
-	return params;
+	if (fallback) return familyParams(params, vocabulary!, fallback);
+	// A switch to a generic model or to several models drops a choice made for another vocabulary;
+	// otherwise (a generic-to-generic switch or a Controls edit) typed values stay.
+	return previous.vocabulary !== vocabulary ? withoutChoice(params) : params;
 }
