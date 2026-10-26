@@ -2154,6 +2154,9 @@
 				}
 			}
 
+			params = {};
+			await chatId.set('');
+			await chatTitle.set('');
 			if ($mobile) {
 				await showControls.set(false);
 			}
@@ -2169,8 +2172,6 @@
 			// resetInput() must stay last: the selected model's defaults override the draft's selection.
 			await restoreChatInput(sessionStorage.getItem('chat-input'));
 			await resetInput();
-			await chatId.set('');
-			await chatTitle.set('');
 
 			history = {
 				messages: {},
@@ -2178,7 +2179,6 @@
 			};
 
 			chatFiles = [];
-			params = {};
 			chatVariables = {};
 			taskIds = null;
 			chatTasks = [];

@@ -3,6 +3,7 @@
 	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import Selector from './ModelSelector/Selector.svelte';
+	import ReasoningEffortSelector from './ReasoningEffortSelector.svelte';
 
 	import { updateUserSettings } from '$lib/apis/users';
 	import equal from 'fast-deep-equal';
@@ -60,7 +61,7 @@
 </script>
 
 <div class="flex min-w-0 max-w-full flex-col items-start">
-	<div class="flex min-w-0 max-w-full">
+	<div class="flex min-w-0 max-w-full items-center gap-1">
 		<div class="min-w-0 max-w-full overflow-hidden">
 			<div class="min-w-0 max-w-full">
 				<Selector
@@ -87,5 +88,6 @@
 				/>
 			</div>
 		</div>
+		<ReasoningEffortSelector />
 	</div>
 </div>
