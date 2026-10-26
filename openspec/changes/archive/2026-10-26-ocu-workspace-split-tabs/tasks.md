@@ -17,7 +17,7 @@
   - narrow-viewport cases `e2e/ocu-controls.e2e.ts:565`, `e2e/ocu-office.e2e.ts:391`, `:449` must stay green;
   - Office leave-guard browser cases stay green unchanged.
 - [x] 2.8 `npm run i18n:parse` for new keys (`Open files`, `Close tab`, `Hide file tree`, `Show file tree`, `Resize file tree`, `No file selected`); decision record per `docs/decisions/README.md`; `docs/office-editing.md` lines 3 and 11.
-- [ ] 2.9 Green: `make test-frontend`, `make typecheck`, `make lint-scoped`, `make coverage-gate` (naming `workspace-tabs.ts`, `WorkspaceFileTabs.svelte`, `WorkspaceTreeSplitter.svelte`, `WorkspaceViewSwitch.svelte`), `make anti-drift`, `make verify-ui-ocu`, `make verify-ui`, `make doc-gate`, `make decisions-verify`; `make verify-office` if the pinned DocumentServer is available, else say so. Screenshots: tree-only, split with two tabs, tree hidden, Browser full width, light and dark.
+- [x] 2.9 Green: `make test-frontend`, `make typecheck`, `make lint-scoped`, `make coverage-gate` (naming `workspace-tabs.ts`, `WorkspaceFileTabs.svelte`, `WorkspaceTreeSplitter.svelte`, `WorkspaceViewSwitch.svelte`), `make anti-drift`, `make verify-ui-ocu`, `make verify-ui`, `make doc-gate`, `make decisions-verify`; `make verify-office` if the pinned DocumentServer is available, else say so. Screenshots: tree-only, split with two tabs, tree hidden, Browser full width, light and dark.
 
 ## Risk packs
 

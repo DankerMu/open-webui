@@ -62,6 +62,16 @@ export type OcuDescribeBody = {
 };
 export const ocuWorkspaces: Writable<Record<string, OcuWorkspaceState>> = writable({});
 
+// The navbar workspace entry; ChatControls is the only writer, null while the action is unavailable.
+export type OcuWorkspaceEntry = {
+	shown: boolean;
+	changed: boolean;
+	waiting: boolean;
+	disabled: boolean;
+	toggle: () => void;
+};
+export const ocuWorkspaceEntry: Writable<OcuWorkspaceEntry | null> = writable(null);
+
 const EMPTY_WORKSPACE: OcuWorkspaceState = {
 	revision: 0,
 	dirty: false,
