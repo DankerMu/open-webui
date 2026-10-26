@@ -160,11 +160,13 @@ afterEach(async () => {
 });
 
 describe('workspace file tree presentation', () => {
-	it('renders full-path folder headers, indented nested rows and unindented roots', async () => {
+	it('renders nested folder rows, depth-indented nested rows and unindented roots', async () => {
 		await open();
 		await ready('index.py');
 		const items = listItems();
 		expect(items.map((item) => item.querySelector('button')?.getAttribute('aria-label'))).toEqual([
+			'Folder packages',
+			'Folder packages/core',
 			'Folder packages/core/src',
 			'packages/core/src/index.py',
 			'Folder reports',
@@ -175,11 +177,15 @@ describe('workspace file tree presentation', () => {
 			'page.html',
 			'photo.png'
 		]);
-		expect(folderButton('packages/core/src').getAttribute('aria-expanded')).toBe('true');
-		expect(folderButton('reports').getAttribute('aria-expanded')).toBe('true');
-		expect(fileButton('packages/core/src/index.py').className).toMatch(/pl-7/);
-		expect(fileButton('reports/summary.docx').className).toMatch(/pl-7/);
-		expect(fileButton('page.html').className).not.toMatch(/pl-7/);
+		for (const path of ['packages', 'packages/core', 'packages/core/src', 'reports'])
+			expect(folderButton(path).getAttribute('aria-expanded')).toBe('true');
+		expect(folderButton('packages').style.paddingLeft).toBe('8px');
+		expect(folderButton('packages/core').style.paddingLeft).toBe('20px');
+		expect(folderButton('packages/core/src').style.paddingLeft).toBe('32px');
+		expect(folderButton('packages/core/src').textContent?.trim()).toBe('src');
+		expect(fileButton('packages/core/src/index.py').style.paddingLeft).toBe('44px');
+		expect(fileButton('reports/summary.docx').style.paddingLeft).toBe('20px');
+		expect(fileButton('page.html').style.paddingLeft).toBe('8px');
 		expect(fileButton('page.html').textContent).toContain('page.html');
 		expect(fileButton('packages/core/src/index.py').textContent).toContain('index.py');
 		expect(fileButton('packages/core/src/index.py').textContent).not.toContain(
@@ -198,11 +204,11 @@ describe('workspace file tree presentation', () => {
 		await ready('page.html');
 		expect(document.querySelector('[aria-label^="Folder "]')).toBeNull();
 		expect(listItems()).toHaveLength(2);
-		expect(fileButton('page.html').className).not.toMatch(/pl-7/);
-		expect(fileButton('diagram.svg').className).not.toMatch(/pl-7/);
+		expect(fileButton('page.html').style.paddingLeft).toBe('8px');
+		expect(fileButton('diagram.svg').style.paddingLeft).toBe('8px');
 	});
 
-	it('maps every display kind to a decorative icon and canonical size text', async () => {
+	it('maps every display kind to a decorative icon and shows no row size', async () => {
 		await open();
 		await ready('index.py');
 		const expected: Record<string, { kind: string; size: string }> = {
@@ -218,11 +224,25 @@ describe('workspace file tree presentation', () => {
 			const button = fileButton(name);
 			expect(button.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
 			expect(button.querySelector(`[data-file-kind="${kind}"]`)).not.toBeNull();
-			expect(button.querySelector('[data-file-size]')?.textContent).toBe(size);
+			expect(button.querySelector('[data-file-size]')).toBeNull();
+			expect(button.textContent).not.toContain(size);
 			expect(button.getAttribute('aria-label')).toBe(name);
-			expect(button.querySelector('[data-file-size]')?.getAttribute('aria-hidden')).toBe('true');
+			expect(button.getAttribute('title')).toBe(name);
 			expect(button.textContent).toContain(name.split('/').pop());
 		}
+	});
+
+	it('shows the nested directory and size of the selected file in the selected bar', async () => {
+		await open();
+		await ready('index.py');
+		fileButton('packages/core/src/index.py').click();
+		await tick();
+		const bar = document.querySelector(
+			'[aria-label="Selected workspace file"] [data-selected-bar]'
+		);
+		expect(bar?.querySelector('[data-selected-name]')?.textContent).toBe('index.py');
+		expect(bar?.textContent).toContain('packages/core/src');
+		expect(bar?.querySelector('[data-file-size]')?.textContent).toBe('2.0 KB');
 	});
 
 	it('updates the row glyph in place when a refresh changes the selected file kind', async () => {
@@ -379,6 +399,69 @@ describe('workspace file tree presentation', () => {
 		await tick();
 		expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(true);
 		expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+	});
+
+	it('collapsing an intermediate folder hides every deeper folder and file, not its prefix sibling', async () => {
+		const deep = file('packages/core/src/index.py', 'packages-core-src-index.py');
+		const mid = file('packages/core/readme.md', 'packages-core-readme.md');
+		const top = file('packages/setup.py', 'packages-setup.py');
+		const sibling = file('packages/core-extra/a.py', 'packages-core-extra-a.py');
+		const root = file('page.html', 'page.html');
+		scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json(describeBody)
+					: json(listing([deep, mid, top, sibling, root]));
+		await open();
+		await ready('index.py');
+		const before = calls.length;
+		const core = folderButton('packages/core');
+		core.click();
+		await tick();
+		expect(core.getAttribute('aria-expanded')).toBe('false');
+		expect(core.closest('li')?.hidden).toBe(false);
+		expect(folderButton('packages/core/src').closest('li')?.hidden).toBe(true);
+		expect(fileButton('packages/core/src/index.py').closest('li')?.hidden).toBe(true);
+		expect(fileButton('packages/core/readme.md').closest('li')?.hidden).toBe(true);
+		expect(folderButton('packages').closest('li')?.hidden).toBe(false);
+		expect(folderButton('packages/core-extra').closest('li')?.hidden).toBe(false);
+		expect(fileButton('packages/core-extra/a.py').closest('li')?.hidden).toBe(false);
+		expect(fileButton('packages/setup.py').closest('li')?.hidden).toBe(false);
+		expect(fileButton('page.html').closest('li')?.hidden).toBe(false);
+		folderButton('packages').click();
+		await tick();
+		expect(folderButton('packages/core-extra').closest('li')?.hidden).toBe(true);
+		expect(fileButton('packages/setup.py').closest('li')?.hidden).toBe(true);
+		expect(core.closest('li')?.hidden).toBe(true);
+		folderButton('packages').click();
+		await tick();
+		expect(core.closest('li')?.hidden).toBe(false);
+		expect(core.getAttribute('aria-expanded')).toBe('false');
+		expect(fileButton('packages/core/src/index.py').closest('li')?.hidden).toBe(true);
+		expect(calls.length).toBe(before);
+	});
+
+	it('keeps collapse while the open panel switches to Browser and back', async () => {
+		scenario = (input, init) =>
+			input.endsWith('/prefs') && init?.method === 'PUT'
+				? json({ prefs: JSON.parse(String(init.body)) })
+				: input.includes('/workspaces/')
+					? json({ ...describeBody, views: ['files', 'browser'] })
+					: json(listing(nestedFiles()));
+		await open();
+		await ready('summary.docx');
+		folderButton('reports').click();
+		await tick();
+		namedButton('Browser').click();
+		await vi.waitFor(() =>
+			expect(document.querySelector('ul[aria-label="Workspace file list"]')).toBeNull()
+		);
+		namedButton('Files').click();
+		await vi.waitFor(() =>
+			expect(folderButton('reports').getAttribute('aria-expanded')).toBe('false')
+		);
+		expect(fileButton('reports/summary.docx').closest('li')?.hidden).toBe(true);
 	});
 
 	const collidingFileId = 'd4104ce0-5467-4e12-a39b-6066c929ae76';

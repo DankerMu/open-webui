@@ -81,15 +81,23 @@ async function selectedPreviewFit(panel: Locator) {
 	});
 }
 
-test('nested Files tree shows headers, indentation, collapse and selection geometry', async ({
+test('nested Files tree shows folders, indentation, collapse and selection geometry', async ({
 	page
 }) => {
 	const panel = await openWorkspace(page);
 	const list = panel.locator('ul[aria-label="Workspace file list"]');
-	const packages = panel.getByRole('button', { name: 'Folder packages/core/src' });
-	const reports = panel.getByRole('button', { name: 'Folder reports' });
-	await expect(packages).toHaveAttribute('aria-expanded', 'true');
-	await expect(reports).toHaveAttribute('aria-expanded', 'true');
+	const folder = (path: string) =>
+		panel.getByRole('button', { name: `Folder ${path}`, exact: true });
+	const packages = folder('packages/core');
+	for (const path of ['packages', 'packages/core', 'packages/core/src', 'reports'])
+		await expect(folder(path)).toHaveAttribute('aria-expanded', 'true');
+	const folderPads = await Promise.all(
+		['packages', 'packages/core', 'packages/core/src'].map((path) =>
+			folder(path).evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft))
+		)
+	);
+	expect(folderPads[1]).toBeGreaterThan(folderPads[0]);
+	expect(folderPads[2]).toBeGreaterThan(folderPads[1]);
 	await expect(panel.getByRole('button', { name: 'packages/core/src/index.py' })).toBeVisible();
 	await expect(panel.getByRole('button', { name: 'reports/summary.docx' })).toBeVisible();
 	await expect(panel.getByRole('button', { name: 'page.html', exact: true })).toBeVisible();
@@ -99,8 +107,9 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 	const rootPad = await panel
 		.getByRole('button', { name: 'page.html', exact: true })
 		.evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
-	expect(nestedPad).toBeGreaterThan(rootPad);
-	await expect(list.locator('> li')).toHaveCount(32);
+	expect(nestedPad).toBeGreaterThan(folderPads[2]);
+	expect(folderPads[0]).toBe(rootPad);
+	await expect(list.locator('> li')).toHaveCount(34);
 	await expect(list.getByRole('button', { name: 'More files' })).toHaveCount(0);
 
 	const unselected = await list.evaluate((node) => {
@@ -148,7 +157,10 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 	});
 	await packages.click();
 	await expect(packages).toHaveAttribute('aria-expanded', 'false');
+	await expect(packages).toBeVisible();
+	await expect(folder('packages/core/src')).toBeHidden();
 	await expect(panel.getByRole('button', { name: 'packages/core/src/index.py' })).toBeHidden();
+	await expect(folder('packages')).toBeVisible();
 	await expect(panel.getByRole('button', { name: 'page.html', exact: true })).toHaveAttribute(
 		'aria-pressed',
 		'true'
@@ -163,8 +175,11 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 		await page.reload();
 		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
 		const themed = await openWorkspace(page);
-		const packagesHeader = themed.getByRole('button', { name: 'Folder packages/core/src' });
-		const reportsHeader = themed.getByRole('button', { name: 'Folder reports' });
+		const themedFolder = (path: string) =>
+			themed.getByRole('button', { name: `Folder ${path}`, exact: true });
+		const topHeader = themedFolder('packages');
+		const packagesHeader = themedFolder('packages/core');
+		const reportsHeader = themedFolder('reports');
 		const selectedRow = themed.getByRole('button', { name: 'page.html', exact: true });
 		await expect(packagesHeader).toHaveAttribute('aria-expanded', 'true');
 		await expect(reportsHeader).toHaveAttribute('aria-expanded', 'true');
@@ -172,13 +187,14 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 		await expect(selectedRow).toHaveAttribute('aria-pressed', 'true');
 		await packagesHeader.click();
 		await expect(packagesHeader).toHaveAttribute('aria-expanded', 'false');
+		await expect(themedFolder('packages/core/src')).toBeHidden();
 		const framed = themed.locator('ul[aria-label="Workspace file list"]');
 		const rootRows = [
 			themed.getByRole('button', { name: 'notes.bin', exact: true }),
 			themed.getByRole('button', { name: 'page.html', exact: true }),
 			themed.getByRole('button', { name: 'photo.png', exact: true })
 		];
-		const targets = [packagesHeader, reportsHeader, ...rootRows];
+		const targets = [topHeader, packagesHeader, reportsHeader, ...rootRows];
 		for (const target of targets) {
 			await expect(target).toBeVisible();
 		}
@@ -208,7 +224,14 @@ test('nested Files tree shows headers, indentation, collapse and selection geome
 					};
 				});
 			},
-			['Folder packages/core/src', 'Folder reports', 'notes.bin', 'page.html', 'photo.png']
+			[
+				'Folder packages',
+				'Folder packages/core',
+				'Folder reports',
+				'notes.bin',
+				'page.html',
+				'photo.png'
+			]
 		);
 		for (const row of inView) {
 			expect(row.present, row.name).toBe(true);
