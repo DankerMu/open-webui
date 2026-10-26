@@ -138,17 +138,22 @@ test('nested Files tree shows folders, indentation, collapse and selection geome
 	expect(selectedStyle.background).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
 	const selected = await list.evaluate((node) => {
 		const bounds = node.getBoundingClientRect();
-		const panelBounds = node.closest('section')!.getBoundingClientRect();
+		const column = node.parentElement!.getBoundingClientRect();
+		const row = node.parentElement!.parentElement!.getBoundingClientRect();
 		const preview = node
 			.closest('section')!
 			.querySelector('[aria-label="Selected workspace file"]')
 			?.getBoundingClientRect();
 		return {
-			ratio: bounds.height / panelBounds.height,
+			columnSpan: column.height / row.height,
+			listFillsColumn: bounds.height >= column.height - 1,
+			besideTree: (preview?.left ?? 0) >= bounds.right - 1,
 			previewHeight: preview?.height ?? 0
 		};
 	});
-	expect(selected.ratio).toBeLessThanOrEqual(0.42);
+	expect(selected.columnSpan).toBeGreaterThan(0.99);
+	expect(selected.listFillsColumn).toBe(true);
+	expect(selected.besideTree).toBe(true);
 	expect(selected.previewHeight).toBeGreaterThan(40);
 
 	const listingCalls: string[] = [];
@@ -555,4 +560,134 @@ test('unsupported-name files list with a marker and offer no action', async ({ p
 	);
 	expect(fetched.filter((target) => target.startsWith('/ocu/api/office/'))).toEqual([]);
 	expect(fetched.filter((target) => target.includes('embed=files'))).toEqual([]);
+});
+
+async function splitGeometry(panel: Locator) {
+	return panel.locator('ul[aria-label="Workspace file list"]').evaluate((list) => {
+		const tree = list.parentElement!;
+		const row = tree.parentElement!;
+		const file = row.lastElementChild === tree ? null : (row.lastElementChild as HTMLElement);
+		const bar = file?.querySelector('[data-selected-bar]') as HTMLElement | null;
+		return {
+			area: row.getBoundingClientRect().width,
+			tree: tree.hidden ? 0 : tree.getBoundingClientRect().width,
+			file: file?.getBoundingClientRect().width ?? 0,
+			barOverflow: bar ? bar.scrollWidth > bar.clientWidth + 1 : null
+		};
+	});
+}
+
+test('opened files split beside the tree with tabs, a splitter and a hideable tree', async ({
+	page
+}) => {
+	const chatId = await createScenarioChat(page, 'nested');
+	const tabFor = (panel: Locator, name: string) => panel.getByRole('tab', { name, exact: true });
+	const closeFor = async (panel: Locator, name: string) =>
+		panel.locator(`button[aria-describedby="${await tabFor(panel, name).getAttribute('id')}"]`);
+	for (const theme of ['light', 'dark']) {
+		await page.evaluate((value) => localStorage.setItem('theme', value), theme);
+		await page.reload();
+		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+		const panel = await openWorkspace(page, chatId);
+		await expect(panel.getByRole('tab')).toHaveCount(0);
+		await expect(panel.getByRole('separator', { name: 'Resize file tree' })).toHaveCount(0);
+		await expect(panel.getByRole('button', { name: 'Files', exact: true })).toBeVisible();
+		const switchFit = await panel.locator('nav[aria-label="Workspace views"]').evaluate((nav) => ({
+			nav: nav.getBoundingClientRect().width,
+			section: nav.closest('section')!.getBoundingClientRect().width
+		}));
+		expect(switchFit.nav).toBeLessThan(switchFit.section * 0.9);
+		const treeOnly = await splitGeometry(panel);
+		expect(treeOnly.tree).toBeGreaterThan(treeOnly.area - 1);
+		await panel.screenshot({ path: `${evidence}/workspace-split-tree-only-${theme}.png` });
+
+		await panel.getByRole('button', { name: 'page.html', exact: true }).click();
+		await expect(tabFor(panel, 'page.html')).toHaveAttribute('aria-selected', 'true');
+		await panel.getByRole('button', { name: 'notes.bin', exact: true }).click();
+		await expect(tabFor(panel, 'notes.bin')).toHaveAttribute('aria-selected', 'true');
+		await expect(panel.getByRole('tab')).toHaveCount(2);
+		await expect(panel.getByText('Preview not supported for this file type')).toBeVisible();
+		await tabFor(panel, 'page.html').click();
+		await expect(tabFor(panel, 'page.html')).toHaveAttribute('aria-selected', 'true');
+		await expect(panel.locator('iframe[title="page.html"]')).toBeVisible();
+		const split = await splitGeometry(panel);
+		expect(split.file).toBeGreaterThanOrEqual(200);
+		expect(split.tree).toBeGreaterThanOrEqual(100);
+		expect(split.barOverflow).toBe(false);
+		await panel.screenshot({ path: `${evidence}/workspace-split-two-tabs-${theme}.png` });
+
+		const splitter = panel.getByRole('separator', { name: 'Resize file tree' });
+		await splitter.focus();
+		await page.keyboard.press('ArrowLeft');
+		await page.keyboard.press('ArrowLeft');
+		const narrower = await splitGeometry(panel);
+		expect(narrower.tree).toBeLessThan(split.tree);
+		expect(narrower.tree).toBeGreaterThanOrEqual(100);
+		await page.keyboard.press('ArrowRight');
+		const wider = await splitGeometry(panel);
+		expect(wider.tree).toBeGreaterThan(narrower.tree);
+		expect(wider.file).toBeGreaterThanOrEqual(200);
+
+		await panel.getByRole('button', { name: 'Hide file tree', exact: true }).click();
+		await expect(panel.locator('ul[aria-label="Workspace file list"]')).toBeHidden();
+		await expect(panel.getByRole('separator', { name: 'Resize file tree' })).toHaveCount(0);
+		await expect(panel.getByRole('tab')).toHaveCount(2);
+		const hidden = await splitGeometry(panel);
+		expect(hidden.file).toBeGreaterThan(hidden.area - 1);
+		await panel.screenshot({ path: `${evidence}/workspace-split-tree-hidden-${theme}.png` });
+		await panel.getByRole('button', { name: 'Show file tree', exact: true }).click();
+		await expect(panel.locator('ul[aria-label="Workspace file list"]')).toBeVisible();
+		expect((await splitGeometry(panel)).tree).toBe(wider.tree);
+
+		await panel.getByRole('button', { name: 'Browser', exact: true }).click();
+		const browser = panel.locator('iframe[title="Workspace Browser"]');
+		await expect(browser).toBeVisible();
+		await expect(panel.getByRole('tab')).toHaveCount(0);
+		const browserFit = await browser.evaluate((frame) => ({
+			frame: frame.getBoundingClientRect().width,
+			section: frame.closest('section')!.getBoundingClientRect().width
+		}));
+		expect(browserFit.frame).toBeGreaterThan(browserFit.section - 40);
+		await panel.screenshot({ path: `${evidence}/workspace-split-browser-${theme}.png` });
+		await panel.getByRole('button', { name: 'Files', exact: true }).click();
+		await expect(panel.getByRole('tab')).toHaveCount(2);
+		await expect(tabFor(panel, 'page.html')).toHaveAttribute('aria-selected', 'true');
+
+		await (await closeFor(panel, 'page.html')).click();
+		await expect(tabFor(panel, 'notes.bin')).toHaveAttribute('aria-selected', 'true');
+		const cleared = page.waitForRequest(
+			(request) =>
+				new URL(request.url()).pathname === `/api/v1/ocu/workspaces/${chatId}/prefs` &&
+				request.method() === 'PUT' &&
+				request.postDataJSON()?.selected_file_id === null
+		);
+		await (await closeFor(panel, 'notes.bin')).click();
+		await cleared;
+		await expect(panel.getByRole('tab')).toHaveCount(0);
+		const closed = await splitGeometry(panel);
+		expect(closed.tree).toBeGreaterThan(closed.area - 1);
+	}
+});
+
+test('a 390 px viewport keeps the opened-file column at least 200 px wide', async ({ page }) => {
+	const chatId = await createScenarioChat(page, 'nested');
+	await page.setViewportSize({ width: 390, height: 844 });
+	for (const theme of ['light', 'dark']) {
+		await page.evaluate((value) => localStorage.setItem('theme', value), theme);
+		const panel = await openWorkspace(page, chatId);
+		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+		const row = panel.getByRole('button', { name: 'page.html', exact: true });
+		if ((await row.getAttribute('aria-pressed')) !== 'true') await row.click();
+		await expect(panel.getByRole('tab', { name: 'page.html', exact: true })).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
+		const narrow = await splitGeometry(panel);
+		expect(narrow.file).toBeGreaterThanOrEqual(200);
+		expect(narrow.barOverflow).toBe(false);
+		const fit = await selectedPreviewFit(panel);
+		expect(fit?.overflow).toBe(false);
+		expect(fit?.fits).toBe(true);
+		await page.screenshot({ path: `${evidence}/workspace-split-390-${theme}.png` });
+	}
 });

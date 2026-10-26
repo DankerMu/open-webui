@@ -50,6 +50,33 @@ describe('Selected workspace file presentation', () => {
 		expect(download().getAttribute('download')).toBe('report.docx');
 	});
 
+	it('hides directory and size below a 280 px bar width and keeps name and actions', async () => {
+		harness.setListing([
+			{
+				...officeDocx,
+				path: 'documents/report.docx',
+				url: '/ocu/files/owner-chat/documents/report.docx'
+			}
+		]);
+		await harness.open();
+		await harness.ready('report.docx');
+		namedButton('report.docx').click();
+		await tick();
+		expect(bar().className).toMatch(/(^|\s)@container(\s|$)/);
+		const directory = [...bar().querySelectorAll('span')].find(
+			(node) => node.textContent === 'documents'
+		)!;
+		for (const node of [directory, bar().querySelector('[data-file-size]')!]) {
+			expect(node.className).toMatch(/(^|\s)hidden(\s|$)/);
+			expect(node.className).toMatch(/@min-\[280px\]:inline/);
+		}
+		const name = bar().querySelector('[data-selected-name]')!;
+		expect(name.className).toMatch(/truncate/);
+		expect(name.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+		expect(editAction()).toBeDefined();
+		expect(download().getAttribute('download')).toBe('report.docx');
+	});
+
 	it('opens fetched version history from the action bar without opening an editor', async () => {
 		const workspaceScenario = harness.scenario;
 		harness.scenario = (url, init) =>

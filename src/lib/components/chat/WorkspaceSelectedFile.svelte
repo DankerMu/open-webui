@@ -25,7 +25,7 @@
 
 <div
 	data-selected-bar
-	class="flex h-8 shrink-0 items-center gap-1.5 overflow-visible border-b border-gray-100 pr-1 dark:border-gray-800"
+	class="@container flex h-8 shrink-0 items-center gap-1.5 overflow-visible border-b border-gray-100 pr-1 dark:border-gray-800"
 >
 	<span data-file-kind={selectedKind} class="contents">
 		<svelte:component this={SelectedKindIcon} className="size-4 shrink-0" />
@@ -38,10 +38,14 @@
 		>
 	</Tooltip>
 	{#if selectedDirectory}
-		<span class="min-w-0 max-w-[30%] truncate text-xs text-gray-400">{selectedDirectory}</span>
+		<span class="hidden min-w-0 max-w-[30%] truncate text-xs text-gray-400 @min-[280px]:inline"
+			>{selectedDirectory}</span
+		>
 	{/if}
-	<span data-file-size class="shrink-0 text-xs text-gray-400" aria-hidden="true"
-		>{formatFileSize(selected.size)}</span
+	<span
+		data-file-size
+		class="hidden shrink-0 text-xs text-gray-400 @min-[280px]:inline"
+		aria-hidden="true">{formatFileSize(selected.size)}</span
 	>
 	<div class="ml-auto flex shrink-0 items-center gap-1">
 		{#if officeEdit && (!editorActive || editorError)}
