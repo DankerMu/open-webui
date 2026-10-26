@@ -36,6 +36,7 @@ import {
 	postOfficeState
 } from './workspace-artifact-office-test';
 import { officeLeaveGuard, officeLeaveSnapshot } from './office-leave-guard';
+import { chatEffortParams } from '$lib/stores/chat-effort';
 import { closingStatus, deliver } from './office-leave-guard-test';
 // This policy case never mounts XTerminal; its eager xterm import needs canvas in jsdom.
 vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn() }));
@@ -177,18 +178,21 @@ function mountControls(
 			['i18n', i18n],
 			[WORKSPACE_RECONCILIATION, workspaceController]
 		]),
-		props: {
-			chatId: id,
-			history: { messages: {}, currentId: null },
-			files: [],
-			modelId: null,
-			eventTarget: new EventTarget(),
-			submitPrompt: () => {},
-			stopResponse: () => {},
-			showMessage: () => {},
-			ensureSavedChat: async () => id,
-			...props
-		}
+		// Descriptors, not spread: an accessor pair in `props` acts as a parent bind.
+		props: Object.defineProperties(
+			{
+				chatId: id,
+				history: { messages: {}, currentId: null },
+				files: [],
+				modelId: null,
+				eventTarget: new EventTarget(),
+				submitPrompt: () => {},
+				stopResponse: () => {},
+				showMessage: () => {},
+				ensureSavedChat: async () => id
+			},
+			Object.getOwnPropertyDescriptors(props)
+		)
 	});
 }
 
@@ -316,6 +320,30 @@ describe('mounted chat workspace policy', () => {
 		showControls.set(true);
 		await tick();
 		expect(document.querySelector('button[aria-label="Workspace Files"]')).toBeNull();
+	});
+
+	it('publishes the bound params and model ids for the composer and withdraws them on destroy', async () => {
+		let params: Record<string, unknown> = { temperature: 0.3 };
+		component = mountControls(controller, {
+			models: [{ id: 'qwen3.8-27b' }],
+			get params() {
+				return params;
+			},
+			set params(next) {
+				params = next;
+			}
+		});
+		await tick();
+		const binding = get(chatEffortParams)!;
+		expect(binding).toMatchObject({ modelIds: ['qwen3.8-27b'], params: { temperature: 0.3 } });
+		const next = { temperature: 0.3, reasoning_effort: 'high', thinking: null };
+		binding.setParams(next);
+		await tick();
+		// The write goes through the parent bind; the parent's update republishes (browser case).
+		expect(params).toBe(next);
+		await unmount(component);
+		component = undefined;
+		expect(get(chatEffortParams)).toBeNull();
 	});
 
 	it('disables the navbar entry while the first send is saving the chat', async () => {

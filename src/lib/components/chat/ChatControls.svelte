@@ -50,13 +50,14 @@
 		mountOfficeLeaveGuard,
 		officeLeaveGuard
 	} from './office-leave-guard';
+	import { chatEffortParams } from '$lib/stores/chat-effort';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 	const workspaceController: WorkspaceReconciliation = getContext(WORKSPACE_RECONCILIATION);
 	mountOfficeLeaveGuard();
 
 	export let history;
-	export let models = [];
+	export let models: { id: string }[] = [];
 
 	export let chatId: string | null = null;
 	export let chatUser = null;
@@ -330,6 +331,12 @@
 			: null
 	);
 	onDestroy(() => ocuWorkspaceEntry.set(null));
+	$: chatEffortParams.set({
+		modelIds: models.map((model) => model.id),
+		params,
+		setParams: (next) => (params = next)
+	});
+	onDestroy(() => chatEffortParams.set(null));
 
 	// Helper: is a "special" full-screen panel active?
 	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds || showWorkspace;
