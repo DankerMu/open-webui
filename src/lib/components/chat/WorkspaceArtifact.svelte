@@ -93,7 +93,6 @@
 	$: notice = localNotice || workspace?.notice || '';
 	$: busy = workspace?.busy ?? false;
 	$: workspace = retainOfficeWorkspace(chatId, $ocuWorkspaces[chatId], $officeLeaveSnapshot);
-	$: fileCount = workspace?.files.length ?? 0;
 	$: fileRows = buildWorkspaceFileRows(workspace?.files ?? []);
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
@@ -414,19 +413,8 @@
 	<header
 		class="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-gray-800"
 	>
-		<div class="flex min-w-0 items-center gap-2">
-			<h2 class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-				{$i18n.t('Workspace Files')}
-			</h2>
-			{#if fileCount}
-				<span class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-					{#if workspace?.nextCursor}
-						{$i18n.t('{{count}}+ files', { count: fileCount })}
-					{:else}
-						{$i18n.t('{{count}} files', { count: fileCount })}
-					{/if}
-				</span>
-			{/if}
+		<div class="@container flex min-w-0 flex-1">
+			<WorkspaceViewSwitch {workspace} onSelect={selectView} bind:filesButton />
 		</div>
 		<div class="flex items-center gap-1">
 			<Tooltip content={$i18n.t('Refresh')}>
@@ -452,7 +440,6 @@
 			{/if}
 		</div>
 	</header>
-	<WorkspaceViewSwitch {workspace} onSelect={selectView} bind:filesButton />
 	{#if notice}<WorkspaceNotice {notice} onDismiss={dismissNotice} />{/if}
 	{#if runtimeUrl}
 		<div

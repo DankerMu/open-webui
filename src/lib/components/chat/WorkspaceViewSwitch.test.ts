@@ -91,6 +91,37 @@ describe('workspace view switch', () => {
 		expect(segment('Browser')?.disabled).toBe(false);
 	});
 
+	it('names every segment and wraps it in a tooltip', () => {
+		render(state({ views: ['files', 'browser', 'terminal'] }));
+		for (const name of ['Files', 'Browser', 'Terminal']) {
+			const button = segment(name)!;
+			expect(button.getAttribute('aria-label')).toBe(name);
+			expect(button.querySelector('span')?.textContent).toBe(name);
+			expect((button.parentElement as HTMLElement & { _tippy?: unknown })._tippy).toBeDefined();
+		}
+	});
+
+	it('keeps the active label visible and gates inactive labels on the header width', async () => {
+		const gated = /(^|\s)hidden(\s|$)/;
+		const query = /(^|\s)@min-\[\d+px\]:inline(\s|$)/;
+		const label = (name: string) => segment(name)!.querySelector('span')!.className;
+		render(state({ views: ['files', 'browser', 'terminal'] }));
+		expect(label('Files')).not.toMatch(gated);
+		expect(label('Files')).not.toMatch(query);
+		for (const name of ['Browser', 'Terminal']) {
+			expect(label(name)).toMatch(gated);
+			expect(label(name)).toMatch(query);
+		}
+		await unmount(component!);
+		render(state({ views: ['files', 'browser', 'terminal'], view: 'terminal' }));
+		expect(label('Terminal')).not.toMatch(gated);
+		expect(label('Terminal')).not.toMatch(query);
+		for (const name of ['Files', 'Browser']) {
+			expect(label(name)).toMatch(gated);
+			expect(label(name)).toMatch(query);
+		}
+	});
+
 	it('disables runtime views outside the gateway base URL', () => {
 		render(state({ views: ['files', 'terminal'], baseUrl: '/elsewhere' }));
 		expect(segment('Terminal')?.disabled).toBe(true);

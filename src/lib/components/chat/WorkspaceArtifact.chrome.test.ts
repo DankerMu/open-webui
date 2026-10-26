@@ -75,10 +75,10 @@ afterEach(async () => {
 });
 
 it.each([
-	[3, null, '3 files'],
-	[100, 'next', '100+ files'],
-	[0, null, null]
-])('summarizes %i loaded files with cursor %s', async (count, cursor, summary) => {
+	[3, null],
+	[100, 'next'],
+	[0, null]
+])('heads %i loaded files with cursor %s by the view switch', async (count, cursor) => {
 	scenario = (url) =>
 		url.includes('/workspaces/')
 			? json(describeBody)
@@ -90,8 +90,14 @@ it.each([
 				);
 	await open(count ? 'file-0.html' : 'No workspace files yet.');
 	const header = document.querySelector('header')!;
-	if (summary) expect(header.textContent).toContain(summary);
-	else expect(header.querySelector('span')).toBeNull();
+	expect(header.textContent).not.toMatch(/\d+\+? files/);
+	expect(header.querySelector('h2')).toBeNull();
+	const nav = header.querySelector('nav[aria-label="Workspace views"]');
+	expect(nav).not.toBeNull();
+	expect(nav!.parentElement!.className).toMatch(/(^|\s)@container(\s|$)/);
+	expect(header.contains(button('Refresh workspace files'))).toBe(true);
+	expect(header.contains(button('Close workspace'))).toBe(true);
+	if (cursor) expect(header.contains(button('More files'))).toBe(false);
 	button('Close workspace').click();
 	expect(close).toHaveBeenCalledOnce();
 });
