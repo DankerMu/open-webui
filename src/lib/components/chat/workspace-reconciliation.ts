@@ -699,11 +699,17 @@ export function createWorkspaceReconciliation(options: {
 		const current = get(ocuWorkspaces)[id];
 		if (current) setWorkspacePresentation(id, current.generation, { notice: '' });
 	}
-	function selectFile(id: string, file: WorkspaceFile) {
+	function choose(id: string, fileId: string | null) {
 		if (activeId !== id) return Promise.resolve();
 		clearNotice(id);
-		selectWorkspaceFile(id, file.file_id);
-		return writePrefs(id, { view: 'files', open: true, selected_file_id: file.file_id });
+		selectWorkspaceFile(id, fileId ?? undefined);
+		return writePrefs(id, { view: 'files', open: true, selected_file_id: fileId });
+	}
+	function selectFile(id: string, file: WorkspaceFile) {
+		return choose(id, file.file_id);
+	}
+	function clearSelection(id: string) {
+		return choose(id, null);
 	}
 	return {
 		observe,
@@ -718,6 +724,7 @@ export function createWorkspaceReconciliation(options: {
 		writePrefs,
 		clearNotice,
 		selectFile,
+		clearSelection,
 		resolvePath,
 		handleLinkClick,
 		delegateLinks

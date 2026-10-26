@@ -661,16 +661,19 @@ describe('workspace file tree presentation', () => {
 		expect(list.querySelectorAll('li')).toHaveLength(2);
 	});
 
-	it('caps the scrolling list near two fifths of the panel once a file is selected', async () => {
+	it('keeps the scrolling tree at full column height once a file is opened', async () => {
 		await open();
 		await ready('page.html');
 		const list = document.querySelector('ul[aria-label="Workspace file list"]') as HTMLElement;
 		expect(list.className).toMatch(/overflow-y-auto/);
-		expect(list.className).toMatch(/flex-1|min-h-0/);
+		expect(list.className).toMatch(/flex-1/);
 		expect(list.className).not.toMatch(/max-h-\[40%\]/);
 		await namedButton('page.html').click();
 		await tick();
-		expect(list.className).toMatch(/max-h-\[40%\]/);
+		expect(document.querySelector('[aria-label="Selected workspace file"]')).not.toBeNull();
+		expect(document.querySelector('ul[aria-label="Workspace file list"]')).toBe(list);
+		expect(list.className).toMatch(/flex-1/);
+		expect(list.className).not.toMatch(/max-h-\[40%\]/);
 		expect(list.className).toMatch(/overflow-y-auto/);
 	});
 });

@@ -39,13 +39,15 @@
 	import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
 	import WorkspaceFileTree, { FILE_KIND_ICONS } from './WorkspaceFileTree.svelte';
 	import WorkspaceNotice from './WorkspaceNotice.svelte';
+	import WorkspaceViewSwitch from './WorkspaceViewSwitch.svelte';
+	import WorkspaceFileTabs from './WorkspaceFileTabs.svelte';
+	import WorkspaceTreeSplitter from './WorkspaceTreeSplitter.svelte';
+	import { pruneTabs, tabAfterClose, withTab } from './workspace-tabs';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Folder from '$lib/components/icons/Folder.svelte';
-	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
-	import Terminal from '$lib/components/icons/Terminal.svelte';
 	import Info from '$lib/components/icons/Info.svelte';
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
@@ -57,7 +59,7 @@
 	const READY_DEADLINE = 10_000;
 	const RESULT_DEADLINE = 30_000;
 	let localNotice = '';
-	let refreshButton: HTMLButtonElement, filesButton: HTMLButtonElement;
+	let refreshButton: HTMLButtonElement, filesButton: HTMLButtonElement | undefined;
 	let previewState = '';
 	let previewError = false;
 	let officeFrame: HTMLIFrameElement | undefined;
@@ -279,21 +281,39 @@
 		previewState = $i18n.t('Office preview {{state}}', { state: stateLabel });
 	}
 
+	function applySelection(file: WorkspaceFile | undefined) {
+		localNotice = '';
+		if (file && selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
+		else {
+			previewState = '';
+			previewError = false;
+		}
+		const saved = file ? controller.selectFile(chatId, file) : controller.clearSelection(chatId);
+		void saved.catch(() => {
+			if (live) localNotice = $i18n.t('Selection could not be saved');
+		});
+	}
 	const selectFile = guardOfficeAction(
 		() => editorChatId,
-		(file: WorkspaceFile) => {
-			localNotice = '';
-			if (selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
-			else {
-				previewState = '';
-				previewError = false;
-			}
-			void controller.selectFile(chatId, file).catch(() => {
-				if (live) localNotice = $i18n.t('Selection could not be saved');
-			});
-		},
+		(file: WorkspaceFile) => applySelection(file),
 		(file) => file.file_id !== editorFileId
 	);
+	// Runs as a guard continuation before Svelte flushes, so it reads the live listing.
+	const closeActiveTab = guardOfficeAction(
+		() => editorChatId,
+		(id: string) => {
+			const files = get(ocuWorkspaces)[chatId]?.files ?? [];
+			const ids = pruneTabs(openTabIds, files);
+			const next = tabAfterClose(ids, id);
+			openTabIds = ids.filter((tab) => tab !== id);
+			applySelection(files.find((file) => file.file_id === next));
+		},
+		(id) => id === editorFileId
+	);
+	function closeTab(id: string) {
+		if (id === selected?.file_id) void closeActiveTab(id);
+		else openTabIds = openTabIds.filter((tab) => tab !== id);
+	}
 
 	const selectView = guardOfficeAction(
 		() => editorChatId,
@@ -333,7 +353,7 @@
 	function dismissNotice() {
 		localNotice = '';
 		controller.clearNotice(chatId);
-		(busy ? filesButton : refreshButton).focus();
+		(busy ? filesButton : refreshButton)?.focus();
 	}
 	function stopEditor() {
 		editor.dispose();
@@ -359,6 +379,23 @@
 	}
 
 	let collapsedFolders = new Set<string>();
+	let openTabIds: string[] = [];
+	let treeHidden = false;
+	let treeWidth = 220;
+	const treeColumnId = `ocu-workspace-tree-${chatId}`;
+	$: openSelectedTab(selected?.file_id);
+	$: pruneListedTabs(workspace?.files);
+	$: if (!openTabIds.length) treeHidden = false;
+	$: fileTabs = openTabIds.flatMap((id) => {
+		const row = fileRows.find((item) => item.kind === 'file' && item.file.file_id === id);
+		return row?.kind === 'file' ? [{ file: row.file, name: row.name }] : [];
+	});
+	function openSelectedTab(id: string | undefined) {
+		if (id) openTabIds = withTab(openTabIds, id);
+	}
+	function pruneListedTabs(files: WorkspaceFile[] | undefined) {
+		if (files) openTabIds = pruneTabs(openTabIds, files);
+	}
 	onMount(() => {
 		if (!enabled || !isSavedChatId(chatId) || chatId === 'default') return;
 		live = true;
@@ -415,48 +452,7 @@
 			{/if}
 		</div>
 	</header>
-	<nav
-		class="flex shrink-0 gap-1 rounded-lg border border-gray-100 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-850"
-		aria-label={$i18n.t('Workspace views')}
-	>
-		<button
-			class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 {workspace?.view ===
-			'files'
-				? 'bg-white font-medium shadow-sm dark:bg-gray-700'
-				: 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'}"
-			type="button"
-			bind:this={filesButton}
-			on:click={() => selectView('files')}
-			aria-pressed={workspace?.view === 'files'}
-			><Folder className="size-4" />{$i18n.t('Files')}</button
-		>
-		{#if workspace?.views.includes('browser')}
-			<button
-				class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-40 {workspace.view ===
-				'browser'
-					? 'bg-white font-medium shadow-sm dark:bg-gray-700'
-					: 'text-gray-500 enabled:hover:bg-gray-100 dark:text-gray-400 dark:enabled:hover:bg-gray-800'}"
-				type="button"
-				on:click={() => selectView('browser')}
-				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
-				aria-pressed={workspace.view === 'browser'}
-				><GlobeAlt className="size-4" />{$i18n.t('Browser')}</button
-			>
-		{/if}
-		{#if workspace?.views.includes('terminal')}
-			<button
-				class="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-40 {workspace.view ===
-				'terminal'
-					? 'bg-white font-medium shadow-sm dark:bg-gray-700'
-					: 'text-gray-500 enabled:hover:bg-gray-100 dark:text-gray-400 dark:enabled:hover:bg-gray-800'}"
-				type="button"
-				on:click={() => selectView('terminal')}
-				disabled={workspace.status !== 'running' || workspace.baseUrl !== '/ocu'}
-				aria-pressed={workspace.view === 'terminal'}
-				><Terminal className="size-4" />{$i18n.t('Terminal')}</button
-			>
-		{/if}
-	</nav>
+	<WorkspaceViewSwitch {workspace} onSelect={selectView} bind:filesButton />
 	{#if notice}<WorkspaceNotice {notice} onDismiss={dismissNotice} />{/if}
 	{#if runtimeUrl}
 		<div
@@ -539,164 +535,193 @@
 				{$i18n.t('No workspace files yet.')}
 			</p>{/if}
 		{#if workspace?.files.length}
-			<WorkspaceFileTree
-				rows={fileRows}
-				selectedFileId={selected?.file_id}
-				listClass={selected ? 'max-h-[40%] shrink-0' : 'flex-1'}
-				onSelect={selectFile}
-				bind:collapsed={collapsedFolders}
-			/>
-			{#if workspace.nextCursor}<button
-					type="button"
-					class="h-8 w-full rounded-lg px-2 text-left text-xs text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/4"
-					on:click={loadMore}
-					disabled={busy}>{$i18n.t('More files')}</button
-				>{/if}
-		{/if}
-		{#if selected && (downloadUrl || selected.unsupported_name)}
-			<div
-				use:officeMaximizeOverlay={editorMaximized}
-				class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible bg-white dark:bg-gray-900"
-				aria-label={$i18n.t('Selected workspace file')}
-			>
-				<WorkspaceSelectedFile
-					{selected}
-					selectedName={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
-					{selectedDirectory}
-					{selectedKind}
-					{SelectedKindIcon}
-					{downloadUrl}
-					{officeEdit}
-					{editorActive}
-					{editorError}
-					onHistory={() => (historyTarget = historyContext)}
-					onEdit={() => openEditor()}
-				/>
-				<OfficeOpenPreflight
-					bind:this={preflight}
-					{chatId}
-					fileId={selected?.file_id}
-					enabled={enabled && live}
-					admitted={fileAdmitted}
-					onOpen={(file) => activateEditor(file, officeEditorSrc('/ocu', chatId))}
-					onRetire={() => (editorFileId = stopEditor())}
-				/>
-				{#if showOfficeStatus}
-					<OfficeEditorStatus
-						session={officeSession}
-						live={editorActive && !editorError}
-						leaving={$officeLeaveSnapshot.holding[chatId]}
-						maximized={editorMaximized}
-						onSave={() => editor.save()}
-						onReopen={() => openEditor(true)}
-						onToggleMaximize={() => (editorMaximized = !editorMaximized)}
-						onHistory={() => (historyTarget = historyContext)}
-						onClose={() => closeOfficeEditor(chatId)}
-					/>
-				{/if}
-				{#if editorActive && showOfficeStatus && officeSession?.sessionId && !$officeLeaveSnapshot.holding[chatId]}
-					{#key `${encodeURIComponent(chatId)}/${encodeURIComponent(editorFileId)}/${officeSession.generation}/${encodeURIComponent(officeSession.sessionId)}`}
-						<OfficeConflictDialog
-							{chatId}
-							fileId={editorFileId}
-							authority={{
-								kind: 'editor',
-								generation: officeSession.generation,
-								sessionId: officeSession.sessionId,
-								admitted: (chat, file, generation) =>
-									fileAdmitted(chat, file) && editor.admits(generation)
-							}}
-						/>
-					{/key}
-				{/if}
-				{#if historyTarget}
-					<OfficeVersionHistory
-						{chatId}
-						fileId={selected.file_id}
-						localEditor={editorActive && !editorError}
-						onClose={() => (historyTarget = '')}
-					/>
-				{/if}
+			<div class="flex min-h-0 flex-1">
 				<div
-					data-selected-preview
-					class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+					id={treeColumnId}
+					class="flex min-h-0 flex-col {openTabIds.length ? 'pr-1' : 'min-w-0 flex-1'}"
+					style:flex={openTabIds.length ? `0 0 ${treeWidth}px` : undefined}
+					style:min-width={openTabIds.length ? '100px' : undefined}
+					style:max-width={openTabIds.length ? 'calc(100% - 200px)' : undefined}
+					hidden={treeHidden && openTabIds.length > 0}
 				>
-					{#if editorActive}
-						{#if editorError}
-							<div
-								class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
-							>
-								<p role="status">{editorError}</p>
-								<button
-									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
-									type="button"
-									on:click={() => preflight?.start(true)}>{$i18n.t('Retry')}</button
-								>
-							</div>
-						{:else}
-							{#key editorKey}<iframe
-									use:officeLeaveFrame={{
-										editor,
-										chat: editorChatId,
-										file: editorFileId,
-										name: selected.name,
-										retire: () => (editorFileId = stopEditor()),
-										translate: (key, values) => $i18n.t(key, values),
-										available: live && !!officeEnabled && editorChatId === chatId,
-										state: officeSession?.state
-									}}
-									title={`${$i18n.t('Office editor')}: ${selected.name}`}
-									src={editorSrc}
-									sandbox={OFFICE_EDITOR_SANDBOX}
-									allow={OFFICE_EDITOR_ALLOW}
-									class="min-h-0 w-full flex-1 border-0"
-								></iframe>{/key}
-						{/if}
-					{:else if generated}
-						<iframe
-							title={selected.name}
-							src={`${selectedUrl}?revision=${selected.revision}`}
-							sandbox="allow-scripts allow-forms"
-							class="min-h-0 w-full flex-1 border-0"
-						></iframe>
-					{:else if office}
-						{#if previewError}
-							<div
-								class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
-							>
-								{#if previewState}<p role="status">{previewState}</p>{/if}
-								<button
-									class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
-									type="button"
-									on:click={startOffice}>{$i18n.t('Retry Office preview')}</button
-								>
-							</div>
-						{:else}
-							{#if previewState}
-								<p
-									class="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
-									role="status"
-								>
-									<Spinner className="size-4" />{previewState}
-								</p>
-							{/if}
-							{#key frameKey}<iframe
-									bind:this={officeFrame}
-									title={`${$i18n.t('Office preview')}: ${selected.name}`}
-									src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
-									sandbox="allow-scripts allow-same-origin allow-forms"
-									class="min-h-0 w-full flex-1 border-0"
-								></iframe>{/key}
-						{/if}
-					{:else}
-						<WorkspaceDownloadFallback
-							file={selected}
-							kind={selectedKind}
-							icon={SelectedKindIcon}
-							href={downloadUrl}
-						/>
-					{/if}
+					<WorkspaceFileTree
+						rows={fileRows}
+						selectedFileId={selected?.file_id}
+						listClass="flex-1"
+						onSelect={selectFile}
+						bind:collapsed={collapsedFolders}
+					/>
+					{#if workspace.nextCursor}<button
+							type="button"
+							class="h-8 w-full shrink-0 rounded-lg px-2 text-left text-xs text-gray-500 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/4"
+							on:click={loadMore}
+							disabled={busy}>{$i18n.t('More files')}</button
+						>{/if}
 				</div>
+				{#if openTabIds.length}
+					{#if !treeHidden}<WorkspaceTreeSplitter bind:width={treeWidth} />{/if}
+					<div class="flex min-w-0 flex-1 flex-col gap-2 {treeHidden ? '' : 'pl-1'}">
+						<WorkspaceFileTabs
+							tabs={fileTabs}
+							activeId={selected?.file_id}
+							{treeHidden}
+							treeId={treeColumnId}
+							onActivate={selectFile}
+							onClose={closeTab}
+							onToggleTree={() => (treeHidden = !treeHidden)}
+						/>
+						{#if selected && (downloadUrl || selected.unsupported_name)}
+							<div
+								use:officeMaximizeOverlay={editorMaximized}
+								class="flex min-h-0 flex-1 flex-col gap-2 overflow-visible bg-white dark:bg-gray-900"
+								aria-label={$i18n.t('Selected workspace file')}
+							>
+								<WorkspaceSelectedFile
+									{selected}
+									selectedName={selectedRow?.kind === 'file' ? selectedRow.name : selected.name}
+									{selectedDirectory}
+									{selectedKind}
+									{SelectedKindIcon}
+									{downloadUrl}
+									{officeEdit}
+									{editorActive}
+									{editorError}
+									onHistory={() => (historyTarget = historyContext)}
+									onEdit={() => openEditor()}
+								/>
+								<OfficeOpenPreflight
+									bind:this={preflight}
+									{chatId}
+									fileId={selected?.file_id}
+									enabled={enabled && live}
+									admitted={fileAdmitted}
+									onOpen={(file) => activateEditor(file, officeEditorSrc('/ocu', chatId))}
+									onRetire={() => (editorFileId = stopEditor())}
+								/>
+								{#if showOfficeStatus}
+									<OfficeEditorStatus
+										session={officeSession}
+										live={editorActive && !editorError}
+										leaving={$officeLeaveSnapshot.holding[chatId]}
+										maximized={editorMaximized}
+										onSave={() => editor.save()}
+										onReopen={() => openEditor(true)}
+										onToggleMaximize={() => (editorMaximized = !editorMaximized)}
+										onHistory={() => (historyTarget = historyContext)}
+										onClose={() => closeOfficeEditor(chatId)}
+									/>
+								{/if}
+								{#if editorActive && showOfficeStatus && officeSession?.sessionId && !$officeLeaveSnapshot.holding[chatId]}
+									{#key `${encodeURIComponent(chatId)}/${encodeURIComponent(editorFileId)}/${officeSession.generation}/${encodeURIComponent(officeSession.sessionId)}`}
+										<OfficeConflictDialog
+											{chatId}
+											fileId={editorFileId}
+											authority={{
+												kind: 'editor',
+												generation: officeSession.generation,
+												sessionId: officeSession.sessionId,
+												admitted: (chat, file, generation) =>
+													fileAdmitted(chat, file) && editor.admits(generation)
+											}}
+										/>
+									{/key}
+								{/if}
+								{#if historyTarget}
+									<OfficeVersionHistory
+										{chatId}
+										fileId={selected.file_id}
+										localEditor={editorActive && !editorError}
+										onClose={() => (historyTarget = '')}
+									/>
+								{/if}
+								<div
+									data-selected-preview
+									class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+								>
+									{#if editorActive}
+										{#if editorError}
+											<div
+												class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+											>
+												<p role="status">{editorError}</p>
+												<button
+													class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+													type="button"
+													on:click={() => preflight?.start(true)}>{$i18n.t('Retry')}</button
+												>
+											</div>
+										{:else}
+											{#key editorKey}<iframe
+													use:officeLeaveFrame={{
+														editor,
+														chat: editorChatId,
+														file: editorFileId,
+														name: selected.name,
+														retire: () => (editorFileId = stopEditor()),
+														translate: (key, values) => $i18n.t(key, values),
+														available: live && !!officeEnabled && editorChatId === chatId,
+														state: officeSession?.state
+													}}
+													title={`${$i18n.t('Office editor')}: ${selected.name}`}
+													src={editorSrc}
+													sandbox={OFFICE_EDITOR_SANDBOX}
+													allow={OFFICE_EDITOR_ALLOW}
+													class="min-h-0 w-full flex-1 border-0"
+												></iframe>{/key}
+										{/if}
+									{:else if generated}
+										<iframe
+											title={selected.name}
+											src={`${selectedUrl}?revision=${selected.revision}`}
+											sandbox="allow-scripts allow-forms"
+											class="min-h-0 w-full flex-1 border-0"
+										></iframe>
+									{:else if office}
+										{#if previewError}
+											<div
+												class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+											>
+												{#if previewState}<p role="status">{previewState}</p>{/if}
+												<button
+													class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+													type="button"
+													on:click={startOffice}>{$i18n.t('Retry Office preview')}</button
+												>
+											</div>
+										{:else}
+											{#if previewState}
+												<p
+													class="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+													role="status"
+												>
+													<Spinner className="size-4" />{previewState}
+												</p>
+											{/if}
+											{#key frameKey}<iframe
+													bind:this={officeFrame}
+													title={`${$i18n.t('Office preview')}: ${selected.name}`}
+													src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
+													sandbox="allow-scripts allow-same-origin allow-forms"
+													class="min-h-0 w-full flex-1 border-0"
+												></iframe>{/key}
+										{/if}
+									{:else}
+										<WorkspaceDownloadFallback
+											file={selected}
+											kind={selectedKind}
+											icon={SelectedKindIcon}
+											href={downloadUrl}
+										/>
+									{/if}
+								</div>
+							</div>
+						{:else if !selected}
+							<p class="px-2 py-3 text-sm text-gray-500 dark:text-gray-400" role="status">
+								{$i18n.t('No file selected')}
+							</p>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	{/if}

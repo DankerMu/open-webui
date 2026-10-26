@@ -50,6 +50,45 @@ describe('Selected workspace file presentation', () => {
 		expect(download().getAttribute('download')).toBe('report.docx');
 	});
 
+	it('hides directory and size below a 280 px bar width and keeps name and actions', async () => {
+		harness.setListing([
+			{
+				...officeDocx,
+				path: 'documents/report.docx',
+				url: '/ocu/files/owner-chat/documents/report.docx'
+			}
+		]);
+		await harness.open();
+		await harness.ready('report.docx');
+		namedButton('report.docx').click();
+		await tick();
+		expect(bar().className).toMatch(/(^|\s)@container(\s|$)/);
+		const directory = [...bar().querySelectorAll('span')].find(
+			(node) => node.textContent === 'documents'
+		)!;
+		for (const node of [directory, bar().querySelector('[data-file-size]')!]) {
+			expect(node.className).toMatch(/(^|\s)hidden(\s|$)/);
+			expect(node.className).toMatch(/@min-\[280px\]:inline/);
+		}
+		const history = namedButton('Version history');
+		expect(bar().contains(history)).toBe(true);
+		expect(history.getAttribute('aria-label')).toBe('Version history');
+		const icon = history.querySelector('svg')!;
+		expect(icon.getAttribute('aria-hidden')).toBe('true');
+		expect(icon.closest('button')).toBe(history);
+		expect(icon.parentElement!.className).toMatch(/@min-\[280px\]:hidden/);
+		const label = [...history.querySelectorAll('span')].find(
+			(node) => node.textContent === 'Version history'
+		)!;
+		expect(label.className).toMatch(/(^|\s)hidden(\s|$)/);
+		expect(label.className).toMatch(/@min-\[280px\]:inline/);
+		const name = bar().querySelector('[data-selected-name]')!;
+		expect(name.className).toMatch(/truncate/);
+		expect(name.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+		expect(editAction()).toBeDefined();
+		expect(download().getAttribute('download')).toBe('report.docx');
+	});
+
 	it('opens fetched version history from the action bar without opening an editor', async () => {
 		const workspaceScenario = harness.scenario;
 		harness.scenario = (url, init) =>
