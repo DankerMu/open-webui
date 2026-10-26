@@ -17,10 +17,12 @@ import {
 	applyWorkspaceListing,
 	beginGeneration,
 	hydrateWorkspacePrefs,
+	ocuWorkspaceEntry,
 	ocuWorkspaces,
 	queueWorkspacePrefs
 } from '$lib/stores/ocu';
 import ChatControls from './ChatControls.svelte';
+import WorkspaceNavButton from './WorkspaceNavButton.svelte';
 import {
 	createWorkspaceReconciliation,
 	WORKSPACE_RECONCILIATION,
@@ -55,6 +57,7 @@ const json = (body: object) =>
 	});
 const i18n = writable({ t: (key: string) => key });
 let component: Record<string, unknown> | undefined;
+let navEntry: Record<string, unknown> | undefined;
 let controller: WorkspaceReconciliation;
 let prior: {
 	chatId: string;
@@ -140,7 +143,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	if (navEntry) await unmount(navEntry);
 	if (component) await unmount(component);
+	navEntry = undefined;
 	const generation = get(ocuWorkspaces)[id]?.generation;
 	if (generation !== undefined) hydrateWorkspacePrefs(id, generation, {});
 	controller.retire();
@@ -162,9 +167,12 @@ afterEach(async () => {
 	document.body.replaceChildren();
 });
 
-function mountControls(workspaceController: WorkspaceReconciliation) {
+function mountControls(
+	workspaceController: WorkspaceReconciliation,
+	props: Record<string, unknown> = {}
+) {
 	return mount(ChatControls, {
-		target: document.body,
+		target: document.body.appendChild(document.createElement('div')),
 		context: new Map<unknown, unknown>([
 			['i18n', i18n],
 			[WORKSPACE_RECONCILIATION, workspaceController]
@@ -178,10 +186,22 @@ function mountControls(workspaceController: WorkspaceReconciliation) {
 			submitPrompt: () => {},
 			stopResponse: () => {},
 			showMessage: () => {},
-			ensureSavedChat: async () => id
+			ensureSavedChat: async () => id,
+			...props
 		}
 	});
 }
+
+function mountNavEntry() {
+	const navbar = document.body.appendChild(document.createElement('nav'));
+	navEntry = mount(WorkspaceNavButton, {
+		target: navbar,
+		context: new Map<unknown, unknown>([['i18n', i18n]])
+	});
+	return () => navbar.querySelector<HTMLButtonElement>('button[aria-label="Workspace Files"]')!;
+}
+
+const controlsRoot = () => document.body.firstElementChild as HTMLElement;
 
 describe('mounted chat workspace policy', () => {
 	it('preserves a hydrated open workspace through initial desktop layout replacement without persisting a close', async () => {
@@ -219,6 +239,7 @@ describe('mounted chat workspace policy', () => {
 
 	it('auto-opens first output, keeps a user-closed panel closed with a change badge, then acknowledges explicit open', async () => {
 		component = mountControls(controller);
+		const entry = mountNavEntry();
 		await tick();
 		const first = beginGeneration(id);
 		applyWorkspaceListing(id, first, [file], 1, null);
@@ -227,6 +248,7 @@ describe('mounted chat workspace policy', () => {
 			expect(document.querySelector('section[aria-label="Workspace Files"]')).not.toBeNull()
 		);
 		expect(document.body.textContent).not.toContain('Workspace changed');
+		expect(entry().getAttribute('aria-pressed')).toBe('true');
 
 		const close = document.querySelector<HTMLButtonElement>('button[aria-label="Close workspace"]');
 		expect(close).not.toBeNull();
@@ -237,19 +259,104 @@ describe('mounted chat workspace policy', () => {
 		await vi.waitFor(() => expect(document.body.textContent).toContain('Workspace changed'));
 		expect(get(showControls)).toBe(false);
 		expect(document.querySelector('section[aria-label="Workspace Files"]')).toBeNull();
+		expect(controlsRoot().querySelector('button[aria-label="Workspace Files"]')).toBeNull();
+		expect(controlsRoot().textContent).not.toContain('Workspace changed');
+		expect(document.querySelectorAll('button[aria-label="Workspace Files"]')).toHaveLength(1);
 
-		const action = document.querySelector<HTMLButtonElement>(
-			'button[aria-label="Workspace Files"]'
-		);
-		expect(action).not.toBeNull();
-		action!.click();
+		const action = entry();
+		expect(action.getAttribute('aria-pressed')).toBe('false');
+		action.click();
 		await vi.waitFor(() => expect(get(showControls)).toBe(true));
 		await vi.waitFor(() => expect(document.body.textContent).not.toContain('Workspace changed'));
+		await vi.waitFor(() => expect(entry().getAttribute('aria-pressed')).toBe('true'));
+		expect(document.querySelector('section[aria-label="Workspace Files"]')).not.toBeNull();
+
+		entry().click();
+		await vi.waitFor(() => expect(get(showControls)).toBe(false));
+		await vi.waitFor(() => expect(entry().getAttribute('aria-pressed')).toBe('false'));
+		expect(document.querySelector('section[aria-label="Workspace Files"]')).toBeNull();
+		expect(get(ocuWorkspaces)[id].open).toBe(false);
+	});
+
+	it('publishes the navbar entry only while the workspace action is available and withdraws it on destroy', async () => {
+		component = mountControls(controller);
+		await tick();
+		expect(get(ocuWorkspaceEntry)).toMatchObject({
+			shown: false,
+			changed: false,
+			waiting: false,
+			disabled: false
+		});
+		temporaryChatEnabled.set(true);
+		await tick();
+		expect(get(ocuWorkspaceEntry)).toBeNull();
+		temporaryChatEnabled.set(false);
+		await tick();
+		expect(get(ocuWorkspaceEntry)).not.toBeNull();
+		await unmount(component);
+		component = undefined;
+		expect(get(ocuWorkspaceEntry)).toBeNull();
+
+		for (const unsaveable of ['default', 'temporary:session', 'local:legacy', 'channel:general']) {
+			component = mountControls(controller, { chatId: unsaveable });
+			await tick();
+			expect(get(ocuWorkspaceEntry)).toBeNull();
+			showControls.set(true);
+			await tick();
+			expect(document.querySelector('button[aria-label="Workspace Files"]')).toBeNull();
+			expect(document.body.textContent).not.toContain('Workspace Files');
+			showControls.set(false);
+			await unmount(component);
+			component = undefined;
+		}
+
+		component = mountControls(controller, { chatId: null });
+		await tick();
+		expect(get(ocuWorkspaceEntry)).not.toBeNull();
+		showControls.set(true);
+		await tick();
+		expect(document.querySelector('button[aria-label="Workspace Files"]')).toBeNull();
+	});
+
+	it('disables the navbar entry while the first send is saving the chat', async () => {
+		const ensureSavedChat = vi.fn(async () => id);
+		component = mountControls(controller, {
+			chatId: null,
+			firstSendPending: true,
+			ensureSavedChat
+		});
+		await tick();
+		expect(get(ocuWorkspaceEntry)).toMatchObject({ waiting: true, disabled: true });
+		get(ocuWorkspaceEntry)!.toggle();
+		await tick();
+		expect(ensureSavedChat).not.toHaveBeenCalled();
+		expect(get(showControls)).toBe(false);
+	});
+
+	it('disables the navbar entry during its own save and keeps the save-failure alert', async () => {
+		const save = Promise.withResolvers<string | null>();
+		const ensureSavedChat = vi.fn(() => save.promise);
+		component = mountControls(controller, { chatId: null, ensureSavedChat });
+		await tick();
+		get(ocuWorkspaceEntry)!.toggle();
+		await tick();
+		expect(get(ocuWorkspaceEntry)).toMatchObject({ waiting: false, disabled: true });
+		get(ocuWorkspaceEntry)!.toggle();
+		expect(ensureSavedChat).toHaveBeenCalledTimes(1);
+		save.resolve(null);
+		await vi.waitFor(() =>
+			expect(document.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+				'Workspace chat could not be saved'
+			)
+		);
+		expect(get(ocuWorkspaceEntry)).toMatchObject({ disabled: false });
+		expect(get(showControls)).toBe(false);
 	});
 
 	it.each([
 		{ large: true, trigger: 'button' },
 		{ large: false, trigger: 'button' },
+		{ large: true, trigger: 'navbar entry' },
 		{ large: true, trigger: 'external controls' },
 		{ large: false, trigger: 'external controls' },
 		{ large: true, trigger: 'external workspace' },
@@ -286,7 +393,10 @@ describe('mounted chat workspace policy', () => {
 				postOfficeState(frame, openMessage.generation, { dirty: true });
 				await tick();
 				if (trigger === 'button') namedButton('Close workspace').click();
-				else if (trigger === 'external controls') showControls.set(false);
+				else if (trigger === 'navbar entry') {
+					expect(get(ocuWorkspaceEntry)?.shown).toBe(true);
+					get(ocuWorkspaceEntry)!.toggle();
+				} else if (trigger === 'external controls') showControls.set(false);
 				else if (trigger === 'external workspace')
 					ocuWorkspaces.update((states) => ({
 						...states,

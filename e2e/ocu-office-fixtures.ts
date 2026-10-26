@@ -21,7 +21,8 @@ export async function workspaceFilesPanel(page: Page) {
 	await expect(page.locator('#chat-pane')).toBeVisible();
 	const panel = page.getByRole('region', { name: 'Workspace Files' });
 	const entry = page.getByRole('button', { name: 'Workspace Files', exact: true });
-	await expect(panel.or(entry)).toBeVisible();
+	// The navbar entry stays visible beside a shown panel, so only the panel decides.
+	await expect(panel.or(entry).first()).toBeVisible();
 	if (await panel.isVisible()) return panel;
 	await entry.click();
 	await expect(panel).toBeVisible();
@@ -280,7 +281,7 @@ export async function restoreOfficeEditor(page: Page, before: OfficeFrameIdentit
 export async function officeLayoutGeometry(page: Page) {
 	return page.evaluate(() => {
 		const selected = document.querySelector('[aria-label="Selected workspace file"]');
-		const panel = document.querySelector('[aria-label="Workspace Files"]');
+		const panel = document.querySelector('section[aria-label="Workspace Files"]');
 		const save = [...document.querySelectorAll('button')].find(
 			(item) => item.getAttribute('aria-label') === 'Save'
 		);

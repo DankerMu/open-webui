@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-	import { onMount, tick, getContext } from 'svelte';
+	import { onDestroy, onMount, tick, getContext } from 'svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import {
@@ -32,7 +32,12 @@
 	import { isSavedChatId } from '$lib/utils/chatId';
 	import WorkspaceArtifact from './WorkspaceArtifact.svelte';
 	import { workspaceFilesEnabled } from '$lib/apis/ocu';
-	import { closeWorkspacePanel, ocuWorkspaces, openWorkspacePanel } from '$lib/stores/ocu';
+	import {
+		closeWorkspacePanel,
+		ocuWorkspaceEntry,
+		ocuWorkspaces,
+		openWorkspacePanel
+	} from '$lib/stores/ocu';
 	import {
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
@@ -312,25 +317,24 @@
 
 	$: if (mounted && !chatId) closeHandler();
 
+	const toggleWorkspace = () => (showWorkspace ? closeWorkspace() : openWorkspace());
+	$: ocuWorkspaceEntry.set(
+		workspaceActionAvailable
+			? {
+					shown: showWorkspace,
+					changed: workspaceChanged,
+					waiting: firstSendPending,
+					disabled: firstSendPending || workspaceActionPending,
+					toggle: toggleWorkspace
+				}
+			: null
+	);
+	onDestroy(() => ocuWorkspaceEntry.set(null));
+
 	// Helper: is a "special" full-screen panel active?
 	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds || showWorkspace;
 </script>
 
-{#if workspaceActionAvailable && (!$showControls || $showArtifacts || $showEmbeds || $showCallOverlay)}
-	<div
-		class="fixed right-3 top-14 z-40 flex items-center gap-2 rounded-lg bg-white p-2 text-sm shadow-md dark:bg-gray-900"
-	>
-		<button
-			type="button"
-			on:click={openWorkspace}
-			disabled={firstSendPending || workspaceActionPending}
-			title={firstSendPending ? $i18n.t('Waiting for chat to save') : $i18n.t('Workspace Files')}
-			aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
-		>
-		{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
-		{#if firstSendPending}<span role="status">{$i18n.t('Waiting for chat to save')}</span>{/if}
-	</div>
-{/if}
 {#if workspaceError}<p
 		class="fixed right-3 top-28 z-40 rounded-lg bg-white p-2 text-sm dark:bg-gray-900"
 		role="alert"
@@ -410,21 +414,6 @@
 									</button>
 								{/if}
 							</div>
-							{#if workspaceActionAvailable}
-								<button
-									type="button"
-									on:click={openWorkspace}
-									disabled={firstSendPending || workspaceActionPending}
-									title={firstSendPending
-										? $i18n.t('Waiting for chat to save')
-										: $i18n.t('Workspace Files')}
-									aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
-								>
-								{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
-								{#if firstSendPending}<span role="status"
-										>{$i18n.t('Waiting for chat to save')}</span
-									>{/if}
-							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
 								on:click={closeWorkspace}
@@ -554,21 +543,6 @@
 									</button>
 								{/if}
 							</div>
-							{#if workspaceActionAvailable}
-								<button
-									type="button"
-									on:click={openWorkspace}
-									disabled={firstSendPending || workspaceActionPending}
-									title={firstSendPending
-										? $i18n.t('Waiting for chat to save')
-										: $i18n.t('Workspace Files')}
-									aria-label={$i18n.t('Workspace Files')}>{$i18n.t('Workspace Files')}</button
-								>
-								{#if workspaceChanged}<span role="status">{$i18n.t('Workspace changed')}</span>{/if}
-								{#if firstSendPending}<span role="status"
-										>{$i18n.t('Waiting for chat to save')}</span
-									>{/if}
-							{/if}
 							<button
 								class="p-1 rounded-lg text-gray-500 dark:text-gray-400"
 								on:click={closeWorkspace}

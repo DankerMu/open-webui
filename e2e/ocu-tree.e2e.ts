@@ -49,9 +49,6 @@ async function openWorkspace(page: Page, chatId = context.chats.nested) {
 	await expect(page.locator('#chat-pane')).toBeVisible();
 	const panel = page.getByRole('region', { name: 'Workspace Files' });
 	if (!(await panel.isVisible())) {
-		if (!(await page.locator('#controls-container').isVisible())) {
-			await page.locator('button[aria-label="Controls"]').click();
-		}
 		await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
 	}
 	await expect(panel).toBeVisible();

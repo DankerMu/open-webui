@@ -558,35 +558,74 @@ test('A-T10 runtime iframe identity, selected Files, native Artifacts, and twent
 	});
 });
 
-test('A-T07 narrow Workspace entry stays reachable with Controls closed and in the mobile drawer', async ({
+async function expectEntryBesideControls(page: Page, width: number) {
+	const entry = await page
+		.getByRole('button', { name: 'Workspace Files', exact: true })
+		.boundingBox();
+	const controls = await page.locator('button[aria-label="Controls"]').boundingBox();
+	expect(entry).not.toBeNull();
+	expect(controls).not.toBeNull();
+	expect(
+		Math.abs(entry!.y + entry!.height / 2 - (controls!.y + controls!.height / 2))
+	).toBeLessThanOrEqual(1);
+	expect(entry!.x).toBeGreaterThanOrEqual(0);
+	expect(entry!.x + entry!.width).toBeLessThanOrEqual(controls!.x);
+	expect(controls!.x + controls!.width).toBeLessThanOrEqual(width);
+	const left = Math.max(0, entry!.x - 320);
+	return { x: left, y: 0, width: width - left, height: controls!.y + controls!.height + 12 };
+}
+
+test('A-T07 navbar Workspace entry aligns with Controls, toggles on desktop and opens from the narrow navbar', async ({
 	page
 }) => {
 	const id = await createScenarioChat(page, 'empty');
+	const action = page.getByRole('button', { name: 'Workspace Files', exact: true });
+	const panel = page.getByRole('region', { name: 'Workspace Files' });
+	const desktop = page.viewportSize()!.width;
+	for (const theme of ['light', 'dark']) {
+		await page.evaluate((value) => localStorage.setItem('theme', value), theme);
+		await page.goto(`/c/${id}`);
+		await expect(page.locator('#chat-input')).toBeVisible();
+		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+		await expect(action).toHaveAttribute('aria-pressed', 'false');
+		await expect(panel).toHaveCount(0);
+		const closed = await expectEntryBesideControls(page, desktop);
+		await page.screenshot({
+			path: `${evidence}/workspace-nav-entry-closed-${theme}.png`,
+			clip: closed,
+			animations: 'disabled'
+		});
+		await action.click();
+		await expect(panel).toBeVisible();
+		await expect(action).toHaveAttribute('aria-pressed', 'true');
+		const open = await expectEntryBesideControls(page, desktop);
+		await page.screenshot({
+			path: `${evidence}/workspace-nav-entry-open-${theme}.png`,
+			clip: open,
+			animations: 'disabled'
+		});
+		await action.click();
+		await expect(panel).toHaveCount(0);
+		await expect(action).toHaveAttribute('aria-pressed', 'false');
+	}
+
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto(`/c/${id}`);
 	await expect(page.locator('#chat-input')).toBeVisible();
-	const action = page.getByRole('button', { name: 'Workspace Files', exact: true });
-	const controls = page.locator('button[aria-label="Controls"]');
 	await expect(action).toBeVisible();
-	const chip = await action.boundingBox();
-	const trigger = await controls.boundingBox();
-	expect(chip).not.toBeNull();
-	expect(chip!.x).toBeGreaterThanOrEqual(0);
-	expect(chip!.x + chip!.width).toBeLessThanOrEqual(390);
-	expect(trigger).not.toBeNull();
-	expect(
-		chip!.x >= trigger!.x + trigger!.width ||
-			trigger!.x >= chip!.x + chip!.width ||
-			chip!.y >= trigger!.y + trigger!.height ||
-			trigger!.y >= chip!.y + chip!.height
-	).toBe(true);
-	await page.screenshot({ path: `${evidence}/workspace-narrow-closed.png`, fullPage: true });
-	await controls.click();
-	await expect(action).toBeVisible();
+	await expectEntryBesideControls(page, 390);
+	await page.screenshot({ path: `${evidence}/workspace-nav-entry-390.png`, fullPage: true });
+	await page.locator('button[aria-label="Controls"]').click();
+	const drawer = page.locator('.modal');
+	await expect(drawer).toBeVisible();
+	await drawer.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(drawer).toHaveCount(0);
 	await action.click();
-	const panel = page.getByRole('region', { name: 'Workspace Files' });
 	await expect(panel).toBeVisible();
-	await page.screenshot({ path: `${evidence}/workspace-narrow-open.png`, fullPage: true });
+	await page.screenshot({ path: `${evidence}/workspace-nav-entry-390-open.png`, fullPage: true });
+	await panel.getByRole('button', { name: 'Close workspace' }).click();
+	await expect(panel).toHaveCount(0);
+	await expect(action).toBeVisible();
 });
 
 test('A-T01 positive control confirms credentials are observable on owner documents', async ({
