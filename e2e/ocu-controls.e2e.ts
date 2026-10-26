@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import { openAuthenticatedPage, test } from './ocu-auth';
 import { context, createScenarioChat, evidence, records, setScenario } from './ocu-fixtures';
+import { expectHeaderRow, measureHeaderThreshold, visibleLabels } from './ocu-workspace-header';
 
 const completionModelTests = new Set([
 	'A-T07 Send-first holds Workspace disabled until an authenticated server id arrives',
@@ -657,6 +658,7 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 		await describing;
 		await route.continue();
 	});
+	const desktop = page.viewportSize()!;
 	const panel = await openWorkspace(page, id);
 	try {
 		await expect(panel.getByRole('status')).toHaveText('Loading workspace files');
@@ -673,6 +675,12 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
 		await panel.screenshot({
 			path: `${evidence}/workspace-files-${theme}.png`,
+			animations: 'disabled'
+		});
+		await expectHeaderRow(panel, 350);
+		expect(await visibleLabels(panel)).toEqual(['Files']);
+		await panel.locator('header').screenshot({
+			path: `${evidence}/workspace-header-350-${theme}.png`,
 			animations: 'disabled'
 		});
 	}
@@ -707,6 +715,8 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 		await panel.getByRole('button', { name: view, exact: true }).click();
 		const frame = panel.locator(`iframe[title="Workspace ${view}"]`);
 		await expect(frame).toBeVisible();
+		await expect.poll(() => visibleLabels(panel)).toEqual([view]);
+		await expectHeaderRow(panel, 350);
 		const geometry = await frame.evaluate((node) => {
 			const frame = node.getBoundingClientRect();
 			const container = node.parentElement!;
@@ -731,4 +741,33 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 		expect(geometry.overflow).toBe(false);
 		await panel.screenshot({ path: `${evidence}/workspace-chrome-${view.toLowerCase()}.png` });
 	}
+
+	await page.evaluate(() => localStorage.setItem('chatControlsSize', '600'));
+	for (const theme of ['light', 'dark']) {
+		await page.evaluate((value) => localStorage.setItem('theme', value), theme);
+		await page.reload();
+		await expect(page.locator('html')).toHaveClass(new RegExp(theme));
+		await panel.getByRole('button', { name: 'Terminal', exact: true }).click();
+		await expect(panel.locator('iframe[title="Workspace Terminal"]')).toBeVisible();
+		await expect.poll(() => visibleLabels(panel)).toEqual(['Files', 'Browser', 'Terminal']);
+		await expectHeaderRow(panel, 600);
+		await panel.locator('header').screenshot({
+			path: `${evidence}/workspace-header-600-${theme}.png`,
+			animations: 'disabled'
+		});
+	}
+	await measureHeaderThreshold(panel, `${evidence}/workspace-header-threshold.json`);
+
+	await page.evaluate(() => localStorage.removeItem('chatControlsSize'));
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openWorkspace(page, id);
+	await expectHeaderRow(panel, 390);
+	await page.screenshot({ path: `${evidence}/workspace-header-390.png`, fullPage: true });
+
+	await page.setViewportSize(desktop);
+	await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
+	await openWorkspace(page, id);
+	await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+	await expectHeaderRow(panel, 350);
+	await panel.locator('header').screenshot({ path: `${evidence}/workspace-header-350-zh-CN.png` });
 });
