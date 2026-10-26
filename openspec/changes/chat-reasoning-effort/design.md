@@ -35,9 +35,9 @@ Helpers (each returns the same reference when nothing changes):
 - `isEmpty(params)` — `reasoning_effort` null/missing/empty and no disabled switch.
 - `withChoice(params, choice)` — `'off'` → `{ ...params, reasoning_effort: null, thinking: { type: 'disabled' } }`; a level → `{ ...params, reasoning_effort: level, thinking: null }`; same reference if already in that exact shape. `null`, not deletion, so a value inherited from `$settings.params` is cancelled.
 - `withoutChoice(params)` — deletes both keys (so `$settings.params` applies again, as before this change); same reference if neither is present.
-- `reconciledParams(params, current, previous)` with `current`/`previous` = `{ chatId, vocabulary }` (`previous` undefined on the first run). Rules, in order:
+- `reconciledParams(params, current, previous)` with `current`/`previous` = `{ params, vocabulary }` (`previous` undefined on the first run). Rules, in order:
   1. `current.vocabulary === undefined` (no model) → `params`.
-  2. `previous` undefined or `previous.chatId !== current.chatId` (first run, chat load, chat switch) → family vocabulary and `isEmpty(params)` → `withChoice(params, default)`; otherwise `params`.
+  2. `previous` undefined or the params object was replaced from outside (`current.params !== previous.params` and not the object this selector last wrote) — first run, chat load, chat switch. Keyed on params identity, not `chatId`: on `loadChat` the chat id is set before the awaited fetch (`Chat.svelte:2290`) and models and params after it (`:2333`, `:2369`); on `initNewChat` `params = {}` (`:2181`) follows `chatId.set('')` (`:2172`); params always arrive last → family vocabulary and `isEmpty(params)` → `withChoice(params, default)`; otherwise `params`.
   3. Same chat, `current.vocabulary !== previous.vocabulary` (a model switch that changes vocabulary):
      - to `null` (several models) → `withoutChoice(params)`;
      - to `GENERIC` → `withoutChoice(params)` (a carried value was chosen for another vocabulary);
@@ -48,19 +48,19 @@ Rejected: a stateless resolver (cannot tell a carried family default from a user
 
 ### D2. Store binding (`src/lib/stores/chat-effort.ts`)
 
-`chatEffortParams: Writable<{ chatId: string | null; params: Record<string, unknown>; setParams: (next: Record<string, unknown>) => void } | null>` (initial `null`). `ChatControls.svelte` publishes `{ chatId, params, setParams: (next) => (params = next) }` while not embedded (`chatId` is its existing prop, `ChatControls.svelte:61`) reactively and sets `null` in `onDestroy`; the assignment flows back to `Chat.svelte` through the existing `bind:params`, so the existing save and send paths carry it. No other writer.
+`chatEffortParams: Writable<{ modelIds: string[]; params: Record<string, unknown>; setParams: (next: Record<string, unknown>) => void } | null>` (initial `null`). `ChatControls.svelte` publishes `{ modelIds, params, setParams: (next) => (params = next) }` while not embedded, `modelIds` from its existing `models` prop, so params and models always come from one snapshot (a separate `selectedModels` prop could pair the previous chat's params with the next chat's models and write them back through `bind:params`) reactively and sets `null` in `onDestroy`; the assignment flows back to `Chat.svelte` through the existing `bind:params`, so the existing save and send paths carry it. No other writer.
 
 ### D3. `ReasoningEffortSelector.svelte`
 
-Props: `selectedModels: string[]`. Reads `$chatEffortParams`; does nothing and renders nothing when the store is `null`.
+No props. Reads `$chatEffortParams` (models and params from the same publication); does nothing and renders nothing when the store is `null`.
 
-- Reconciliation: the selector keeps `previous = { chatId, vocabulary }` (updated after each run unless the vocabulary is `undefined`); reactively, `next = reconciledParams(params, current, previous)`; when `next !== params`, call `setParams(next)`. One round settles because every rule returns the same reference once applied.
+- Reconciliation: the selector keeps `previous = { params, vocabulary }` (updated after each run unless the vocabulary is `undefined`); reactively, `next = reconciledParams(params, current, previous)`; when `next !== params`, call `setParams(next)`. One round settles because every rule returns the same reference once applied.
 - Renders only when `effortVocabulary(selectedModels)` is a vocabulary (exactly one model).
 - UI: the existing `Dropdown` pattern used by the composer menus (`MessageInput/IntegrationsMenu.svelte`). Trigger button `shrink-0`: `LightBulb` icon (decorative) plus the current label, same text size and colours as the model trigger (`text-[0.8125rem] text-gray-600 … dark:text-gray-300`), accessible name `Thinking strength: <label>`; the label is `Default` when no choice is set (generic models before a pick, or free text); below `sm` only the icon shows (accessible name unchanged). Menu: one `menuitemradio` per level in vocabulary order with `aria-checked` and a check icon, labels `Off`, `Low`, `Medium`, `High`, `XHigh`, `Max` via `$i18n.t`. Choosing calls `setParams(withChoice(params, choice))` and closes the menu. There is no menu item for Default; Controls → Reasoning Effort → Default still clears the field, after which a family model gets its default again and a generic model shows Default.
 
 ### D4. Placement
 
-`ModelSelector.svelte`: render `<ReasoningEffortSelector {selectedModels} />` right after the `Selector` in the same row (the row becomes `flex items-center gap-1`; the model trigger stays `min-w-0` and truncates, the effort trigger is `shrink-0`). `MessageInput.svelte`: only the class string of the existing wrapper line `:2523` may change (wider `max-w-*`, still truncating the model name) — no added lines; nothing else in the file.
+`ModelSelector.svelte`: render `<ReasoningEffortSelector />` right after the `Selector` in the same row (the row becomes `flex items-center gap-1`; the model trigger stays `min-w-0` and truncates, the effort trigger is `shrink-0`). `MessageInput.svelte`: only the class string of the existing wrapper line `:2523` may change (wider `max-w-*`, still truncating the model name) — no added lines; nothing else in the file.
 
 ## Risks / Trade-offs
 
