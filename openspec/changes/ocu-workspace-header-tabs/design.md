@@ -2,13 +2,13 @@
 
 `WorkspaceArtifact.svelte` (728 lines) renders `<section aria-label="Workspace Files" class="flex h-full min-h-0 flex-col gap-2 p-3">`. Inside it, in order:
 
-- `<header>` (`:414-450`): `h2` title, a count `span` (`fileCount`, `workspace.nextCursor`), and on the right Refresh (`bind:this={refreshButton}`) and Close (`onClose`), `size-8` icon buttons with tooltips;
-- `<WorkspaceViewSwitch {workspace} onSelect={selectView} bind:filesButton />` (`:451`);
+- `<header>` (`:414-454`): `h2` title, a count `span` (`fileCount`, `workspace.nextCursor`), and on the right Refresh (`bind:this={refreshButton}`) and Close (`onClose`), `size-8` icon buttons with tooltips;
+- `<WorkspaceViewSwitch {workspace} onSelect={selectView} bind:filesButton />` (`:455`);
 - notice, runtime frame or Files area.
 
 `WorkspaceViewSwitch.svelte` renders `nav aria-label="Workspace views"` with an `inline-flex` segmented container. Its buttons are `h-8 px-3`, each with an icon and a label.
 
-The outer panel's minimum width is 350 px (`ChatControls` resizable panel). The section has `p-3`, which leaves about 326 px.
+The outer panel's default width equals its minimum, 350 px: `controlsWidth = 350` (`ChatControls.svelte:81`), `minWidth={350}` (`:468`), and `ResizableSidePanel.svelte:109-111` reads an absent stored size as `Number(null) = 0`, clamped to 350. The section has `p-3`, so about 326 px remain. With Refresh and Close (2 × 32 px plus gaps), about 250 px are left for the switch, while three labelled segments need about 293 px in English and 264 px in zh-CN (estimates, measure in the browser). So every first-time user sees the narrow state.
 
 ## Decisions
 
@@ -21,16 +21,15 @@ The `<header>` keeps its classes (`flex shrink-0 items-center justify-between ga
 
 The `h2` and the count `span` are deleted, and the separate `<WorkspaceViewSwitch>` line below the header is removed. `fileCount` is deleted if nothing else uses it (check `:96`).
 
-### D2. Icon-only segments when narrow
+### D2. Narrow state: the active segment keeps its label
 
-`WorkspaceViewSwitch`:
-
-- the `nav` gets `@container` (container queries are already used, e.g. `WorkspaceSelectedFile.svelte`) and `min-w-0`;
-- each label is wrapped in `<span class="hidden @min-[230px]:inline">` (the threshold is tuned so the three labelled segments fit; record the measured value);
-- below the threshold, each button shows only its decorative icon and keeps its accessible name through `aria-label` equal to the label (`Files`, `Browser`, `Terminal`);
-- each button is wrapped in the existing `Tooltip` with the label as content, so mouse users see it when only the icon shows.
-
-The pressed, disabled and absent logic is unchanged.
+- The header's left slot is a size container: `<div class="@container min-w-0 flex-1">` wraps `<WorkspaceViewSwitch …/>`. Put it in `WorkspaceArtifact` or as the outer element of `WorkspaceViewSwitch`. The `nav` itself stays `inline-flex shrink-0 self-start`, because an `inline-size` container cannot be content-sized.
+- Each segment label is a span:
+  - the active segment's label is always visible;
+  - an inactive segment's label uses `hidden @min-[Npx]:inline`. N is the larger of the measured English and zh-CN widths of the three labelled segments, with the active one in `font-medium`. Record the measured N in the design and the decision record.
+- Each button has `aria-label` equal to its label (`Files`, `Browser`, `Terminal`). It is wrapped in the existing `Tooltip` with the label as content. The tooltip is redundant when the label is visible; that is accepted.
+- Pressed, disabled and absent logic is unchanged.
+- The `filesButton` binding stays on the button.
 
 Rejected:
 
@@ -39,9 +38,15 @@ Rejected:
 
 ### D3. Tests and specs that referenced the removed parts
 
-- Vitest cases that assert the count text (`3 files`, `100+ files`) are rewritten to assert its absence, plus `More files` presence for the paged case.
-- Cases that rely on the switch being a separate row (DOM order) are rewritten to find it inside the header.
-- Browser specs keep working by name.
+- `WorkspaceArtifact.chrome.test.ts:77-97`: the count cases are rewritten. For all three rows, assert:
+  - no text matching `/\d+\+? files/`;
+  - no `h2`;
+  - the `Workspace views` nav is a descendant of the header.
+
+  For the paged case, also assert that `More files` is present. The `[0, null, null]` row's `header.querySelector('span')` null check (`:94`) is replaced, because the switch's label spans now live in the header.
+
+- The spec scenario "Both application themes render intentional chrome" (requirement "Workspace state blocks preserve actions and isolation") drops "title, count" (MODIFIED in the delta).
+- `npm run i18n:parse` removes `{{count}}+ files`, which no longer has a user (`keepRemoved: false`). `{{count}} files` stays because Knowledge uses it, and `Workspace Files` stays because the section and the navbar use it. The i18n diff must contain only that removal.
 
 ## Risks / Trade-offs
 
@@ -52,17 +57,18 @@ Rejected:
 
 a. `WorkspaceViewSwitch.test.ts`:
 
-- labels are inside the hidden-below-threshold span (class presence);
-- each button keeps its accessible name, pressed and disabled states, and absence;
-- each button has a tooltip.
-  b. `WorkspaceArtifact.test.ts`:
-- the header contains the `Workspace views` nav plus Refresh and Close;
-- no `Workspace Files` heading and no file-count text, with three files and with a next page;
-- `More files` is present with a next page;
-- `section[aria-label="Workspace Files"]` is present;
-- notice dismissal still focuses `Files` while busy.
-  c. Browser (`e2e/ocu-controls.e2e.ts` or `ocu-workspace.e2e.ts`):
-- the switch and the Refresh button share one row (vertical centres within 2 px);
-- at a 350 px panel the header does not overflow horizontally and the segments are icon-only;
-- at the default width the labels are visible;
-- screenshots light/dark at the default and minimum width, and at a 390 px viewport.
+- an inactive label carries the container-gated class and the active label does not;
+- after the view changes, the classes follow the active segment;
+- names, pressed state, disabled state and absence are unchanged;
+- each button sits inside a Tooltip wrapper (`button.parentElement._tippy` defined).
+  b. `WorkspaceArtifact.chrome.test.ts` per D3; notice dismissal still focuses `Files` while busy.
+  c. Browser: extend `e2e/ocu-controls.e2e.ts:650` ("workspace chrome fits Files themes…") and reuse the 390 px pattern at `:612`.
+- Default context (350 px, no `chatControlsSize`):
+  - the switch and Refresh share one row (vertical centres within 2 px);
+  - the Files label is visible, the Browser and Terminal labels are not;
+  - every button box lies inside the nav box;
+  - header `scrollWidth <= clientWidth + 1`.
+- After selecting Terminal, only the Terminal label is visible.
+- With `localStorage.chatControlsSize = 600` set before load, all labels are visible.
+- Screenshots: light and dark at 350 px and at 600 px, plus a 390 px viewport.
+- Measure N in English. zh-CN is covered by the width estimate plus one screenshot under zh-CN if the harness supports switching locale; otherwise state it as unverified.

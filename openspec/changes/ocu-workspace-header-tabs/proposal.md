@@ -2,7 +2,7 @@
 
 (#649). Owner feedback on 2026-10-26 during VPS acceptance: the `Workspace Files  N files` title row in the workspace sidebar adds nothing. The Files / Browser / Terminal tabs should move into that row.
 
-Today (`main` `93d51f86a`) `src/lib/components/chat/WorkspaceArtifact.svelte:413-450` renders two rows:
+Today (`main` `93d51f86a`) `src/lib/components/chat/WorkspaceArtifact.svelte:414-455` renders two rows:
 
 - a header with `h2` `Workspace Files`, a muted loaded-file count, Refresh and Close, and a bottom hairline;
 - below it, `WorkspaceViewSwitch` (segmented Files / Browser / Terminal, content-sized since #643).
@@ -15,8 +15,8 @@ In this repo (WebUI fork):
 
 - The header becomes one row: `WorkspaceViewSwitch` on the left, Refresh and Close on the right, bottom hairline kept. The separate switch row and the visible `h2` title go away. The panel keeps `section aria-label="Workspace Files"`.
 - The loaded-file count goes away. The Files view already shows pagination through the `More files` button (`WorkspaceArtifact.svelte:554`), so the `+` signal is preserved there.
-- `WorkspaceViewSwitch` becomes a size container. When the header is too narrow for icon plus label (the 350 px minimum panel holds three segments and two 32 px buttons), segments show the icon only. Their accessible names stay, and a tooltip shows the label.
-- Spec `ocu-workspace-controls`: MODIFIED "Theme-aware workspace panel chrome".
+- The header's left slot becomes a size container. The panel's default width is its 350 px minimum, which leaves about 250 px for the switch, too little for three labels. When the labels do not fit, the active segment keeps its label and the other two show their icon only. Their accessible names stay, and a tooltip shows the label.
+- Spec `ocu-workspace-controls`: MODIFIED "Theme-aware workspace panel chrome" and "Workspace state blocks preserve actions and isolation" (theme scenario drops title and count).
 
 Must preserve:
 
@@ -31,7 +31,7 @@ Out of scope: zh-CN translation gaps (`Browser` untranslated), the navbar entry,
 
 ### Modified Capabilities
 
-- `ocu-workspace-controls`: MODIFIED "Theme-aware workspace panel chrome".
+- `ocu-workspace-controls`: MODIFIED "Theme-aware workspace panel chrome", "Workspace state blocks preserve actions and isolation".
 
 ## Impact
 
