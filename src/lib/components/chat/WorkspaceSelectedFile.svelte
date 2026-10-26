@@ -6,6 +6,7 @@
 	import { formatFileSize } from '$lib/utils';
 	import type Document from '$lib/components/icons/Document.svelte';
 	import Pencil from '$lib/components/icons/Pencil.svelte';
+	import ClockRotateRight from '$lib/components/icons/ClockRotateRight.svelte';
 	import Download from '$lib/components/icons/Download.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -49,11 +50,17 @@
 	>
 	<div class="ml-auto flex shrink-0 items-center gap-1">
 		{#if officeEdit && (!editorActive || editorError)}
-			<button
-				type="button"
-				class="h-7 rounded-md border border-gray-200 px-2 text-xs hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-				on:click={onHistory}>{$i18n.t('Version history')}</button
-			>
+			<!-- Icon-only below the 280 px bar width, so a 200 px column keeps the name visible. -->
+			<Tooltip content={$i18n.t('Version history')} className="flex">
+				<button
+					type="button"
+					class="flex h-7 items-center rounded-md border border-gray-200 px-1.5 text-xs hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 @min-[280px]:px-2 dark:border-gray-700 dark:hover:bg-gray-800"
+					aria-label={$i18n.t('Version history')}
+					on:click={onHistory}
+					><span class="flex @min-[280px]:hidden"><ClockRotateRight className="size-4" /></span
+					><span class="hidden @min-[280px]:inline">{$i18n.t('Version history')}</span></button
+				>
+			</Tooltip>
 		{/if}
 		{#if officeEdit}
 			<Tooltip content={$i18n.t('Edit')} className="flex">

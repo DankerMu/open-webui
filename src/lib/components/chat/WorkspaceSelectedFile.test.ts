@@ -70,6 +70,18 @@ describe('Selected workspace file presentation', () => {
 			expect(node.className).toMatch(/(^|\s)hidden(\s|$)/);
 			expect(node.className).toMatch(/@min-\[280px\]:inline/);
 		}
+		const history = namedButton('Version history');
+		expect(bar().contains(history)).toBe(true);
+		expect(history.getAttribute('aria-label')).toBe('Version history');
+		const icon = history.querySelector('svg')!;
+		expect(icon.getAttribute('aria-hidden')).toBe('true');
+		expect(icon.closest('button')).toBe(history);
+		expect(icon.parentElement!.className).toMatch(/@min-\[280px\]:hidden/);
+		const label = [...history.querySelectorAll('span')].find(
+			(node) => node.textContent === 'Version history'
+		)!;
+		expect(label.className).toMatch(/(^|\s)hidden(\s|$)/);
+		expect(label.className).toMatch(/@min-\[280px\]:inline/);
 		const name = bar().querySelector('[data-selected-name]')!;
 		expect(name.className).toMatch(/truncate/);
 		expect(name.className).not.toMatch(/(^|\s)hidden(\s|$)/);

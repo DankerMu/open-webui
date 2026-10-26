@@ -59,7 +59,8 @@
 			on:click={onToggleTree}><Sidebar className="size-4" /></button
 		>
 	</Tooltip>
-	<!-- The tablist holds only tabs (display: contents); `order` interleaves each close slot after its tab. -->
+	<!-- The tablist holds only tabs (display: contents); `order` interleaves each close slot after its tab.
+	     Only the active close is in the Tab sequence, so focus goes tablist, then close the current tab. -->
 	<div class="flex min-w-0 flex-1 items-stretch overflow-x-auto">
 		<div class="contents" role="tablist" aria-label={$i18n.t('Open files')}>
 			{#each tabs as tab, index (tab.file.file_id)}
@@ -98,10 +99,11 @@
 			>
 				<button
 					type="button"
-					class="flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-700 {active ||
+					class="flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400 dark:text-gray-400 dark:hover:bg-gray-700 {active ||
 					hovered === tab.file.file_id
 						? 'opacity-100'
-						: 'opacity-0 group-hover:opacity-100'}"
+						: 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100'}"
+					tabindex={active ? 0 : -1}
 					aria-label={$i18n.t('Close tab')}
 					aria-describedby={`${prefix}-${index}`}
 					on:click={() => onClose(tab.file.file_id)}><XMark className="size-3" /></button

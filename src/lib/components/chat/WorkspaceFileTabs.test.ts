@@ -132,6 +132,35 @@ describe('workspace file tabs', () => {
 		expect(onActivate).not.toHaveBeenCalled();
 	});
 
+	it('lets only a visible close control take pointer input and only the active one take Tab focus', async () => {
+		render('page');
+		const [hidden, active, last] = closeButtons();
+		const touch = ['[@media(hover:none)]:opacity-100', '[@media(hover:none)]:pointer-events-auto'];
+		for (const button of [hidden, last]) {
+			expect(button.className).toMatch(/(^|\s)pointer-events-none(\s|$)/);
+			expect(button.className).toMatch(/group-hover:pointer-events-auto/);
+			expect(button.className).toMatch(/focus-visible:pointer-events-auto/);
+			for (const name of touch) expect(button.className.split(/\s+/)).toContain(name);
+		}
+		expect(active.className).not.toMatch(/pointer-events-none/);
+		expect(closeButtons().map((node) => node.getAttribute('tabindex'))).toEqual(['-1', '0', '-1']);
+		// Svelte attaches pointer listeners in a microtask after mount.
+		await tick();
+		tab('summary.docx').dispatchEvent(new Event('pointerenter'));
+		await tick();
+		expect(hidden.className).toMatch(/(^|\s)opacity-100(\s|$)/);
+		expect(hidden.className).not.toMatch(/pointer-events-none/);
+		expect(hidden.getAttribute('tabindex')).toBe('-1');
+		tab('summary.docx').dispatchEvent(new Event('pointerleave'));
+		await tick();
+		expect(hidden.className).toMatch(/(^|\s)pointer-events-none(\s|$)/);
+	});
+
+	it('keeps every close control out of the Tab sequence while no tab is active', () => {
+		render(undefined);
+		expect(closeButtons().map((node) => node.getAttribute('tabindex'))).toEqual(['-1', '-1', '-1']);
+	});
+
 	it('does not close a tab from the keyboard Delete key', () => {
 		const { onClose } = render('page');
 		key(tab('page.html'), 'Delete');

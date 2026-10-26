@@ -151,7 +151,9 @@ describe('opened files beside the tree', () => {
 		expect(separator()).not.toBeNull();
 		expect(tabNames()).toEqual(['first.html']);
 		expect(selectedRegion()?.textContent).toContain('first.html');
-		expect(separator()?.getAttribute('aria-valuenow')).toBe('220');
+		// jsdom gives the row no width: the separator reports the 100 px bound, the column keeps 220 px.
+		expect(separator()?.getAttribute('aria-valuemax')).toBe('100');
+		expect(separator()?.getAttribute('aria-valuenow')).toBe('100');
 		expect(treeColumn().style.flex).toBe('0 0 220px');
 		expect(treeColumn().style.maxWidth).toBe('calc(100% - 200px)');
 		expect(treeColumn().style.minWidth).toBe('100px');

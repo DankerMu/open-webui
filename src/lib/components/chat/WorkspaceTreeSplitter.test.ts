@@ -49,6 +49,7 @@ describe('workspace tree splitter', () => {
 		expect(separator.getAttribute('aria-orientation')).toBe('vertical');
 		expect(separator.getAttribute('aria-valuemin')).toBe('100');
 		expect(separator.getAttribute('aria-valuenow')).toBe('220');
+		expect(separator.getAttribute('aria-valuemax')).toBe('400');
 		expect(separator.getAttribute('tabindex')).toBe('0');
 		expect(separator.className).toMatch(/(^|\s)w-0(\s|$)/);
 	});
@@ -66,6 +67,28 @@ describe('workspace tree splitter', () => {
 		expect(state.width).toBe(100);
 		key(separator, 'Enter');
 		expect(state.width).toBe(100);
+	});
+
+	it('reports the row bound as the maximum and the width it actually allows as the value', () => {
+		const { separator } = render(366);
+		expect(separator.getAttribute('aria-valuemax')).toBe('166');
+		expect(separator.getAttribute('aria-valuenow')).toBe('166');
+		const row = separator.parentElement!;
+		Object.defineProperty(row, 'clientWidth', { configurable: true, value: 500 });
+		separator.dispatchEvent(new FocusEvent('focus'));
+		flushSync();
+		expect(separator.getAttribute('aria-valuemax')).toBe('300');
+		expect(separator.getAttribute('aria-valuenow')).toBe('220');
+		Object.defineProperty(row, 'clientWidth', { configurable: true, value: 250 });
+		key(separator, 'ArrowRight');
+		flushSync();
+		expect(separator.getAttribute('aria-valuemax')).toBe('100');
+		expect(separator.getAttribute('aria-valuenow')).toBe('100');
+		Object.defineProperty(row, 'clientWidth', { configurable: true, value: 600 });
+		pointer(separator, 'pointerdown', 0);
+		flushSync();
+		expect(separator.getAttribute('aria-valuemax')).toBe('400');
+		expect(separator.getAttribute('aria-valuenow')).toBe('100');
 	});
 
 	it('starts keyboard steps from the width the row bounds actually allow', () => {

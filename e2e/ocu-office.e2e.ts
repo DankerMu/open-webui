@@ -385,6 +385,34 @@ test('Office maximize keeps the same live editor document and usable overlay Sav
 	}
 });
 
+test('Office selected bar fits a 390 px viewport before the editor opens', async ({ page }) => {
+	const observed = collectDiagnostics(page);
+	await page.setViewportSize({ width: 390, height: 844 });
+	try {
+		await openAuthenticatedPage(page);
+		const chatId = await createScenarioChat(page, 'office');
+		const panel = await openWorkspacePanel(page, chatId);
+		await listedReport(page, panel, chatId);
+		const bar = panel.locator('[data-selected-bar]');
+		await expect(bar.getByRole('button', { name: 'Version history', exact: true })).toBeVisible();
+		await expect(panel.locator('iframe[title="Office editor: report.docx"]')).toHaveCount(0);
+		const fit = await bar.evaluate((node) => {
+			const box = node.getBoundingClientRect();
+			const name = node.querySelector('[data-selected-name]')!.getBoundingClientRect();
+			const inside = name.left >= box.left && name.right <= box.right;
+			return { width: box.width, overflow: node.scrollWidth > node.clientWidth + 1, name, inside };
+		});
+		expect(fit.width).toBeLessThan(280);
+		expect(fit.overflow).toBe(false);
+		expect(fit.name.width).toBeGreaterThanOrEqual(40);
+		expect(fit.inside).toBe(true);
+		await page.screenshot({ path: `${evidence}/office-selected-bar-390.png` });
+		expect(observed.diagnostics).toEqual([]);
+	} finally {
+		observed.dispose();
+	}
+});
+
 test('Office maximize overlay remains reachable in the narrow Drawer layout', async ({ page }) => {
 	const recordOffset = fs.statSync(context.record).size;
 	const observed = collectDiagnostics(page);
