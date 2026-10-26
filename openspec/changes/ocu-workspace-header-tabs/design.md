@@ -16,17 +16,17 @@ The outer panel's default width equals its minimum, 350 px: `controlsWidth = 350
 
 The `<header>` keeps its classes (`flex shrink-0 items-center justify-between gap-2 border-b … pb-2`) and holds:
 
-- `<WorkspaceViewSwitch …/>` as its first child, `min-w-0`;
+- the left-slot wrapper (D2) as its first child;
 - the existing right-hand button group unchanged.
 
 The `h2` and the count `span` are deleted, and the separate `<WorkspaceViewSwitch>` line below the header is removed. `fileCount` is deleted if nothing else uses it (check `:96`).
 
 ### D2. Narrow state: the active segment keeps its label
 
-- The header's left slot is a size container: `<div class="@container min-w-0 flex-1">` wraps `<WorkspaceViewSwitch …/>`. Put it in `WorkspaceArtifact` or as the outer element of `WorkspaceViewSwitch`. The `nav` itself stays `inline-flex shrink-0 self-start`, because an `inline-size` container cannot be content-sized.
+- The header's left slot is a size container: `<div class="@container flex min-w-0 flex-1">` wraps `<WorkspaceViewSwitch …/>`. Put it in `WorkspaceArtifact` or as the outer element of `WorkspaceViewSwitch`. The `nav` itself stays `inline-flex shrink-0 self-start`, because an `inline-size` container cannot be content-sized.
 - Each segment label is a span:
   - the active segment's label is always visible;
-  - an inactive segment's label uses `hidden @min-[Npx]:inline`. N is the larger of the measured English and zh-CN widths of the three labelled segments, with the active one in `font-medium`. Record the measured N in the design and the decision record.
+  - an inactive segment's label uses `hidden @min-[Npx]:inline`. N is the measured outer width of the whole nav with all three labels shown and the longest label (`Terminal`, English) active in `font-medium`: segment widths + 2 × `gap-1` + `p-1` + border. English is wider than zh-CN (`Browser` is untranslated and `浏览器` is shorter), so measuring English covers both. Record the measured N in the design and the decision record.
 - Each button has `aria-label` equal to its label (`Files`, `Browser`, `Terminal`). It is wrapped in the existing `Tooltip` with the label as content. The tooltip is redundant when the label is visible; that is accepted.
 - Pressed, disabled and absent logic is unchanged.
 - The `filesButton` binding stays on the button.
@@ -51,7 +51,8 @@ Rejected:
 ## Risks / Trade-offs
 
 - Users lose the at-a-glance count. The tree shows the files and `More files` signals more.
-- At the minimum width the views become icons. The labels are still in tooltips and accessible names.
+- In the narrow state the inactive views become icons; their labels stay in tooltips and accessible names.
+- In the narrow state, selecting another view shifts the segments horizontally: the old active segment shrinks to its icon and the new one grows to show its label. This is the cost of keeping the active label visible.
 
 ## Evidence plan
 

@@ -1,6 +1,6 @@
 ## 1. Fixture
 
-- [ ] 1.1 Expanded fixture, read-only fixture review, `openspec validate ocu-workspace-header-tabs --strict --no-interactive`.
+- [x] 1.1 Expanded fixture, read-only fixture review, `openspec validate ocu-workspace-header-tabs --strict --no-interactive`.
 
 ## 2. Implement
 
