@@ -4,10 +4,10 @@
 
 ## 2. Implement
 
-- [ ] 2.1 Tests first: `backend/open_webui/test/utils/test_anthropic_conversion.py` covering design evidence a–i (f1, f2); run on unmodified source and record which fail (a, b, e, f2, h, i expected red; c, d, f1, g green).
-- [ ] 2.2 Apply upstream `75b183632294106d0f45be49918677ae6835c126` hunks verbatim to `backend/open_webui/utils/anthropic.py`; no other edits to that file.
-- [ ] 2.3 Decision record `docs/decisions/implemented/bug-fix/2026-10-27-messages-unsigned-thinking.md` per `docs/decisions/README.md` (problem, measured evidence, upstream commit and release, rebase note).
-- [ ] 2.4 Green: the pytest module, `make lint-scoped`, `make coverage-gate` naming the test module, `make anti-drift`, `make smoke`, `make doc-gate`, `make decisions-verify`.
+- [x] 2.1 Tests first: `backend/open_webui/test/utils/test_anthropic_conversion.py` covering design evidence a–i (f1, f2); run on unmodified source and record which fail (a, b, e, f2, h, i expected red; c, d, f1, g green).
+- [x] 2.2 Apply upstream `75b183632294106d0f45be49918677ae6835c126` to `backend/open_webui/utils/anthropic.py`: hunk 2 verbatim, hunk 1 as the line-neutral single condition (proposal.md); file stays 981 lines; no other edits to that file.
+- [x] 2.3 Decision record `docs/decisions/implemented/bug-fix/2026-10-27-messages-unsigned-thinking.md` per `docs/decisions/README.md` (problem, measured evidence, upstream commit and release, rebase note).
+- [x] 2.4 Green: the pytest module, `make lint-scoped`, `make coverage-gate` naming the test module, `make anti-drift`, `make smoke`, `make doc-gate`, `make decisions-verify`.
 
 ## 3. After merge (orchestrator)
 

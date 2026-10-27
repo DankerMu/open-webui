@@ -30,4 +30,4 @@ h. full Claude Code shape: user text → assistant `[thinking, tool_use]` → us
 
 Non-goals: reasoning_content forwarding; SSE-for-non-stream; any OCU or deploy change.
 
-Review focus: hunks identical to upstream `75b1836322`; role restriction on the empty-message rule; no change for thinking-free requests except assistant turns that convert to nothing (now an empty assistant message, evidence i); tests assert outputs, not internals.
+Review focus: behaviour identical to upstream `75b1836322` (hunk 2 verbatim, hunk 1 line-neutral equivalent); `anthropic.py` stays at 981 lines; role restriction on the empty-message rule; no change for thinking-free requests except assistant turns that convert to nothing (now an empty assistant message, evidence i); tests assert outputs, not internals.
