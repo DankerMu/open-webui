@@ -9,6 +9,7 @@ Must add/change: drop `thinking` blocks lacking a truthy `signature`; emit an as
 Governing invariant: a converted Chat Completions request never contains a content part of type `thinking` that has no signature, and the assistant/user turn order of the Anthropic request is preserved.
 
 Sibling surfaces:
+
 - Assistant message with tool calls (line 364-371): `content` becomes `''` when only unsigned thinking preceded the tool_use — the shape measured as accepted.
 - System prompt conversion: only text blocks are taken; none - thinking is not valid there.
 - Response converters: produce thinking, never consume it; none - untouched.
