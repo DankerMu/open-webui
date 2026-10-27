@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change messages-unsigned-thinking. Update Purpose after archive.
+Convert Anthropic Messages requests (`/api/v1/messages`) to Chat Completions so that clients replaying assistant history, such as Claude Code, keep working against OpenAI-compatible connections: unsigned thinking is not replayed, signed and redacted thinking survive, and turn order is preserved.
 
 ## Requirements
 
