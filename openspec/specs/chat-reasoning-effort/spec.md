@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change chat-reasoning-effort. Update Purpose after archive.
+Let users pick a thinking strength per chat next to the model selector, with measured vocabularies for the DeepSeek V4 and Qwen3.8 families and a generic Low / Medium / High / XHigh for every other model, stored in the chat params.
 
 ## Requirements
 
