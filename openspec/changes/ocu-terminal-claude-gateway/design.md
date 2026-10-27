@@ -42,7 +42,7 @@ Sibling surfaces:
 
 Each item names input and expected output. All OCU handler tests use the existing fake container or `exec_run` doubles; no real Docker.
 
-- a. Gateway on, cookie `token=<jwt>`, body `{"model": "m-1"}`, no ttyd running → one `exec_run` whose `environment` contains the eight keys with the right values and the fingerprint. Its command string contains neither the token nor the model. Response is `{"started": true, ...}`.
+- a. Gateway on, cookie `token=<jwt>`, body `{"model": "m-1"}`, no ttyd running → one `exec_run` whose `environment` contains the ten keys listed in the proposal (the fingerprint included), with the right values. Its command string contains neither the token nor the model. Response is `{"started": true, ...}`.
 - b. Gateway on, ttyd running with the matching fingerprint → no stop, no start, `already_running: true`.
 - c. Gateway on:
   - ttyd running with a different fingerprint, or with none (started before this change) → the stop command runs, then a start with the new environment, and the response has `restarted: true`.
@@ -60,7 +60,7 @@ Each item names input and expected output. All OCU handler tests use the existin
   - Unset → gateway off.
   - Set while the server's `SUBAGENT_CLI` is not `claude` → gateway off for terminal start (case e behaviour).
 - h. Cookie helper: `ws_recheck.handshake_cookie` behaviour is unchanged (its existing tests pass), and the new helper returns the `token` morsel value or `None` for no cookie, a malformed cookie, or an empty token.
-- i. SPA. The `TerminalView` cases run in `tests/orchestrator/preview_embedding_browser.cjs`, driven from `test_preview_prefix.py`; the embed matrix is around `:73`, and `mount('?embed=terminal')` around `:1752` and `:2203`.
+- i. SPA. The `TerminalView` cases run in `tests/orchestrator/preview_embedding_browser.cjs`, run by hand with `node` (it is not wired into pytest or CI); the `recoverStoppedContainer` case also runs under pytest in `test_preview_prefix.py` `_JS_CASES`; the embed matrix is around `:73`, and `mount('?embed=terminal')` around `:1752` and `:2203`.
   - `?embed=terminal&model=m-1` is a valid embed case. Both start-ttyd call sites send `{"dangerous_mode": …, "model": "m-1"}`.
   - With no `model` parameter, `model` is omitted or null.
   - A 422 with a string `detail` shows that detail and makes no status probe or restart-container call.

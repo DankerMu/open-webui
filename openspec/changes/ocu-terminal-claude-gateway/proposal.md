@@ -28,7 +28,7 @@ Measured 2026-10-27 (#653): Claude Code 2.1.112 in the sandbox image completes m
 
 **OCU `start-ttyd` in gateway mode.**
 
-- `StartTtydRequest` gains `model: str | None` with no pydantic constraint. All gateway validation happens in the handler and raises `HTTPException(422, detail=<string>)`, so `detail` is always a string. The model must be 1-256 characters of printable ASCII without whitespace (`^[\x21-\x7e]{1,256}$`).
+- `StartTtydRequest` gains `model: str | None` with no pydantic constraint. All gateway validation happens in the handler and raises `HTTPException(422, detail=<string>)`, so every gateway refusal has a string `detail`. A non-string `model` (for example `5`) is rejected earlier by pydantic with its list `detail`, in both modes; no client sends one. The model must be 1-256 characters of printable ASCII without whitespace (`^[\x21-\x7e]{1,256}$`).
 - Order: chat id sanitising, then (gateway mode) token and model checks, then the container lookup. A missing input answers 422 even when the container is stopped, so the SPA never enters the restart flow for it.
 - Token: the WebUI JWT from the `token` cookie of the same request. The handler takes `request: Request`; the proxy already forwards `Cookie` after WebUI confirmed chat ownership (`render.py:254`, `/api/v1/ocu/auth`). Parsing uses one shared helper, extracted from `ws_recheck.handshake_cookie` (`ws_recheck.py:93-110`), which then uses it too. OCU does not validate the JWT; it is an opaque string for Open WebUI.
 - Missing token or missing or invalid model → 422 with an explicit English `detail` ("Claude Code gateway: …"), no container lookup and no exec.
