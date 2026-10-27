@@ -19,7 +19,7 @@ Selected:
 
 - **Public API / CLI / script entry:** `/api/v1/messages` request conversion; evidence a, b, e, f2, h, i (2.1).
 - **Schema / field names:** Chat Completions content part types and the assistant `content` field; evidence a, b, e (2.1).
-- **Legacy compatibility:** signed/redacted thinking, cache_control, empty user messages, thinking-free requests unchanged; evidence c, d, f1, g (2.1); intended assistant-empty change pinned by i and `make smoke`.
+- **Legacy compatibility:** signed/redacted thinking, cache_control, empty user messages, thinking-free requests unchanged; evidence c, d, f1, g (2.1); intended assistant-empty change pinned by i; `make smoke` only shows the app still starts (no smoke request reaches `/api/v1/messages`).
 
 Not selected:
 
