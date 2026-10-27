@@ -49,11 +49,15 @@ const workspaceBase = (baseUrl: string): string => {
 	return baseUrl;
 };
 
+// Only the terminal carries the chat model: its Claude Code runs on that model (#656).
 export const workspaceRuntimeUrl = (
 	baseUrl: string,
 	chatId: string,
-	view: 'browser' | 'terminal'
-): string => `${workspaceBase(baseUrl)}/preview/${encodeURIComponent(chatId)}?embed=${view}`;
+	view: 'browser' | 'terminal',
+	modelId?: string | null
+): string =>
+	`${workspaceBase(baseUrl)}/preview/${encodeURIComponent(chatId)}?embed=${view}` +
+	(view === 'terminal' && modelId ? `&model=${encodeURIComponent(modelId)}` : '');
 
 export const workspaceFileUrl = (baseUrl: string, chatId: string, file: WorkspaceFile): string => {
 	const base = `${workspaceBase(baseUrl)}/files/${encodeURIComponent(chatId)}/`;

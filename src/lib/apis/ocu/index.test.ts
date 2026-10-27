@@ -7,8 +7,32 @@ import {
 	putWorkspacePrefs,
 	refreshWorkspace,
 	workspaceFileUrl,
+	workspaceRuntimeUrl,
 	WorkspaceRequestError
 } from './index';
+
+describe('workspace runtime URL', () => {
+	it('appends the encoded chat model to the terminal view only', () => {
+		expect(workspaceRuntimeUrl('/ocu', 'chat-1', 'terminal', 'deepseek-flash-guan')).toBe(
+			'/ocu/preview/chat-1?embed=terminal&model=deepseek-flash-guan'
+		);
+		expect(workspaceRuntimeUrl('/ocu', 'chat-1', 'terminal', 'vendor/model: v2')).toBe(
+			'/ocu/preview/chat-1?embed=terminal&model=vendor%2Fmodel%3A%20v2'
+		);
+		expect(workspaceRuntimeUrl('/ocu', 'chat-1', 'browser', 'deepseek-flash-guan')).toBe(
+			'/ocu/preview/chat-1?embed=browser'
+		);
+	});
+
+	it.each([null, undefined, ''])('adds no model parameter for %j', (model) => {
+		expect(workspaceRuntimeUrl('/ocu', 'chat-1', 'terminal', model)).toBe(
+			'/ocu/preview/chat-1?embed=terminal'
+		);
+		expect(workspaceRuntimeUrl('/ocu', 'chat-1', 'browser', model)).toBe(
+			'/ocu/preview/chat-1?embed=browser'
+		);
+	});
+});
 
 describe('ocu workspace client', () => {
 	afterEach(() => {
