@@ -52,6 +52,8 @@
 	import { isSavedChatId } from '$lib/utils/chatId';
 	export let chatId: string;
 	export let onClose: (() => void) | undefined = undefined;
+	// ChatControls remounts per chat only after Chat.svelte's `{#if !loading}` gate, so this is the chat's model.
+	export let modelId: string | null | undefined = undefined;
 	const i18n: Writable<i18nType> = getContext('i18n');
 	const controller: WorkspaceReconciliation = getContext(WORKSPACE_RECONCILIATION);
 
@@ -140,12 +142,21 @@
 	$: selectedDirectory = selectedRow?.kind === 'file' ? selectedRow.parent : '';
 	$: runtimeView =
 		workspace?.view === 'browser' || workspace?.view === 'terminal' ? workspace.view : null;
+	// Captured when the terminal view opens; a later model change must not reload a running terminal.
+	let openedView: typeof runtimeView = null;
+	let terminalModel: string | null = null;
+	const modelAtOpen = (view: typeof runtimeView) => {
+		if (view === 'terminal' && openedView !== 'terminal') terminalModel = modelId || null;
+		openedView = view;
+		return terminalModel;
+	};
+	$: openedModel = modelAtOpen(runtimeView);
 	$: runtimeUrl =
 		runtimeView &&
 		workspace?.status === 'running' &&
 		workspace.baseUrl === '/ocu' &&
 		workspace.views.includes(runtimeView)
-			? workspaceRuntimeUrl(workspace.baseUrl, chatId, runtimeView)
+			? workspaceRuntimeUrl(workspace.baseUrl, chatId, runtimeView, openedModel)
 			: '';
 	$: {
 		const key =

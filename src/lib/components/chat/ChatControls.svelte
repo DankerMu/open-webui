@@ -378,6 +378,7 @@
 				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact
 							{chatId}
+							{modelId}
 							enabled={workspaceAvailable}
 							onClose={closeWorkspace}
 						/>{/key}
@@ -507,6 +508,7 @@
 				{:else if showWorkspace && workspaceAvailable && chatId}
 					{#key chatId}<WorkspaceArtifact
 							{chatId}
+							{modelId}
 							enabled={workspaceAvailable}
 							onClose={closeWorkspace}
 						/>{/key}
