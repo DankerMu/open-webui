@@ -32,4 +32,11 @@
 
 ## 5. After merge (orchestrator, needs owner go-ahead)
 
-- [ ] 5.1 Build a release with the OCU merge (WebUI unchanged at runtime), upgrade the acceptance VPS, run design evidence i.
+- [x] 5.1 Build a release with the OCU merge (WebUI unchanged at runtime), upgrade the acceptance VPS, run design evidence i.
+  - 2026-10-28: release `058dd36` (WebUI `521032a`) imported, retargeted and brought up on the acceptance VPS; `open-webui-init` re-run after the marker was removed (NETWORK-HARDENING §590 step 2).
+  - Deviation: the `open-webui` image was not reproduced (same inputs, new identity, BuildKit cache gone), so the import had to load it again. With the owner's go-ahead the old WebUI container and image were removed first; downtime 11:08:04–11:11:17 UTC. #663 covers the disk need.
+  - Installed Tool `ai_computer_use`: md5 equals the shipped `openwebui/tools/computer_use_tools.py` at `058dd36` and contains `async def sub_agent(`.
+  - `deepseek-flash-guan` new session and `qwen3.8-27b` new session (Write + Bash): banner names the chat model; the Claude Code process has `ANTHROPIC_BASE_URL=http://172.31.0.254:8080/api`, `ANTHROPIC_MODEL` and argv `--model` equal to the chat model; the token authenticates as the chat owner.
+  - Resume after switching to `qwen3.8-27b`: argv carries `--model qwen3.8-27b --resume <session>`; the session log shows `deepseek-flash-guan` turns followed by `qwen3.8-27b` turns.
+  - Every watched run: token in 0 process argv, 0 `docker inspect` hits, 0 of the live exec inspect records, 0 server log lines, and 0 files under `/home/assistant/.claude` and `/home/assistant/.claude.json` after the run.
+  - Out of scope, reported only: on resume, Claude's path sends a fixed "Continue working on the task" prompt and drops the new `task` (OCU behaviour since the initial release), so a resumed sub-agent repeats its original task.
