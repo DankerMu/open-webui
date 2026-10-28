@@ -20,4 +20,4 @@
 
 ## 3. After merge (orchestrator)
 
-- [ ] 3.1 The next real release build on the workstation leaves no `ocu-build-*` tag: `docker images --format '{{.Repository}}' | grep -c '^ocu-build-'` prints `0`. Read the printed count; `grep -c` exits 1 when nothing matches.
+- [x] 3.1 The next real release build on the workstation leaves no `ocu-build-*` tag: `docker images --format '{{.Repository}}' | grep -c '^ocu-build-'` prints `0`. Read the printed count; `grep -c` exits 1 when nothing matches. Done 2026-10-27 (OCU 8da37a4 + WebUI 521032a release): the count printed `0` after the failed first attempt (Debian mirror 502) and after the successful rebuild.

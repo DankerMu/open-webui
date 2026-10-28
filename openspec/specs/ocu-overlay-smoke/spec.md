@@ -31,7 +31,7 @@ The smoke SHALL require live positive controls and actual successful HTTP egress
 
 #### Scenario: No usable positive egress
 
-- **WHEN** no allowed positive target exists, including a valid deny-all deployment, or its HTTP request fails
+- **WHEN** no allowed positive target exists or its HTTP request fails
 - **THEN** smoke reports an unsuitable prerequisite or assertion failure and does not report a complete PASS
 - **AND** it never changes the allowlist to manufacture success
 

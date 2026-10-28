@@ -8,7 +8,7 @@ Define the deployment boundary that keeps application services private and provi
 
 ### Requirement: Proxy-only host publication
 
-The deployment SHALL publish host ports only for its reverse proxy. WebUI, OCU, database, maintenance and initialization services SHALL have no host publications, including loopback publications. Control-plane services SHALL use the control-plane bridge, not host or shared-container networking, and SHALL NOT join the sandbox bridge.
+The deployment SHALL publish host ports only for its reverse proxy. WebUI, OCU, database, maintenance and initialization services SHALL have no host publications, including loopback publications. Control-plane services SHALL use the control-plane bridge, not host or shared-container networking, and SHALL NOT join the sandbox bridge. The single exception is the `messages-ingress` service, which SHALL join exactly the control-plane bridge and the sandbox bridge at the validated `OCU_SANDBOX_MESSAGES_ADDRESS` and publish no host port.
 
 #### Scenario: Complete deployment matrix
 
@@ -23,7 +23,7 @@ The deployment SHALL publish host ports only for its reverse proxy. WebUI, OCU, 
 
 #### Scenario: Network-mode bypass
 
-- **WHEN** a deployment service uses host networking, another service/container network namespace, or the sandbox bridge
+- **WHEN** a deployment service uses host networking, another service/container network namespace, or the sandbox bridge, other than `messages-ingress` on control plus sandbox at its validated address
 - **THEN** preflight refuses the topology before starting services
 
 ### Requirement: Independent provisioned sandbox bridge
