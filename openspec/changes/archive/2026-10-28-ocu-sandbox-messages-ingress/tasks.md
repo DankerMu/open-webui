@@ -18,7 +18,7 @@
 
 ## 4. After merge (orchestrator, needs owner go-ahead)
 
-- [ ] 4.1 Build a release with the OCU merge commit; on the acceptance VPS set `OCU_SANDBOX_MESSAGES_ADDRESS` and add it to `OCU_SANDBOX_EGRESS_ALLOW` in `runtime.env` by variable name (values never printed); upgrade; design evidence l.
+- [x] 4.1 Build a release with the OCU merge commit; on the acceptance VPS set `OCU_SANDBOX_MESSAGES_ADDRESS` and add it to `OCU_SANDBOX_EGRESS_ALLOW` in `runtime.env` by variable name (values never printed); upgrade; design evidence l. Done 2026-10-28 with the 8da37a4 release (owner go-ahead). Deviation: `deploy/smoke.sh` was not run on the VPS (it needs an exclusive smoke sandbox and the `OCU_SMOKE_*` inputs); instead, probes from inside an existing sandbox to `http://172.31.0.254:8080`: `GET /healthz` 200, `POST /api/v1/messages` and `/count_tokens` without credentials 401, `GET /api/v1/chats/`, `/api/v1/auths/` and `/` 404, direct egress to the host gateway and the internet blocked. Claude Code with the ingress base URL and test-a's token completed a Write + Bash task (see #656 task 4.1).
 
 ## Risk packs
 
