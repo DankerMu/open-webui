@@ -39,7 +39,9 @@ Seams under test: `scripts/test-guardrails.sh` already creates a detached worktr
 
 Stand-ins:
 
-- **Foreign:** a Python HTTP server whose working directory is a sibling directory sharing a string prefix with `$wt`, e.g. `"$wt-foreign"`. That proves the match is not a string prefix. For evidence e it serves a directory that contains a file named `health`, so `/health` returns 200.
+- **Foreign, outside a repository:** a Python HTTP server whose working directory is a sibling directory sharing a string prefix with `$wt`, e.g. `"$wt-foreign"`. That proves the match is not a string prefix. For evidence b and e it serves a directory that contains a file named `health`, so `/health` returns 200. In b this also lets `main` pass backend readiness quickly instead of syncing a real venv.
+- **Foreign, in a nested repository:** the same server, with its working directory in `git init -q "$wt/.run/nested"`. This exercises the toplevel comparison.
+- Every stand-in, foreign or owned, leads its own process group (`set -m` or `os.setsid()`), because a red run on `main` sends `kill -- -$pgid` to whatever pid a pidfile holds (evidence f).
 - **Owned:** a Python HTTP server with its working directory under `$wt/.run/`. It leads its own process group (`set -m`, as `start_one` does, or `os.setsid()` in Python; macOS has no `setsid(1)`), so a group kill can never reach the test script. For evidence d it is recorded in `$wt/.run/frontend.pid`, with a child that holds the port.
 - The case kills only the stand-ins it started, in a trap. A real `uv run` / `npx` that a red run on `main` starts inside `$wt` is bounded and cleaned up by the case.
 
@@ -52,6 +54,8 @@ Required evidence:
 
   Red on `main`: the listener is killed.
 
+- a2. **Stop leaves a nested-repository listener.** The same holds for the nested-repository stand-in. Red on `main`: it is killed.
+
 - b. **Start refuses a foreign listener.** With a foreign listener on the test's backend port, `dev-bg.sh start`:
   - exits 1 naming the port, pid and command;
   - creates no `$wt/.run/backend.pid`, `frontend.pid` or `$wt/.run/frontend-build`.
@@ -60,9 +64,11 @@ Required evidence:
 
 - c. **Owned orphan swept.** An owned listener without a pidfile is killed by `stop`, which exits 0 with the port free.
 - d. **Owned process group stopped.** An owned group recorded in the pidfile, with a child holding the port, is fully stopped: parent and child are gone.
-- e. **Status refuses a foreign server.** A foreign listener answering 200 on `/health` on the test's backend port makes `status` exit 1 with `health: foreign listener …`. Red on `main`: it prints `health: OK` and exits 0. A foreign listener on the frontend port alone also makes `status` exit 1.
+- e. **Status refuses a foreign server.** A foreign listener answering 200 on `/health` on the test's backend port makes `status` exit 1 with `health: foreign listener …`. Red on `main`: it prints `health: OK` and exits 0. With a foreign listener on the frontend port alone, `status` prints `health: foreign listener on <frontend port>`. The backend is down in that case, so the exit code proves nothing; the message is the assertion.
 - f. **Stale pidfile.** `$wt/.run/backend.pid` holds the pid of a live foreign stand-in. `stop` removes the pidfile, reports it as stale, and leaves the stand-in alive.
-- g. **Missing `lsof`.** With `PATH` reduced so that `lsof` is not found, `dev-bg.sh stop` exits 2 naming `lsof` and signals nothing.
+- g. **Missing `lsof`.** A temporary bin directory links only the tools `dev-bg.sh` needs (`git`, `ps`, `cat`, `mkdir`, `rm`, `cp`, `tr`, `seq`, `sleep`, `tail`, `curl` and whatever else it calls), with no `lsof`. With `PATH` set to that directory alone and bash invoked by absolute path:
+  - `dev-bg.sh stop` exits 2 naming `lsof` and signals nothing;
+  - `dev-bg.sh stage` still succeeds.
 - h. `make doc-gate` passes, and `bash -n scripts/dev-bg.sh` passes.
 
 Linux evidence comes from the same case in PR CI (`ci.yml` `guardrail-self-test` on ubuntu-latest) and from the weekly `agents-md-liveness.yml:42`.

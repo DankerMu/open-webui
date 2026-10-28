@@ -13,7 +13,7 @@
 
 ## 3. Implement
 
-- [ ] 3.1 Test first: the dev-bg case in `scripts/test-guardrails.sh` for evidence a–g, inside the existing `$wt` worktree. Record a, b, e, f and g red on `main`.
+- [ ] 3.1 Test first: the dev-bg case in `scripts/test-guardrails.sh` for evidence a, a2 and b–g, inside the existing `$wt` worktree. Record a, a2, b, e, f and g red on `main`.
 - [ ] 3.2 `scripts/dev-bg.sh`: ownership helper (git toplevel of the listener's cwd), lsof requirement, owned-only pidfile kill and sweep, start preflight before staging, status check of both ports.
 - [ ] 3.3 `AGENTS.md` Runtime Lifecycle bullet.
 - [ ] 3.4 Green:
