@@ -11,10 +11,10 @@
 - **`start` (`:50-67`).** It stages frontend assets (`:51`) and never checks who holds the ports.
   - A foreign server answering `/health` on `BACKEND_PORT` passes the readiness loop (`:54-59`) as "backend ready".
   - A foreign server answering on `FRONTEND_PORT` passes too: `:63` curls the port before the `alive` check at `:64`, so the command prints "frontend ready" and exits 0 even though Vite died on `--strictPort`.
-- **`status` (`:69-73`).** It reports "health: OK" for any server on `BACKEND_PORT`. Three callers start the harness only when `status` fails, so each can run against a foreign server:
+- **`status` (`:69-73`).** It reports "health: OK" for any server on `BACKEND_PORT`. Two callers start the harness only when `status` fails, so each can run against a foreign server:
   - `make smoke` (`Makefile:156-157`);
-  - `make verify-ui` (`Makefile:177`);
-  - Playwright's `webServer` (`playwright.config.ts:22`, `reuseExistingServer: true`).
+  - `make verify-ui` (`Makefile:177`).
+- **Playwright's `webServer`** (`playwright.config.ts:22`, `reuseExistingServer: true`) never calls `status`. It probes `http://localhost:5173/` and runs `dev-bg.sh start` only when that URL is unreachable. A direct `npx playwright test` therefore reuses a foreign server on 5173. `make verify-ui` is protected, because its `status || start` runs first.
 
 ## What Changes
 
@@ -31,7 +31,7 @@
   - their re-spawned children inherit the working directory, and neither code base calls `chdir`.
 - **Accepted false positive:** a developer's own `make dev` / `npm run dev` started from this checkout counts as owned and is stopped, as today.
 
-**`lsof` is required.** If `command -v lsof` fails, dev-bg exits 2 naming `lsof`, before doing anything (AGENTS.md: misconfiguration fails loud).
+**`lsof` is required.** For `start`, `stop` and `status`, if `command -v lsof` fails, dev-bg exits 2 naming `lsof` before doing anything (AGENTS.md: misconfiguration fails loud). `stage` and `logs` never use `lsof` and are unchanged.
 
 **`stop`.**
 
@@ -47,7 +47,7 @@
 - Any foreign listener refuses the start: exit 1, with a message naming the port, pid and command. Nothing is staged (no `.run/frontend-build`) and nothing is started.
 - An owned orphan, with no live pidfile, is swept the way `stop` sweeps.
 
-**`status`.** If either `BACKEND_PORT` or `FRONTEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1. Its three callers then attempt `start`, and the preflight refuses.
+**`status`.** If either `BACKEND_PORT` or `FRONTEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1. `make smoke` and `make verify-ui` then attempt `start`, and the preflight refuses.
 
 **Docs.**
 
@@ -75,7 +75,8 @@
   - `smoke_proxy_support.kill_tree` (`scripts/smoke_proxy_support.py:213-228`) signals only its own process group.
   - `scripts/seed.sh:12-17` kills only its own child.
   - No other script kills by port.
-- Non-goals:
+- Non-goals and residual risk:
+  - a direct `npx playwright test` with a foreign server on 5173 reuses it. Playwright's `webServer` probes the URL itself and never consults dev-bg; `make verify-ui` is the protected entry;
   - changing ports;
   - the isolated UI verification stacks;
   - Windows.
