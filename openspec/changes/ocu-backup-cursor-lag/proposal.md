@@ -101,6 +101,6 @@ Upstream suggested level: absent; expanded: backup/restore (rollback path), prod
 Blast radius: a backup refused for a healthy deployment; an unrestorable set still published; a refusal that stops services
 Selected risk packs: Public API / CLI / script entry (backup refusal, restore messages); Error handling / rollback / partial outputs (refuse before any stop or stage; postgres-down refusal moves earlier); Legacy compatibility (healthy deployments and orphan rows unaffected; restore guard unchanged; three existing tests rebuilt on captured-set edits); Concurrency / shared state / ordering (live writers during the check: rows read before indexes); File IO / path safety (unreadable, non-regular or symlinked source index refused in one line); Documentation (BACKUP-RESTORE.md)
 Not selected: Auth / secrets (read-only queries through the existing psql path); Schema (no change); Resource limits (one query plus one small file per live chat); Release packaging (none)
-Evidence floor: OCU unit command for tests/deploy/test_recovery.py and tests/deploy/test_recovery_db.py; new tests a–f in design.md; scripts/docs-lint gates
+Evidence floor: OCU unit command for tests/deploy/test_recovery.py and tests/deploy/test_recovery_db.py; new and rebuilt tests a–i in design.md; scripts/docs-lint gates
 design.md: present
 ```
