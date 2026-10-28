@@ -28,30 +28,51 @@ At OCU `main` `3fe7730`:
 
 ## What Changes
 
-**Pre-quiesce cursor check in backup.** `establish_quiescence` calls a new read-only check next to `_scan_before_quiesce`. Like that scan, it sits outside the `try`, so a refusal stops nothing.
+**Pre-quiesce cursor check in backup.** `establish_quiescence` calls a new read-only check next to `_scan_before_quiesce`. Like that scan, it sits outside the `try`, so a refusal stops nothing. In order:
 
-- **Rows.** It reads `ocu_chat_state` rows and live chat ids from the source PostgreSQL (`identity["postgres_container"]`), reusing `recovery_db._chat_state_rows` / `_live_chat_ids`. `recovery_db` exposes them through one small public function; `inspect_restored_state` reuses it, so no query is duplicated.
-- **Counter.** For each live chat with a row, it reads the counter from the source index with the existing `_index_snapshot(identity["chat_dir"], chat_id)`. This is a no-follow read of `<chat>/.ocu/index.json`. No broker helper runs against live data.
-- **Refusal.** It refuses (`RecoveryError`, before any stop or stage) when either:
-  - the index is missing and the cursor is greater than 0;
-  - or the cursor is greater than the counter.
+1. **PostgreSQL running.** The source PostgreSQL (`identity["postgres_container"]`) must be running and not paused, checked with `container_running` / `container_paused`. Otherwise the refusal names it: `postgres must be running for the cursor check`.
+   - Legacy change: this used to fail at `:570`, after admission and writers had stopped. Now it fails before anything stops.
+2. **Rows first.** It reads `ocu_chat_state` rows and live chat ids, reusing `recovery_db._chat_state_rows` / `_live_chat_ids`. `recovery_db` exposes them through one small public function; `inspect_restored_state` reuses it, so no query is duplicated.
+   - The rows are read **before** any index. The cursor only grows, and it never passes a counter that existed when it was read. Reading the cursor first and the counter second therefore cannot produce a false refusal, even with live writers. The reverse order could.
+3. **Counters.** For each live chat with a row, it reads the counter from the source index with the existing `_index_snapshot(identity["chat_dir"], chat_id)`. This is a no-follow read of `<chat>/.ocu/index.json`. No broker helper runs against live data.
+4. **One per-row loop for backup and restore.** It goes through the same per-row loop as restore: filter by live id, `canonical_chat_id`, then the missing-index branch, then the comparison. That loop becomes one helper, `_require_cursor_lag`'s body, with only the counter source injected:
+   - backup: `_index_snapshot(...)["counter"]`;
+   - restore: `_broker_revision(...)`.
 
-  The message names the chat, the cursor, the counter and both remedies. All offending chats are listed in one message, so one run shows every chat to fix.
+   As at restore, an unsafe live chat id with a row is refused (`invalid chat id`), which is never stricter than restore.
 
-- **Not refused:**
-  - chats whose cursor is at or below the counter;
-  - rows of non-live chats (orphans that restore's `prune_orphans` drops);
-  - live chats without a row.
+**Refusals.** All are one-line `RecoveryError`s raised before any stop or stage. Every offending chat is listed in one message, so one run shows each chat to fix.
+
+- **Cursor leads.** The index is missing and the cursor is greater than 0, or the cursor is greater than the counter. The message names the chat, the cursor, the counter and both remedies.
+- **Unreadable index.** The source index is not valid JSON or UTF-8, has no integer `counter`, is not a regular file, or is a symlink (`index path is a symlink`). The message names the chat and the problem.
+  - Today `_index_snapshot` lets `JSONDecodeError`, `UnicodeDecodeError`, `ValueError`, `KeyError` and `TypeError` escape.
+  - Restore also fails on such an index, so refusing at backup is never stricter.
+  - The read stays in `_index_snapshot`, and the wrapping into `RecoveryError` is shared with restore, so restore's own message for these cases also becomes a one-line refusal.
+
+**Not refused:**
+
+- chats whose cursor is at or below the counter;
+- rows of non-live chats (orphans, which restore's `prune_orphans` drops);
+- live chats without a row.
+
+**Remedies** (the same text in the backup refusal, the restore refusal and the docs):
+
+1. Delete the chat in Open WebUI. Archiving is not enough: an archived chat stays live. Then back up again. The chat's `ocu_chat_state` row becomes an orphan, the next backup skips it, and restore prunes it.
+2. Or reset the cursor:
+   1. Stop `open-webui` and the OCU server, keeping PostgreSQL running.
+   2. Run `UPDATE ocu_chat_state SET last_seen_revision = <counter> WHERE chat_id = '<chat id>';`.
+   3. Start the stack (`deploy/up.sh`).
+   4. Back up again.
 
 **Restore messages.**
 
-- Both `_require_cursor_lag` messages keep their current prefix, `chat <id> cursor N leads recovered broker counter M`, and append the same remedy text.
-- The comparison logic is unchanged. Backup and restore build the message and decide "leads" through one shared helper. The counter comes from the index at backup and from `_broker_revision` at restore.
+- Both `_require_cursor_lag` messages keep their current prefix, `chat <id> cursor N leads recovered broker counter M`, and append the remedy text.
+- Which states restore refuses is unchanged.
 
 **Docs.** `deploy/BACKUP-RESTORE.md`:
 
-- the cursor paragraph (`:102-108`) states that backup now refuses this condition before stopping anything;
-- the Failure recovery section (`:181-`) states how the condition arises (an out-of-band chat directory removal) and the two remedies.
+- the cursor paragraph (`:102-118`) states that backup now refuses these conditions before stopping anything;
+- the Failure recovery section (`:181-`) states how the condition arises (an out-of-band chat directory removal) and the remedies as steps.
 
 ## Capabilities
 
@@ -78,8 +99,8 @@ Issue type: bugfix
 Fixture level: expanded
 Upstream suggested level: absent; expanded: backup/restore (rollback path), production data reads, CLI refusal
 Blast radius: a backup refused for a healthy deployment; an unrestorable set still published; a refusal that stops services
-Selected risk packs: Public API / CLI / script entry (backup refusal, restore messages); Error handling / rollback / partial outputs (refuse before any stop or stage); Legacy compatibility (healthy deployments and orphan rows unaffected; restore guard unchanged); Documentation (BACKUP-RESTORE.md)
-Not selected: Auth / secrets (read-only queries through the existing psql path); Schema (no change); Concurrency (cursor monotonic; check outside the stop window by owner decision); File IO (existing no-follow index read); Resource limits (one query plus one small file per live chat); Release packaging (none)
+Selected risk packs: Public API / CLI / script entry (backup refusal, restore messages); Error handling / rollback / partial outputs (refuse before any stop or stage; postgres-down refusal moves earlier); Legacy compatibility (healthy deployments and orphan rows unaffected; restore guard unchanged; three existing tests rebuilt on captured-set edits); Concurrency / shared state / ordering (live writers during the check: rows read before indexes); File IO / path safety (unreadable, non-regular or symlinked source index refused in one line); Documentation (BACKUP-RESTORE.md)
+Not selected: Auth / secrets (read-only queries through the existing psql path); Schema (no change); Resource limits (one query plus one small file per live chat); Release packaging (none)
 Evidence floor: OCU unit command for tests/deploy/test_recovery.py and tests/deploy/test_recovery_db.py; new tests a–f in design.md; scripts/docs-lint gates
 design.md: present
 ```
