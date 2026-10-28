@@ -3,7 +3,7 @@
 Change surface:
 
 - `deploy/recovery_resources.py`:
-  - the pre-quiesce cursor check, called from `establish_quiescence` next to `_scan_before_quiesce`;
+  - the pre-quiesce cursor check, called from `establish_quiescence` immediately **after** `_scan_before_quiesce` returns. After, not before: `_assert_refused_before_quiesce` (`test_recovery.py:3176`) asserts no `docker exec` for scan refusals (`:3183`, `:3199`, `:3229`, `:3238`), and the scan first rejects FIFOs/sockets so the index read meets only regular files, directories, symlinks and missing paths;
   - one per-row helper shared with `_require_cursor_lag`, with the counter source injected;
   - the wrapping of unreadable-index errors;
   - the messages.
@@ -30,7 +30,7 @@ Existing tests that the new check affects. Their restore-time behaviour is uncha
   - take a clean backup first;
   - then damage the captured set, as `test_cursor_lead_rejects_and_activation_keeps_workspaces_stopped` (`:1991`) does: remove or corrupt the index in the captured chat-data archive and recompute the `recovery.json` checksums;
   - keep their restore assertions.
-  - With the shared wrapping, `:2085`'s `JSONDecodeError` assertion becomes the one-line refusal text.
+  - With the shared wrapping, `:2084`'s `JSONDecodeError` assertion becomes the one-line refusal text.
 - `test_empty_and_unlaunched_chats_are_valid_complete_backups` (`:1185`): its live `CHAT_ID` row gets cursor 0, or is dropped. This keeps its subject: empty and unlaunched chats with no broker activity.
 
 Must add/change: see proposal "What Changes".
@@ -51,7 +51,8 @@ Seams under test: `tests/deploy/test_recovery.py` runs `recovery.py backup` as a
 - `postgres.json` gives the source rows. The fake `psql` serves `CHAT_STATE_QUERY` / `LIVE_CHATS_QUERY` over TCP and strips the `env PGOPTIONS` prefix.
 - The source chat tree holds `<chat>/.ocu/index.json`; the fixture's counter is 3.
 - `containers.json` controls whether postgres runs.
-- `ops.log` shows every docker call. A refusal before quiescence means no `docker stop`, no `stopped.log` and no destination.
+- `ops.log` shows every docker call. A refusal before quiescence means no `docker stop`, no `stopped.log` and no destination. New tests a/b/e/f assert exactly these three; they cannot reuse `_assert_refused_before_quiesce`, which also forbids `docker exec`.
+- The fake docker does not refuse `exec` on a stopped container, so evidence f proves the check exists, not real-daemon behaviour.
 
 Required evidence:
 
@@ -86,7 +87,7 @@ Non-goals: see proposal Impact.
 
 Review focus:
 
-- The check runs before anything stops, outside the `try`, and is read-only. It checks postgres first, then reads rows, then indexes.
+- The check runs after the scan and before anything stops, outside the `try`, and is read-only. It checks postgres first, then reads rows, then indexes. The read order is review-only evidence: the fixture has no concurrent writer.
 - One per-row loop serves backup and restore, with only the counter source differing. Orphans and live chats without a row are skipped.
 - Unreadable indexes are one-line refusals at backup and restore.
 - The restore guard refuses the same states as before.

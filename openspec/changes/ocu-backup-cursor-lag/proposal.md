@@ -28,7 +28,7 @@ At OCU `main` `3fe7730`:
 
 ## What Changes
 
-**Pre-quiesce cursor check in backup.** `establish_quiescence` calls a new read-only check next to `_scan_before_quiesce`. Like that scan, it sits outside the `try`, so a refusal stops nothing. In order:
+**Pre-quiesce cursor check in backup.** `establish_quiescence` calls a new read-only check immediately after `_scan_before_quiesce` returns. Like that scan, it sits outside the `try`, so a refusal stops nothing. In order:
 
 1. **PostgreSQL running.** The source PostgreSQL (`identity["postgres_container"]`) must be running and not paused, checked with `container_running` / `container_paused`. Otherwise the refusal names it: `postgres must be running for the cursor check`.
    - Legacy change: this used to fail at `:570`, after admission and writers had stopped. Now it fails before anything stops.
@@ -40,6 +40,8 @@ At OCU `main` `3fe7730`:
    - restore: `_broker_revision(...)`.
 
    As at restore, an unsafe live chat id with a row is refused (`invalid chat id`), which is never stricter than restore.
+
+   The helper takes the counter source and its noun: backup messages read `source broker counter`, restore keeps `recovered broker counter`. It collects every problem (cursor leads, missing index, unreadable index) and raises one `RecoveryError` joining them with `; `, at backup and at restore. An `invalid chat id` still raises at once.
 
 **Refusals.** All are one-line `RecoveryError`s raised before any stop or stage. Every offending chat is listed in one message, so one run shows each chat to fix.
 
@@ -66,12 +68,12 @@ At OCU `main` `3fe7730`:
 
 **Restore messages.**
 
-- Both `_require_cursor_lag` messages keep their current prefix, `chat <id> cursor N leads recovered broker counter M`, and append the remedy text.
+- Both `_require_cursor_lag` messages keep their current prefix, `chat <id> cursor N leads recovered broker counter M`, and append the remedy text once at the end of the joined message.
 - Which states restore refuses is unchanged.
 
 **Docs.** `deploy/BACKUP-RESTORE.md`:
 
-- the cursor paragraph (`:102-118`) states that backup now refuses these conditions before stopping anything;
+- the cursor paragraph (`:102-115`) states that backup now refuses these conditions before stopping anything;
 - the Failure recovery section (`:181-`) states how the condition arises (an out-of-band chat directory removal) and the remedies as steps.
 
 ## Capabilities
