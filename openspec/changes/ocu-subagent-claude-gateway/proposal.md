@@ -9,7 +9,7 @@ Today, at OCU `main` `8da37a4`:
 - The model is the LLM's `model` argument, alias-expanded by `resolve_subagent_model` (`sonnet` → `claude-sonnet-4-6`). The WebUI tool wrapper documents it as `"sonnet"` or `"opus"` (`openwebui/tools/computer_use_tools.py:904-930`). On resume the Claude adapter passes no `--model` at all (`cli_adapters/claude.py:72-79`). The chat's model never reaches OCU.
 - The deployment calls OCU through the shipped WebUI tool (`openwebui/tools/computer_use_tools.py`), not WebUI's tool-server feature. That tool runs inside the chat request:
   - `__request__.state.token` holds the token that authenticated the chat request; WebUI's `AppHTTPMiddleware._set_token` sets it on every HTTP request (`backend/open_webui/utils/asgi_middleware.py:126-132`).
-  - `__model__` is the chat's model (`backend/open_webui/utils/middleware.py:2524`).
+  - the chat's model is `__metadata__["model"]` (`backend/open_webui/main.py:1261`, a dict with `id`). `__model__` is not: Open WebUI injects the task model there (`backend/open_webui/utils/middleware.py:2916-2925`).
   - The tool's `_build_mcp_headers` (`computer_use_tools.py:666-683`) sends only chat id, user email and name.
 - The production-like overlay does not install `sub_agent` at all. `deploy/production-like-test/init/run-init.sh:4-5, 93-103` cuts the method out of `computer_use_tools.py` before installing the Tool, "until a fully internal sub-agent runtime is available". `compose.core.override.yml:55-56` and `compose.webui.override.yml:76` say the same. This change provides that internal runtime: WebUI's own Messages endpoint through the ingress, with the user's own token.
 
@@ -33,10 +33,12 @@ Owner decisions:
 **WebUI tool → OCU: two new headers, `sub_agent` only.**
 
 - `X-OCU-Gateway-Token`: `__request__.state.token.credentials`.
-- `X-Chat-Model`: the chat's model id, `__model__["id"]`.
-- The tool sends a header only when it has a non-empty value. Other tools (`bash_tool`, `str_replace`, `create_file`, `view`) send neither.
-- The token is whatever authenticated the chat request, so it can be a WebUI API key instead of the login token (`asgi_middleware.py:128-131`). `/api/v1/messages` accepts both.
-- `__model__` is the model the chat request resolved. When `ENABLE_CUSTOM_MODEL_FALLBACK` replaced the selected model (`main.py:1157-1161`), this is the fallback model; that is accepted.
+- `X-Chat-Model`: the chat's model id, `__metadata__["model"]["id"]` (a plain string id is also accepted).
+- The tool sends a header only when it has a non-empty value.
+- The tool sends `X-OCU-Gateway-Token` only when the caller owns the chat (`Chats.is_chat_owner(chat_id, __user__["id"])`). An admin may run completions in another user's existing chat (`main.py:1472`); without this rule the admin's token would reach the owner's sandbox. A non-owner caller, or a lookup that fails, sends no token, so OCU refuses with the missing-token error. `X-Chat-Model` does not depend on ownership.
+- The tool sends both headers on every `sub_agent` call, also when OCU is not in gateway mode; OCU then ignores them. Other tools (`bash_tool`, `str_replace`, `create_file`, `view`) send neither.
+- The token is whatever authenticated the chat request, so it can be a WebUI API key instead of the login token (`asgi_middleware.py:128-131`). `/api/v1/messages` accepts both. An API key does not expire like the 4-week login token.
+- `__metadata__["model"]` is the model the chat request resolved. When `ENABLE_CUSTOM_MODEL_FALLBACK` replaced the selected model (`main.py:1157-1161`), this is the fallback model; that is accepted.
 - Why not the existing `X-Anthropic-Api-Key` channel: `_create_container` copies `current_anthropic_auth_token` into the container-level env at creation (`docker_manager.py:1123-1125`, `1132-1135`, and opencode's `ANTHROPIC_API_KEY` at `1146-1147`).
   - Sending the user's token there would persist it in `docker inspect` whenever `sub_agent` creates the container.
   - Outside gateway mode it would pair the user's WebUI token with the server's `ANTHROPIC_BASE_URL`, `https://api.anthropic.com` by default (`:399`).

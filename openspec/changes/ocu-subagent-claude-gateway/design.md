@@ -18,7 +18,7 @@ Change surface:
 - OCU, `mcp_tools._CONTEXT_DEFAULTS`: the two new ContextVars, so `MCPContextMiddleware` resets them.
 - OCU, `deploy/production-like-test/init/run-init.sh`: no `sub_agent` removal. Comments are updated in `compose.core.override.yml` and `compose.webui.override.yml`.
 - OCU, `openwebui/tools/computer_use_tools.py`:
-  - `sub_agent` takes `__model__`;
+  - `sub_agent` reads the chat model from `__metadata__["model"]` (not `__model__`, which is the task model) and sends the token only when `Chats.is_chat_owner(chat_id, __user__["id"])` is true;
   - `_run_tool` accepts `extra_headers`, used only by `sub_agent`.
 
 Must preserve:
@@ -95,8 +95,10 @@ Required evidence:
   - With a fake `exec_run` that raises an exception whose message contains the environment it was given, the `sub_agent` result and logs still do not contain `tok-1`.
   - A container created during the call gets no `ANTHROPIC_AUTH_TOKEN=tok-1`: assert on the `_create_container` env, or that the container-creation collaborator receives no gateway token.
 - f. Tool wrapper:
-  - `sub_agent` with `__request__.state.token.credentials="tok-1"` and `__model__={"id": "m-1"}` sends `X-OCU-Gateway-Token: tok-1` and `X-Chat-Model: m-1`;
-  - with no token or no model, the corresponding header is absent;
+  - `sub_agent` with `__request__.state.token.credentials="tok-1"`, `__metadata__={"chat_id": …, "model": {"id": "m-1"}}` and a caller who owns the chat sends `X-OCU-Gateway-Token: tok-1` and `X-Chat-Model: m-1`;
+  - with a task model `__model__={"id": "cheap-m"}` offered too, `X-Chat-Model` is still `m-1`; with `__metadata__` lacking `model`, the header is absent;
+  - with no token, the token header is absent;
+  - a caller who does not own the chat (an admin in another user's chat), or an ownership lookup that raises, gets no `X-OCU-Gateway-Token`; `X-Chat-Model` is still sent;
   - `bash_tool` sends neither header.
 - g. Terminal regression: existing terminal gateway tests green, plus one test that `start_ttyd` still answers 422 with the unchanged detail strings through the moved builder.
 - h. WebUI, with `BYPASS_MODEL_ACCESS_CONTROL` off and a user without access to model `restricted-m`:
@@ -108,7 +110,9 @@ Required evidence:
   - the installed Tool lists `sub_agent`;
   - chat on `deepseek-flash-guan`, then `qwen3.8-27b`: the chat model calls `sub_agent` with a Write + Bash task, and the result banner and Claude Code's model usage name the chat model;
   - a resume after the model switch runs on the new model;
-  - the token appears in no process argv and no `docker inspect` output of the sandbox.
+  - the token appears in no process argv and no `docker inspect` output of the sandbox;
+  - while `sub_agent` runs, `docker inspect` on the Claude Code exec id shows no token in its argv;
+  - after the run, `grep -rF <token> /home/assistant/.claude /home/assistant/.claude.json` inside the sandbox finds nothing.
 - j. Context reset: a request carrying both new headers, then a request without them, in one process. The second sees the defaults, so `sub_agent` in gateway mode returns the missing-token error.
 - k. Deploy: the wrapper's installed `tools/computer_use_tools.py` equals the shipped file and contains `async def sub_agent(` (`tests/deploy/test_init_wrapper.py`). The init script no longer contains the removal block.
 
@@ -116,8 +120,10 @@ Non-goals: see proposal Impact.
 
 Risks (accepted; recorded in the decision record, task 4.2):
 
-- **Token readable inside the sandbox.** The token sits in Claude Code's process environment, which code running in the sandbox can read, and the WebUI login token lasts 4 weeks by default (`JWT_EXPIRES_IN`). The sub-agent runs model-chosen commands under `bypassPermissions`, and any background process it starts keeps the token after the call ends. This is the same exposure as the terminal (#656), but reached without a user opening a terminal.
-- **Claude Code can echo the token.** It can print its own environment into its output. OCU does not filter Claude Code's output.
+- **Token readable inside the sandbox.** The token sits in Claude Code's process environment, which code running in the sandbox can read, and the WebUI login token lasts 4 weeks by default (`JWT_EXPIRES_IN`). The sub-agent runs model-chosen commands under `bypassPermissions`, and any background process it starts keeps the token after the call ends. The exposure is wider than the terminal's (#656): it is reached without a user opening a terminal, the token can be a WebUI API key that does not expire like the 4-week login token, and it can land in OCU's own stdout (next item).
+- **Claude Code can echo the token.** It can print its own environment into its output and into the sub-agent progress lines that OCU prints to its own stdout (`[SUB-AGENT-PROGRESS]`, `mcp_tools.py:~1180`). OCU filters neither.
+- **Admin completions in another user's chat.** The tool sends no token there, so `sub_agent` is refused with the missing-token error.
+- **Headers outside gateway mode.** The tool sends both headers on every `sub_agent` call; OCU ignores them when gateway mode is off.
 - **Exposure in the overlay.** The overlay now offers `sub_agent` to every chat. It runs only through the gateway, and the overlay passes no external credentials.
 
 Review focus:
