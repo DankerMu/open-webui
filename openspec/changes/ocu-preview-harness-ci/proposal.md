@@ -51,7 +51,7 @@
   3. Playwright installed at exactly 1.62.1 without the repository's full `package.json` dependency set (no lockfile exists, and the set pulls heavy unrelated packages). For example, `npm install --no-save --no-package-lock playwright@1.62.1` in a scratch prefix, with `NODE_PATH` pointing at it.
   4. `node <prefix>/node_modules/playwright/cli.js install --with-deps chromium`. This needs apt and network access.
   5. `node tests/orchestrator/preview_embedding_browser.cjs` from the repository root, with `OCU_PREVIEW_PYTHON` set to the venv's python.
-  6. On failure, upload `OCU_PREVIEW_ARTIFACTS` as a workflow artifact.
+  6. On failure, upload `OCU_PREVIEW_ARTIFACTS` as a workflow artifact. The workflow sets it to a fixed path; unset, the harness writes to a random temp directory (`preview_embedding_browser.cjs:763`).
 - No secrets, no image builds, no pushes.
 
 **Docs.** `computer-use-server/README.md:507-509` adds that the `preview-harness` workflow runs the harness on pull requests.
