@@ -38,6 +38,7 @@ Sibling surfaces:
   - the new present-role test.
 
   They share one rule: `inspect_image` + `image_identity` + `accepted_image_identities`. The platform check lives inside `image_identity` (`:1866-1868`), and there is no second rule.
+
 - **Archive verification:** `verify_archive_set`, now on the delivery root, once. The intersection of `descriptor_digests` across roles that share a reference, and the `imported references do not equal the inventory` check, are unchanged.
 - **Callers:**
   - `cmd_import`;
