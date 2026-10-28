@@ -1,41 +1,53 @@
 ## Why
 
-(#667.) On the owner's workstation (2026-10-27), `make dev-stop` killed another project's Vite dev server that listened on 5173.
+(#667.) On the owner's workstation (2026-10-27), `make dev-stop` killed another project's Vite dev server listening on 5173.
 
 `scripts/dev-bg.sh` at `main` `97d96a6`:
 
-- **`stop_one` (`:27-46`).** After killing the pidfile's process group, it sweeps the port. `listeners` (`:25`, `lsof -tiTCP:$port -sTCP:LISTEN`) returns every listener, and they are killed, escalating to `kill -9` after 5 s. Nothing checks that a listener belongs to this checkout's harness. The sweep exists because `uv run` / `npx` can re-spawn the real server outside the tracked process group (`:35-37`).
-- **`start` (`:50-67`).** It never checks who holds the ports.
-  - If a foreign server on `BACKEND_PORT` answers `/health`, the readiness loop (`:54-58`) reports "backend ready" against it.
-  - Vite runs with `--strictPort`, so a held `FRONTEND_PORT` fails with an exit, but only after the backend has started.
-- **`status` (`:69-73`).** It reports "health: OK" for any server answering on `BACKEND_PORT`. `make smoke` runs `dev-bg.sh status || dev-bg.sh start` (`Makefile:156-157`), so it can smoke-test a foreign server.
+- **`stop_one` (`:27-46`).**
+  - It kills the pidfile's process group (`:30-33`) without checking that the recorded pid is still a harness process. A stale pidfile whose pid was reused would kill another group.
+  - It then sweeps the port. `listeners` (`:25`, `lsof -tiTCP:$port -sTCP:LISTEN … || true`) returns every listener, and each one is killed, escalating to `kill -9` after 5 s (`:39-43`). Nothing checks ownership. The sweep exists because `uv run` / `npx` can re-spawn the real server outside the tracked process group (`:36-38`).
+  - The `|| true` also makes a missing or failing `lsof` read as "port free".
+- **`start` (`:50-67`).** It stages frontend assets (`:51`) and never checks who holds the ports.
+  - A foreign server answering `/health` on `BACKEND_PORT` passes the readiness loop (`:54-59`) as "backend ready".
+  - A foreign server answering on `FRONTEND_PORT` passes too: `:63` curls the port before the `alive` check at `:64`, so the command prints "frontend ready" and exits 0 even though Vite died on `--strictPort`.
+- **`status` (`:69-73`).** It reports "health: OK" for any server on `BACKEND_PORT`. Three callers start the harness only when `status` fails, so each can run against a foreign server:
+  - `make smoke` (`Makefile:156-157`);
+  - `make verify-ui` (`Makefile:177`);
+  - Playwright's `webServer` (`playwright.config.ts:22`, `reuseExistingServer: true`).
 
 ## What Changes
 
 **Ownership test.**
 
-- A listener is **owned** when its working directory, read with `lsof -a -p <pid> -d cwd -Fn` and resolved with `pwd -P`, is this checkout's `repo_root` or lies below it. The harness backend runs in `backend/` and Vite in the repository root, and their re-spawned children inherit that.
-- Every other listener is **foreign**, including a dev server of another worktree of this repository.
-- An unreadable working directory counts as foreign: never kill what cannot be attributed.
+- A process is **owned** when `git -C <cwd> rev-parse --show-toplevel` equals this checkout's `repo_root`. Its working directory comes from `lsof -a -p <pid> -d cwd -Fn`.
+- Both sides are physical paths: `git rev-parse` already resolves symlinks such as `/private/tmp`.
+- Every other process is **foreign**, including:
+  - a server of another worktree, sibling or nested (`.claude/worktrees/*`, CI's `.run/open-computer-use` checkout);
+  - a process whose working directory is not in a git repository or cannot be read.
+- The harness's own processes pass:
+  - uvicorn runs in `backend/` (`sh -c "cd backend && exec uv run …"`);
+  - Vite runs in the repository root (`exec npx …`);
+  - their re-spawned children inherit the working directory, and neither code base calls `chdir`.
+- **Accepted false positive:** a developer's own `make dev` / `npm run dev` started from this checkout counts as owned and is stopped, as today.
+
+**`lsof` is required.** If `command -v lsof` fails, dev-bg exits 2 naming `lsof`, before doing anything (AGENTS.md: misconfiguration fails loud).
 
 **`stop`.**
 
-- It still kills the pidfile's process group, as today.
-- The port sweep kills only owned listeners, with the same escalation.
+- The pidfile's process group is killed only when the recorded pid passes the ownership test.
+- A stale pidfile is removed with a message, and nothing is signalled.
+- The port sweep kills only owned listeners, with the same escalation. It ends as soon as no owned listener remains, so a foreign holder does not cost a 10 s wait.
 - Foreign listeners are left running. For each, stderr gets one line naming the port, pid and command (`ps -o command= -p <pid>`).
-- `stop` succeeds (exit 0) when no owned listener remains, even if a foreign one does.
-- It fails, as today, when an owned listener survives the escalation.
+- `stop` exits 0 when no owned listener remains. As today, it fails when an owned listener survives the escalation.
 
 **`start`.** Before staging or starting anything, it checks both ports.
 
-- An owned listener whose pidfile is alive is the existing "already running" case.
-- Any foreign listener refuses the start: exit 1, with a message naming the port, pid and command, and nothing started.
+- A port held by an owned listener whose pidfile is alive is the existing "already running" case.
+- Any foreign listener refuses the start: exit 1, with a message naming the port, pid and command. Nothing is staged (no `.run/frontend-build`) and nothing is started.
 - An owned orphan, with no live pidfile, is swept the way `stop` sweeps.
 
-**`status`.**
-
-- If `BACKEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1, so `make smoke` starts nothing against it.
-- If the port is free, it then fails to start the harness on its own, as today.
+**`status`.** If either `BACKEND_PORT` or `FRONTEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1. Its three callers then attempt `start`, and the preflight refuses.
 
 **Docs.**
 
@@ -46,7 +58,7 @@
 
 ### Modified Capabilities
 
-- `harness-environment`: one added requirement, for the harness lifecycle touching only listeners this checkout owns.
+- `harness-environment`: one added requirement, for the development lifecycle touching only listeners this checkout owns.
 
 ## Impact
 
@@ -54,11 +66,18 @@
 - `scripts/test-guardrails.sh` gains a dev-bg ownership case (design evidence a–e).
 - `AGENTS.md`.
 - Callers:
-  - `make dev-bg`, `dev-stop`, `dev-status`, `smoke` (`Makefile:43-53`, `:156-157`);
-  - `scripts/dev-bg.sh stage`, unchanged.
+  - `make dev-bg`, `dev-stop`, `dev-status`, `logs` (`Makefile:43-53`);
+  - `make smoke` (`:156-157`) and `make verify-ui` (`:177`);
+  - Playwright `webServer` (`playwright.config.ts:22`);
+  - CI layer 3 `make dev-bg` / `make dev-stop` on Linux (`.github/workflows/ci.yml:124`, `:156`);
+  - `scripts/verify-ui-ocu.py:517`, through `dev-bg.sh stage` with `workspace-ui-*` paths. Staging is unchanged.
+- Sibling grep result: the only `lsof` user in `scripts/`, `Makefile`, `e2e/` and `.github/` is `dev-bg.sh:25`.
+  - `smoke_proxy_support.kill_tree` (`scripts/smoke_proxy_support.py:213-228`) signals only its own process group.
+  - `scripts/seed.sh:12-17` kills only its own child.
+  - No other script kills by port.
 - Non-goals:
   - changing ports;
-  - the isolated UI verification stacks (`verify-ui-ocu*` use their own launchers and ports);
+  - the isolated UI verification stacks;
   - Windows.
 
 ## Fixture
@@ -67,9 +86,9 @@
 Issue type: bugfix
 Fixture level: expanded
 Upstream suggested level: absent; expanded: shared CLI entrypoint used by every agent; it kills processes
-Blast radius: killing an unrelated process; refusing a healthy harness; smoke testing a foreign server
-Selected risk packs: Public API / CLI / script entry (dev-bg start/stop/status and make targets); Concurrency / shared state / ordering (other worktrees and projects sharing ports); Error handling / rollback / partial outputs (refuse before starting anything; stop leaves foreign processes); Legacy compatibility (owned orphans still swept; stop/start of the harness unchanged); Documentation (AGENTS.md Runtime Lifecycle)
-Not selected: Auth / secrets (none); Schema (none); File IO (pidfiles unchanged); Resource limits (none); Release packaging (harness only)
-Evidence floor: make test-guardrails with the new dev-bg case (red on main for a and b); make doc-gate; bash -n scripts/dev-bg.sh
+Blast radius: killing an unrelated process; refusing a healthy harness; smoke or UI tests running against a foreign server
+Selected risk packs: Public API / CLI / script entry (dev-bg start/stop/status and its make, Playwright and CI callers); Concurrency / shared state / ordering (other worktrees and projects sharing ports; stale pidfiles); Error handling / rollback / partial outputs (refuse before staging; stop leaves foreign processes; missing lsof fails loud); Legacy compatibility (owned orphans still swept; CI dev-bg/dev-stop unchanged); Documentation (AGENTS.md Runtime Lifecycle)
+Not selected: Auth / secrets (none); Schema (none); File IO (pidfile locations unchanged); Resource limits (none); Release packaging (harness only)
+Evidence floor: make test-guardrails with the new dev-bg case (a, b, e red on main), locally and on Linux in PR CI (ci.yml guardrail-self-test); make doc-gate; bash -n scripts/dev-bg.sh
 design.md: present
 ```

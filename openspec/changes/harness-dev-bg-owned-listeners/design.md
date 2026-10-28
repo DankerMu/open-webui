@@ -4,7 +4,8 @@ Change surface:
 
 - `scripts/dev-bg.sh`:
   - an ownership helper;
-  - `stop_one`;
+  - the `lsof` requirement;
+  - `stop_one`, covering both the pidfile kill and the sweep;
   - a port preflight in `start`;
   - `status`.
 - `scripts/test-guardrails.sh`: a new numbered case.
@@ -12,64 +13,66 @@ Change surface:
 
 Must preserve:
 
-- `start` / `stop` / `status` / `logs` / `stage` usage and exit codes for a harness-only machine.
-- The pidfile process-group kill.
-- Sweeping of owned re-spawned servers (`uv run`, `npx`) with escalation to SIGKILL.
+- `start` / `stop` / `status` / `logs` / `stage` usage and exit codes on a machine running only the harness.
+- Killing the process group of a live, owned pidfile.
+- Sweeping owned re-spawned servers (`uv run`, `npx`), with escalation to SIGKILL.
 - `stop` failing when an owned listener survives.
-- `DATA_DIR` / `FRONTEND_BUILD_DIR` validation in `scripts/dev-env.sh`.
-- Port overrides through `BACKEND_PORT` / `FRONTEND_PORT`.
-- `make smoke` behaviour when the harness runs.
+- `scripts/dev-env.sh` validation.
+- `BACKEND_PORT` / `FRONTEND_PORT` overrides.
+- `make smoke`, `make verify-ui` and the Playwright `webServer` when the harness runs.
+- CI layer 3 `make dev-bg` / `make dev-stop` on ubuntu (`ci.yml:124`, `:156`).
+- `dev-bg.sh stage` for `scripts/verify-ui-ocu.py:517`.
 
 Must add/change: see proposal "What Changes".
 
-Governing invariant: dev-bg signals only processes this checkout started, and never reports or uses as healthy a server it did not start.
+Governing invariant: dev-bg sends a signal only to a process whose working directory resolves to this checkout's repository root. It never reports or uses as healthy a server it did not start.
 
-Sibling surfaces:
+Sibling surfaces: the callers listed in proposal Impact. The grep result is stated there: no other script kills by port.
 
-- **Callers of `dev-bg.sh`:**
-  - `make dev-bg`, `dev-stop`, `dev-status`, `logs`;
-  - `make smoke` (`status || start`);
-  - `scripts/dev-bg.sh stage`.
-- **Other launchers:** the isolated UI verification launchers run their own ports and cleanup. Grep for other callers of `listeners` or `lsof … LISTEN` in `scripts/` and leave them unchanged unless they kill by port without ownership; if one does, report it.
+Seams under test: `scripts/test-guardrails.sh` already creates a detached worktree `$wt`, copies `scripts/` from the working tree into it and `cd`s there (`:8-30`). The new case runs inside it:
 
-Seams under test: `scripts/test-guardrails.sh` runs `scripts/dev-bg.sh` against free high ports chosen at run time through `BACKEND_PORT` / `FRONTEND_PORT`, never 8080 or 5173. It uses stand-in listeners:
+- `dev-bg.sh` resolves `repo_root=$wt`, and pidfiles land in `$wt/.run/`.
+- Staging needs only the tracked `static/static`.
+- The case unsets any inherited `DATA_DIR` / `FRONTEND_BUILD_DIR`, so `dev-env.sh` validates its defaults.
+- It uses free high ports chosen at run time through `BACKEND_PORT` / `FRONTEND_PORT`, never 8080 or 5173.
+- `dev-bg.sh` gains no test-only knob.
 
-- a **foreign** listener, e.g. `python3 -m http.server <port>` started with its working directory in a fresh `mktemp -d` outside the repository;
-- an **owned** listener started with its working directory under `.run/` of this checkout, plus a child process, recorded in a pidfile copy the test points dev-bg at, or left as an orphan without a pidfile.
+Stand-ins:
 
-The test must not touch the developer's real `.run/backend.pid` / `.run/frontend.pid`.
-
-- Either the pidfile paths become overridable for the test only, through an environment variable, defaulting to today's paths;
-- or the test copies the checkout tree to a scratch location. That copy is the owned root, so the stand-ins run under it.
-
-The implementer picks one and states it. The test kills only the stand-ins it started.
+- **Foreign:** a Python HTTP server whose working directory is a sibling directory sharing a string prefix with `$wt`, e.g. `"$wt-foreign"`. That proves the match is not a string prefix. For evidence e it serves a directory that contains a file named `health`, so `/health` returns 200.
+- **Owned:** a Python HTTP server with its working directory under `$wt/.run/`. It leads its own process group (`set -m`, as `start_one` does, or `os.setsid()` in Python; macOS has no `setsid(1)`), so a group kill can never reach the test script. For evidence d it is recorded in `$wt/.run/frontend.pid`, with a child that holds the port.
+- The case kills only the stand-ins it started, in a trap. A real `uv run` / `npx` that a red run on `main` starts inside `$wt` is bounded and cleaned up by the case.
 
 Required evidence:
 
 - a. **Stop leaves a foreign listener.** With a foreign listener on the test's frontend port and no harness running, `dev-bg.sh stop`:
   - leaves it alive (`kill -0`);
   - prints a line naming the port, pid and command;
-  - exits 0.
+  - exits 0 within a few seconds, with no 10 s wait.
 
-  Red on `main`: the foreign listener is killed.
+  Red on `main`: the listener is killed.
 
 - b. **Start refuses a foreign listener.** With a foreign listener on the test's backend port, `dev-bg.sh start`:
-  - exits 1 with a message naming the port, pid and command;
-  - starts no backend or frontend (no new pidfile, nothing new on the other port).
+  - exits 1 naming the port, pid and command;
+  - creates no `$wt/.run/backend.pid`, `frontend.pid` or `$wt/.run/frontend-build`.
 
-  Red on `main`: it does not refuse.
+  Red on `main`: it creates them and does not name the listener. `main` also exits 1, for other reasons, so the exit code alone is not the red signal.
 
 - c. **Owned orphan swept.** An owned listener without a pidfile is killed by `stop`, which exits 0 with the port free.
-- d. **Owned process group stopped.** An owned process group recorded in the pidfile, with a child holding the port, is fully stopped (parent and child gone).
-- e. **Status refuses a foreign backend.** A foreign listener on the test's backend port answering `/health` makes `status` exit 1 with `health: foreign listener …`.
-- f. `make doc-gate` passes, and `bash -n scripts/dev-bg.sh` passes.
+- d. **Owned process group stopped.** An owned group recorded in the pidfile, with a child holding the port, is fully stopped: parent and child are gone.
+- e. **Status refuses a foreign server.** A foreign listener answering 200 on `/health` on the test's backend port makes `status` exit 1 with `health: foreign listener …`. Red on `main`: it prints `health: OK` and exits 0. A foreign listener on the frontend port alone also makes `status` exit 1.
+- f. **Stale pidfile.** `$wt/.run/backend.pid` holds the pid of a live foreign stand-in. `stop` removes the pidfile, reports it as stale, and leaves the stand-in alive.
+- g. **Missing `lsof`.** With `PATH` reduced so that `lsof` is not found, `dev-bg.sh stop` exits 2 naming `lsof` and signals nothing.
+- h. `make doc-gate` passes, and `bash -n scripts/dev-bg.sh` passes.
+
+Linux evidence comes from the same case in PR CI (`ci.yml` `guardrail-self-test` on ubuntu-latest) and from the weekly `agents-md-liveness.yml:42`.
 
 Non-goals: see proposal Impact.
 
 Review focus:
 
-- No code path signals a process without the ownership test passing.
-- An unreadable working directory counts as foreign.
-- `start` refuses before staging or starting anything.
-- The test never uses 8080/5173 or the real pidfiles, and kills only what it started.
-- It works on macOS and Linux: `lsof` cwd output, and `pwd -P` for `/private` symlinks.
+- No code path signals a process unless it passes the ownership test, including the pidfile kill.
+- An unreadable working directory, or one outside a repository, counts as foreign. Nested and prefix-sharing worktrees count as foreign.
+- `start` refuses before staging. `status` checks both ports.
+- The test never uses 8080/5173 or the real pidfiles, puts stand-ins in their own groups, and kills only what it started.
+- macOS and Linux behave the same (`lsof` cwd output, physical paths).
