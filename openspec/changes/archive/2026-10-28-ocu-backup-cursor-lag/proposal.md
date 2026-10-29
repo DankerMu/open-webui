@@ -86,6 +86,7 @@ At OCU `main` `3fe7730`:
 
 - OCU:
   - `deploy/recovery_resources.py`, `deploy/recovery_db.py`, `deploy/BACKUP-RESTORE.md`;
+  - `deploy/recovery.py` (implementation finding: the `__main__` entry caught a second copy of `RecoveryError`, so refusals raised in `recovery_resources` printed a traceback; it now dispatches through the imported module);
   - `tests/deploy/test_recovery.py`.
 - Non-goals:
   - weakening `_require_cursor_lag`;

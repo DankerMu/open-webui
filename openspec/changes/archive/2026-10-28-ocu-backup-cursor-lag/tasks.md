@@ -14,10 +14,12 @@
 
 ## 3. Implement OCU
 
-- [ ] 3.1 Work from OCU `origin/main` (`3fe7730` or later; the local `main` ref is stale). Tests first for design evidence a–i in `tests/deploy/test_recovery.py` (and `tests/deploy/test_recovery_db.py` if f lands there); rebuild the three affected existing tests as design.md says; record which fail on `main`.
-- [ ] 3.2 `recovery_db.py` shared read; `recovery_resources.py` pre-quiesce check (postgres running, rows, then indexes), one per-row helper shared with restore, unreadable-index wrapping, messages with remedies.
-- [ ] 3.3 `deploy/BACKUP-RESTORE.md`.
-- [ ] 3.4 Green:
+- [x] 3.1 Work from OCU `origin/main` (`3fe7730` or later; the local `main` ref is stale). Tests first for design evidence a–i in `tests/deploy/test_recovery.py` (and `tests/deploy/test_recovery_db.py` if f lands there); rebuild the three affected existing tests as design.md says; record which fail on `main`. Evidence: new tests on an `origin/main` copy 13 failed / 5 passed (d and i are preservation); the three rebuilt tests keep their restore assertions (DankerMu/open-computer-use#191).
+- [x] 3.2 `recovery_db.py` shared read; `recovery_resources.py` pre-quiesce check (postgres running, rows, then indexes), one per-row helper shared with restore, unreadable-index wrapping, messages with remedies. Also the broker's non-negative integer counter rule, every non-ELOOP OSError named per chat, and the `recovery.py` entry fix (review round 1). Evidence: merged as `78a1a0d`.
+- [x] 3.3 `deploy/BACKUP-RESTORE.md`.
+- [x] 3.4 Green:
   - OCU unit command for `tests/deploy/test_recovery.py`, `tests/deploy/test_recovery_db.py` and the other `tests/deploy` modules importing `recovery`;
   - the scripts/docs-lint gates;
   - environment-only failures (port 8082) shown identical to `main`.
+
+  Evidence: recovery, recovery_db, recovery_fs and recovery_retarget 158 passed / 13 skipped; the 8082-bound modules fail identically on the branch and on `origin/main` (46/17, `Address already in use`); docs-lint six gates and the structure test pass; review round 2 clean.
