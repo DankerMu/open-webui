@@ -288,3 +288,12 @@ Before stopping any service, backup SHALL compare each live chat's `ocu_chat_sta
 
 - **WHEN** restore meets a live chat whose cursor leads its recovered counter
 - **THEN** it refuses as before and the message also names the remedies
+
+### Requirement: Restore broker-probe refusals name the chat
+
+When restore's broker revision probe fails or returns malformed output for a chat, the refusal SHALL name that chat.
+
+#### Scenario: The probe fails for a chat
+
+- **WHEN** the selected release's broker probe fails or returns malformed output for a live chat
+- **THEN** the refusal line for that chat starts with `chat <id>`
