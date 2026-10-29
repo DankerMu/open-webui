@@ -59,6 +59,6 @@ Upstream suggested level: absent; expanded: process lifecycle under the chat loc
 Blast radius: every gateway terminal start answers 503 or restarts a healthy terminal; a stop that kills more than ttyd; a smoke that times out on a healthy deployment
 Selected risk packs: Public API / CLI / script entry (start-ttyd answers, stop-ttyd, smoke timeout); Concurrency / shared state / ordering (stop and reuse under the chat lock, wait bounds vs exec timeouts); Error handling (escalation, cleanup); Legacy compatibility (healthy reuse stays one probe exec; restore refuses the same states); Documentation (NETWORK-HARDENING.md)
 Not selected: Auth / secrets (token handling unchanged); Config (no setting or env change); Schema (none); File IO (none); Resource limits (bounded waits only); Release packaging (none)
-Evidence floor: OCU unit command for test_terminal_gateway.py and test_recovery.py; test_deployment_smoke.py in a Linux container; new tests in design.md red on origin/main; real-bash run of the stop and probe scripts in a container shaped like the sandbox PID 1; scripts/docs-lint gates
+Evidence floor: OCU unit command for test_terminal_gateway.py and test_recovery.py; test_office_save_as.py and test_office_resolution.py pass with ALL_PROXY=socks5://127.0.0.1:9 set; test_deployment_smoke.py in a Linux container; new tests in design.md red on origin/main; real-bash run of the stop and probe scripts in a container shaped like the sandbox PID 1; scripts/docs-lint gates
 design.md: present
 ```
