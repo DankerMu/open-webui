@@ -90,6 +90,6 @@ Upstream suggested level: absent; expanded: shared CLI entrypoint used by every 
 Blast radius: killing an unrelated process; refusing a healthy harness; smoke or UI tests running against a foreign server
 Selected risk packs: Public API / CLI / script entry (dev-bg start/stop/status and its make, Playwright and CI callers); Concurrency / shared state / ordering (other worktrees and projects sharing ports; stale pidfiles); Error handling / rollback / partial outputs (refuse before staging; stop leaves foreign processes; missing lsof fails loud); Legacy compatibility (owned orphans still swept; CI dev-bg/dev-stop unchanged); Documentation (AGENTS.md Runtime Lifecycle)
 Not selected: Auth / secrets (none); Schema (none); File IO (pidfile locations unchanged); Resource limits (none); Release packaging (harness only)
-Evidence floor: make test-guardrails with the new dev-bg case (a, b, e red on main), locally and on Linux in PR CI (ci.yml guardrail-self-test); make doc-gate; bash -n scripts/dev-bg.sh
+Evidence floor: make test-guardrails with the new dev-bg case (a, b, e red on main), locally and on Linux (agents-md-liveness.yml guardrail-self-test dispatched on the PR branch; ci.yml layer 3 dev-bg/dev-stop); make doc-gate; bash -n scripts/dev-bg.sh
 design.md: present
 ```

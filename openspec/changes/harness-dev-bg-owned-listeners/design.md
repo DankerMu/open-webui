@@ -71,7 +71,7 @@ Required evidence:
   - `dev-bg.sh stage` still succeeds.
 - h. `make doc-gate` passes, and `bash -n scripts/dev-bg.sh` passes.
 
-Linux evidence comes from the same case in PR CI (`ci.yml` `guardrail-self-test` on ubuntu-latest) and from the weekly `agents-md-liveness.yml:42`.
+Linux evidence comes from CI layer 3 on the PR (`ci.yml:124`, `:156`: a real `make dev-bg` / `make dev-stop` on ubuntu-latest) and from the `guardrail-self-test` job of `agents-md-liveness.yml:29-42`, dispatched on the PR branch. PR CI itself does not run `test-guardrails`.
 
 Non-goals: see proposal Impact.
 
