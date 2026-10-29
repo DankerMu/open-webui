@@ -1,22 +1,21 @@
 ## 1. Fixture
 
-- [x] 1.1 Proposal, tasks, spec delta; fixture review; `openspec validate ocu-subagent-resume-task --strict --no-interactive`.
+- [x] 1.1 Proposal, design, tasks, spec delta; fixture review; `openspec validate ocu-subagent-resume-task --strict --no-interactive`.
 
 ## 2. Risk packs
 
-- **Public API / CLI / script entry** — selected: the resume contract and docstrings. Evidence:
-  - the two resume tests in `test_subagent_gateway.py` (`:285`, `:295` on `origin/main`) assert `-p "<task>\n\nIf needed, re-read /home/assistant/task_plan.md for the original task."`, red on `origin/main`;
-  - a test asserts that no plan-file write exec runs on resume.
-- **Legacy compatibility** — selected:
-  - the new-session tests and the codex/opencode tests in `test_subagent_gateway.py` keep their exact argv;
-  - `test_subagent_claude_compat.py` and `test_cli_adapters.py` pass unchanged.
-- **Auth / secrets, Schema, File IO, Concurrency, Resource limits, Release packaging** — not selected; reasons are in the proposal Fixture block.
+- **Public API / CLI / script entry** — selected: the resume contract, and argv safety for caller text. Evidence a, b.
+- **Error handling** — selected: an empty or whitespace task falls back to the old prompt. Evidence c.
+- **Legacy compatibility** — selected: new sessions, codex/opencode resume, the adapter and its fixture. Evidence d, e.
+- **Documentation** — selected: the Claude docstring, the Open WebUI tool docstring and the skill. Task 3.2; evidence e for the docstring test.
+- **Auth / secrets, Config, Schema, File IO, Concurrency, Resource limits, Release packaging** — not selected; reasons are in the proposal Fixture block.
 
 ## 3. Implement OCU
 
-- [ ] 3.1 Tests first (risk-pack evidence); record which fail on `origin/main`.
-- [ ] 3.2 `mcp_tools.py` resume prompt; both docstrings.
+- [ ] 3.1 Tests first for evidence a–d; record which fail on `origin/main`.
+- [ ] 3.2 `mcp_tools.py` resume prompt and the Claude docstring; `computer_use_tools.py:960`; `SKILL.md:138`.
 - [ ] 3.3 Green:
-  - OCU unit command for `test_subagent_gateway.py`, `test_subagent_claude_compat.py`, `test_cli_adapters.py` and any other test that greps `Continue working`;
+  - `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/orchestrator/test_subagent_gateway.py tests/orchestrator/test_subagent_claude_compat.py tests/orchestrator/test_cli_adapters.py tests/test_subagent_docstring.py -q --import-mode=importlib`;
+  - any other test that greps `Continue working`;
   - docs-lint gates;
   - `./tests/test-project-structure.sh`.
