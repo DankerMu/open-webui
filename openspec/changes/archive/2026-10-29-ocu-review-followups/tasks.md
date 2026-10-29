@@ -14,10 +14,10 @@
 
 ## 3. Implement OCU
 
-- [ ] 3.1 The FakeSandbox changes named in design.md; tests first for evidence a–d, f and h; record which fail on `origin/main`.
-- [ ] 3.2 `app.py`, `smoke_deployment.py`, `recovery_resources.py`, `NETWORK-HARDENING.md`, the two Office test call sites.
-- [ ] 3.3 Real-bash run (evidence e).
-- [ ] 3.4 Green:
+- [x] 3.1 The FakeSandbox changes named in design.md; tests first for evidence a–d, f and h; record which fail on `origin/main`. Red on `origin/main`: a `already_running: true`; b the second start reused; c exit 1 with no `-KILL`; d `-ge 3` and smoke 3 failed (`20.0`); f 4 failed; h 38 failed / 401 passed (DankerMu/open-computer-use#193 Test plan).
+- [x] 3.2 `app.py`, `smoke_deployment.py`, `recovery_resources.py`, `NETWORK-HARDENING.md`, the two Office test call sites. OCU PR #193, reviewed head `1e54d04`, merged as `89327b6`; review round 1 clean on both seats.
+- [x] 3.3 Real-bash run (evidence e): sandbox image entrypoint, no `--init`; a SIGTERM-ignoring ttyd was killed and the stop exited 0 after 3.3 s with no ttyd or zombie left; probe answered NONE / MATCH / OTHER / OTHER; a non-reaped zombie made the stop exit 1 after 5.7 s; on `origin/main` the ttyd survived.
+- [x] 3.4 Green (gateway + overlay + recovery 161 passed / 2 skipped; smoke 55 passed in a python:3.12 container; Office 439 passed with and without proxies, re-run by the orchestrator at `1e54d04` under `ALL_PROXY`; docs-lint exit 0; STRUCTURE OK):
   - OCU unit command for `test_terminal_gateway.py`, `test_overlay_structure.py`, `test_recovery.py`, and `test_office_save_as.py` + `test_office_resolution.py` both with and without `ALL_PROXY=socks5://127.0.0.1:9`;
   - `test_deployment_smoke.py` in a Linux container (port 8082 is held locally);
   - docs-lint gates;
