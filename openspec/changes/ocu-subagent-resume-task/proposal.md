@@ -23,7 +23,7 @@ So a model that resumes a session to give a follow-up ("now add tests", "fix the
 
 ### Modified Capabilities
 
-- `ocu-subagent-claude-gateway`: a resumed sub-agent session receives the caller's task.
+- `ocu-terminal-claude-gateway` (which also holds the #662 sub_agent gateway requirements): a resumed sub-agent session receives the caller's task.
 
 ## Impact
 
