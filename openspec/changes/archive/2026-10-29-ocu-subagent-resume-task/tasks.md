@@ -12,10 +12,12 @@
 
 ## 3. Implement OCU
 
-- [ ] 3.1 Tests first for evidence a–d; record which fail on `origin/main`.
-- [ ] 3.2 `mcp_tools.py` resume prompt and the Claude docstring; `computer_use_tools.py:960`; `SKILL.md:138`.
-- [ ] 3.3 Green:
+- [x] 3.1 Tests first for evidence a–d; record which fail on `origin/main`. Evidence: 3 failed / 79 passed on `origin/main` (a ×2, b); c and d pass there by construction and are proven by mutants (no fallback → 2 failed; no `Cli.CLAUDE` gate → 1 failed).
+- [x] 3.2 `mcp_tools.py` resume prompt and the Claude docstring; `computer_use_tools.py:960`; `SKILL.md:138`. Evidence: merged as `ce3b389` (DankerMu/open-computer-use#192).
+- [x] 3.3 Green:
   - `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/orchestrator/test_subagent_gateway.py tests/orchestrator/test_subagent_claude_compat.py tests/orchestrator/test_cli_adapters.py tests/test_subagent_docstring.py -q --import-mode=importlib`;
   - any other test that greps `Continue working`;
   - docs-lint gates;
   - `./tests/test-project-structure.sh`.
+
+  Evidence: target suites 82 passed; neighbouring suites 102 passed; docs-lint and structure pass; review round 1 clean (two seats). A live resume is verified during the VPS upgrade acceptance.
