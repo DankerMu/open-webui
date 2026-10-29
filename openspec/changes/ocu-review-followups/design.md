@@ -22,7 +22,8 @@ Must preserve:
 - **Fresh start and restart** keep the event order `probe, stop, start, ready`, the 503 details and the `restarted` flag.
 - **The token** never reaches the probe, stop or readiness execs, as asserted over all calls.
 - **`stop-ttyd`** still answers `{"stopped": true}`.
-- **The stop** signals only processes named `ttyd` (`pkill -x`) and the tmux server, never PID 1 or a shell.
+- **The stop** never signals PID 1 or any process other than `ttyd` (`pkill -x`) and the tmux server. `tmux kill-server` still ends the pane shells, as it does today.
+- **The chat lock:** a failing start now holds it for about 18 s instead of about 11 s, which is accepted on the same grounds as #665. Its other users wait without a timeout, and WebUI's `ocu_client` 30 s total timeout still covers it.
 - **Smoke:** a first start that reports `already_running` still exits 2 without stopping anything. The reuse check still requires `already_running: true` on the second start.
 - **SPA:** start and stop calls have no request deadline (`ocu-request.js:75-82`), so longer waits only delay the UI. Phase 1 still chooses its wait from `already_running` (`preview.js:2077`).
 - **Restore:** which states `_require_cursor_lag` refuses, and the existing message text after the new `chat <id> ` prefix.
@@ -52,7 +53,7 @@ Required evidence:
 - b. **The repeat case from #676.**
   - Setup: with `listens=False` throughout, the new ttyd ignores SIGTERM (`linger` never ends) but not SIGKILL.
   - First start: the not-listening 503, events `["probe", "stop", "start", "ready", "stop"]`. The cleanup stop's `-KILL` removes the ttyd.
-  - A second start with the same inputs: events start `["probe", "stop", …]` (`NONE`), never `already_running`.
+  - A second start with the same inputs: events start `["probe", "stop", …]` (`NONE`), never `already_running`. With `listens=False` still set, it answers the not-listening 503 again.
 - c. **SIGKILL escalation alone.** A ttyd that ignores SIGTERM: `TERMINAL_STOP_COMMAND` exits 0, and the stub records `-KILL` after the plain `pkill`.
 - d. **Bounds.**
   - `test_terminal_gateway.py` asserts that the stop script contains `-gt 3` and `-gt 1`, that the readiness script contains `-gt 5`, and that `TERMINAL_STOP_TIMEOUT` and `TERMINAL_READY_TIMEOUT` are each greater than their worst case (6 s).
