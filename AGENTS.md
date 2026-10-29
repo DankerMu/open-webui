@@ -152,6 +152,7 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 | Seed deterministic admin (`admin@harness.local`) | `make seed`       |
 
 - Backend health at `http://localhost:8080/health`; frontend at `http://localhost:5173`. Verify only after `make dev-status` reports health OK.
+- dev-bg stops and trusts only processes this checkout started: their working directory resolves to this checkout's repository root. `make dev-stop` leaves any other listener on 8080 or 5173 running and names it. Such a listener makes `make dev-bg` refuse and `make dev-status` fail. `lsof` is required.
 - Never verify against a stale build — restart after dependency, schema, or config changes.
 - Never leave orphan dev processes — run `make dev-stop` when done.
 

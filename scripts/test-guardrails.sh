@@ -10,6 +10,8 @@ wt="$tmp/wt"
 
 cleanup() {
   cd "$repo_root" || exit 1
+  # Case 10 stand-ins lead their own groups once setsid ran; before that only the pid exists.
+  for p in ${standins:-}; do kill -- "-$p" 2>/dev/null || kill "$p" 2>/dev/null || true; done
   git worktree remove --force "$wt" >/dev/null 2>&1 || true
   rm -rf "$tmp"
 }
@@ -221,6 +223,227 @@ else
   printf '%s\n' "$complexity_output"
   fail=$((fail + 1))
 fi
+
+# 10. dev-bg touches only listeners this checkout owns (#667). Runs inside $wt on free
+# high ports chosen at run time, never 8080/5173 or the real pidfiles. Every stand-in
+# leads its own process group (os.setsid), and only stand-ins are signalled here.
+standin="$tmp/listener-standin.py"
+cat > "$standin" <<'PY'
+import http.server
+import os
+import sys
+
+cwd, portfile = sys.argv[1], sys.argv[2]
+os.setsid()
+os.chdir(cwd)
+if len(sys.argv) > 3 and os.fork():
+    os.wait()
+    sys.exit(0)
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=cwd, **kwargs)
+
+    def log_message(self, *args):
+        pass
+
+
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+with open(portfile + ".tmp", "w") as f:
+    f.write(f"{server.server_address[1]} {os.getpid()}\n")
+os.rename(portfile + ".tmp", portfile)
+server.serve_forever()
+PY
+standins=""
+standin_seq=0
+
+start_standin() { # start_standin CWD [fork] -> standin_pid (group leader), standin_port, standin_server
+  local f i
+  standin_seq=$((standin_seq + 1)); f="$tmp/standin.$standin_seq"
+  mkdir -p "$1" && : > "$1/health"
+  python3 "$standin" "$1" "$f" ${2:+fork} &
+  standin_pid=$!; standins="$standins $standin_pid"
+  for i in $(seq 1 100); do [ -s "$f" ] && break; sleep 0.1; done
+  read -r standin_port standin_server < "$f" || { echo "FATAL: stand-in listener in $1 did not start" >&2; exit 1; }
+}
+
+stop_standins() {
+  local p
+  # kill fails for a group dev-bg already stopped (cases c, d) or a stand-in killed before its
+  # setsid; wait returns the signal status.
+  for p in $standins; do kill -- "-$p" 2>/dev/null || kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; done
+  standins=""
+}
+
+running() { local s; s="$(ps -o stat= -p "$1" 2>/dev/null | tr -d ' ')"; [ -n "$s" ] && [ "${s#Z}" = "$s" ]; }
+free_port() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
+idle_port() { local p; p="$(free_port)"; while [ "$p" = "$1" ]; do p="$(free_port)"; done; printf '%s' "$p"; }
+names() { printf '%s\n' "$out" | grep -F -- "$1" | grep -F -- "$2" | grep -qF listener-standin.py; }
+has() { printf '%s\n' "$out" | grep -qF -- "$1"; }
+
+devbg() { # devbg BACKEND_PORT FRONTEND_PORT ARGS... -> out, rc, took (seconds)
+  local backend="$1" frontend="$2" t0=$SECONDS; shift 2
+  out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="${devbg_path:-$PATH}" BACKEND_PORT="$backend" FRONTEND_PORT="$frontend" bash scripts/dev-bg.sh "$@") 2>&1)"; rc=$?
+  took=$((SECONDS - t0))
+}
+
+verdict() { # verdict NAME FAILURES (empty = pass)
+  if [ -z "$2" ]; then echo "PASS  $1 (${took}s)"; pass=$((pass + 1)); return; fi
+  echo "FAIL  $1 —$2 (exit $rc, ${took}s):"; printf '%s\n' "$out" | sed 's/^/        /'; fail=$((fail + 1))
+}
+
+foreign_dir="$wt-foreign" # shares the string prefix of $wt; not in any repository
+git init -q "$wt/.run/nested" || exit 1
+
+foreign_stop_case() { # foreign_stop_case NAME CWD
+  local pid port scan t0 why=""
+  start_standin "$2"; pid=$standin_pid; port=$standin_port
+  # One port-wide lsof scan is the unit of stop's cost; the 10 s sweep wait is what must vanish.
+  t0=$SECONDS; lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; scan=$((SECONDS - t0))
+  devbg "$(idle_port "$port")" "$port" stop
+  running "$pid" || why="$why listener killed;"
+  [ "$rc" -eq 0 ] || why="$why exit not 0;"
+  names "$port" "$pid" || why="$why no line naming port $port, pid $pid and command;"
+  [ "$took" -le $((3 * scan + 5)) ] || why="$why took ${took}s, bound $((3 * scan + 5))s (scan ${scan}s);"
+  verdict "$1" "$why"
+  stop_standins
+}
+foreign_stop_case "dev-bg stop leaves a foreign listener (10a)" "$foreign_dir"
+foreign_stop_case "dev-bg stop leaves a nested-repository listener (10a2)" "$wt/.run/nested"
+
+start_standin "$foreign_dir"; pid=$standin_pid; port=$standin_port
+rm -rf .run/backend.pid .run/frontend.pid .run/frontend-build
+devbg "$port" "$(idle_port "$port")" start
+created=""
+for f in .run/backend.pid .run/frontend.pid .run/frontend-build; do [ -e "$f" ] && created="$created $f"; done
+# A dev-bg that ignores the foreign holder starts real servers in $wt; stop those fresh groups now.
+for n in backend frontend; do [ -f ".run/$n.pid" ] && { kill -- "-$(cat ".run/$n.pid")" 2>/dev/null || true; rm -f ".run/$n.pid"; }; done
+why=""
+[ "$rc" -eq 1 ] || why="$why exit not 1;"
+names "$port" "$pid" || why="$why no line naming port $port, pid $pid and command;"
+[ -z "$created" ] || why="$why created$created;"
+verdict "dev-bg start refuses a foreign listener before staging (10b)" "$why"
+rm -rf .run/frontend-build
+stop_standins
+
+start_standin "$wt/.run/owned"; pid=$standin_pid; port=$standin_port
+devbg "$port" "$(idle_port "$port")" stop
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+running "$pid" && why="$why owned orphan survived;"
+curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$port/" && why="$why port $port still answers;"
+verdict "dev-bg stop sweeps an owned orphan (10c)" "$why"
+stop_standins
+
+start_standin "$wt/.run/owned" fork; parent=$standin_pid; child=$standin_server; port=$standin_port
+echo "$parent" > .run/frontend.pid
+devbg "$(idle_port "$port")" "$port" stop
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+running "$parent" && why="$why group leader $parent survived;"
+running "$child" && why="$why port-holding child $child survived;"
+[ -f .run/frontend.pid ] && why="$why pidfile kept;"
+verdict "dev-bg stop stops an owned process group (10d)" "$why"
+stop_standins
+
+start_standin "$foreign_dir"; port=$standin_port
+devbg "$port" "$(idle_port "$port")" status
+why=""
+[ "$rc" -eq 1 ] || why="$why exit not 1;"
+has "health: foreign listener on $port" || why="$why no 'health: foreign listener on $port';"
+verdict "dev-bg status refuses a foreign backend answering /health (10e)" "$why"
+stop_standins
+start_standin "$foreign_dir"; port=$standin_port
+devbg "$(idle_port "$port")" "$port" status
+why=""
+has "health: foreign listener on $port" || why="$why no 'health: foreign listener on $port';"
+verdict "dev-bg status names a foreign frontend listener (10e)" "$why"
+stop_standins
+
+start_standin "$foreign_dir"; pid=$standin_pid; port=$standin_port
+echo "$pid" > .run/backend.pid
+devbg "$(idle_port "$port")" "$(idle_port "$port")" stop
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+running "$pid" || why="$why stale pid $pid signalled;"
+[ -f .run/backend.pid ] && why="$why pidfile kept;"
+has "stale" || why="$why not reported as stale;"
+verdict "dev-bg stop removes a stale pidfile without signalling (10f)" "$why"
+rm -f .run/backend.pid
+stop_standins
+
+no_lsof="$tmp/no-lsof-bin"; mkdir -p "$no_lsof"
+for t in git ps cat mkdir rm cp tr seq sleep tail curl; do ln -s "$(command -v "$t")" "$no_lsof/$t"; done
+bash_abs="$(command -v bash)"
+start_standin "$wt/.run/owned"; pid=$standin_pid; port=$standin_port
+other="$(idle_port "$port")"
+echo "$pid" > .run/backend.pid
+t0=$SECONDS
+out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="$no_lsof" BACKEND_PORT="$port" FRONTEND_PORT="$other" "$bash_abs" scripts/dev-bg.sh stop) 2>&1)"; rc=$?
+took=$((SECONDS - t0))
+why=""
+[ "$rc" -eq 2 ] || why="$why exit not 2;"
+has "lsof" || why="$why lsof not named;"
+running "$pid" || why="$why owned pid $pid signalled;"
+[ -f .run/backend.pid ] || why="$why pidfile removed;"
+verdict "dev-bg stop without lsof fails loud and signals nothing (10g)" "$why"
+rm -rf .run/backend.pid .run/frontend-build
+t0=$SECONDS
+out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="$no_lsof" "$bash_abs" scripts/dev-bg.sh stage) 2>&1)"; rc=$?
+took=$((SECONDS - t0))
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+[ -d .run/frontend-build/static ] || why="$why nothing staged;"
+verdict "dev-bg stage without lsof still stages (10g)" "$why"
+rm -rf .run/frontend-build
+stop_standins
+
+start_standin "$wt/.run/owned" fork; parent=$standin_pid; child=$standin_server
+echo "$child" > .run/frontend.pid # owned, but its group's leader is $parent
+devbg "$(idle_port 0)" "$(idle_port 0)" stop
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+running "$child" || why="$why non-leader $child signalled;"
+running "$parent" || why="$why its group leader $parent signalled;"
+[ -f .run/frontend.pid ] && why="$why pidfile kept;"
+has "frontend: stale pidfile" || why="$why not reported as stale;"
+verdict "dev-bg stop never signals the group of a non-leader pid (10j)" "$why"
+rm -f .run/frontend.pid
+stop_standins
+
+# Fake lsof: per-pid queries (-p) reach the real one; port-wide scans print nothing, as for
+# a listener lsof cannot attribute (another user, root), except a non-pid line for the port
+# in $garble_port.
+fake_lsof="$tmp/fake-lsof-bin"; mkdir -p "$fake_lsof"
+cat > "$fake_lsof/lsof" <<SH
+#!/bin/sh
+for a in "\$@"; do [ "\$a" = "-p" ] && exec "$(command -v lsof)" "\$@"; done
+case " \$* " in *"TCP:\${garble_port:-none} "*) echo "lsof: unreadable kernel table" ;; esac
+exit 0
+SH
+chmod +x "$fake_lsof/lsof"
+devbg_path="$fake_lsof:$PATH"
+
+start_standin "$foreign_dir"; port=$standin_port
+devbg "$port" "$(idle_port "$port")" status
+why=""
+[ "$rc" -eq 1 ] || why="$why exit not 1;"
+has "health: listener on $port is not this checkout's" || why="$why no 'health: listener on $port is not this checkout's';"
+has "health: OK" && why="$why reported health: OK;"
+verdict "dev-bg status refuses an unattributable listener answering /health (10i)" "$why"
+stop_standins
+
+rm -f .run/backend.pid .run/frontend.pid
+frontend="$(idle_port 0)"
+export garble_port="$frontend"
+devbg "$(idle_port "$frontend")" "$frontend" stop
+unset garble_port
+why=""
+[ "$rc" -eq 2 ] || why="$why exit not 2;"
+has "lsof failed on port $frontend" || why="$why frontend lsof failure not named;"
+verdict "dev-bg stop exits with the frontend's lsof failure (10k)" "$why"
+unset devbg_path
 
 echo
 echo "guardrail self-test: $pass passed, $fail failed"
