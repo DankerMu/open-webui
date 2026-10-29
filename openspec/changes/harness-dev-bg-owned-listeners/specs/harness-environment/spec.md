@@ -2,7 +2,7 @@
 
 ### Requirement: The development lifecycle touches only listeners this checkout owns
 
-The development server lifecycle SHALL signal only processes whose working directory resolves to this checkout's repository root. Stopping SHALL leave any other listener on the harness ports running and SHALL name it. Starting SHALL refuse, before starting anything, when another process holds a harness port. Status SHALL NOT report a server it did not start as healthy. Processes this checkout started, including servers re-spawned outside the recorded process group, SHALL still be stopped.
+The development server lifecycle SHALL signal only processes whose working directory resolves to this checkout's repository root. Stopping SHALL leave any other listener on the harness ports running and SHALL name it. Starting SHALL refuse, before starting anything, when another process holds a harness port. Status SHALL NOT report a server it did not start as healthy, and SHALL report healthy only when a listener of this checkout serves the backend port; starting SHALL declare readiness only for a server it started. Processes this checkout started, including servers re-spawned outside the recorded process group, SHALL still be stopped.
 
 #### Scenario: Another project's server holds a harness port
 

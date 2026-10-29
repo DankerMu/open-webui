@@ -10,8 +10,8 @@ wt="$tmp/wt"
 
 cleanup() {
   cd "$repo_root" || exit 1
-  # Case 10 stand-ins lead their own groups; kill fails only for a group already gone.
-  for p in ${standins:-}; do kill -- "-$p" 2>/dev/null || true; done
+  # Case 10 stand-ins lead their own groups once setsid ran; before that only the pid exists.
+  for p in ${standins:-}; do kill -- "-$p" 2>/dev/null || kill "$p" 2>/dev/null || true; done
   git worktree remove --force "$wt" >/dev/null 2>&1 || true
   rm -rf "$tmp"
 }
@@ -270,8 +270,9 @@ start_standin() { # start_standin CWD [fork] -> standin_pid (group leader), stan
 
 stop_standins() {
   local p
-  # kill fails for a group dev-bg already stopped (cases c, d); wait returns the signal status.
-  for p in $standins; do kill -- "-$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; done
+  # kill fails for a group dev-bg already stopped (cases c, d) or a stand-in killed before its
+  # setsid; wait returns the signal status.
+  for p in $standins; do kill -- "-$p" 2>/dev/null || kill "$p" 2>/dev/null || true; wait "$p" 2>/dev/null || true; done
   standins=""
 }
 
@@ -283,7 +284,7 @@ has() { printf '%s\n' "$out" | grep -qF -- "$1"; }
 
 devbg() { # devbg BACKEND_PORT FRONTEND_PORT ARGS... -> out, rc, took (seconds)
   local backend="$1" frontend="$2" t0=$SECONDS; shift 2
-  out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; BACKEND_PORT="$backend" FRONTEND_PORT="$frontend" bash scripts/dev-bg.sh "$@") 2>&1)"; rc=$?
+  out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="${devbg_path:-$PATH}" BACKEND_PORT="$backend" FRONTEND_PORT="$frontend" bash scripts/dev-bg.sh "$@") 2>&1)"; rc=$?
   took=$((SECONDS - t0))
 }
 
@@ -397,6 +398,52 @@ why=""
 verdict "dev-bg stage without lsof still stages (10g)" "$why"
 rm -rf .run/frontend-build
 stop_standins
+
+start_standin "$wt/.run/owned" fork; parent=$standin_pid; child=$standin_server
+echo "$child" > .run/frontend.pid # owned, but its group's leader is $parent
+devbg "$(idle_port 0)" "$(idle_port 0)" stop
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+running "$child" || why="$why non-leader $child signalled;"
+running "$parent" || why="$why its group leader $parent signalled;"
+[ -f .run/frontend.pid ] && why="$why pidfile kept;"
+has "frontend: stale pidfile" || why="$why not reported as stale;"
+verdict "dev-bg stop never signals the group of a non-leader pid (10j)" "$why"
+rm -f .run/frontend.pid
+stop_standins
+
+# Fake lsof: per-pid queries (-p) reach the real one; port-wide scans print nothing, as for
+# a listener lsof cannot attribute (another user, root), except a non-pid line for the port
+# in $garble_port.
+fake_lsof="$tmp/fake-lsof-bin"; mkdir -p "$fake_lsof"
+cat > "$fake_lsof/lsof" <<SH
+#!/bin/sh
+for a in "\$@"; do [ "\$a" = "-p" ] && exec "$(command -v lsof)" "\$@"; done
+case " \$* " in *"TCP:\${garble_port:-none} "*) echo "lsof: unreadable kernel table" ;; esac
+exit 0
+SH
+chmod +x "$fake_lsof/lsof"
+devbg_path="$fake_lsof:$PATH"
+
+start_standin "$foreign_dir"; port=$standin_port
+devbg "$port" "$(idle_port "$port")" status
+why=""
+[ "$rc" -eq 1 ] || why="$why exit not 1;"
+has "health: listener on $port is not this checkout's" || why="$why no 'health: listener on $port is not this checkout's';"
+has "health: OK" && why="$why reported health: OK;"
+verdict "dev-bg status refuses an unattributable listener answering /health (10i)" "$why"
+stop_standins
+
+rm -f .run/backend.pid .run/frontend.pid
+frontend="$(idle_port 0)"
+export garble_port="$frontend"
+devbg "$(idle_port "$frontend")" "$frontend" stop
+unset garble_port
+why=""
+[ "$rc" -eq 2 ] || why="$why exit not 2;"
+has "lsof failed on port $frontend" || why="$why frontend lsof failure not named;"
+verdict "dev-bg stop exits with the frontend's lsof failure (10k)" "$why"
+unset devbg_path
 
 echo
 echo "guardrail self-test: $pass passed, $fail failed"

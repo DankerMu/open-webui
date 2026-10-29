@@ -70,8 +70,11 @@ Required evidence:
   - `dev-bg.sh stop` exits 2 naming `lsof` and signals nothing;
   - `dev-bg.sh stage` still succeeds.
 - h. `make doc-gate` passes, and `bash -n scripts/dev-bg.sh` passes.
+- i. **Unattributable listener** (review round 1). A stand-in answers 200 on `/health` on the backend port while a fake `lsof` hides it from port scans. `status` exits 1 with `health: listener on <port> is not this checkout's` and never prints `health: OK`.
+- j. **Non-leader pidfile.** The pidfile holds an owned pid that does not lead its process group. `stop` signals nothing, removes the pidfile and reports it stale; the process and its group leader survive.
+- k. **Stop exit code.** lsof fails on the frontend port only; `stop` exits 2.
 
-Linux evidence comes from CI layer 3 on the PR (`ci.yml:124`, `:156`: a real `make dev-bg` / `make dev-stop` on ubuntu-latest) and from the `guardrail-self-test` job of `agents-md-liveness.yml:29-42`, dispatched on the PR branch. PR CI itself does not run `test-guardrails`.
+Linux evidence comes from CI layer 3 on the PR (`ci.yml:124`, `:156`: a real `make dev-bg` / `make dev-stop` on ubuntu-latest) and from the `guardrail-self-test` job of `agents-md-liveness.yml:29-42`, which runs on pull requests touching `scripts/**` or `AGENTS.md` (not part of the required `All checks passed` gate).
 
 Non-goals: see proposal Impact.
 

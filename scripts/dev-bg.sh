@@ -18,7 +18,8 @@ case "${1:-}" in
     command -v lsof >/dev/null 2>&1 || { echo "dev-bg: '$1' requires lsof to tell this checkout's listeners from others; install lsof" >&2; exit 2; } ;;
 esac
 mkdir -p "$DATA_DIR"
-HEALTH_URL="http://localhost:${BACKEND_PORT}/health"
+# uvicorn binds 127.0.0.1; localhost may resolve to ::1 first and reach a different listener.
+HEALTH_URL="http://127.0.0.1:${BACKEND_PORT}/health"
 
 # owned PID — the process's working directory resolves to this checkout's root. Another
 # worktree (sibling, nested or sharing a path prefix), no repository, or an unreadable
@@ -62,6 +63,11 @@ classify() { # classify PORT — sets owned_pids and foreign_pids (space-separat
   done
 }
 
+# serving_owned PORT — only this checkout's listeners hold PORT. A curl that succeeds proves
+# nothing on its own: another worktree's server, or one lsof cannot attribute (another
+# user, root), answers just as well (#667). 2 when lsof fails.
+serving_owned() { classify "$1" || return 2; [ -n "$owned_pids" ] && [ -z "$foreign_pids" ]; }
+
 describe() { printf 'port %s, pid %s (%s)' "$1" "$2" "$(ps -o command= -p "$2" 2>/dev/null)"; }
 
 name_foreign() { # name_foreign PORT PREFIX — one stderr line per foreign listener; 1 when any
@@ -74,11 +80,13 @@ stop_one() { # stop_one NAME PIDFILE PORT
   local name="$1" pidfile="$2" port="$3" pid pgid i
   if [ -f "$pidfile" ]; then
     pid="$(cat "$pidfile")"
-    if owned "$pid"; then
-      pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')" || pgid=""
-      if [ -n "$pgid" ] && [ "$pgid" != "0" ]; then kill -- "-$pgid" 2>/dev/null || kill "$pid" 2>/dev/null || true
-      else kill "$pid" 2>/dev/null || true; fi
-    else echo "$name: stale pidfile (pid $pid is not a process of this checkout) — removed, nothing signalled" >&2; fi
+    # start_one's `set -m` makes the recorded pid its group's leader. A reused pid that is
+    # not a leader, or that shares dev-bg's own group (the caller's shell), is stale: its
+    # group holds processes dev-bg never started, possibly the caller itself.
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+    if owned "$pid" && [ "$pgid" = "$pid" ] && [ "$pgid" != "$(ps -o pgid= -p $$ | tr -d ' ')" ]; then
+      kill -- "-$pgid" 2>/dev/null || true
+    else echo "$name: stale pidfile (pid $pid does not lead a process group of this checkout) — removed, nothing signalled" >&2; fi
     rm -f "$pidfile"
   else echo "$name: no pidfile — not running (or started outside dev-bg)"; fi
   # Orphan sweep by port, not argv: `uv run` / `npx` re-spawn the real server outside
@@ -110,21 +118,27 @@ case "${1:-}" in
     stage_frontend_assets || exit 2
     start_one backend .run/backend.pid .run/backend.log \
       sh -c "cd backend && exec uv run --quiet uvicorn open_webui.main:app --host 127.0.0.1 --port $BACKEND_PORT"
+    # Ready only while the started process lives and this checkout's listener answers: a
+    # server that lost the bind race must not adopt the winner's port (#667).
     for i in $(seq 1 180); do
-      if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then echo "backend ready (pid $(cat .run/backend.pid)) — $HEALTH_URL"; break; fi
       if ! alive .run/backend.pid; then echo "backend exited before readiness; last log lines:" >&2; tail -n 20 .run/backend.log >&2; exit 1; fi
+      if curl -fsS "$HEALTH_URL" >/dev/null 2>&1 && serving_owned "$BACKEND_PORT"; then echo "backend ready (pid $(cat .run/backend.pid)) — $HEALTH_URL"; break; fi
       sleep 1
       [ "$i" -eq 180 ] && { echo "backend not ready after 180s; last log lines:" >&2; tail -n 20 .run/backend.log >&2; stop_one backend .run/backend.pid "$BACKEND_PORT"; exit 1; }
     done
     start_one frontend .run/frontend.pid .run/frontend.log \
       sh -c "exec npx --no-install vite dev --port $FRONTEND_PORT --strictPort"
+    # localhost, not 127.0.0.1: vite's default host may bind ::1 only.
     for i in $(seq 1 60); do
-      if curl -fsS "http://localhost:${FRONTEND_PORT}/" >/dev/null 2>&1; then echo "frontend ready (pid $(cat .run/frontend.pid)) — http://localhost:${FRONTEND_PORT}"; exit 0; fi
       if ! alive .run/frontend.pid; then echo "frontend exited before readiness; last log lines:" >&2; tail -n 20 .run/frontend.log >&2; exit 1; fi
+      if curl -fsS "http://localhost:${FRONTEND_PORT}/" >/dev/null 2>&1 && serving_owned "$FRONTEND_PORT"; then echo "frontend ready (pid $(cat .run/frontend.pid)) — http://localhost:${FRONTEND_PORT}"; exit 0; fi
       sleep 1
     done
     echo "frontend not ready after 60s; last log lines:" >&2; tail -n 20 .run/frontend.log >&2; exit 1 ;;
-  stop) stop_one frontend .run/frontend.pid "$FRONTEND_PORT"; stop_one backend .run/backend.pid "$BACKEND_PORT" ;;
+  stop) # The worse outcome wins: 2 lsof failed, 1 an owned listener survived.
+    stop_one frontend .run/frontend.pid "$FRONTEND_PORT"; frc=$?
+    stop_one backend .run/backend.pid "$BACKEND_PORT"; brc=$?
+    [ "$frc" -gt "$brc" ] && exit "$frc"; exit "$brc" ;;
   status)
     for n in backend frontend; do
       if alive ".run/$n.pid"; then echo "$n: pid $(cat ".run/$n.pid") (running)"; else echo "$n: not running"; fi
@@ -136,7 +150,12 @@ case "${1:-}" in
       for p in $foreign_pids; do echo "health: foreign listener on $port (pid $p)"; foreign=1; done
     done
     [ -z "$foreign" ] || exit 1
-    if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then echo "health: OK ($HEALTH_URL)"; else echo "health: UNREACHABLE ($HEALTH_URL)"; exit 1; fi ;;
+    curl -fsS "$HEALTH_URL" >/dev/null 2>&1 || { echo "health: UNREACHABLE ($HEALTH_URL)"; exit 1; }
+    serving_owned "$BACKEND_PORT"; case $? in
+      0) echo "health: OK ($HEALTH_URL)" ;;
+      2) exit 2 ;;
+      *) echo "health: listener on $BACKEND_PORT is not this checkout's ($HEALTH_URL)"; exit 1 ;;
+    esac ;;
   logs) tail -n 100 -f .run/backend.log .run/frontend.log ;;
   *) echo "usage: $0 start|stop|status|logs|stage" >&2; exit 2 ;;
 esac

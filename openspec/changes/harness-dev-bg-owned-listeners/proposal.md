@@ -47,7 +47,7 @@
 - Any foreign listener refuses the start: exit 1, with a message naming the port, pid and command. Nothing is staged (no `.run/frontend-build`) and nothing is started.
 - An owned orphan, with no live pidfile, is swept the way `stop` sweeps.
 
-**`status`.** If either `BACKEND_PORT` or `FRONTEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1. `make smoke` and `make verify-ui` then attempt `start`, and the preflight refuses.
+**`status`.** If either `BACKEND_PORT` or `FRONTEND_PORT` is held by a foreign listener, it reports `health: foreign listener on <port> (pid <pid>)` and exits 1. `make smoke` and `make verify-ui` then attempt `start`, and the preflight refuses. `health: OK` requires that an owned listener serves `BACKEND_PORT`; a listener that answers but is not attributable to this checkout (for example another user's process, invisible to lsof) prints `health: listener on <port> is not this checkout's` and exits 1. `start` readiness likewise requires a live pidfile and an owned listener on the port, so a parallel start in another worktree on the same ports never reads the other server as its own. A pidfile is group-signalled only when its pid leads its process group and that group is not dev-bg's own; otherwise it is stale. `stop` exits with the worse of the two ports' results (review round 1).
 
 **Docs.**
 
@@ -90,6 +90,6 @@ Upstream suggested level: absent; expanded: shared CLI entrypoint used by every 
 Blast radius: killing an unrelated process; refusing a healthy harness; smoke or UI tests running against a foreign server
 Selected risk packs: Public API / CLI / script entry (dev-bg start/stop/status and its make, Playwright and CI callers); Concurrency / shared state / ordering (other worktrees and projects sharing ports; stale pidfiles); Error handling / rollback / partial outputs (refuse before staging; stop leaves foreign processes; missing lsof fails loud); Legacy compatibility (owned orphans still swept; CI dev-bg/dev-stop unchanged); Documentation (AGENTS.md Runtime Lifecycle)
 Not selected: Auth / secrets (none); Schema (none); File IO (pidfile locations unchanged); Resource limits (none); Release packaging (harness only)
-Evidence floor: make test-guardrails with the new dev-bg case (a, b, e red on main), locally and on Linux (agents-md-liveness.yml guardrail-self-test dispatched on the PR branch; ci.yml layer 3 dev-bg/dev-stop); make doc-gate; bash -n scripts/dev-bg.sh
+Evidence floor: make test-guardrails with the new dev-bg case (a, b, e red on main), locally and on Linux (agents-md-liveness.yml guardrail-self-test on the pull request; ci.yml layer 3 dev-bg/dev-stop); make doc-gate; bash -n scripts/dev-bg.sh
 design.md: present
 ```
