@@ -8,7 +8,7 @@ Start the workspace terminal's Claude Code against Open WebUI's Messages ingress
 
 ### Requirement: Terminal Claude Code uses the opener's token and the chat model
 
-When gateway mode is configured (`OCU_SANDBOX_MESSAGES_ADDRESS` set for Computer Use), starting a workspace terminal SHALL give ttyd and every process under it `ANTHROPIC_BASE_URL` pointing at the Messages ingress, `ANTHROPIC_AUTH_TOKEN` equal to the WebUI login token from the starting request's `token` cookie, and the model variables equal to the model supplied by the chat at terminal open. The token SHALL be passed only through the exec environment, never in a command string, URL, response, or log. A running terminal SHALL be reused only when it was started with the same base URL, model and token. Otherwise any running terminal process and terminal multiplexer SHALL be stopped and a fresh one started, and concurrent starts for one chat SHALL NOT interleave. Gateway mode SHALL apply only when the sandbox coding CLI is Claude Code. With gateway mode not configured, terminal start SHALL behave as before and ignore any supplied model.
+When gateway mode is configured (`OCU_SANDBOX_MESSAGES_ADDRESS` set for Computer Use), starting a workspace terminal SHALL give ttyd and every process under it `ANTHROPIC_BASE_URL` pointing at the Messages ingress, `ANTHROPIC_AUTH_TOKEN` equal to the WebUI login token from the starting request's `token` cookie, and the model variables equal to the model supplied by the chat at terminal open. The token SHALL be passed only through the exec environment, never in a command string, URL, response, or log. A running terminal SHALL be reused only when it was started with the same base URL, model and token. Otherwise any running terminal process and terminal multiplexer SHALL be stopped and a fresh one started, and concurrent starts for one chat SHALL NOT interleave. Gateway mode SHALL apply only when the sandbox coding CLI is Claude Code. With gateway mode not configured, terminal start SHALL behave as before apart from the files link, and ignore any supplied model.
 
 #### Scenario: First open binds token and model
 
@@ -34,7 +34,7 @@ When gateway mode is configured (`OCU_SANDBOX_MESSAGES_ADDRESS` set for Computer
 #### Scenario: Gateway mode off
 
 - **WHEN** `OCU_SANDBOX_MESSAGES_ADDRESS` is not set for Computer Use
-- **THEN** terminal start runs exactly the existing command without an added environment and ignores the model and cookie
+- **THEN** terminal start runs the existing commands, its first check prefixed only by the files-link snippet, without an added environment, and ignores the model and cookie
 
 ### Requirement: The chat model reaches the terminal at open time
 
@@ -131,3 +131,13 @@ In gateway mode, a terminal start SHALL report an existing terminal as already r
 
 - **WHEN** a ttyd with this request's fingerprint is running but not accepting connections, including one that ignores SIGTERM
 - **THEN** the start does not report it as already running, the stop removes it, and a later start with the same settings does not report it as already running
+
+### Requirement: A terminal start leaves a files link in the sandbox home
+
+Every terminal start request that reaches a running sandbox, in gateway and non-gateway mode, and whether it reuses or starts a terminal, SHALL ensure `/home/assistant/files` is a symlink to `/mnt/user-data/files` when nothing exists at that path. It SHALL NOT replace or modify an existing file, directory or symlink there, dangling symlinks included, and the link's creation or failure SHALL NOT change the start's answer. The terminal SHALL still start in `/home/assistant`.
+
+#### Scenario: Opening the terminal
+
+- **GIVEN** nothing exists at `/home/assistant/files` in the chat's sandbox
+- **WHEN** the chat owner opens the terminal, whether it is reused or started
+- **THEN** `/home/assistant/files` is a symlink to `/mnt/user-data/files`, the terminal starts in `/home/assistant`, and an existing entry at that path would have been left unchanged
