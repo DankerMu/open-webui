@@ -214,7 +214,8 @@ async function cell(opened, address) {
 }
 
 async function dismissSynchronizationTip(editor) {
-	const tip = editor.locator('.synch-tip-root:visible').getByText('Got it', { exact: true });
+	// The tip's only button, by structure: its label follows the editor language.
+	const tip = editor.locator('.synch-tip-root:visible .btn-div');
 	if (await tip.isVisible()) await tip.click();
 }
 
@@ -244,7 +245,8 @@ async function edit(opened, format) {
 		);
 		await opened.page.keyboard.press('End');
 		const selected = await opened.editor.locator('#status-label-pages').innerText();
-		if (selected.trim() !== 'Slide 1 of 3')
+		// "Slide 1 of 3" or 「幻灯片第1张，共3张」: compare the numbers, not the language.
+		if (selected.match(/\d+/g)?.join(',') !== '1,3')
 			throw new Error('native title interaction navigated away from first slide');
 		await opened.page.keyboard.type(' OCU_PPTX_EDIT');
 		await opened.page.mouse.click(box.x + box.width * 0.85, box.y + box.height * 0.85);
