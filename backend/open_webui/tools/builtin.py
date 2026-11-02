@@ -65,6 +65,7 @@ from open_webui.socket.main import sio
 from open_webui.tasks import stop_item_tasks
 from open_webui.tools.knowledge_fs import kb_exec  # noqa: F401 — re-exported
 from open_webui.utils.chat_id import is_saved_chat_id
+from open_webui.utils.images.aspect_ratio import resolve_aspect_ratio_size
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.notifications import notify_target
 from open_webui.utils.sanitize import sanitize_code
@@ -368,6 +369,7 @@ async def fetch_url(
 
 async def generate_image(
     prompt: str,
+    aspect_ratio: str | None = None,
     __request__: Request = None,
     __user__: dict = None,
     __event_emitter__: callable = None,
@@ -378,6 +380,7 @@ async def generate_image(
     Generate an image based on a text prompt.
 
     :param prompt: A detailed description of the image to generate
+    :param aspect_ratio: Optional width:height aspect ratio, such as 1:1, 16:9 or 9:16; omit it to use the default size
     :return: Confirmation that the image was generated, or an error message
     """
     if __request__ is None:
@@ -385,10 +388,13 @@ async def generate_image(
 
     try:
         user = UserModel(**__user__) if __user__ else None
+        size, error = await resolve_aspect_ratio_size(aspect_ratio)
+        if error:
+            return JSONCodec.dumps({'error': error})
 
         images = await image_generations(
             request=__request__,
-            form_data=CreateImageForm(prompt=prompt),
+            form_data=CreateImageForm(prompt=prompt, size=size),
             metadata=(
                 {'channel_id': __chat_id__.removeprefix('channel:'), 'message_id': __message_id__}
                 if isinstance(__chat_id__, str) and __chat_id__.startswith('channel:')
