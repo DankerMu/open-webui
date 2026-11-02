@@ -26,6 +26,8 @@ Outermost release clears retained handle ownership before explicit unlock and at
 
 Launch succeeds only after observing running. Dead states, readiness timeout and engine refusal fail explicitly without container deletion. Creation conflicts adopt a running winner, never remove it. This amends parent D7's unconditional success for existing non-running states.
 
+Explicit resume of stopped sandboxes is partially superseded by [wake on use](2026-11-02-ocu-sandbox-wake-retention.md): a tool call runs this launch transaction for a recoverable non-running sandbox. The lock, observed-launch, failure-mapping and no-deletion-on-launch-failure rules here stay in force.
+
 Use one private Docker-only adapter at request get/create, describe and initial launch lookup, the four launch preparation calls, and restarting readiness. Docker failures become status500 `launch_failed` with operation context and the original exception as cause. Lookup retains `engine lookup failed: ...`; MCP tools use their lifecycle error text and HTTP retains the nested `detail.detail`/`detail.reason` envelope. Maintenance, publish and reaper lookups keep the raw helper.
 
 Only `containers.get` NotFound establishes absence; reload NotFound remains a failure. Specific network NotFound/APIError mappings, live-incompatibility409, readiness timeout504 and retirement409 `migration_required` remain distinct. Paused migration admission and action order are unchanged; retirement stays outside readiness translation. Creation, post-start verification and post-unpause reload are outside this adapter's scope.

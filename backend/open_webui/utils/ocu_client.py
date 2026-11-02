@@ -1,4 +1,4 @@
-"""Typed HTTP client for OCU internal describe/launch/outputs endpoints."""
+"""Typed HTTP client for OCU internal describe/launch/outputs/sandbox-delete endpoints."""
 
 from __future__ import annotations
 
@@ -81,6 +81,9 @@ class OcuClient:
 
     async def refresh(self, chat_id: str):
         return await self._request('GET', f'/api/outputs/{chat_id}')
+
+    async def delete_sandbox(self, chat_id: str):
+        return await self._request('DELETE', f'/internal/sandbox/{chat_id}')
 
     async def _request(self, method: str, path: str, *, never_created: bool = False):
         log.debug('OCU %s %s', method, path)

@@ -41,6 +41,7 @@ from open_webui.utils.chat_fork import build_fork_history
 from open_webui.utils.context_compaction import compact_chat_branch, get_chat_context_usage
 from open_webui.utils.misc import get_message_list
 from open_webui.utils.models import get_all_models
+from open_webui.utils.ocu_sandbox_cleanup import delete_user_chats, schedule_sandbox_cleanup
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -379,8 +380,6 @@ async def get_session_user_chat_usage_stats(
                                     models[model] = 0
                                 models[model] += 1
 
-                            annotation = message.get('annotation', {})
-
                     chat_stats.append(
                         {
                             'id': chat.id,
@@ -399,7 +398,7 @@ async def get_session_user_chat_usage_stats(
                             'created_at': chat.created_at,
                         }
                     )
-                except Exception as e:
+                except Exception:
                     pass
 
         return ChatUsageStatsListResponse(items=chat_stats, total=total)
@@ -716,7 +715,7 @@ async def delete_all_user_chats(
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
 
-    result = await Chats.delete_chats_by_user_id(user.id, db=db)
+    result = await delete_user_chats(user.id, db=db)
     if result:
         await publish_event(
             request,
@@ -1595,15 +1594,16 @@ async def delete_chat_by_id(
     await Chats.delete_orphan_tags_for_user(chat.meta.get('tags', []), user.id, threshold=1, db=db)
 
     # Cascade to internal child chats spawned from this one.
+    deleted_ids = []
     for child_id in await Chats.get_internal_chat_ids_by_parent_id(id, chat.user_id):
         await stop_item_tasks(request.app.state.redis, child_id)
-        await Chats.delete_chat_by_id_and_user_id(child_id, chat.user_id)
-
+        if await Chats.delete_chat_by_id_and_user_id(child_id, chat.user_id):
+            deleted_ids.append(child_id)
     if user.role == 'admin':
         result = await Chats.delete_chat_by_id(id, db=db)
     else:
         result = await Chats.delete_chat_by_id_and_user_id(id, user.id, db=db)
-
+    schedule_sandbox_cleanup(deleted_ids + [id] if result else deleted_ids)
     if result:
         await publish_event(
             request,
