@@ -66,21 +66,35 @@ def schedule_sandbox_cleanup(chat_ids: list[str]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
+async def _chat_ids(query, db: AsyncSession | None) -> list[str] | None:
+    """Run an id query; None when the database read fails, so the caller schedules nothing."""
+    try:
+        async with get_async_db_context(db) as session:
+            return list((await session.execute(query)).scalars().all())
+    except Exception as exc:
+        log.warning('OCU sandbox cleanup skipped: chat id query failed: %s', type(exc).__name__)
+        return None
+
+
 async def delete_user_chats(user_id: str, folder_id: str | None = None, db: AsyncSession | None = None) -> bool:
     """Delete all of a user's chats, or only those in `folder_id`, and schedule their sandbox cleanup.
 
-    The ids are read before the delete, with the same filter the delete uses. The delete commits on
-    its own, so cleanup is scheduled as soon as it reports success, whatever the caller does next.
+    The candidate ids are read before the delete with the delete's own filter. After the delete
+    reports success, only candidates that no longer exist are scheduled: a chat moved out of the
+    folder in between survives and must keep its sandbox. The delete commits on its own, so
+    cleanup is scheduled whatever the caller does next. A failed id query schedules nothing and
+    leaves the delete and its result as they are.
     """
-    async with get_async_db_context(db) as session:
-        query = select(Chat.id).filter_by(user_id=user_id)
-        if folder_id is not None:
-            query = query.filter_by(folder_id=folder_id)
-        chat_ids = list((await session.execute(query)).scalars().all())
+    candidates = select(Chat.id).filter_by(user_id=user_id)
+    if folder_id is not None:
+        candidates = candidates.filter_by(folder_id=folder_id)
+    chat_ids = await _chat_ids(candidates, db)
     if folder_id is None:
         deleted = await Chats.delete_chats_by_user_id(user_id, db=db)
     else:
         deleted = await Chats.delete_chats_by_user_id_and_folder_id(user_id, folder_id, db=db)
-    if deleted:
-        schedule_sandbox_cleanup(chat_ids)
+    if deleted and chat_ids:
+        surviving = await _chat_ids(select(Chat.id).where(Chat.id.in_(chat_ids)), db)
+        if surviving is not None:
+            schedule_sandbox_cleanup(sorted(set(chat_ids) - set(surviving)))
     return deleted

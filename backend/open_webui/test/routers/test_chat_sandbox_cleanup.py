@@ -6,6 +6,7 @@ import asyncio
 import logging
 import threading
 import time
+from contextlib import asynccontextmanager
 
 import pytest
 from open_webui.test.ocu_harness import (
@@ -142,6 +143,23 @@ def _wrap_failing(monkeypatch, name: str, should_fail):
     monkeypatch.setattr(Chats, name, wrapped)
 
 
+def _failing_id_queries(monkeypatch, *, fail_on: set[int]):
+    """Fault-inject the cleanup seam's own id queries by call number (from 1); the chat deletes are untouched."""
+    cleanup = _cleanup_module()
+    original = cleanup.get_async_db_context
+    calls = {'n': 0}
+
+    @asynccontextmanager
+    async def context(db=None):
+        calls['n'] += 1
+        if calls['n'] in fail_on:
+            raise RuntimeError('simulated id query failure')
+        async with original(db) as session:
+            yield session
+
+    monkeypatch.setattr(cleanup, 'get_async_db_context', context)
+
+
 # DELETE /api/v1/chats/{id}
 
 
@@ -196,6 +214,33 @@ def test_single_delete_of_a_foreign_chat_is_404_and_requests_nothing(users, ocu)
     _wait_for_cleanup()
 
     assert response.status_code == 404
+    assert ocu.deleted == []
+    assert _existing([chat]) == {chat}
+
+
+def test_admin_single_delete_of_another_users_chat_removes_its_sandbox(users, ocu):
+    admin = _user(users, role='admin')
+    owner = _user(users)
+    chat = _chat(owner.id)
+
+    response = get_client().delete(f'/api/v1/chats/{chat}', headers=_session_headers(admin.id))
+    _wait_for_cleanup()
+
+    assert response.status_code == 200 and response.json() is True
+    assert ocu.deleted == [chat]
+    assert _existing([chat]) == set()
+
+
+def test_admin_single_delete_that_fails_in_the_database_requests_nothing(users, ocu, monkeypatch):
+    admin = _user(users, role='admin')
+    owner = _user(users)
+    chat = _chat(owner.id)
+    _wrap_failing(monkeypatch, 'delete_chat_by_id', lambda chat_id, *_: chat_id == chat)
+
+    response = get_client().delete(f'/api/v1/chats/{chat}', headers=_session_headers(admin.id))
+    _wait_for_cleanup()
+
+    assert response.status_code == 200 and response.json() is False
     assert ocu.deleted == []
     assert _existing([chat]) == {chat}
 
@@ -282,6 +327,44 @@ def test_delete_all_that_fails_in_the_database_requests_nothing(users, ocu, monk
     assert _existing([chat]) == {chat}
 
 
+def test_failed_id_query_after_the_delete_requests_nothing_and_keeps_the_result(users, ocu, monkeypatch, caplog):
+    owner = _user(users)
+    chats = [_chat(owner.id), _chat(owner.id)]
+    _failing_id_queries(monkeypatch, fail_on={2})
+    caplog.set_level(logging.WARNING, logger=LOGGER)
+
+    response = get_client().delete('/api/v1/chats/', headers=_session_headers(owner.id))
+    _wait_for_cleanup()
+
+    assert response.status_code == 200 and response.json() is True
+    assert ocu.deleted == []
+    assert _existing(chats) == set()
+    assert [r for r in caplog.records if r.name == LOGGER and r.levelno == logging.WARNING]
+
+
+@pytest.mark.parametrize('path', ['all', 'folder', 'user'])
+def test_failed_id_query_before_the_delete_keeps_upstream_delete_semantics(users, ocu, monkeypatch, caplog, path):
+    admin = _user(users, role='admin')
+    owner = _user(users)
+    folder = _folder(admin.id if path == 'folder' else owner.id)
+    chats = [_chat(admin.id, folder_id=folder)] if path == 'folder' else [_chat(owner.id), _chat(owner.id)]
+    _failing_id_queries(monkeypatch, fail_on={1})
+    caplog.set_level(logging.WARNING, logger=LOGGER)
+    request = {
+        'all': ('/api/v1/chats/', owner.id),
+        'folder': (f'/api/v1/folders/{folder}', admin.id),
+        'user': (f'/api/v1/users/{owner.id}', admin.id),
+    }[path]
+
+    response = get_client().delete(request[0], headers=_session_headers(request[1]))
+    _wait_for_cleanup()
+
+    assert response.status_code == 200 and response.json() is True
+    assert ocu.deleted == []
+    assert _existing(chats) == set()
+    assert [r for r in caplog.records if r.name == LOGGER and r.levelno == logging.WARNING]
+
+
 # DELETE /api/v1/folders/{id}
 
 
@@ -298,6 +381,30 @@ def test_folder_delete_removes_sandboxes_of_chats_in_the_folder_tree(users, ocu)
     assert response.status_code == 200 and response.json() is True
     assert sorted(ocu.deleted) == sorted(inside)
     assert _existing([*inside, outside]) == {outside}
+
+
+def test_chat_moved_out_of_the_folder_during_the_delete_keeps_its_sandbox(users, ocu, monkeypatch):
+    from open_webui.models.chats import Chats
+
+    owner = _user(users, role='admin')
+    top = _folder(owner.id)
+    deleted = [_chat(owner.id, folder_id=top), _chat(owner.id, folder_id=top)]
+    moved = _chat(owner.id, folder_id=top)
+    original_delete = Chats.delete_chats_by_user_id_and_folder_id
+
+    async def move_then_delete(user_id, folder_id, *args, **kwargs):
+        # A concurrent POST /chats/{id}/folder lands between the id query and the delete.
+        await Chats.update_chat_folder_id_by_id_and_user_id(moved, user_id, None)
+        return await original_delete(user_id, folder_id, *args, **kwargs)
+
+    monkeypatch.setattr(Chats, 'delete_chats_by_user_id_and_folder_id', move_then_delete)
+
+    response = get_client().delete(f'/api/v1/folders/{top}', headers=_session_headers(owner.id))
+    _wait_for_cleanup()
+
+    assert response.status_code == 200 and response.json() is True
+    assert sorted(ocu.deleted) == sorted(deleted)
+    assert _existing([*deleted, moved]) == {moved}
 
 
 def test_folder_delete_without_contents_moves_chats_and_requests_nothing(users, ocu):
