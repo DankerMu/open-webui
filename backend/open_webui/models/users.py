@@ -735,15 +735,15 @@ class UsersTable:
             return UserModel.model_validate(user)
 
     async def delete_user_by_id(self, id: str, db: AsyncSession | None = None) -> bool:
-        from open_webui.models.chats import Chats
         from open_webui.models.groups import Groups
+        from open_webui.utils.ocu_sandbox_cleanup import delete_user_chats
 
         # Remove User from Groups
         await Groups.remove_user_from_all_groups(id)
 
         # Delete User Chats
         async with get_async_db_context(db) as session:
-            deleted_chats = await Chats.delete_chats_by_user_id(id, db=session)
+            deleted_chats = await delete_user_chats(id, db=session)
             if not deleted_chats:
                 return False  # chats deletion failed
             await session.execute(delete(User).where(User.id == id))

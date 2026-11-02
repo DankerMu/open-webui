@@ -69,6 +69,18 @@ async def test_refresh_sends_get_outputs_with_bearer_token(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_delete_sandbox_sends_delete_with_bearer_token(monkeypatch):
+    removed = {'container': True, 'volume': True, 'data': True}
+    session = _StubSession(_StubResponse(payload=removed))
+    client = _make_client(monkeypatch, session)
+
+    result = await client.delete_sandbox(CHAT_ID)
+
+    assert result == removed
+    _assert_bearer_call(session, 'DELETE', f'/internal/sandbox/{CHAT_ID}')
+
+
+@pytest.mark.asyncio
 async def test_launch_409_never_created_is_typed_result(monkeypatch, caplog):
     envelope = {'detail': {'detail': f'{MARKER} chat has no sandbox', 'reason': 'never_created'}}
     session = _StubSession(_StubResponse(status=409, payload=envelope))
@@ -92,6 +104,10 @@ async def test_launch_409_never_created_is_typed_result(monkeypatch, caplog):
         ('describe', 500, '{"revision": 999, "marker": "private-upstream-marker"}'),
         ('refresh', 500, 'private-upstream-marker'),
         ('launch', 500, ''),
+        ('delete_sandbox', 500, '{"detail": {"detail": "private-upstream-marker", "reason": "delete_failed"}}'),
+        ('delete_sandbox', 400, 'private-upstream-marker'),
+        ('delete_sandbox', 401, ''),
+        ('delete_sandbox', 409, NESTED_NEVER_CREATED),
         ('describe', 401, NESTED_NEVER_CREATED),
         ('refresh', 403, NESTED_NEVER_CREATED),
         ('launch', 404, NESTED_NEVER_CREATED),

@@ -32,6 +32,7 @@ from open_webui.utils.access_control import (
 )
 from open_webui.utils.access_control.files import can_read_all_folder_files, get_accessible_folder_files
 from open_webui.utils.auth import get_admin_user, get_verified_user
+from open_webui.utils.ocu_sandbox_cleanup import delete_user_chats
 from open_webui.tasks import has_active_tasks
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -703,7 +704,7 @@ async def delete_folder_by_id(
 
                 for folder_id in folder_ids:
                     if delete_contents:
-                        await Chats.delete_chats_by_user_id_and_folder_id(folder_owner_id, folder_id, db=db)
+                        await delete_user_chats(folder_owner_id, folder_id, db=db)
                     else:
                         await Chats.move_chats_by_user_id_and_folder_id(folder_owner_id, folder_id, None, db=db)
 
