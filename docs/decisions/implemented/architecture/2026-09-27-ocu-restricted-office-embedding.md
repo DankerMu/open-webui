@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-27
 supersedes: none
-references: 2026-09-23-ocu-preview-lifecycle, 2026-09-27-ocu-selected-runtime-embedding, issue-84, issue-29, issue-85, issue-310
+references: 2026-09-23-ocu-preview-lifecycle, 2026-09-27-ocu-selected-runtime-embedding, issue-84, issue-29, issue-85, issue-310, 2026-11-02-ocu-sidebar-file-preview
 ---
 
 # Parent-controlled Office embedding with sanitized converted content
@@ -16,7 +16,7 @@ WebUI owns selected file identity and preferences, while OCU owns Office renderi
 
 ## Decision
 
-The existing authenticated preview route offers explicit `?embed=files` mode. It accepts only exact same-origin parent messages bound to the shell chat and increasing generation. Requests carry file_id, never URLs or bytes. The SPA resolves authorized broker metadata through coherent pagination, bounded to100 pages and10 seconds; incomplete/error enumeration is not deletion. Only DOCX/XLSX/PPTX broker types with permitted MIME reach shared renderers. Canonical same-chat URLs follow the broker's path encoding.
+The existing authenticated preview route offers explicit `?embed=files` mode. It accepts only exact same-origin parent messages bound to the shell chat and increasing generation. Requests carry file_id, never URLs or bytes. The SPA resolves authorized broker metadata through coherent pagination, bounded to100 pages and10 seconds; incomplete/error enumeration is not deletion. Only DOCX/XLSX/PPTX broker types with permitted MIME reach shared renderers. This admission list is partially superseded by [the sidebar file preview](2026-11-02-ocu-sidebar-file-preview.md), which adds text and media types. Canonical same-chat URLs follow the broker's path encoding.
 
 Files-only embedded mode has no runtime views, heartbeat, independent polling or autoselection. The parent drives re-resolution, owns download controls and checks source/origin/generation on replies. The trusted iframe keeps `allow-scripts allow-same-origin allow-forms`; generated HTML/SVG/XML remains outside this mode. Current-generation rendering alone reports loading/ready/error/missing/unsupported. Teardown invalidates pending results and releases owned effects.
 
@@ -37,4 +37,4 @@ Standalone Markdown uses the same owned DOMPurify loader with an independent per
 
 ## Consequences
 
-Content-preview fidelity is intentionally narrower than Office layout fidelity. Raw BIFF2/3/4, CFB and OOXML remain accepted by the shared spreadsheet parser after format checks. Browser evidence uses real SPA/renderers and fixed sandbox; synthetic converted-markup resource tests are not full DOCX remote-image conversion proof. WebUI issue29 consumes the interface; issue36 verifies the deployed image. Markdown remains unsupported in Office-only embedding without fetching its content.
+Content-preview fidelity is intentionally narrower than Office layout fidelity. Raw BIFF2/3/4, CFB and OOXML remain accepted by the shared spreadsheet parser after format checks. Browser evidence uses real SPA/renderers and fixed sandbox; synthetic converted-markup resource tests are not full DOCX remote-image conversion proof. WebUI issue29 consumes the interface; issue36 verifies the deployed image. Markdown remains unsupported in Office-only embedding without fetching its content. Since 2026-11-02 the sidebar admits Markdown as static content; see [the sidebar file preview](2026-11-02-ocu-sidebar-file-preview.md).

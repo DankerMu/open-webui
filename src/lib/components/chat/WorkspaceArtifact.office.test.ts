@@ -23,7 +23,7 @@ import {
 	officeDocx,
 	officePptx,
 	officeXlsx,
-	pdfFile,
+	archiveFile,
 	previewFrame
 } from './workspace-artifact-office-test';
 
@@ -84,7 +84,7 @@ describe('Office edit entry', () => {
 	});
 
 	it('offers Edit only for broker docx, xlsx and pptx', async () => {
-		harness.setListing([officeDocx, officeXlsx, officePptx, htmlFile, pdfFile, legacyDoc]);
+		harness.setListing([officeDocx, officeXlsx, officePptx, htmlFile, archiveFile, legacyDoc]);
 		await harness.open();
 		await harness.ready('report.docx');
 		for (const name of ['report.docx', 'sheet.xlsx', 'deck.pptx']) {
@@ -92,7 +92,7 @@ describe('Office edit entry', () => {
 			await tick();
 			expect(editAction(), name).toBeDefined();
 		}
-		for (const name of ['page.html', 'brief.pdf', 'legacy.doc']) {
+		for (const name of ['page.html', 'bundle.zip', 'legacy.doc']) {
 			namedButton(name).click();
 			await tick();
 			expect(editAction(), name).toBeUndefined();
@@ -190,7 +190,7 @@ describe('Office edit entry', () => {
 					url: `/ocu/files/${chat}/renamed.docx`
 				},
 				htmlFile,
-				{ ...pdfFile }
+				{ ...archiveFile }
 			],
 			9,
 			null

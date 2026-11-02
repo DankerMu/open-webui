@@ -15,7 +15,8 @@
 		WORKSPACE_RECONCILIATION,
 		type WorkspaceReconciliation
 	} from './workspace-reconciliation';
-	import { buildWorkspaceFileRows, servable, workspaceFileKind } from './workspace-file-rows';
+	import { buildWorkspaceFileRows, workspaceFileKind } from './workspace-file-rows';
+	import { workspacePreviewRoute } from './workspace-preview-route';
 	import {
 		OFFICE_EDITOR_ALLOW,
 		OFFICE_EDITOR_SANDBOX,
@@ -44,6 +45,7 @@
 	import WorkspaceTreeSplitter from './WorkspaceTreeSplitter.svelte';
 	import { pruneTabs, tabAfterClose, withTab } from './workspace-tabs';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import PDFViewer from '$lib/components/common/PDFViewer.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Refresh from '$lib/components/icons/Refresh.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
@@ -65,6 +67,7 @@
 	let previewState = '';
 	let previewError = false;
 	let officeFrame: HTMLIFrameElement | undefined;
+	let failedImage = '';
 	let frameKey = 0;
 	let requestGeneration = 0;
 	let readyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -99,7 +102,11 @@
 	$: selected = workspace?.files.find((file) => file.file_id === workspace.selectedFileId);
 	$: selectedUrl =
 		selected && workspace?.baseUrl ? workspaceFileUrl(workspace.baseUrl, chatId, selected) : '';
-	$: office = selected && servable(selected) && ['docx', 'xlsx', 'pptx'].includes(selected.type);
+	$: previewKey = selected ? `${selected.file_id}:${selected.path}:${selected.revision}` : '';
+	$: office = !!selected && workspacePreviewRoute(selected) === 'office';
+	// Office and the neutral text/media preview share the fixed `embed=files` frame protocol.
+	$: framed = office || route === 'embedded';
+	$: failureText = $i18n.t('This file could not be displayed. Download the file to open it.');
 	$: officeEnabled =
 		enabled &&
 		isSavedChatId(chatId) &&
@@ -125,14 +132,7 @@
 	$: showOfficeStatus =
 		officeSessionForFile &&
 		((editorActive && !editorError) || (!editorActive && officeSession?.state === 'refused'));
-	$: generated =
-		selected &&
-		servable(selected) &&
-		!office &&
-		!editorActive &&
-		['text/html', 'image/svg+xml', 'application/xhtml+xml', 'application/xml', 'text/xml'].includes(
-			selected.mime.split(';')[0].trim().toLowerCase()
-		);
+	$: route = selected ? workspacePreviewRoute(selected, editorActive) : 'download';
 	$: downloadUrl = selectedUrl ? `${selectedUrl}?download=1` : '';
 	$: selectedRow = selected
 		? fileRows.find((row) => row.kind === 'file' && row.file.file_id === selected.file_id)
@@ -159,13 +159,10 @@
 			? workspaceRuntimeUrl(workspace.baseUrl, chatId, runtimeView, openedModel)
 			: '';
 	$: {
-		const key =
-			live && workspace?.view === 'files' && office && selected && !editorFileId
-				? `${selected.file_id}:${selected.path}:${selected.revision}`
-				: '';
+		const key = live && workspace?.view === 'files' && framed && !editorFileId ? previewKey : '';
 		if (key && key !== officeIdentity) {
 			officeIdentity = key;
-			void startOffice();
+			void startFrame();
 		} else if (!key && officeIdentity) {
 			officeIdentity = '';
 			retireFrame();
@@ -188,22 +185,30 @@
 		previewError = true;
 	}
 
-	async function startOffice() {
+	const byFrame = (officeText: string, text: string) => (office ? officeText : text);
+
+	async function startFrame() {
 		retireFrame();
-		previewState = $i18n.t('Connecting Office preview');
+		previewState = byFrame($i18n.t('Connecting Office preview'), $i18n.t('Connecting preview'));
 		previewError = false;
 		const key = frameKey;
 		await tick();
-		if (!live || !office || !officeFrame || key !== frameKey) return;
+		if (!live || !framed || !officeFrame || key !== frameKey) return;
 		readyTimer = setTimeout(
-			() => frameFailure($i18n.t('Office preview did not become ready')),
+			() =>
+				frameFailure(
+					byFrame(
+						$i18n.t('Office preview did not become ready'),
+						$i18n.t('Preview did not become ready')
+					)
+				),
 			READY_DEADLINE
 		);
 	}
 
 	function trustedPreviewFrame(event: MessageEvent): HTMLIFrameElement | undefined {
 		const frame = officeFrame;
-		if (!live || !selected || !office || !frame?.contentWindow) return;
+		if (!live || !selected || !framed || !frame?.contentWindow) return;
 		if (event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
 		const expected = new URL(
 			`${workspace?.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`,
@@ -262,13 +267,14 @@
 			clearTimeout(readyTimer);
 			readyTimer = undefined;
 			const generation = ++requestGeneration;
-			previewState = $i18n.t('Rendering Office file');
+			previewState = byFrame($i18n.t('Rendering Office file'), $i18n.t('Rendering file'));
 			frame.contentWindow.postMessage(
 				{ type: 'ocu:preview-select', chat_id: chatId, file_id: file.file_id, generation },
 				window.location.origin
 			);
 			resultTimer = setTimeout(
-				() => frameFailure($i18n.t('Office preview timed out')),
+				() =>
+					frameFailure(byFrame($i18n.t('Office preview timed out'), $i18n.t('Preview timed out'))),
 				RESULT_DEADLINE
 			);
 			return;
@@ -278,22 +284,24 @@
 		clearTimeout(resultTimer);
 		resultTimer = undefined;
 		previewError = data.state !== 'ready';
-		if (!previewError) {
-			previewState = '';
-			return;
-		}
+		previewState = previewError ? frameStateText(data.state) : '';
+	}
+
+	function frameStateText(state: OfficeStateMessage['state']) {
+		if (!office) return failureText;
 		const stateLabel =
-			data.state === 'error'
+			state === 'error'
 				? $i18n.t('error')
-				: data.state === 'missing'
+				: state === 'missing'
 					? $i18n.t('missing')
 					: $i18n.t('unsupported');
-		previewState = $i18n.t('Office preview {{state}}', { state: stateLabel });
+		return $i18n.t('Office preview {{state}}', { state: stateLabel });
 	}
 
 	function applySelection(file: WorkspaceFile | undefined) {
 		localNotice = '';
-		if (file && selected?.file_id === file.file_id && office && !editorFileId) void startOffice();
+		failedImage = '';
+		if (file && selected?.file_id === file.file_id && framed && !editorFileId) void startFrame();
 		else {
 			previewState = '';
 			previewError = false;
@@ -636,7 +644,7 @@
 									data-selected-preview
 									class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
 								>
-									{#if editorActive}
+									{#if route === 'editor'}
 										{#if editorError}
 											<div
 												class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
@@ -667,48 +675,65 @@
 													class="min-h-0 w-full flex-1 border-0"
 												></iframe>{/key}
 										{/if}
-									{:else if generated}
+									{:else if route === 'generated'}
 										<iframe
 											title={selected.name}
 											src={`${selectedUrl}?revision=${selected.revision}`}
 											sandbox="allow-scripts allow-forms"
 											class="min-h-0 w-full flex-1 border-0"
 										></iframe>
-									{:else if office}
-										{#if previewError}
-											<div
-												class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+									{:else if route === 'image' && failedImage !== previewKey}
+										{#key previewKey}<div
+												class="flex min-h-0 flex-1 items-center justify-center overflow-auto p-3"
 											>
-												{#if previewState}<p role="status">{previewState}</p>{/if}
-												<button
-													class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
-													type="button"
-													on:click={startOffice}>{$i18n.t('Retry Office preview')}</button
-												>
-											</div>
-										{:else}
-											{#if previewState}
-												<p
-													class="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
-													role="status"
-												>
-													<Spinner className="size-4" />{previewState}
-												</p>
-											{/if}
-											{#key frameKey}<iframe
-													bind:this={officeFrame}
-													title={`${$i18n.t('Office preview')}: ${selected.name}`}
-													src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
-													sandbox="allow-scripts allow-same-origin allow-forms"
-													class="min-h-0 w-full flex-1 border-0"
-												></iframe>{/key}
+												<img
+													src={`${selectedUrl}?revision=${selected.revision}`}
+													alt={selected.name}
+													class="max-h-full max-w-full object-contain"
+													on:error={() => (failedImage = previewKey)}
+												/>
+											</div>{/key}
+									{:else if route === 'pdf'}
+										{#key previewKey}<PDFViewer
+												url={`${selectedUrl}?revision=${selected.revision}`}
+												singlePage
+												className="min-h-0 w-full flex-1"
+											/>{/key}
+									{:else if office && previewError}
+										<div
+											class="m-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400"
+										>
+											{#if previewState}<p role="status">{previewState}</p>{/if}
+											<button
+												class="h-7 rounded-md border border-current/20 px-2 text-xs font-medium hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-400 dark:hover:bg-red-900/30"
+												type="button"
+												on:click={startFrame}>{$i18n.t('Retry Office preview')}</button
+											>
+										</div>
+									{:else if framed && !previewError}
+										{#if previewState}
+											<p
+												class="flex shrink-0 items-center gap-2 px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+												role="status"
+											>
+												<Spinner className="size-4" />{previewState}
+											</p>
 										{/if}
+										{#key frameKey}<iframe
+												bind:this={officeFrame}
+												title={`${byFrame($i18n.t('Office preview'), $i18n.t('Preview'))}: ${selected.name}`}
+												src={`${workspace.baseUrl}/preview/${encodeURIComponent(chatId)}?embed=files`}
+												sandbox="allow-scripts allow-same-origin allow-forms"
+												class="min-h-0 w-full flex-1 border-0"
+											></iframe>{/key}
 									{:else}
 										<WorkspaceDownloadFallback
 											file={selected}
 											kind={selectedKind}
 											icon={SelectedKindIcon}
 											href={downloadUrl}
+											message={framed ? previewState : route === 'image' ? failureText : ''}
+											onRetry={framed ? startFrame : undefined}
 										/>
 									{/if}
 								</div>

@@ -2,8 +2,55 @@
 
 from __future__ import annotations
 
+import struct
+import zlib
 from pathlib import Path
 from urllib.parse import quote
+
+
+def _multi_page_pdf(pages: int) -> bytes:
+    """A valid PDF whose page N reads "Workspace PDF page N of <pages>"; xref offsets are exact."""
+    objects = [
+        b'<< /Type /Catalog /Pages 2 0 R >>',
+        b'<< /Type /Pages /Kids [%s] /Count %d >>'
+        % (b' '.join(b'%d 0 R' % (4 + 2 * index) for index in range(pages)), pages),
+        b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ]
+    for index in range(pages):
+        text = b'BT /F1 36 Tf 72 700 Td (Workspace PDF page %d of %d) Tj ET' % (index + 1, pages)
+        objects.append(
+            b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+            b'/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>' % (5 + 2 * index)
+        )
+        objects.append(b'<< /Length %d >>\nstream\n%s\nendstream' % (len(text), text))
+    body = bytearray(b'%PDF-1.4\n')
+    offsets = []
+    for number, content in enumerate(objects, start=1):
+        offsets.append(len(body))
+        body += b'%d 0 obj\n%s\nendobj\n' % (number, content)
+    xref = len(body)
+    body += b'xref\n0 %d\n0000000000 65535 f \n' % (len(objects) + 1)
+    body += b''.join(b'%010d 00000 n \n' % offset for offset in offsets)
+    body += b'trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n' % (len(objects) + 1, xref)
+    return bytes(body)
+
+
+def _banded_png(width: int, height: int) -> bytes:
+    """An opaque RGB PNG of four vertical colour bands, large enough to see in a screenshot."""
+    bands = (b'\x1f\x77\xb4', b'\xff\x7f\x0e', b'\x2c\xa0\x2c', b'\xd6\x27\x28')
+    row = b'\x00' + b''.join(bands[x * len(bands) // width] for x in range(width))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+    header = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
+    return (
+        b'\x89PNG\r\n\x1a\n'
+        + chunk(b'IHDR', header)
+        + chunk(b'IDAT', zlib.compress(row * height))
+        + chunk(b'IEND', b'')
+    )
+
 
 # Advertised bytes are independently specified so HTTP proof can compare them
 # without reconstructing listing fiction.
@@ -31,6 +78,8 @@ NESTED_FILES: dict[str, tuple[str, str, bytes]] = {
         'text/plain',
         b'ocu-stub nested notes\n',
     ),
+    'reports/chart.png': ('image', 'image/png', _banded_png(320, 200)),
+    'reports/manual.pdf': ('pdf', 'application/pdf', _multi_page_pdf(300)),
     'photo.png': (
         'image',
         'image/png',

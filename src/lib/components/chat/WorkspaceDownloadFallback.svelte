@@ -9,6 +9,9 @@
 	export let kind: string;
 	export let icon: typeof Document;
 	export let href: string;
+	// A load failure replaces the unsupported copy; the parent download stays.
+	export let message = '';
+	export let onRetry: (() => void) | undefined = undefined;
 	const i18n: Writable<i18nType> = getContext('i18n');
 </script>
 
@@ -17,14 +20,22 @@
 		<svelte:component this={icon} className="size-8 shrink-0 text-gray-400" />
 	</span>
 	<p class="text-sm text-gray-500 dark:text-gray-400" role="status">
-		{file.unsupported_name
-			? $i18n.t(
-					'This file name cannot be opened here. Rename it in the terminal to open or download it.'
-				)
-			: file.too_large
-				? $i18n.t('This file is larger than the 100 MiB preview limit.')
-				: $i18n.t('Preview not supported for this file type. Download the file to open it.')}
+		{message ||
+			(file.unsupported_name
+				? $i18n.t(
+						'This file name cannot be opened here. Rename it in the terminal to open or download it.'
+					)
+				: file.too_large
+					? $i18n.t('This file is larger than the 100 MiB preview limit.')
+					: $i18n.t('Preview not supported for this file type. Download the file to open it.'))}
 	</p>
+	{#if onRetry}
+		<button
+			class="h-8 rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+			type="button"
+			on:click={onRetry}>{$i18n.t('Retry preview')}</button
+		>
+	{/if}
 	{#if href}
 		<a
 			class="h-8 rounded-md border border-gray-200 px-3 text-xs font-medium leading-8 text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"

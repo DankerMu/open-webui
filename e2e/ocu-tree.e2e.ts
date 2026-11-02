@@ -106,7 +106,7 @@ test('nested Files tree shows folders, indentation, collapse and selection geome
 		.evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
 	expect(nestedPad).toBeGreaterThan(folderPads[2]);
 	expect(folderPads[0]).toBe(rootPad);
-	await expect(list.locator('> li')).toHaveCount(34);
+	await expect(list.locator('> li')).toHaveCount(36);
 	await expect(list.getByRole('button', { name: 'More files' })).toHaveCount(0);
 
 	const unselected = await list.evaluate((node) => {
@@ -415,7 +415,8 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 	page
 }) => {
 	const chatId = context.chats.nested;
-	const listingRoute = `**/ocu/api/outputs/${chatId}`;
+	// The pathname also matches the embedded frame's paginated listing, so both see the TSV entry.
+	const listingRoute = (url: URL) => url.pathname === `/ocu/api/outputs/${chatId}`;
 	const injectTsv = async (route: Route) => {
 		const response = await route.fetch();
 		if (response.status() !== 200) {
@@ -487,8 +488,14 @@ test('broker TSV metadata shows sheet icons without granting Office capabilities
 		await expect(bar.locator('[data-file-kind]')).toHaveAttribute('data-file-kind', 'sheet');
 		await expect(bar.locator('[data-file-kind] svg')).toBeVisible();
 		await expect(bar.locator('[data-selected-name]')).toHaveText('notes.bin');
-		await expect(selected.getByText('Preview not supported for this file type')).toBeVisible();
-		await expect(selected.locator('[data-selected-preview] iframe')).toHaveCount(0);
+		const tsvFrame = 'iframe[title="Preview: notes.bin"]';
+		await expect(selected.locator(tsvFrame)).toHaveAttribute(
+			'sandbox',
+			'allow-scripts allow-same-origin allow-forms'
+		);
+		await expect(page.frameLocator(tsvFrame).getByText('nested-bin')).toBeVisible();
+		await expect(selected.getByRole('status')).toHaveCount(0);
+		await expect(selected.getByText(/Office|Preview not supported/)).toHaveCount(0);
 		await expect(bar.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
 		await expect(bar.getByRole('button', { name: 'Version history', exact: true })).toHaveCount(0);
 
@@ -687,4 +694,83 @@ test('a 390 px viewport keeps the opened-file column at least 200 px wide', asyn
 		expect(fit?.fits).toBe(true);
 		await page.screenshot({ path: `${evidence}/workspace-split-390-${theme}.png` });
 	}
+});
+
+test('image, PDF and text files preview in the sidebar from their revision URLs', async ({
+	page
+}) => {
+	const chatId = await createScenarioChat(page, 'nested');
+	const panel = await openWorkspace(page, chatId);
+	const selected = panel.locator('[aria-label="Selected workspace file"]');
+	const preview = selected.locator('[data-selected-preview]');
+	const files = `/ocu/files/${chatId}/reports`;
+	const open = async (name: string) => {
+		await panel.getByRole('button', { name: `reports/${name}`, exact: true }).click();
+		await expect(selected.locator('[data-selected-name]')).toHaveText(name);
+	};
+
+	await open('chart.png');
+	const image = preview.locator('img');
+	await expect(image).toHaveAttribute('src', `${files}/chart.png?revision=1`);
+	await expect
+		.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth))
+		.toBe(320);
+	await expect(preview.locator('iframe')).toHaveCount(0);
+	await panel.screenshot({
+		path: `${evidence}/workspace-preview-image.png`,
+		animations: 'disabled'
+	});
+
+	const pdfFetch = page.waitForRequest(
+		(request) => new URL(request.url()).pathname === `${files}/manual.pdf`
+	);
+	await open('manual.pdf');
+	expect(new URL((await pdfFetch).url()).search).toBe('?revision=1');
+	const pages = preview.locator('.pdf-page-wrapper');
+	await expect(preview.getByText('1 / 300', { exact: true })).toBeVisible();
+	await expect(pages).toHaveCount(1);
+	await expect(pages).toHaveAttribute('data-page-number', '1');
+	await expect(pages.locator('.textLayer')).toContainText('Workspace PDF page 1 of 300');
+	await expect(preview.locator('iframe')).toHaveCount(0);
+	// The whole page fits the narrow sidebar column instead of being cropped at both edges.
+	const fit = await preview.evaluate((node) => {
+		const box = node.getBoundingClientRect();
+		const pageBox = node.querySelector('.pdf-page-wrapper')!.getBoundingClientRect();
+		return pageBox.left >= box.left - 1 && pageBox.right <= box.right + 1;
+	});
+	expect(fit).toBe(true);
+	// The page toolbar stays inside the column, so no control is clipped off either edge.
+	const toolbar = preview.getByRole('button', { name: 'Next page', exact: true }).locator('..');
+	const contained = await toolbar.evaluate(
+		(node, box) => {
+			const bar = node.getBoundingClientRect();
+			return bar.left >= box.left - 1 && bar.right <= box.right + 1;
+		},
+		await preview.evaluate((node) => node.getBoundingClientRect().toJSON())
+	);
+	expect(contained).toBe(true);
+	await panel.screenshot({ path: `${evidence}/workspace-preview-pdf.png`, animations: 'disabled' });
+	await preview.getByRole('button', { name: 'Next page', exact: true }).click();
+	await expect(preview.getByText('2 / 300', { exact: true })).toBeVisible();
+	await expect(pages).toHaveCount(1);
+	await expect(pages.locator('.textLayer')).toContainText('Workspace PDF page 2 of 300');
+
+	await open('notes.txt');
+	const textFrame = 'iframe[title="Preview: reports/notes.txt"]';
+	await expect(preview.locator(textFrame)).toHaveAttribute(
+		'src',
+		`/ocu/preview/${chatId}?embed=files`
+	);
+	await expect(preview.locator(textFrame)).toHaveAttribute(
+		'sandbox',
+		'allow-scripts allow-same-origin allow-forms'
+	);
+	await expect(page.frameLocator(textFrame).getByText('ocu-stub nested notes')).toBeVisible();
+	await expect(preview.getByRole('status')).toHaveCount(0);
+	await expect(selected.getByText(/Office/)).toHaveCount(0);
+	await expect(selected.locator('[data-selected-bar] [aria-label="Edit"]')).toHaveCount(0);
+	await panel.screenshot({
+		path: `${evidence}/workspace-preview-text.png`,
+		animations: 'disabled'
+	});
 });
