@@ -60,6 +60,13 @@ Cookie: {{owner_cookie}}
 
 HTTP 404
 
+DELETE {{proxy_url}}/ocu/internal/sandbox/{{chat_id}}
+Cookie: {{owner_cookie}}
+X-Requested-With: ocu-workspace
+Origin: {{origin}}
+
+HTTP 404
+
 GET {{proxy_url}}/_ocu_chat_auth
 Cookie: {{owner_cookie}}
 
