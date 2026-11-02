@@ -22,7 +22,7 @@ The existing production parser validates the explicitly supplied IPv4/CIDR egres
 
 Root-only provisioning generates separate fresh credentials and distributes one internal token to WebUI, OCU and proxy. Provider credentials stay in their separately supplied protected file. Runtime/admin outputs are mode0600, either pre-existing output causes refusal, and temporary files are removed on exit. Operator inputs must be representable by the existing single-line consumers; unsafe values fail before publication. Version reports exclude credentials. Provisioning is not a two-file transaction or an existing-configuration migration service.
 
-Retention stops managed running sandboxes at the configured continuous-runtime limit without deleting their containers or data. An absent age defaults to168hours; explicit empty is invalid. A stopped workspace wakes on its next tool call or explicit launch, and a container stopped for the retention period is removed, under [wake on use and retention](2026-11-02-ocu-sandbox-wake-retention.md).
+Retention stops managed running sandboxes at the configured continuous-runtime limit without deleting their containers or data. An absent age defaults to168hours; explicit empty is invalid. Stopped workspaces require explicit launch under the lifecycle decision. Stop-only retention and explicit launch after a stop are partially superseded by [wake on use and retention](2026-11-02-ocu-sandbox-wake-retention.md): a stopped workspace wakes on its next tool call, and a container stopped for the retention period is removed with its workspace volume. The continuous-runtime stop and its configuration rules here stay in force.
 
 ## Alternatives considered
 
