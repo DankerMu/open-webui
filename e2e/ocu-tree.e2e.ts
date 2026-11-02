@@ -739,6 +739,16 @@ test('image, PDF and text files preview in the sidebar from their revision URLs'
 		return pageBox.left >= box.left - 1 && pageBox.right <= box.right + 1;
 	});
 	expect(fit).toBe(true);
+	// The page toolbar stays inside the column, so no control is clipped off either edge.
+	const toolbar = preview.getByRole('button', { name: 'Next page', exact: true }).locator('..');
+	const contained = await toolbar.evaluate(
+		(node, box) => {
+			const bar = node.getBoundingClientRect();
+			return bar.left >= box.left - 1 && bar.right <= box.right + 1;
+		},
+		await preview.evaluate((node) => node.getBoundingClientRect().toJSON())
+	);
+	expect(contained).toBe(true);
 	await panel.screenshot({ path: `${evidence}/workspace-preview-pdf.png`, animations: 'disabled' });
 	await preview.getByRole('button', { name: 'Next page', exact: true }).click();
 	await expect(preview.getByText('2 / 300', { exact: true })).toBeVisible();

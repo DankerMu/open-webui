@@ -395,7 +395,8 @@
 		if (!url && !data) return;
 
 		const source = data ?? url;
-		if (source === loadedSource && pdfDoc) return;
+		// onMount and the reactive block both call in; checking pdfDoc alone fetched twice mid-load.
+		if (source === loadedSource && (pdfDoc || loading)) return;
 		const token = ++loadToken;
 		loadedSource = source;
 		loading = true;
@@ -420,8 +421,14 @@
 				if (!res.ok) throw new Error(`HTTP ${res.status}`);
 				pdfData = await res.arrayBuffer();
 			}
-			pdfDoc = await pdfjs.getDocument({ data: pdfData }).promise;
-			if (token !== loadToken) return;
+			// Model-generated PDFs must not reach pdf.js's eval-compiled font path.
+			const loaded = await pdfjs.getDocument({ data: pdfData, isEvalSupported: false }).promise;
+			// A superseded load used to overwrite pdfDoc and leak one document without destroy().
+			if (token !== loadToken) {
+				loaded.destroy();
+				return;
+			}
+			pdfDoc = loaded;
 			pageCount = pdfDoc.numPages;
 			activePage = clampDocumentTargetPage(targetPage, pageCount) ?? 1;
 			targetPage = clampDocumentTargetPage(targetPage, pageCount) ?? 1;
@@ -495,8 +502,9 @@
 	</div>
 
 	{#if !error && pdfDoc}
+		<!-- Capped and scrollable: a narrow sidebar column clipped the controls at both ends -->
 		<div
-			class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-0.5 rounded-lg bg-white/90 dark:bg-gray-850/90 backdrop-blur-sm shadow-lg border border-gray-200/60 dark:border-gray-700/60 px-1 py-0.5"
+			class="absolute bottom-3 left-1/2 -translate-x-1/2 max-w-[calc(100%-1rem)] overflow-x-auto z-10 flex items-center gap-0.5 rounded-lg bg-white/90 dark:bg-gray-850/90 backdrop-blur-sm shadow-lg border border-gray-200/60 dark:border-gray-700/60 px-1 py-0.5"
 		>
 			{#if singlePage}
 				<button

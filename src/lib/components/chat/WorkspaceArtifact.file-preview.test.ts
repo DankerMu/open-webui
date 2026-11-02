@@ -12,8 +12,9 @@ import {
 	previewFrame
 } from './workspace-artifact-office-test';
 
-// jsdom cannot evaluate pdf.js, and vitest 1.6 serves the real module to the second of
-// PDFViewer's two concurrent `import('pdfjs-dist')` calls, so the viewer itself is the double.
+// A `vi.mock('pdfjs-dist')` does not hold here: vitest 1.6 hands the real module to an
+// `import('pdfjs-dist')` that starts while another is in flight, which these tests do by
+// remounting the viewer mid-load. The viewer itself is therefore the double.
 vi.mock(
 	'$lib/components/common/PDFViewer.svelte',
 	() => import('../../../../test/PdfViewerDouble.svelte')
@@ -109,6 +110,49 @@ beforeEach(() => {
 	serve([photo, second, report, brief, notes, readme, other, officeDocx]);
 });
 afterEach(() => harness.cleanup());
+
+describe('over-limit files', () => {
+	const marked = (source: WorkspaceFile, marker: 'too_large' | 'unsupported_name') =>
+		marker === 'too_large'
+			? { ...source, too_large: true }
+			: { ...source, url: null, unsupported_name: true };
+	const cases = [photo, report, notes].flatMap((source) =>
+		(['too_large', 'unsupported_name'] as const).map(
+			(marker) => [source.name, marker, marked(source, marker)] as const
+		)
+	);
+
+	it.each(cases)(
+		'%s marked %s shows the fallback without loading the file',
+		async (name, marker, entry) => {
+			serve([entry]);
+			await harness.open();
+			await harness.ready(name);
+			await select(name);
+			const view = surface();
+			expect(image()).toBeNull();
+			expect(pdfViewer()).toBeNull();
+			expect(pdfViewers).toEqual([]);
+			expect(view.querySelector('iframe')).toBeNull();
+			expect(filePreview(name)).toBeNull();
+			expect(harness.calls.filter((call) => call.url.startsWith(url))).toEqual([]);
+			const status = view.querySelector('[role="status"]')?.textContent?.trim();
+			if (marker === 'too_large') {
+				expect(status).toBe('This file is larger than the 100 MiB preview limit.');
+				const download = view.querySelector(`a[download="${name}"]`);
+				expect(download?.getAttribute('href')).toBe(`${url}${name}?download=1`);
+			} else {
+				// OCU sends no URL for an unsupported name, so there is nothing to download.
+				expect(status).toBe(
+					'This file name cannot be opened here. Rename it in the terminal to open or download it.'
+				);
+				expect(document.querySelectorAll('[aria-label="Selected workspace file"] a')).toHaveLength(
+					0
+				);
+			}
+		}
+	);
+});
 
 describe('image preview', () => {
 	it('shows the revision URL in an image, fails visibly with a download, then shows the next image', async () => {

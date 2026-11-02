@@ -7,7 +7,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 
-	// Stands in for PDFViewer under jsdom, which cannot evaluate pdf.js; real rendering is e2e-only.
+	// Stands in for PDFViewer, whose pdfjs-dist mock leaks across concurrent imports in vitest 1.6.
 	export let url: string | null = null;
 	export let singlePage = false;
 	export let className = '';
