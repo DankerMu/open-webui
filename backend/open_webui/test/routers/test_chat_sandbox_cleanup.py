@@ -350,7 +350,7 @@ def test_folder_delete_by_a_non_owner_is_refused_and_requests_nothing(users, ocu
     response = get_client().delete(f'/api/v1/folders/{top}', headers=_session_headers(stranger.id))
     _wait_for_cleanup()
 
-    assert response.status_code in (403, 404)
+    assert response.status_code == 403
     assert ocu.deleted == []
     assert _existing([chat]) == {chat}
 
