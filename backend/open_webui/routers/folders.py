@@ -6,9 +6,8 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
-from open_webui.config import UPLOAD_DIR
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.events import EVENTS, publish_event
 from open_webui.internal.db import get_async_session
@@ -17,7 +16,6 @@ from open_webui.models.config import Config
 from open_webui.models.chats import Chats
 from open_webui.models.folders import (
     FolderForm,
-    FolderModel,
     FolderNameIdResponse,
     Folders,
     FolderUpdateForm,
