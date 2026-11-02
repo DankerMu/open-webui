@@ -31,7 +31,7 @@ export async function openAuthenticatedPage(page: Page, path = '/') {
 
 export async function finishOnboarding(page: Page) {
 	const changelog = page.getByRole('dialog').filter({
-		has: page.getByRole('heading', { name: /What's New in Open WebUI/ })
+		has: page.getByRole('heading', { name: /^What's New in / })
 	});
 	if (await changelog.isVisible()) {
 		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();

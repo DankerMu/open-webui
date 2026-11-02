@@ -91,7 +91,13 @@ REQUIRED_SPECS = (
     'ocu-drawio.e2e.ts',
     'ocu-tree.e2e.ts',
     'ocu-office.e2e.ts',
+    'ocu-video-switch.e2e.ts',
 )
+# Pinned Open WebUI functions the video-switch spec installs; read from the stage, never copied.
+FILTER_SOURCES = {
+    'computer_use_filter': 'openwebui/functions/computer_link_filter.py',
+    'video_production_filter': 'openwebui/functions/video_production_filter.py',
+}
 # Collected only through the repeat entry point (OCU_UI_SPEC); never part of the default run.
 DIAGNOSTIC_SPECS = ('ocu-popup-release.e2e.ts',)
 REPEAT_RE = re.compile(r'^[1-9][0-9]*$')
@@ -466,6 +472,7 @@ class BrowserHarness(Smoke):
                 'computer-use-server/app.py',
                 'computer-use-server/drawio/prepare_drawio.py',
                 'computer-use-server/drawio/inventory.json',
+                *FILTER_SOURCES.values(),
                 *static_paths,
             ),
         )
@@ -574,6 +581,8 @@ class BrowserHarness(Smoke):
                     'chats': chats,
                     'fixtures': str(self.fixtures),
                     'record': str(self.record),
+                    'stub': f'http://127.0.0.1:{self.stub_port}',
+                    'filters': {name: str(self.stage / path) for name, path in FILTER_SOURCES.items()},
                     'restart': restart,
                     'mint': {'python': self.python, 'config': str(mint_config)},
                 }
