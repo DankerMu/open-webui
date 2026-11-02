@@ -20,12 +20,12 @@ from open_webui.env import (
     VIEW_FILE_MAX_CHARS,
 )
 from open_webui.events import EVENTS, publish_event
-from open_webui.models.channels import Channel, ChannelMember, Channels
+from open_webui.models.channels import Channels
 from open_webui.models.chats import Chats, chat_search_content_query, chat_search_terms
 from open_webui.models.config import Config
 from open_webui.models.groups import Groups
 from open_webui.models.memories import Memories
-from open_webui.models.messages import Message, Messages
+from open_webui.models.messages import Messages
 from open_webui.models.notes import Notes
 from open_webui.models.users import UserModel
 from open_webui.retrieval.utils import get_content_from_url

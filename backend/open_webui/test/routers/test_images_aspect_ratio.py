@@ -219,7 +219,7 @@ class _Session:
     def __init__(self):
         self.posts: list[dict] = []
 
-    def post(self, url, json=None, headers=None, ssl=None):
+    def post(self, url, json=None, **_):
         self.posts.append({'url': url, 'json': json})
         return _Post()
 
