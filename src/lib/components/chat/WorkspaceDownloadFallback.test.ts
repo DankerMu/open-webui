@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, unmount } from 'svelte';
 import { file, i18n, url } from '../../../../test/ocu-workspace-fixtures';
 import type { WorkspaceFile } from '$lib/apis/ocu';
@@ -8,7 +8,12 @@ import WorkspaceDownloadFallback from './WorkspaceDownloadFallback.svelte';
 
 let component: Record<string, unknown> | undefined;
 
-function render(props: { file: WorkspaceFile; href: string }) {
+function render(props: {
+	file: WorkspaceFile;
+	href: string;
+	message?: string;
+	onRetry?: () => void;
+}) {
 	component = mount(WorkspaceDownloadFallback, {
 		target: document.body,
 		props: { ...props, kind: 'other', icon: DocumentPage },
@@ -47,5 +52,31 @@ describe('workspace download fallback', () => {
 		);
 		expect(document.querySelector('[data-file-kind="other"] svg')).not.toBeNull();
 		expect(document.querySelectorAll('a')).toHaveLength(0);
+	});
+
+	it('a load failure shows its message instead of the unsupported copy, with retry and download', () => {
+		const onRetry = vi.fn();
+		const failure = 'This file could not be displayed. Download the file to open it.';
+		render({
+			file: file('notes.txt'),
+			href: `${url}notes.txt?download=1`,
+			message: failure,
+			onRetry
+		});
+		expect(document.querySelector('[role="status"]')?.textContent?.trim()).toBe(failure);
+		expect(document.body.textContent).not.toContain('Preview not supported');
+		const link = document.querySelector('a');
+		expect(link?.getAttribute('href')).toBe(`${url}notes.txt?download=1`);
+		expect(link?.getAttribute('download')).toBe('notes.txt');
+		const buttons = [...document.querySelectorAll('button')];
+		expect(buttons.map((button) => button.textContent?.trim())).toEqual(['Retry preview']);
+		buttons[0].click();
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it('offers no retry unless one is given', () => {
+		render({ file: file('photo.png'), href: `${url}photo.png?download=1`, message: 'failed' });
+		expect(document.querySelector('[role="status"]')?.textContent?.trim()).toBe('failed');
+		expect(document.querySelectorAll('button')).toHaveLength(0);
 	});
 });

@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-09-30
 supersedes: none
-references: 2026-09-27-ocu-restricted-office-embedding, issue-97, issue-33, issue-36, issue-99, issue-313, issue-314
+references: 2026-09-27-ocu-restricted-office-embedding, issue-97, issue-33, issue-36, issue-99, issue-313, issue-314, issue-689
 ---
 
 # Build-prepared Drawio materials with renderer-owned failure boundaries
@@ -26,7 +26,7 @@ Each body-owned fullscreen UI belongs to its preview's child lifetime. Close con
 
 The local-lightbox wrapper observes only the current receiver's synchronous `addListener` calls during the pinned factory and restores the original method property state in `finally`. Captured `darkModeChanged` callbacks transfer to the child lifetime before further setup. Cleanup removes them by identity immediately, including while destruction awaits attachment, without destroying the parent or clearing unrelated subscriptions. Factory exceptions, no-UI returns and setup failures release captured subscriptions; secondary cleanup failures do not replace the original failure.
 
-Office owns its approved sanitizer instance independently of the viewer's sanitizer and hooks. Script loading across these owners is serialized. Files embedding retains its Office-only contract: Drawio remains unsupported without diagram or viewer fetch. Generated-document iframe and response policies are unchanged.
+Office owns its approved sanitizer instance independently of the viewer's sanitizer and hooks. Script loading across these owners is serialized. Files embedding admits only Office, text and media types (widened from Office-only by issue689): Drawio remains unsupported without diagram or viewer fetch. Generated-document iframe and response policies are unchanged.
 
 The WebUI native verification stage must prepare the pinned materials inside the reconstructed served tree; preparing a separate sibling checkout does not populate that tree.
 

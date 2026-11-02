@@ -55,11 +55,12 @@ const rootNotes: WorkspaceFile = {
 	size: 64
 };
 const officeFile: WorkspaceFile = file('valid.docx');
-const rootPhoto: WorkspaceFile = {
-	...file('photo.png', 'photo.png'),
-	url: `/ocu/files/${chat}/photo.png`,
+// An image kind that no sidebar route renders: TIFF is neither a browser raster nor generated.
+const rootScan: WorkspaceFile = {
+	...file('scan.tiff', 'scan.tiff'),
+	url: `/ocu/files/${chat}/scan.tiff`,
 	type: 'image',
-	mime: 'image/png',
+	mime: 'image/tiff',
 	size: 128
 };
 
@@ -415,7 +416,7 @@ describe('selected workspace file bar and framed preview', () => {
 
 	it('updates the unsupported glyph on other then image without remounting the surface', async () => {
 		restoreThenOpen(
-			[nestedSummary, nestedIndex, rootPage, rootNotes, rootPhoto, officeFile],
+			[nestedSummary, nestedIndex, rootPage, rootNotes, rootScan, officeFile],
 			rootNotes.file_id
 		);
 		await open();
@@ -426,11 +427,11 @@ describe('selected workspace file bar and framed preview', () => {
 		expect(otherGlyph).toBe(rowGlyph('notes.bin'));
 		expect(surface.querySelector('iframe')).toBeNull();
 
-		namedButton('photo.png').click();
+		namedButton('scan.tiff').click();
 		await tick();
-		expect(unsupportedGlyph()).toBe(rowGlyph('photo.png'));
+		expect(unsupportedGlyph()).toBe(rowGlyph('scan.tiff'));
 		expect(unsupportedGlyph()).not.toBe(otherGlyph);
-		expect(barGlyph()).toBe(rowGlyph('photo.png'));
+		expect(barGlyph()).toBe(rowGlyph('scan.tiff'));
 		expect(barGlyph()).not.toBe(rowGlyph('notes.bin'));
 		expect(previewSurface()).toBe(surface);
 		expect(selectedRegion()).toBe(region);

@@ -245,7 +245,8 @@
 	const getCssScale = (viewport: { width: number; height: number }) => {
 		if (!singlePage) return (outerContainer?.clientWidth || 800) / viewport.width;
 
-		const availableWidth = Math.max(320, (outerContainer?.clientWidth || 800) - 64);
+		// A 320px floor cropped the page in a narrow workspace sidebar column.
+		const availableWidth = Math.max(80, (outerContainer?.clientWidth || 800) - 64);
 		const availableHeight = Math.max(220, (outerContainer?.clientHeight || 600) - 64);
 		return Math.min(1, availableWidth / viewport.width, availableHeight / viewport.height);
 	};

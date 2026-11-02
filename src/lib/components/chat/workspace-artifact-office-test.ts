@@ -45,10 +45,10 @@ export const officePptx: WorkspaceFile = {
 	mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 };
 export const htmlFile: WorkspaceFile = file('page.html');
-export const pdfFile: WorkspaceFile = {
-	...file('brief.pdf', 'brief.pdf'),
-	type: 'pdf',
-	mime: 'application/pdf'
+export const archiveFile: WorkspaceFile = {
+	...file('bundle.zip', 'bundle.zip'),
+	type: 'other',
+	mime: 'application/zip'
 };
 export const legacyDoc: WorkspaceFile = {
 	...file('legacy.doc', 'legacy.doc'),

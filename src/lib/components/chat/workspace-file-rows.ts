@@ -100,9 +100,14 @@ export function servable(file: WorkspaceFile): boolean {
 	return !file.too_large && !file.unsupported_name;
 }
 
+// Case and parameters (`; charset=`) never change what a MIME type means.
+export function mimeEssence(file: WorkspaceFile): string {
+	return file.mime.split(';', 1)[0].trim().toLowerCase();
+}
+
 // Recognized MIME wins over broker type; display kinds never grant preview/edit eligibility.
 export function workspaceFileKind(file: WorkspaceFile): WorkspaceFileKind {
-	const mime = file.mime.split(';', 1)[0].trim().toLowerCase();
+	const mime = mimeEssence(file);
 	if (Object.hasOwn(mimeKinds, mime)) return mimeKinds[mime];
 	if (mime.startsWith('image/')) return 'image';
 	const type = file.type.toLowerCase();
