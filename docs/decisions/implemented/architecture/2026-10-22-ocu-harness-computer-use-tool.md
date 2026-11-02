@@ -96,7 +96,8 @@ documented in OCU `deploy/production-like-test/NETWORK-HARDENING.md`:
    `open-webui` service itself never runs init.
 3. Run `deploy/production-like-test/init/remove-wrapper-model.py` once:
    - It refuses unless the stored `computer_use_filter` content is
-     byte-identical to the shipped filter file. This enforces step 2. The
+     byte-identical to the shipped filter file. Since DankerMu/open-computer-use#202
+     the same check covers `video_production_filter` and the tool. This enforces step 2. The
      filter source avoids the substrings that the fork's `replace_imports`
      rewrites on save (`utils/plugin.py:187-201`), and an OCU test asserts
      that.

@@ -52,6 +52,11 @@ def test_diagnostic_spec_is_allowed_only_through_the_pair(selection):
     assert selection('ocu-popup-release.e2e.ts', '5') == ('ocu-popup-release.e2e.ts', 5, None)
 
 
+def test_video_switch_spec_is_required_and_repeatable(selection):
+    assert 'ocu-video-switch.e2e.ts' in HARNESS.REQUIRED_SPECS
+    assert selection('ocu-video-switch.e2e.ts', '2') == ('ocu-video-switch.e2e.ts', 2, None)
+
+
 def test_grep_with_the_pair_is_accepted_and_forwarded_as_a_list(selection):
     assert selection('ocu-workspace.e2e.ts', '3', 'A-T01') == ('ocu-workspace.e2e.ts', 3, 'A-T01')
     harness = HARNESS.BrowserHarness(('ocu-workspace.e2e.ts', 3, 'A-T01'))

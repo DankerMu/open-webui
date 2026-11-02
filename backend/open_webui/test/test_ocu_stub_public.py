@@ -347,3 +347,60 @@ def test_relative_resource_fixtures_have_ordinary_content(stub_server, name, mim
     assert status == 200
     assert headers['content-type'] == mime
     assert body.startswith(signature)
+
+
+@pytest.mark.parametrize(
+    'features,status,body',
+    [
+        (None, 200, b'OCU stub system prompt (features: none).'),
+        ('video', 200, b'OCU stub system prompt (features: video).'),
+        ('', 200, b'OCU stub system prompt (features: none).'),
+        ('video,unknown', 400, b'{"detail": "unknown prompt feature"}'),
+    ],
+)
+def test_system_prompt_mirrors_ocu_features_and_records_the_header(stub_server, features, status, body):
+    base, record = stub_server
+    headers = {'Authorization': 'Bearer synthetic-stub-token'}
+    if features is not None:
+        headers['X-OCU-Features'] = features
+    got_status, got_headers, got_body = _get(f'{base}/system-prompt?chat_id=c&user_email=u%40x', headers)
+    assert (got_status, got_body) == (status, body)
+    if status == 200:
+        assert got_headers['x-public-base-url'] == '/ocu'
+    row = json.loads(record.read_text().splitlines()[-1])
+    assert row['target'] == '/system-prompt?chat_id=c&user_email=u%40x'
+    assert row['x_ocu_features'] == features
+    assert row['token_ok'] is True
+
+
+@pytest.mark.parametrize('stream', [True, False])
+def test_openai_model_replies_with_the_injected_stub_prompt(stub_server, stream):
+    base, _record = stub_server
+    status, _headers, listing = _get(f'{base}/v1/models', {})
+    assert status == 200
+    assert [model['id'] for model in json.loads(listing)['data']] == ['ocu-stub-model']
+    payload = {
+        'model': 'ocu-stub-model',
+        'stream': stream,
+        'messages': [
+            {'role': 'system', 'content': 'User rules.\n\nOCU stub system prompt (features: video).'},
+            {'role': 'user', 'content': 'hello'},
+        ],
+    }
+    request = urllib.request.Request(
+        f'{base}/v1/chat/completions',
+        data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(request, timeout=3) as response:
+        content_type, raw = response.headers['Content-Type'], response.read().decode()
+    reply = 'Stub reply. Saw: OCU stub system prompt (features: video).'
+    if stream:
+        assert content_type == 'text/event-stream'
+        events = [line.removeprefix('data: ') for line in raw.split('\n\n') if line]
+        assert events[-1] == '[DONE]'
+        assert json.loads(events[0])['choices'][0]['delta']['content'] == reply
+        assert json.loads(events[1])['choices'][0]['finish_reason'] == 'stop'
+    else:
+        assert json.loads(raw)['choices'][0]['message']['content'] == reply

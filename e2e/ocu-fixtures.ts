@@ -35,6 +35,8 @@ export const context: {
 	chats: Record<string, string>;
 	fixtures: string;
 	record: string;
+	stub: string;
+	filters: Record<'computer_use_filter' | 'video_production_filter', string>;
 	mint: { python: string; config: string };
 	restart: {
 		stub: { old_pid: number; new_pid: number };
