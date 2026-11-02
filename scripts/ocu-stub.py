@@ -21,6 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from ocu_stub_model import chat_completion, model_list, system_prompt
 from ocu_stub_nested import FILES, nested_listing_entry, nested_names, nested_payload
 from ocu_stub_office import OFFICE_SCENARIOS, OfficeStore
 from ocu_stub_office_page import office_host_page
@@ -90,6 +91,9 @@ TERM_ACTION_RE = re.compile(r'^/terminal/([^/]+)/(start-ttyd|stop-ttyd|restart-c
 TERM_KILL_RE = re.compile(r'^/terminal/([^/]+)/processes/([0-9]+)/kill$')
 TERM_WS_RE = re.compile(r'^/terminal/([^/]+)/ws$')
 BROWSER_WS_RE = re.compile(r'^/browser/([^/]+)/devtools/page/([^/]+)$')
+SYSTEM_PROMPT_RE = re.compile(r'^/system-prompt$')
+MODELS_RE = re.compile(r'^/v1/models$')
+COMPLETIONS_RE = re.compile(r'^/v1/chat/completions$')
 STATIC_RE = re.compile('^' + re.escape(PREFIX) + r'/static/(.+)$') if PREFIX else re.compile(r'^/static/(.+)$')
 
 
@@ -358,6 +362,8 @@ def _observe(handler: BaseHTTPRequestHandler, extra: dict | None = None) -> None
         },
         'token_ok': bool(expected) and auth == expected,
         'upgrade': handler.headers.get('Upgrade', ''),
+        # None means the header was absent, which is what the video switch's off state must produce.
+        'x_ocu_features': handler.headers.get('X-OCU-Features'),
         'credential_headers': sorted(
             name.lower()
             for name in handler.headers
@@ -563,6 +569,15 @@ class StubHandler(BaseHTTPRequestHandler):
             return
         self._json(200, _store_upload(match.group(1), name, parts[0].get_payload(decode=True)))
 
+    def _system_prompt(self, _match: re.Match[str], _query: dict) -> None:
+        self._write(*system_prompt(self.headers.get('X-OCU-Features'), PREFIX))
+
+    def _models(self, _match: re.Match[str], _query: dict) -> None:
+        self._json(200, model_list())
+
+    def _chat_completion(self, _match: re.Match[str], _query: dict) -> None:
+        self._write(200, *chat_completion(self._request_body))
+
     def _serve_static(self, match: re.Match[str], _query: dict) -> None:
         if ASSET_ROOT.is_dir() and FIXTURE_PATH:
             target = ASSET_ROOT / unquote(match.group(1))
@@ -714,6 +729,9 @@ _ROUTES = (
     ('POST', TERM_KILL_RE, StubHandler._ok),
     ('GET', TERM_WS_RE, StubHandler._ws_without_upgrade),
     ('GET', BROWSER_WS_RE, StubHandler._ws_without_upgrade),
+    ('GET', SYSTEM_PROMPT_RE, StubHandler._system_prompt),
+    ('GET', MODELS_RE, StubHandler._models),
+    ('POST', COMPLETIONS_RE, StubHandler._chat_completion),
     ('GET', STATIC_RE, StubHandler._serve_static),
     ('HEAD', STATIC_RE, StubHandler._serve_static),
 )
