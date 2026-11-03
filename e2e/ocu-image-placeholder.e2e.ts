@@ -66,8 +66,13 @@ async function withImageStub(page: Page, run: () => Promise<void>) {
 		await expect(page.locator('#chat-input')).toBeVisible();
 		await run();
 	} finally {
-		await post(api, '/openai/config/update', openai);
-		await post(api, '/api/v1/images/config/update', images);
+		// Restore both even when one fails, then report the first failure.
+		const restored = await Promise.allSettled([
+			post(api, '/openai/config/update', openai),
+			post(api, '/api/v1/images/config/update', images)
+		]);
+		const failed = restored.find((result) => result.status === 'rejected');
+		if (failed) throw failed.reason;
 	}
 	expect(errors).toEqual([]);
 }
@@ -137,14 +142,31 @@ test('a call after a thinking block shows the placeholder under the collapsed gr
 		await expectRunningCard(page);
 		await page.screenshot({ path: `${evidence}/ocu-image-placeholder-grouped.png` });
 
-		// Opened, the tool row inside takes the card over: still exactly one.
+		// The group owns the card, so opening and closing it keeps the one card and its count. The
+		// counts are read once right after each click, inside the 300 ms slide, not auto-retried.
+		const before = await seconds(page);
 		await group.click();
+		expect(await placeholderOf(page).count()).toBe(1);
 		await expect(group).toHaveAttribute('aria-expanded', 'true');
-		await expect(placeholderOf(page)).toHaveCount(1);
-		await expect(placeholderOf(page)).toBeVisible();
+		const opened = await seconds(page);
+		expect(opened).toBeGreaterThanOrEqual(before);
 		await group.click();
+		expect(await placeholderOf(page).count()).toBe(1);
 		await expect(group).toHaveAttribute('aria-expanded', 'false');
+		expect(await placeholderOf(page).count()).toBe(1);
+		expect(await seconds(page)).toBeGreaterThanOrEqual(opened);
 
 		await expectImageReplacesCard(page, 'ocu-image-placeholder-grouped-done.png');
+	});
+});
+
+test('stopping the generation mid-call removes the placeholder', async ({ page }) => {
+	await withImageStub(page, async () => {
+		await send(page, 'Draw a wide picture');
+		await expectRunningCard(page);
+		// The call never gets an output; the finished message must not leave the card counting.
+		await page.locator('button[aria-label="停止"]').click();
+		await expect(placeholderOf(page)).toHaveCount(0);
+		await page.screenshot({ path: `${evidence}/ocu-image-placeholder-stopped.png` });
 	});
 });
