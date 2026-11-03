@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mount, tick } from 'svelte';
 import { i18n } from '../../../../../../test/ocu-workspace-fixtures';
 import ConsecutiveDetailsGroup from './ConsecutiveDetailsGroup.svelte';
@@ -48,6 +48,7 @@ describe('image generation placeholder in a collapsed details group', () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		document.body.replaceChildren();
 	});
 
@@ -94,18 +95,31 @@ describe('image generation placeholder in a collapsed details group', () => {
 		expect(placeholders()).toHaveLength(0);
 	});
 
-	it('keeps the same card while the group is opened and closed', async () => {
+	it('keeps the same card and its count while the group is opened and closed', async () => {
+		vi.useFakeTimers();
 		await render([thinking, call('generate_image')]);
 		const [card] = placeholders();
+		const seconds = () =>
+			placeholders()[0]?.querySelector('[data-cy="image-generation-seconds"]')?.textContent;
 		const toggle = () => document.body.querySelector<HTMLElement>('div[role="button"]')!;
+		vi.advanceTimersByTime(3000);
+		await tick();
+		expect(seconds()).toBe('3s');
+
 		toggle().click();
 		await tick();
 		expect(toggle().getAttribute('aria-expanded')).toBe('true');
-		// Open, the slot's tool rows leave the card to the group: still this one, not a fresh one at 0 s.
-		expect(placeholders()).toEqual([card]);
+		// Open, the slot's tool rows leave the card to the group: this very node, not a fresh one at 0 s.
+		expect(placeholders()).toHaveLength(1);
+		expect(placeholders()[0]).toBe(card);
+		expect(seconds()).toBe('3s');
+
+		vi.advanceTimersByTime(2000);
 		toggle().click();
 		await tick();
 		expect(toggle().getAttribute('aria-expanded')).toBe('false');
-		expect(placeholders()).toEqual([card]);
+		expect(placeholders()).toHaveLength(1);
+		expect(placeholders()[0]).toBe(card);
+		expect(seconds()).toBe('5s');
 	});
 });
