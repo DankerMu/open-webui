@@ -18,7 +18,9 @@
 	import XMark from '../icons/XMark.svelte';
 	import Image from './Image.svelte';
 	import FullHeightIframe from './FullHeightIframe.svelte';
-	import ImageGenerationPlaceholder from '../chat/Messages/ImageGenerationPlaceholder.svelte';
+	import ImageGenerationPlaceholder, {
+		runningImageCall
+	} from '../chat/Messages/ImageGenerationPlaceholder.svelte';
 	import { settings } from '$lib/stores';
 
 	export let id: string = '';
@@ -155,6 +157,7 @@
 	$: isPreparing = !isDone && !isRejected && !needsApproval && !needsInput && !isExecuting;
 	$: isActive = isPreparing || isExecuting;
 	$: isError = attributes?.status === 'failed' || (isDone && isToolResultError(result));
+	$: imageCall = runningImageCall(attributes, resolvable);
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);
@@ -366,10 +369,8 @@
 		{/if}
 	{/if}
 
-	{#if isActive && (attributes?.name === 'generate_image' || attributes?.name === 'edit_image')}
-		<ImageGenerationPlaceholder
-			aspectRatio={parseArguments(decode(attributes?.arguments ?? ''))?.aspect_ratio}
-		/>
+	{#if imageCall}
+		<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
 	{/if}
 
 	<!-- Files display (images etc.) when done -->

@@ -1,3 +1,43 @@
+<script context="module" lang="ts">
+	import { decode } from 'html-entities';
+
+	const IMAGE_TOOLS = new Set(['generate_image', 'edit_image']);
+
+	type ToolCallAttributes = { name?: string; arguments?: string; done?: string; status?: string };
+
+	/**
+	 * A running generate_image/edit_image call and its aspect_ratio argument; null for any other
+	 * tool or once the call is done, failed, incomplete, denied or waiting for approval. The one
+	 * rule ToolCallDisplay and the collapsed ConsecutiveDetailsGroup both show the card by.
+	 */
+	export function runningImageCall(
+		attributes: ToolCallAttributes | undefined,
+		resolvable: boolean
+	): { aspectRatio: unknown } | null {
+		if (!attributes || !IMAGE_TOOLS.has(attributes.name ?? '')) return null;
+		const { done, status } = attributes;
+		if (done === 'true' || ['failed', 'incomplete', 'rejected'].includes(status ?? '')) return null;
+		if (status === 'pending' && resolvable) return null;
+		return { aspectRatio: aspectRatioArgument(attributes.arguments) };
+	}
+
+	/** The arguments arrive entity-encoded, sometimes JSON-in-JSON, and partial while streaming. */
+	function aspectRatioArgument(encoded: string | undefined): unknown {
+		let value: unknown = decode(encoded ?? '');
+		while (typeof value === 'string') {
+			try {
+				value = JSON.parse(value);
+			} catch {
+				// Partial JSON while the model still streams the call: no ratio yet, so a square.
+				return undefined;
+			}
+		}
+		return typeof value === 'object' && value !== null
+			? (value as Record<string, unknown>).aspect_ratio
+			: undefined;
+	}
+</script>
+
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';

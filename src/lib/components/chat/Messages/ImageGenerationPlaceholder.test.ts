@@ -19,10 +19,10 @@ const executing = (name: string, args: string = escaped({ prompt: 'a cat' })): A
 	status: 'completed'
 });
 
-async function render(attributes: Attributes) {
+async function render(attributes: Attributes, resolvable = false) {
 	const component = mount(ToolCallDisplay, {
 		target: document.body,
-		props: { attributes },
+		props: { attributes, resolvable },
 		context: new Map<unknown, unknown>([['i18n', i18n]])
 	});
 	await tick();
@@ -62,6 +62,16 @@ describe('image generation placeholder in the tool row', () => {
 
 	it('is gone once the call is done', async () => {
 		await render({ ...executing('generate_image'), done: 'true' });
+		expect(placeholder()).toBeNull();
+	});
+
+	it('is not shown while the call waits for approval', async () => {
+		await render({ ...executing('generate_image'), status: 'pending' }, true);
+		expect(placeholder()).toBeNull();
+	});
+
+	it('is gone when the call was denied', async () => {
+		await render({ ...executing('generate_image'), status: 'rejected' });
 		expect(placeholder()).toBeNull();
 	});
 

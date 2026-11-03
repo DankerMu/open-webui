@@ -13,6 +13,9 @@
 	import CheckCircle from '$lib/components/icons/CheckCircle.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
+	import ImageGenerationPlaceholder, {
+		runningImageCall
+	} from '../ImageGenerationPlaceholder.svelte';
 
 	import { settings } from '$lib/stores';
 
@@ -296,6 +299,16 @@
 				</div>
 			{/each}
 		</div>
+	{/if}
+
+	{#if !open}
+		<!-- The collapsed group hides its slot, so a running image call shows its card here; open, the slot's ToolCallDisplay shows it. -->
+		{#each tokens as token}
+			{@const imageCall = runningImageCall(token?.attributes, resolvable)}
+			{#if imageCall}
+				<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
+			{/if}
+		{/each}
 	{/if}
 
 	{#if open}
