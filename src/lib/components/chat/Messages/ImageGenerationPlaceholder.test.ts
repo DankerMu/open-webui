@@ -129,11 +129,11 @@ describe('image generation placeholder in the tool row', () => {
 
 	it('announces the label but not every second', async () => {
 		await render(executing('generate_image'));
-		const live = placeholder()?.querySelector('[aria-live="polite"]');
-		expect(live?.textContent?.trim()).toBe('Creating image');
-		expect(
-			live?.contains(placeholder()?.querySelector('[data-cy="image-generation-seconds"]') ?? null)
-		).toBe(false);
+		const live = placeholder()?.querySelectorAll('[role="status"], [aria-live]');
+		expect([...(live ?? [])].map((node) => node.textContent?.trim())).toEqual(['Creating image']);
+		// role="status" is itself a polite live region: no ancestor of the seconds may carry it.
+		const counter = placeholder()?.querySelector('[data-cy="image-generation-seconds"]');
+		expect(counter?.closest('[role="status"], [aria-live]')).toBeNull();
 		expect(
 			placeholder()?.querySelector('[data-cy="image-generation-dots"]')?.getAttribute('aria-hidden')
 		).toBe('true');

@@ -34,7 +34,6 @@
 <div
 	class="image-generation-placeholder relative my-2 overflow-hidden rounded-lg bg-gray-50/60 dark:bg-white/[0.02]"
 	style="aspect-ratio: {width} / {height}; width: {widthRem}rem; max-width: 100%;"
-	role="status"
 	aria-busy="true"
 	data-cy="image-generation-placeholder"
 >
@@ -44,7 +43,7 @@
 	<div
 		class="absolute inset-x-0 top-0 flex items-baseline justify-between gap-2 px-3 py-2 text-xs text-gray-400 dark:text-gray-500"
 	>
-		<span aria-live="polite">{$i18n.t('Creating image')}</span>
+		<span role="status">{$i18n.t('Creating image')}</span>
 		<span class="tabular-nums" data-cy="image-generation-seconds"
 			>{$i18n.t('{{COUNT}}s', { COUNT: String(elapsed) })}</span
 		>
