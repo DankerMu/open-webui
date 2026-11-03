@@ -41,6 +41,7 @@ async function withImageStub(page: Page, run: () => Promise<void>) {
 	const api = await admin(page);
 	const openai = await getJson(api, '/openai/config');
 	const images = await getJson(api, '/api/v1/images/config');
+	let restore: PromiseSettledResult<unknown>[] = [];
 	try {
 		await post(api, '/openai/config/update', {
 			ENABLE_OPENAI_API: true,
@@ -66,14 +67,14 @@ async function withImageStub(page: Page, run: () => Promise<void>) {
 		await expect(page.locator('#chat-input')).toBeVisible();
 		await run();
 	} finally {
-		// Restore both even when one fails, then report the first failure.
-		const restored = await Promise.allSettled([
+		// Restore both even when one fails; a failure of the case itself still wins over these.
+		restore = await Promise.allSettled([
 			post(api, '/openai/config/update', openai),
 			post(api, '/api/v1/images/config/update', images)
 		]);
-		const failed = restored.find((result) => result.status === 'rejected');
-		if (failed) throw failed.reason;
 	}
+	const failed = restore.find((result) => result.status === 'rejected');
+	if (failed) throw failed.reason;
 	expect(errors).toEqual([]);
 }
 
