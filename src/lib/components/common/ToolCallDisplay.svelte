@@ -38,6 +38,7 @@
 
 	export let open = false;
 	export let grouped = false;
+	export let messageDone = false;
 	export let className = '';
 	export let resolvable = false;
 	export let resolving = false;
@@ -157,7 +158,8 @@
 	$: isPreparing = !isDone && !isRejected && !needsApproval && !needsInput && !isExecuting;
 	$: isActive = isPreparing || isExecuting;
 	$: isError = attributes?.status === 'failed' || (isDone && isToolResultError(result));
-	$: imageCall = runningImageCall(attributes, resolvable);
+	// In a details group the group shows the card, so it survives the group opening and closing.
+	$: imageCall = grouped ? null : runningImageCall(attributes, resolvable, messageDone);
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);

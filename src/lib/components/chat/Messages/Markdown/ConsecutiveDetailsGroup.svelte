@@ -120,6 +120,11 @@
 				(t?.attributes?.done === 'true' && isToolResultError(decode(t?.text ?? ''))))
 	);
 
+	$: runningImageCalls = tokens.flatMap((t, index) => {
+		const imageCall = runningImageCall(t?.attributes, resolvable, messageDone);
+		return imageCall ? [{ key: t?.attributes?.id || `${index}`, ...imageCall }] : [];
+	});
+
 	$: codeInterpreterCount = tokens.filter((t) => t?.attributes?.type === 'code_interpreter').length;
 
 	// Collect all embeds from tool_calls tokens
@@ -301,16 +306,6 @@
 		</div>
 	{/if}
 
-	{#if !open}
-		<!-- The collapsed group hides its slot, so a running image call shows its card here; open, the slot's ToolCallDisplay shows it. -->
-		{#each tokens as token}
-			{@const imageCall = runningImageCall(token?.attributes, resolvable)}
-			{#if imageCall}
-				<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
-			{/if}
-		{/each}
-	{/if}
-
 	{#if open}
 		<div transition:slide={{ duration: 300, easing: quintOut, axis: 'y' }}>
 			<div class="mb-1">
@@ -318,6 +313,11 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Outside the slot, so a card keeps its count while the group opens and closes. -->
+	{#each runningImageCalls as imageCall (imageCall.key)}
+		<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
+	{/each}
 
 	{#if allEmbeds.length > 0}
 		{#each allEmbeds as embedItem, idx}

@@ -503,6 +503,7 @@
 				id={`${id}-${tokenIdx}-tc`}
 				attributes={token.attributes}
 				resultContent={getDetailTextContent(token)}
+				messageDone={done}
 				resolvable={!!chatId && !!messageId && save}
 				resolving={resolvingCallId === token.attributes?.id}
 				onResolve={(approved) => resolveToolCall(token.attributes?.id ?? '', approved)}

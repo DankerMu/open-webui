@@ -75,10 +75,17 @@ describe('image generation placeholder in a collapsed details group', () => {
 	it.each([
 		['done', { done: 'true' }],
 		['failed', { status: 'failed' }],
+		['incomplete', { status: 'incomplete' }],
 		['rejected', { status: 'rejected' }],
 		['waiting for approval', { status: 'pending' }]
 	])('shows no card once the call is %s', async (_state, extra) => {
 		await render([thinking, call('generate_image', extra)], { resolvable: true });
+		expect(placeholders()).toHaveLength(0);
+	});
+
+	it('shows no card once the message ended with the call still open', async () => {
+		// Stopped by the user, or the backend died: the call never gets an output.
+		await render([thinking, call('generate_image')], { messageDone: true });
 		expect(placeholders()).toHaveLength(0);
 	});
 
@@ -87,15 +94,18 @@ describe('image generation placeholder in a collapsed details group', () => {
 		expect(placeholders()).toHaveLength(0);
 	});
 
-	it('leaves the card to the tool row once the group is opened', async () => {
+	it('keeps the same card while the group is opened and closed', async () => {
 		await render([thinking, call('generate_image')]);
-		expect(placeholders()).toHaveLength(1);
-		document.body.querySelector<HTMLElement>('[aria-expanded]')?.click();
+		const [card] = placeholders();
+		const toggle = () => document.body.querySelector<HTMLElement>('div[role="button"]')!;
+		toggle().click();
 		await tick();
-		expect(document.body.querySelector('[aria-expanded]')?.getAttribute('aria-expanded')).toBe(
-			'true'
-		);
-		// The open group renders its slot, whose ToolCallDisplay shows its own card; none from here.
-		expect(placeholders()).toHaveLength(0);
+		expect(toggle().getAttribute('aria-expanded')).toBe('true');
+		// Open, the slot's tool rows leave the card to the group: still this one, not a fresh one at 0 s.
+		expect(placeholders()).toEqual([card]);
+		toggle().click();
+		await tick();
+		expect(toggle().getAttribute('aria-expanded')).toBe('false');
+		expect(placeholders()).toEqual([card]);
 	});
 });

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount, tick, unmount } from 'svelte';
+import { createClassComponent } from 'svelte/legacy';
 import { i18n } from '../../../../../test/ocu-workspace-fixtures';
 import ToolCallDisplay from '$lib/components/common/ToolCallDisplay.svelte';
 
@@ -19,10 +20,10 @@ const executing = (name: string, args: string = escaped({ prompt: 'a cat' })): A
 	status: 'completed'
 });
 
-async function render(attributes: Attributes, resolvable = false) {
+async function render(attributes: Attributes, props: Record<string, unknown> = {}) {
 	const component = mount(ToolCallDisplay, {
 		target: document.body,
-		props: { attributes, resolvable },
+		props: { attributes, ...props },
 		context: new Map<unknown, unknown>([['i18n', i18n]])
 	});
 	await tick();
@@ -60,32 +61,52 @@ describe('image generation placeholder in the tool row', () => {
 		}
 	);
 
-	it('is gone once the call is done', async () => {
-		await render({ ...executing('generate_image'), done: 'true' });
+	it.each([
+		['done', { done: 'true' }, {}],
+		['failed', { status: 'failed' }, {}],
+		['incomplete', { status: 'incomplete' }, {}],
+		['denied', { status: 'rejected' }, {}],
+		['waiting for approval', { status: 'pending' }, { resolvable: true }],
+		// Stopped by the user, or the backend died: the call never gets an output.
+		['left without an output by a finished message', {}, { messageDone: true }]
+	])('is not shown once the call is %s', async (_state, extra, props) => {
+		await render({ ...executing('generate_image'), ...extra }, props);
 		expect(placeholder()).toBeNull();
 	});
 
-	it('is not shown while the call waits for approval', async () => {
-		await render({ ...executing('generate_image'), status: 'pending' }, true);
+	it('leaves the card to the group when the row sits in a details group', async () => {
+		await render(executing('generate_image'), { grouped: true });
 		expect(placeholder()).toBeNull();
 	});
 
-	it('is gone when the call was denied', async () => {
-		await render({ ...executing('generate_image'), status: 'rejected' });
-		expect(placeholder()).toBeNull();
-	});
-
-	it('is gone when the call failed', async () => {
-		await render({ ...executing('generate_image'), status: 'failed' });
-		expect(placeholder()).toBeNull();
-	});
-
-	it('disappears when a running call finishes', async () => {
-		const component = await render(executing('generate_image'));
+	it('disappears when the running call finishes', async () => {
+		const row = createClassComponent({
+			component: ToolCallDisplay,
+			target: document.body,
+			props: { attributes: executing('generate_image') },
+			context: new Map<unknown, unknown>([['i18n', i18n]])
+		});
+		await tick();
 		expect(placeholder()).not.toBeNull();
-		unmount(component);
-		await render({ ...executing('generate_image'), done: 'true' });
+		row.$set({ attributes: { ...executing('generate_image'), done: 'true' } });
+		await tick();
 		expect(placeholder()).toBeNull();
+		row.$destroy();
+	});
+
+	it('disappears when the message ends with the call still open', async () => {
+		const row = createClassComponent({
+			component: ToolCallDisplay,
+			target: document.body,
+			props: { attributes: executing('generate_image'), messageDone: false },
+			context: new Map<unknown, unknown>([['i18n', i18n]])
+		});
+		await tick();
+		expect(placeholder()).not.toBeNull();
+		row.$set({ messageDone: true });
+		await tick();
+		expect(placeholder()).toBeNull();
+		row.$destroy();
 	});
 
 	it.each([

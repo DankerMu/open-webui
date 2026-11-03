@@ -7,14 +7,16 @@
 
 	/**
 	 * A running generate_image/edit_image call and its aspect_ratio argument; null for any other
-	 * tool or once the call is done, failed, incomplete, denied or waiting for approval. The one
-	 * rule ToolCallDisplay and the collapsed ConsecutiveDetailsGroup both show the card by.
+	 * tool, once the call is done, failed, incomplete, denied or waiting for approval, and once its
+	 * message is done (stopped, or the backend died: the call then never gets an output). The one
+	 * rule ToolCallDisplay and ConsecutiveDetailsGroup both show the card by.
 	 */
 	export function runningImageCall(
 		attributes: ToolCallAttributes | undefined,
-		resolvable: boolean
+		resolvable: boolean,
+		messageDone: boolean
 	): { aspectRatio: unknown } | null {
-		if (!attributes || !IMAGE_TOOLS.has(attributes.name ?? '')) return null;
+		if (messageDone || !attributes || !IMAGE_TOOLS.has(attributes.name ?? '')) return null;
 		const { done, status } = attributes;
 		if (done === 'true' || ['failed', 'incomplete', 'rejected'].includes(status ?? '')) return null;
 		if (status === 'pending' && resolvable) return null;
