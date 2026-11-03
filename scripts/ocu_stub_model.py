@@ -30,11 +30,28 @@ IMAGE_CALL = {
 }
 
 
+# A reasoning model's thinking before the call; WebUI groups it with the call into one collapsed row.
+THINKING = 'Planning the picture before drawing it.'
+
+
+def _last_turn(request: dict) -> list[dict]:
+    """The latest user message and everything after it."""
+    messages = request.get('messages', [])
+    users = [index for index, message in enumerate(messages) if message.get('role') == 'user']
+    return messages[users[-1] :] if users else messages
+
+
 def _calls_image_tool(request: dict) -> bool:
-    """Call generate_image once when it is offered; after the tool result, answer in text."""
+    """Call generate_image once per user turn when it is offered; after the tool result, answer in text."""
     offered = {tool.get('function', {}).get('name') for tool in request.get('tools') or []}
-    answered = any(message.get('role') == 'tool' for message in request.get('messages', []))
+    answered = any(message.get('role') == 'tool' for message in _last_turn(request))
     return 'generate_image' in offered and not answered
+
+
+def _thinks_first(request: dict) -> bool:
+    """A user message that says "think" gets the call after a reasoning block."""
+    content = _last_turn(request)[0].get('content') if _last_turn(request) else None
+    return isinstance(content, str) and 'think' in content.lower()
 
 
 def _png(width: int, height: int, rgb: tuple[int, int, int]) -> bytes:
@@ -69,13 +86,17 @@ def chat_completion(payload: bytes) -> tuple[bytes, str]:
     message, finish = {'role': 'assistant', 'content': reply}, 'stop'
     if _calls_image_tool(request):
         message, finish = {'role': 'assistant', 'content': None, 'tool_calls': [IMAGE_CALL]}, 'tool_calls'
+        if _thinks_first(request):
+            message['reasoning_content'] = THINKING
     if not request.get('stream'):
         choice = {'index': 0, 'message': message, 'finish_reason': finish}
         body = {'object': 'chat.completion', 'model': STUB_MODEL, 'choices': [choice]}
         return json.dumps(body).encode(), 'application/json; charset=utf-8'
-    delta = {key: value for key, value in message.items() if value is not None}
+    # Streamed, the reasoning arrives in its own chunk before the call, as a reasoning model sends it.
+    deltas = [{'role': 'assistant', 'reasoning_content': THINKING}] if 'reasoning_content' in message else []
+    deltas.append({key: value for key, value in message.items() if value is not None and key != 'reasoning_content'})
     chunks = (
-        {'index': 0, 'delta': delta, 'finish_reason': None},
+        *({'index': 0, 'delta': delta, 'finish_reason': None} for delta in deltas),
         {'index': 0, 'delta': {}, 'finish_reason': finish},
     )
     events = ''.join(

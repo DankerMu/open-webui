@@ -473,6 +473,51 @@ def test_openai_model_answers_in_text_otherwise(stub_server, tools, messages):
     assert message == {'role': 'assistant', 'content': 'Stub reply. Saw: no OCU system prompt.'}
 
 
+@pytest.mark.parametrize('stream', [True, False])
+def test_openai_model_thinks_before_the_image_call_when_asked_to(stub_server, stream):
+    base, _record = stub_server
+    payload = {
+        'model': 'ocu-stub-model',
+        'stream': stream,
+        'tools': [IMAGE_TOOL],
+        'messages': [{'role': 'user', 'content': 'Think, then draw a cat'}],
+    }
+    _content_type, raw = _completion(base, payload)
+    thinking = 'Planning the picture before drawing it.'
+    if stream:
+        events = [line.removeprefix('data: ') for line in raw.split('\n\n') if line]
+        assert events[-1] == '[DONE]'
+        reasoning, call, last = (json.loads(event)['choices'][0] for event in events[:3])
+        assert reasoning['delta'] == {'role': 'assistant', 'reasoning_content': thinking}
+        assert [item['function'] for item in call['delta']['tool_calls']] == [STUB_IMAGE_CALL]
+        assert 'reasoning_content' not in call['delta']
+        assert last['finish_reason'] == 'tool_calls'
+    else:
+        choice = json.loads(raw)['choices'][0]
+        assert choice['message']['reasoning_content'] == thinking
+        assert [item['function'] for item in choice['message']['tool_calls']] == [STUB_IMAGE_CALL]
+
+
+def test_openai_model_calls_generate_image_again_in_a_new_turn(stub_server):
+    base, _record = stub_server
+    payload = {
+        'model': 'ocu-stub-model',
+        'stream': False,
+        'tools': [IMAGE_TOOL],
+        'messages': [
+            {'role': 'user', 'content': 'draw a cat'},
+            {'role': 'assistant', 'content': '', 'tool_calls': [{'id': 'c', 'function': STUB_IMAGE_CALL}]},
+            {'role': 'tool', 'tool_call_id': 'c', 'content': '{"status": "success"}'},
+            {'role': 'assistant', 'content': 'Here it is.'},
+            {'role': 'user', 'content': 'and a dog'},
+        ],
+    }
+    _content_type, raw = _completion(base, payload)
+    choice = json.loads(raw)['choices'][0]
+    assert [item['function'] for item in choice['message']['tool_calls']] == [STUB_IMAGE_CALL]
+    assert 'reasoning_content' not in choice['message']
+
+
 def test_image_generation_returns_one_png_in_the_openai_shape():
     model = runpy.run_path(str(ROOT / 'scripts/ocu_stub_model.py'))
     body, content_type = model['image_generation']()
