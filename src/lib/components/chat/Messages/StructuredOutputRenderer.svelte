@@ -173,6 +173,7 @@
 				id={`${id}-${displayItem.id}-tool-call`}
 				attributes={detailToken.attributes}
 				resultContent={detailToken.text}
+				messageDone={done}
 				resolvable={!!chatId && !!messageId && save}
 				resolving={resolvingCallId === detailToken.attributes?.id}
 				onResolve={(approved) => resolveToolCall(detailToken.attributes?.id ?? '', approved)}

@@ -13,6 +13,9 @@
 	import CheckCircle from '$lib/components/icons/CheckCircle.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
+	import ImageGenerationPlaceholder, {
+		runningImageCall
+	} from '../ImageGenerationPlaceholder.svelte';
 
 	import { settings } from '$lib/stores';
 
@@ -116,6 +119,11 @@
 			(t?.attributes?.status === 'failed' ||
 				(t?.attributes?.done === 'true' && isToolResultError(decode(t?.text ?? ''))))
 	);
+
+	$: runningImageCalls = tokens.flatMap((t, index) => {
+		const imageCall = runningImageCall(t?.attributes, resolvable, messageDone);
+		return imageCall ? [{ key: t?.attributes?.id || `${index}`, ...imageCall }] : [];
+	});
 
 	$: codeInterpreterCount = tokens.filter((t) => t?.attributes?.type === 'code_interpreter').length;
 
@@ -305,6 +313,11 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Outside the slot, so a card keeps its count while the group opens and closes. -->
+	{#each runningImageCalls as imageCall (imageCall.key)}
+		<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
+	{/each}
 
 	{#if allEmbeds.length > 0}
 		{#each allEmbeds as embedItem, idx}

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import { expect, type APIRequestContext, type Page } from '@playwright/test';
-import { openAuthenticatedPage, test } from './ocu-auth';
+import { expect, type Page } from '@playwright/test';
+import { admin, openAuthenticatedPage, post, test, type Admin } from './ocu-auth';
 import { context, evidence, recordsSince } from './ocu-fixtures';
 
 // The stub serves this OpenAI-compatible model so a send runs the backend filter chain for real.
@@ -10,19 +10,6 @@ const FILTERS = [
 	{ id: 'computer_use_filter', name: 'Computer Use Filter' },
 	{ id: 'video_production_filter', name: SWITCH }
 ] as const;
-
-type Admin = { request: APIRequestContext; headers: { Authorization: string } };
-
-async function admin(page: Page): Promise<Admin> {
-	const token = await page.evaluate(() => localStorage.token);
-	return { request: page.request, headers: { Authorization: `Bearer ${token}` } };
-}
-
-async function post(api: Admin, path: string, data?: unknown) {
-	const response = await api.request.post(path, { headers: api.headers, data });
-	expect(response.status(), path).toBe(200);
-	return response.json();
-}
 
 /** Install both pinned filters the way OCU's init does: create, then active and global. */
 async function installFilters(api: Admin) {

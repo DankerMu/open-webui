@@ -1,4 +1,10 @@
-import { test as base, expect, type BrowserContext, type Page } from '@playwright/test';
+import {
+	test as base,
+	expect,
+	type APIRequestContext,
+	type BrowserContext,
+	type Page
+} from '@playwright/test';
 
 type OwnerState = Awaited<ReturnType<BrowserContext['storageState']>>;
 
@@ -37,6 +43,20 @@ export async function finishOnboarding(page: Page) {
 		await changelog.getByRole('button', { name: "Okay, Let's Go!" }).click();
 		await expect(changelog).toBeHidden();
 	}
+}
+
+/** The signed-in owner (the harness admin) as an API caller, for admin config set-up and restore. */
+export type Admin = { request: APIRequestContext; headers: { Authorization: string } };
+
+export async function admin(page: Page): Promise<Admin> {
+	const token = await page.evaluate(() => localStorage.token);
+	return { request: page.request, headers: { Authorization: `Bearer ${token}` } };
+}
+
+export async function post(api: Admin, path: string, data?: unknown) {
+	const response = await api.request.post(path, { headers: api.headers, data });
+	expect(response.status(), path).toBe(200);
+	return response.json();
 }
 
 export function ownerCredentials() {

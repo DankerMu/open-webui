@@ -18,6 +18,9 @@
 	import XMark from '../icons/XMark.svelte';
 	import Image from './Image.svelte';
 	import FullHeightIframe from './FullHeightIframe.svelte';
+	import ImageGenerationPlaceholder, {
+		runningImageCall
+	} from '../chat/Messages/ImageGenerationPlaceholder.svelte';
 	import { settings } from '$lib/stores';
 
 	export let id: string = '';
@@ -35,6 +38,7 @@
 
 	export let open = false;
 	export let grouped = false;
+	export let messageDone = false;
 	export let className = '';
 	export let resolvable = false;
 	export let resolving = false;
@@ -154,6 +158,8 @@
 	$: isPreparing = !isDone && !isRejected && !needsApproval && !needsInput && !isExecuting;
 	$: isActive = isPreparing || isExecuting;
 	$: isError = attributes?.status === 'failed' || (isDone && isToolResultError(result));
+	// In a details group the group shows the card, so it survives the group opening and closing.
+	$: imageCall = grouped ? null : runningImageCall(attributes, resolvable, messageDone);
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);
@@ -363,6 +369,10 @@
 				</div>
 			</div>
 		{/if}
+	{/if}
+
+	{#if imageCall}
+		<ImageGenerationPlaceholder aspectRatio={imageCall.aspectRatio} />
 	{/if}
 
 	<!-- Files display (images etc.) when done -->
