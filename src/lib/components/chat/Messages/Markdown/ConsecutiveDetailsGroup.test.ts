@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { mount, tick } from 'svelte';
 import { i18n } from '../../../../../../test/ocu-workspace-fixtures';
 import ConsecutiveDetailsGroup from './ConsecutiveDetailsGroup.svelte';
@@ -37,6 +37,16 @@ const placeholders = () => [
 ];
 
 describe('image generation placeholder in a collapsed details group', () => {
+	// jsdom has no Web Animations API, which the group's slide transition calls when it opens.
+	// An animation that never finishes leaves the opened content in place, which is all we read.
+	beforeAll(() => {
+		Element.prototype.animate = () =>
+			({ cancel() {}, onfinish: null, effect: null }) as unknown as Animation;
+	});
+	afterAll(() => {
+		delete (Element.prototype as Partial<Element>).animate;
+	});
+
 	afterEach(() => {
 		document.body.replaceChildren();
 	});
