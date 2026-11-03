@@ -18,6 +18,7 @@
 	import XMark from '../icons/XMark.svelte';
 	import Image from './Image.svelte';
 	import FullHeightIframe from './FullHeightIframe.svelte';
+	import ImageGenerationPlaceholder from '../chat/Messages/ImageGenerationPlaceholder.svelte';
 	import { settings } from '$lib/stores';
 
 	export let id: string = '';
@@ -363,6 +364,12 @@
 				</div>
 			</div>
 		{/if}
+	{/if}
+
+	{#if isActive && (attributes?.name === 'generate_image' || attributes?.name === 'edit_image')}
+		<ImageGenerationPlaceholder
+			aspectRatio={parseArguments(decode(attributes?.arguments ?? ''))?.aspect_ratio}
+		/>
 	{/if}
 
 	<!-- Files display (images etc.) when done -->
