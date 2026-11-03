@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import runpy
@@ -404,3 +405,81 @@ def test_openai_model_replies_with_the_injected_stub_prompt(stub_server, stream)
         assert json.loads(events[1])['choices'][0]['finish_reason'] == 'stop'
     else:
         assert json.loads(raw)['choices'][0]['message']['content'] == reply
+
+
+def _completion(base: str, payload: dict) -> tuple[str, str]:
+    request = urllib.request.Request(
+        f'{base}/v1/chat/completions',
+        data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    with urllib.request.urlopen(request, timeout=3) as response:
+        return response.headers['Content-Type'], response.read().decode()
+
+
+IMAGE_TOOL = {'type': 'function', 'function': {'name': 'generate_image', 'parameters': {}}}
+STUB_IMAGE_CALL = {'name': 'generate_image', 'arguments': '{"prompt": "A stub image", "aspect_ratio": "16:9"}'}
+
+
+@pytest.mark.parametrize('stream', [True, False])
+def test_openai_model_calls_generate_image_when_offered(stub_server, stream):
+    base, _record = stub_server
+    payload = {
+        'model': 'ocu-stub-model',
+        'stream': stream,
+        'tools': [{'type': 'function', 'function': {'name': 'web_search'}}, IMAGE_TOOL],
+        'messages': [{'role': 'user', 'content': 'draw a cat'}],
+    }
+    content_type, raw = _completion(base, payload)
+    if stream:
+        assert content_type == 'text/event-stream'
+        events = [line.removeprefix('data: ') for line in raw.split('\n\n') if line]
+        assert events[-1] == '[DONE]'
+        first, last = (json.loads(event)['choices'][0] for event in events[:2])
+        (call,) = first['delta']['tool_calls']
+        assert last['finish_reason'] == 'tool_calls'
+    else:
+        choice = json.loads(raw)['choices'][0]
+        (call,) = choice['message']['tool_calls']
+        assert choice['finish_reason'] == 'tool_calls'
+    assert call['type'] == 'function'
+    assert call['index'] == 0
+    assert call['id']
+    assert call['function'] == STUB_IMAGE_CALL
+
+
+@pytest.mark.parametrize(
+    'tools, messages',
+    [
+        ([], [{'role': 'user', 'content': 'draw a cat'}]),
+        ([{'type': 'function', 'function': {'name': 'web_search'}}], [{'role': 'user', 'content': 'draw a cat'}]),
+        (
+            [IMAGE_TOOL],
+            [
+                {'role': 'user', 'content': 'draw a cat'},
+                {'role': 'assistant', 'content': '', 'tool_calls': [{'id': 'c', 'function': STUB_IMAGE_CALL}]},
+                {'role': 'tool', 'tool_call_id': 'c', 'content': '{"status": "success"}'},
+            ],
+        ),
+    ],
+    ids=['no tools', 'no image tool', 'after the tool result'],
+)
+def test_openai_model_answers_in_text_otherwise(stub_server, tools, messages):
+    base, _record = stub_server
+    payload = {'model': 'ocu-stub-model', 'stream': False, 'tools': tools, 'messages': messages}
+    _content_type, raw = _completion(base, payload)
+    message = json.loads(raw)['choices'][0]['message']
+    assert message == {'role': 'assistant', 'content': 'Stub reply. Saw: no OCU system prompt.'}
+
+
+def test_image_generation_returns_one_png_in_the_openai_shape():
+    model = runpy.run_path(str(ROOT / 'scripts/ocu_stub_model.py'))
+    body, content_type = model['image_generation']()
+    assert content_type == 'application/json; charset=utf-8'
+    (image,) = json.loads(body)['data']
+    png = base64.b64decode(image['b64_json'])
+    assert png.startswith(b'\x89PNG\r\n\x1a\n')
+    # IHDR: width and height as big-endian 32-bit integers right after the chunk type.
+    assert png[12:16] == b'IHDR'
+    assert (int.from_bytes(png[16:20], 'big'), int.from_bytes(png[20:24], 'big')) == (320, 180)

@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import threading
+import time
 from email import policy
 from email.parser import BytesParser
 from functools import lru_cache
@@ -21,7 +22,7 @@ from pathlib import Path, PurePosixPath
 from typing import Optional
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from ocu_stub_model import chat_completion, model_list, system_prompt
+from ocu_stub_model import chat_completion, image_generation, model_list, system_prompt
 from ocu_stub_nested import FILES, nested_listing_entry, nested_names, nested_payload
 from ocu_stub_office import OFFICE_SCENARIOS, OfficeStore
 from ocu_stub_office_page import office_host_page
@@ -45,6 +46,8 @@ OVERSIZED = {'big.html': b'oversized html stand-in\n', 'big.docx': b'oversized d
 # OCU lists a name it cannot serve with its display form (bytes backslashreplace-decoded),
 # url None, hash None and unsupported_name True: b'\xb1\xa8\xb8\xe6.docx' and a backslash name.
 UNSUPPORTED = {'\\xb1\\xa8\\xb8\\xe6.docx': 'fixture-unsupported-docx', 'a\\b.html': 'fixture-unsupported-html'}
+# A real image service takes minutes; the browser spec needs a few seconds to watch the placeholder count.
+IMAGE_DELAY_SECONDS = 8
 STATIC = {
     'preview.js': ('text/javascript; charset=utf-8', b'export const ocuStub = true;\n'),
     'deep/preview.js': ('text/javascript; charset=utf-8', b'export const ocuStubDeep = true;\n'),
@@ -94,6 +97,7 @@ BROWSER_WS_RE = re.compile(r'^/browser/([^/]+)/devtools/page/([^/]+)$')
 SYSTEM_PROMPT_RE = re.compile(r'^/system-prompt$')
 MODELS_RE = re.compile(r'^/v1/models$')
 COMPLETIONS_RE = re.compile(r'^/v1/chat/completions$')
+IMAGES_RE = re.compile(r'^/v1/images/generations$')
 STATIC_RE = re.compile('^' + re.escape(PREFIX) + r'/static/(.+)$') if PREFIX else re.compile(r'^/static/(.+)$')
 
 
@@ -578,6 +582,10 @@ class StubHandler(BaseHTTPRequestHandler):
     def _chat_completion(self, _match: re.Match[str], _query: dict) -> None:
         self._write(200, *chat_completion(self._request_body))
 
+    def _image_generation(self, _match: re.Match[str], _query: dict) -> None:
+        time.sleep(IMAGE_DELAY_SECONDS)
+        self._write(200, *image_generation())
+
     def _serve_static(self, match: re.Match[str], _query: dict) -> None:
         if ASSET_ROOT.is_dir() and FIXTURE_PATH:
             target = ASSET_ROOT / unquote(match.group(1))
@@ -732,6 +740,7 @@ _ROUTES = (
     ('GET', SYSTEM_PROMPT_RE, StubHandler._system_prompt),
     ('GET', MODELS_RE, StubHandler._models),
     ('POST', COMPLETIONS_RE, StubHandler._chat_completion),
+    ('POST', IMAGES_RE, StubHandler._image_generation),
     ('GET', STATIC_RE, StubHandler._serve_static),
     ('HEAD', STATIC_RE, StubHandler._serve_static),
 )
