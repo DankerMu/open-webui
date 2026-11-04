@@ -26,8 +26,8 @@ CLEANUP_CONCURRENCY = 4
 _background_tasks: set[asyncio.Task] = set()
 
 
-def _workspace_enabled() -> bool:
-    # Same parse as routers/ocu_workspaces.py; read here so model-layer callers need not import a router.
+def workspace_enabled() -> bool:
+    # Same parse as routers/ocu_workspaces.py; read here so model-layer and tool callers need not import a router.
     return os.getenv('ENABLE_OCU_WORKSPACE', 'False').lower() == 'true'
 
 
@@ -59,7 +59,7 @@ async def _delete_sandboxes(chat_ids: list[str]) -> None:
 
 def schedule_sandbox_cleanup(chat_ids: list[str]) -> None:
     """Request OCU deletion of each chat's sandbox in the background; a no-op when the workspace is off."""
-    if not chat_ids or not _workspace_enabled():
+    if not chat_ids or not workspace_enabled():
         return
     task = asyncio.get_running_loop().create_task(_delete_sandboxes(list(chat_ids)))
     _background_tasks.add(task)

@@ -1,10 +1,11 @@
-"""Typed HTTP client for OCU internal describe/launch/outputs/sandbox-delete endpoints."""
+"""Typed HTTP client for OCU internal describe/launch/outputs/sandbox-delete/upload endpoints."""
 
 from __future__ import annotations
 
 import json
 import logging
 import os
+from urllib.parse import quote
 
 import aiohttp
 
@@ -85,13 +86,44 @@ class OcuClient:
     async def delete_sandbox(self, chat_id: str):
         return await self._request('DELETE', f'/internal/sandbox/{chat_id}')
 
-    async def _request(self, method: str, path: str, *, never_created: bool = False):
+    async def upload_file(self, chat_id: str, name: str, data: bytes, attachment_id: str, content_type: str) -> str:
+        """Store `data` in the chat's workspace files under `name`; return the name OCU stored it as.
+
+        `attachment_id` is OCU's import receipt key: a later upload of the same id returns the
+        recorded name instead of writing again. A redirect is an upstream error, never followed.
+        """
+        form = aiohttp.FormData()
+        form.add_field('file', data, filename=name, content_type=content_type)
+        result = await self._request(
+            'POST',
+            f'/api/uploads/{chat_id}/{quote(name, safe="")}',
+            data=form,
+            extra_headers={'X-OCU-Attachment-Id': attachment_id},
+            allow_redirects=False,
+        )
+        stored = result.get('filename') if isinstance(result, dict) else None
+        if not isinstance(stored, str) or not stored:
+            raise ValueError('OCU upload response names no stored file')
+        return stored
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        never_created: bool = False,
+        data: aiohttp.FormData | None = None,
+        extra_headers: dict[str, str] | None = None,
+        allow_redirects: bool = True,
+    ):
         log.debug('OCU %s %s', method, path)
         try:
             async with self._session_or_create().request(
                 method,
                 self._url(path),
-                headers=self._headers(),
+                headers={**self._headers(), **(extra_headers or {})},
+                data=data,
+                allow_redirects=allow_redirects,
             ) as response:
                 status = response.status
                 if not 200 <= status < 300:
