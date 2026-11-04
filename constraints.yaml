@@ -113,7 +113,7 @@ size_limits:
         exit_condition: "Remove when images.py is <=800 lines or the #690 hooks are removed."
       - path: "backend/open_webui/tools/builtin.py"
         ceiling: 4534
-        reason: "User-approved #690 generate_image aspect_ratio argument (logic in utils/images/aspect_ratio.py); #713 name argument and workspace call per its design (logic in utils/ocu_image_workspace.py)."
+        reason: "User-approved #690 generate_image aspect_ratio argument (logic in utils/images/aspect_ratio.py); User-approved (2026-11-03) #713 name argument and workspace calls (logic in utils/ocu_image_workspace.py)."
         exit_condition: "Remove when builtin.py is <=800 lines or the #690 and #713 hooks are removed."
   max_complexity:
     value: 15                      # L3 minimum; ruff keeps upstream mccabe=10 (stricter), eslint complexity=15

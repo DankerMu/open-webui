@@ -68,7 +68,7 @@ from open_webui.utils.chat_id import is_saved_chat_id
 from open_webui.utils.images.aspect_ratio import resolve_aspect_ratio_size
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.notifications import notify_target
-from open_webui.utils.ocu_image_workspace import save_generated_images
+from open_webui.utils.ocu_image_workspace import name_generated_images, save_generated_images
 from open_webui.utils.sanitize import sanitize_code
 
 log = logging.getLogger(__name__)
@@ -383,7 +383,7 @@ async def generate_image(
 
     :param prompt: A detailed description of the image to generate
     :param aspect_ratio: Optional width:height aspect ratio, such as 1:1, 16:9 or 9:16; omit it to use the default size
-    :param name: Optional short descriptive file name in the user's language, based on request and image, no extension
+    :param name: Short descriptive file name in the user's language, from the request; no extension
     :return: Confirmation that the image was generated, or an error message
     """
     if __request__ is None:
@@ -405,10 +405,9 @@ async def generate_image(
             ),
             user=user,
         )
-        images, workspace = await save_generated_images(__chat_id__, user, images, name)
 
         # Prepare file entries for the images
-        image_files = [{'type': 'image', **img} for img in images]
+        image_files = [{'type': 'image', **img} for img in await name_generated_images(images, name, user)]
 
         # Persist files to DB if chat context is available
         if is_saved_chat_id(__chat_id__) and __message_id__ and images:
@@ -436,11 +435,12 @@ async def generate_image(
                     'status': 'success',
                     'message': 'The image has been successfully generated and is already visible to the user in the chat. You do not need to display or embed the image again - just acknowledge that it has been created.',
                     'images': images,
-                    **workspace,
+                    **await save_generated_images(__chat_id__, user, images),
                 },
                 ensure_ascii=False,
             )
 
+        workspace = await save_generated_images(__chat_id__, user, images)
         return JSONCodec.dumps({'status': 'success', 'images': images, **workspace}, ensure_ascii=False)
     except Exception as e:
         log.exception(f'generate_image error: {e}')
@@ -463,7 +463,7 @@ async def edit_image(
 
     :param prompt: A description of the transformation to apply to the provided images
     :param image_urls: Source image URLs to modify or use as composition inputs
-    :param name: Optional short descriptive file name in the user's language, based on request and image, no extension
+    :param name: Short descriptive file name in the user's language, from the request; no extension
     :return: Confirmation that the images were edited, or an error message
     """
     if __request__ is None:
@@ -482,10 +482,9 @@ async def edit_image(
             ),
             user=user,
         )
-        images, workspace = await save_generated_images(__chat_id__, user, images, name)
 
         # Prepare file entries for the images
-        image_files = [{'type': 'image', **img} for img in images]
+        image_files = [{'type': 'image', **img} for img in await name_generated_images(images, name, user)]
 
         # Persist files to DB if chat context is available
         if is_saved_chat_id(__chat_id__) and __message_id__ and images:
@@ -513,11 +512,12 @@ async def edit_image(
                     'status': 'success',
                     'message': 'The edited image has been successfully generated and is already visible to the user in the chat. You do not need to display or embed the image again - just acknowledge that it has been created.',
                     'images': images,
-                    **workspace,
+                    **await save_generated_images(__chat_id__, user, images),
                 },
                 ensure_ascii=False,
             )
 
+        workspace = await save_generated_images(__chat_id__, user, images)
         return JSONCodec.dumps({'status': 'success', 'images': images, **workspace}, ensure_ascii=False)
     except Exception as e:
         log.exception(f'edit_image error: {e}')

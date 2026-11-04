@@ -27,7 +27,10 @@ JPEG = b'\xff\xd8\xff\xe0image-workspace-jpeg-bytes'
 SOURCE = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\nsource').decode()
 MESSAGE_ID = 'assistant-message'
 LOGGER = 'open_webui.utils.ocu_image_workspace'
-NOTE = 'The image is saved in the chat workspace at the workspace_files paths. It must not be embedded again.'
+NOTE = (
+    'The image is saved in the chat workspace at the workspace_files paths. '
+    'Do not embed the workspace_files paths as images.'
+)
 CONFIG = {
     'image_generation.engine': 'openai',
     'image_generation.model': 'harness-image-model',
@@ -226,13 +229,16 @@ def _chat(world, owner_id: str) -> str:
     return chat.id
 
 
-async def _call(tool: str, chat_id: str, user, **arguments) -> tuple[dict, list[dict]]:
+async def _call(tool: str, chat_id: str, user, emitter=_ABSENT, **arguments) -> tuple[dict, list[dict]]:
+    """Call the tool; `emitter` None passes no event emitter, a coroutine function also sees each event."""
     from open_webui.tools import builtin
 
     events: list[dict] = []
 
     async def emit(event):
         events.append(event)
+        if emitter not in (_ABSENT, None):
+            await emitter(event)
 
     if tool == 'edit_image':
         arguments.setdefault('image_urls', [SOURCE])
@@ -240,7 +246,7 @@ async def _call(tool: str, chat_id: str, user, **arguments) -> tuple[dict, list[
         'an avalanche',
         __request__=SimpleNamespace(app=get_client().app),
         __user__=user.model_dump(),
-        __event_emitter__=emit,
+        __event_emitter__=None if emitter is None else emit,
         __chat_id__=chat_id,
         __message_id__=MESSAGE_ID,
         **arguments,
@@ -260,10 +266,12 @@ def _run(ocu: _Ocu, tool: str, chat_id: str, user, monkeypatch, **arguments) -> 
     return asyncio.run(scenario())
 
 
-def _display_name(file_id: str) -> str:
+def _file_names(file_id: str) -> tuple[str, str]:
+    """The file row's `filename` column (FilesModal, search) and metadata `name` (downloads)."""
     from open_webui.models.files import Files
 
-    return asyncio.run(Files.get_file_by_id(file_id)).meta['name']
+    row = asyncio.run(Files.get_file_by_id(file_id))
+    return row.filename, row.meta['name']
 
 
 def _message_files(chat_id: str) -> list[dict]:
@@ -299,7 +307,7 @@ def test_named_image_is_uploaded_from_storage_with_its_receipt(world, engine, mo
     assert result['workspace_note'] == NOTE
     assert 'workspace_error' not in result
     assert result['images'][0]['name'] == '雪崩.png'
-    assert _display_name(file_id) == '雪崩.png'
+    assert _file_names(file_id) == ('雪崩.png', '雪崩.png')
     assert [file['name'] for file in events[0]['data']['files']] == ['雪崩.png']
     assert [file['name'] for file in _message_files(chat_id)] == ['雪崩.png']
 
@@ -313,7 +321,7 @@ def test_unnamed_image_is_saved_as_generated_image(world, engine, monkeypatch):
     assert [upload['name'] for upload in ocu.uploads] == ['generated-image.png']
     assert result['workspace_files'] == ['/mnt/user-data/files/generated-image.png']
     assert result['images'][0]['name'] == 'generated-image.png'
-    assert _display_name(result['images'][0]['id']) == 'generated-image.png'
+    assert _file_names(result['images'][0]['id']) == ('generated-image.png', 'generated-image.png')
 
 
 def test_two_images_with_one_name_get_the_names_ocu_stored(world, engine, monkeypatch):
@@ -370,7 +378,7 @@ def test_name_is_cleaned_before_upload_and_display(world, engine, monkeypatch, n
     assert [upload['name'] for upload in ocu.uploads] == [expected]
     assert result['workspace_files'] == [f'/mnt/user-data/files/{expected}']
     assert result['images'][0]['name'] == expected
-    assert _display_name(result['images'][0]['id']) == expected
+    assert _file_names(result['images'][0]['id']) == (expected, expected)
 
 
 def test_jpeg_image_takes_the_jpeg_extension(world, engine, monkeypatch):
@@ -425,7 +433,7 @@ def test_name_applies_to_the_display_name_without_the_workspace(world, engine, m
     assert ocu.uploads == []
     assert set(result) == {'status', 'message', 'images'}
     assert result['images'][0]['name'] == '雪崩.png'
-    assert _display_name(result['images'][0]['id']) == '雪崩.png'
+    assert _file_names(result['images'][0]['id']) == ('雪崩.png', '雪崩.png')
 
 
 # ── failures never fail generation ────────────────────────────────────────────
@@ -525,6 +533,104 @@ def test_one_failed_upload_keeps_the_other_path(world, engine, monkeypatch):
     assert result['workspace_error'] == '1 of 2 image(s) not saved to the workspace: OCU answered HTTP 500'
 
 
+# ── ordering, emitter-less calls, defensive paths ─────────────────────────────
+
+
+def test_stop_during_a_stuck_upload_keeps_the_shown_image(world, engine, monkeypatch):
+    ocu = _Ocu()
+    ocu.mode = 'hang'
+    chat_id = _chat(world, world.owner.id)
+    seen: list[dict] = []
+
+    async def record(event):
+        seen.append(event)
+
+    async def scenario():
+        runner, port = await _serve(ocu)
+        monkeypatch.setenv('OCU_INTERNAL_URL', f'http://127.0.0.1:{port}')
+        try:
+            task = asyncio.create_task(_call('generate_image', chat_id, world.owner, emitter=record, name='雪崩'))
+            deadline = asyncio.get_running_loop().time() + 10
+            while not ocu.uploads:
+                assert asyncio.get_running_loop().time() < deadline, 'upload never reached OCU'
+                await asyncio.sleep(0.01)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        finally:
+            await runner.cleanup()
+
+    asyncio.run(scenario())
+
+    assert [file['name'] for file in seen[0]['data']['files']] == ['雪崩.png']
+    assert [file['name'] for file in _message_files(chat_id)] == ['雪崩.png']
+
+
+def test_call_without_an_event_emitter_lists_the_workspace_paths(world, engine, monkeypatch):
+    ocu = _Ocu()
+    chat_id = _chat(world, world.owner.id)
+
+    result, events = _run(ocu, 'generate_image', chat_id, world.owner, monkeypatch, emitter=None, name='雪崩')
+
+    assert events == []
+    assert set(result) == {'status', 'images', 'workspace_files', 'workspace_note'}
+    assert result['workspace_files'] == ['/mnt/user-data/files/雪崩.png']
+    assert result['workspace_note'] == NOTE
+    assert 'must not be embedded again' not in json.dumps(result)
+
+
+def test_image_file_deleted_before_upload_is_reported_not_found(world, engine, monkeypatch):
+    from open_webui.models.files import Files
+
+    async def delete_rows(event):
+        for file in event['data']['files']:
+            await Files.delete_file_by_id(file['id'])
+
+    ocu = _Ocu()
+    result, _ = _run(ocu, 'generate_image', _chat(world, world.owner.id), world.owner, monkeypatch, emitter=delete_rows)
+
+    assert ocu.uploads == []
+    assert result['workspace_error'].endswith('image file not found')
+    assert 'workspace_files' not in result
+
+
+def test_image_file_owned_by_someone_else_is_not_uploaded(world, engine, monkeypatch):
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.files import File
+    from sqlalchemy import update
+
+    async def hand_to_stranger(event):
+        ids = [file['id'] for file in event['data']['files']]
+        async with get_async_db() as db:
+            await db.execute(update(File).where(File.id.in_(ids)).values(user_id=world.stranger.id))
+            await db.commit()
+
+    ocu = _Ocu()
+    result, _ = _run(
+        ocu, 'generate_image', _chat(world, world.owner.id), world.owner, monkeypatch, emitter=hand_to_stranger
+    )
+
+    assert ocu.uploads == []
+    assert result['workspace_error'] == '1 of 1 image(s) not saved to the workspace: image file not found'
+
+
+def test_failed_rename_keeps_the_original_name(world, engine, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from open_webui.models.files import Files
+
+    monkeypatch.setattr(Files, 'update_file_name_by_id', AsyncMock(return_value=None))
+    ocu = _Ocu()
+
+    result, events = _run(ocu, 'generate_image', _chat(world, world.owner.id), world.owner, monkeypatch, name='雪崩')
+
+    assert result['images'][0]['name'] == 'generated-image.png'
+    assert [file['name'] for file in events[0]['data']['files']] == ['generated-image.png']
+    assert _file_names(result['images'][0]['id']) == ('generated-image.png', 'generated-image.png')
+    assert [upload['name'] for upload in ocu.uploads] == ['generated-image.png']
+    assert result['workspace_files'] == ['/mnt/user-data/files/generated-image.png']
+
+
 def test_tool_specs_expose_an_optional_name():
     from open_webui.tools.builtin import edit_image, generate_image
     from open_webui.utils.tools import get_builtin_tool_spec
@@ -533,4 +639,6 @@ def test_tool_specs_expose_an_optional_name():
         parameters = get_builtin_tool_spec(tool)['parameters']
         assert 'name' not in parameters['required']
         assert parameters['properties']['name']['type'] == 'string'
-        assert "user's language" in parameters['properties']['name']['description']
+        description = parameters['properties']['name']['description']
+        assert "user's language" in description and 'from the request' in description
+        assert 'image content' not in description
