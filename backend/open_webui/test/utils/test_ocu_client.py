@@ -81,6 +81,27 @@ async def test_delete_sandbox_sends_delete_with_bearer_token(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_upload_file_posts_receipt_and_returns_stored_name(monkeypatch):
+    session = _StubSession(_StubResponse(payload={'status': 'success', 'filename': 'a b (2).png'}))
+    client = _make_client(monkeypatch, session)
+
+    stored = await client.upload_file(CHAT_ID, 'a b.png', b'bytes', 'file-1', 'image/png')
+
+    assert stored == 'a b (2).png'
+    _assert_bearer_call(session, 'POST', f'/api/uploads/{CHAT_ID}/a%20b.png')
+    assert session.calls[0]['headers']['X-OCU-Attachment-Id'] == 'file-1'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('payload', [{'status': 'success'}, {'filename': ''}, {'filename': 7}])
+async def test_upload_file_without_stored_name_is_an_error(monkeypatch, payload):
+    client = _make_client(monkeypatch, _StubSession(_StubResponse(payload=payload)))
+
+    with pytest.raises(ValueError):
+        await client.upload_file(CHAT_ID, 'a.png', b'bytes', 'file-1', 'image/png')
+
+
+@pytest.mark.asyncio
 async def test_launch_409_never_created_is_typed_result(monkeypatch, caplog):
     envelope = {'detail': {'detail': f'{MARKER} chat has no sandbox', 'reason': 'never_created'}}
     session = _StubSession(_StubResponse(status=409, payload=envelope))
