@@ -28,8 +28,12 @@ fi
 # config.py empties STATIC_DIR's top-level files at import and refills them from
 # FRONTEND_BUILD_DIR/static; its default is the tracked backend/open_webui/static (#695).
 STATIC_DIR="${STATIC_DIR:-${FRONTEND_BUILD_DIR%/frontend-build}/backend-static}"
+# .run// resolves to .run itself; a data directory or the refill source would lose webui.db or
+# the files the wipe is about to be refilled from.
 case "$STATIC_DIR" in
-  */./* | */. | */../* | */..) echo "STATIC_DIR cannot contain . or .. components" >&2; return 2 2>/dev/null || exit 2 ;;
+  */./* | */. | */../* | */.. | *//*) echo "STATIC_DIR cannot contain empty, . or .. components" >&2; return 2 2>/dev/null || exit 2 ;;
+  "$repo_root/.run/data" | "$repo_root/.run/data/" | "$DATA_DIR" | "$DATA_DIR/" | "$FRONTEND_BUILD_DIR/static" | "$FRONTEND_BUILD_DIR/static/")
+    echo "STATIC_DIR cannot be a data directory or FRONTEND_BUILD_DIR/static" >&2; return 2 2>/dev/null || exit 2 ;;
   "$repo_root/.run/"?*) ;;
   *) echo "STATIC_DIR must stay under .run" >&2; return 2 2>/dev/null || exit 2 ;;
 esac

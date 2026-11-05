@@ -34,10 +34,16 @@ def _isolate() -> None:
     for name in _RESOLVED[:3]:
         if not os.environ.get(name):
             os.environ.pop(name, None)
-    # An inherited pair belongs to its caller: validated, never restaged (staging deletes).
-    inherited = 'FRONTEND_BUILD_DIR' in os.environ or 'STATIC_DIR' in os.environ
+    # An inherited pair belongs to its caller: validated, never restaged (staging deletes). Half a
+    # pair would leave the inherited STATIC_DIR wiped at import with nothing staged to refill it.
+    inherited = 'FRONTEND_BUILD_DIR' in os.environ, 'STATIC_DIR' in os.environ
+    if inherited[0] != inherited[1]:
+        raise pytest.UsageError(
+            'backend/conftest.py: inherit both FRONTEND_BUILD_DIR and STATIC_DIR or neither '
+            f'(FRONTEND_BUILD_DIR set: {inherited[0]}, STATIC_DIR set: {inherited[1]})'
+        )
     os.environ.setdefault('FRONTEND_BUILD_DIR', str(_ROOT / '.run' / 'pytest' / 'frontend-build'))
-    stage = '' if inherited else 'stage_frontend_assets && '
+    stage = '' if inherited[0] else 'stage_frontend_assets && '
     completed = subprocess.run(
         ['bash', '-c', f'source scripts/dev-env.sh && {stage}{_REPORT}'],
         cwd=_ROOT,
@@ -54,6 +60,10 @@ def _isolate() -> None:
         )
     # Child processes copy os.environ (ocu_office_flag_process), so monkeypatch would not reach them.
     os.environ.update(zip(_RESOLVED, values))
+    # Validated paths only, never deleted: import-time migrations need DATA_DIR (ocu_harness.py
+    # does the same) and main.py mounts STATIC_DIR, which an inherited pair may not have created.
+    for name in ('DATA_DIR', 'STATIC_DIR'):
+        Path(os.environ[name]).mkdir(parents=True, exist_ok=True)
     for name in _UNSET:
         os.environ.pop(name, None)
     # A dotenv DATABASE_* set would rebuild DATABASE_URL in open_webui.env, as dev-env.sh notes (#549).

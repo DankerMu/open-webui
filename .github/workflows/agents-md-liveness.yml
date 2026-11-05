@@ -29,7 +29,9 @@ jobs:
   guardrail-self-test:
     name: Guardrail self-test
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # 5 minutes fit npm ci plus the script (~1.5 min); the backend venv adds ~70 s with a warm uv
+    # cache (ci.yml layer1) and minutes more on a cold one, which would kill case 11 mid-run.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,5 +40,14 @@ jobs:
         with:
           node-version-file: .tool-versions
           cache: npm
+      # Case 11 runs backend pytest with $repo_root/.venv/bin/python (#695); --no-install-project
+      # keeps open_webui resolving through sys.path to the temp worktree, not this checkout.
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group dev --no-install-project
       - run: npm ci
       - run: bash scripts/test-guardrails.sh

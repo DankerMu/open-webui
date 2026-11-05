@@ -498,7 +498,7 @@ why=""
 verdict "backend pytest keeps tracked static and backend/data (11a)" "$why"
 
 reset_static
-isolated STATIC_DIR="$tmp/x" "${pytest_probe[@]}"
+isolated FRONTEND_BUILD_DIR="$wt_top/.run/pytest/frontend-build" STATIC_DIR="$tmp/x" "${pytest_probe[@]}"
 why=""
 [ "$rc" -ne 0 ] || why="$why exit 0;"
 printf '%s\n' "$err" | grep -qF STATIC_DIR || why="$why stderr does not name STATIC_DIR;"
@@ -526,7 +526,8 @@ has "resolved STATIC_DIR=$wt_top/.run/x/static" || why="$why caller STATIC_DIR n
 verdict "dev-env keeps a caller STATIC_DIR under .run (11d)" "$why"
 
 mkdir -p "$wt_top/.run" && ln -sfn "$wt_top/backend/open_webui" "$wt_top/.run/link"
-for refused in "outside .run:$tmp/x" "dot-dot:$wt_top/.run/../backend/open_webui/static" "symlinked parent:$wt_top/.run/link/static"; do
+for refused in "outside .run:$tmp/x" "dot-dot:$wt_top/.run/../backend/open_webui/static" "symlinked parent:$wt_top/.run/link/static" \
+  "double slash:$wt_top/.run//" "frontend static:$wt_top/.run/frontend-build/static" "data dir:$wt_top/.run/data"; do
   reset_static
   isolated STATIC_DIR="${refused#*:}" "${devenv_probe[@]}"
   why=""
@@ -537,6 +538,49 @@ for refused in "outside .run:$tmp/x" "dot-dot:$wt_top/.run/../backend/open_webui
   verdict "dev-env refuses a caller STATIC_DIR, ${refused%%:*} (11e)" "$why"
 done
 rm -f "$wt_top/.run/link"
+owned_data="$wt_top/.run/data/workspace-ui-guardrail"
+for refused in "owned data dir:$owned_data" "shared data dir above an owned one:$wt_top/.run/data"; do
+  reset_static
+  isolated DATA_DIR="$owned_data" STATIC_DIR="${refused#*:}" "${devenv_probe[@]}"
+  why=""
+  [ "$rc" -ne 0 ] || why="$why exit 0;"
+  printf '%s\n' "$err" | grep -qF STATIC_DIR || why="$why stderr does not name STATIC_DIR;"
+  has "resolved STATIC_DIR=" && why="$why staged anyway;"
+  verdict "dev-env refuses a caller STATIC_DIR, ${refused%%:*} (11e)" "$why"
+done
+unset owned_data
+
+# An inherited pair is validated, never restaged; half a pair would leave the inherited half wiped
+# and unrefilled, so the conftest refuses it before collection.
+for half in FRONTEND_BUILD_DIR="$wt_top/.run/frontend-build" STATIC_DIR="$wt_top/.run/backend-static"; do
+  reset_static
+  mkdir -p "$wt_top/.run/backend-static" && printf 'owner\n' > "$wt_top/.run/backend-static/marker"
+  isolated "$half" "${pytest_probe[@]}"
+  why=""
+  [ "$rc" -ne 0 ] || why="$why exit 0;"
+  printf '%s\n' "$err" | grep -qF FRONTEND_BUILD_DIR || why="$why stderr does not name FRONTEND_BUILD_DIR;"
+  printf '%s\n' "$err" | grep -qF STATIC_DIR || why="$why stderr does not name STATIC_DIR;"
+  [ -e "$wt_top/backend/static-probe.collected" ] && why="$why probe collected;"
+  [ -e "$wt_top/.run/backend-static/marker" ] || why="$why owned STATIC_DIR wiped;"
+  [ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+  verdict "backend pytest refuses half an inherited pair, ${half%%=*} (11f)" "$why"
+done
+
+reset_static
+rm -rf "$wt_top/.run/data"
+# A file-free refill source: config.py's refill must not be what creates the inherited STATIC_DIR,
+# and staging (rm -rf of FRONTEND_BUILD_DIR/static) would delete the marker directory.
+rm -rf "$wt_top/.run/frontend-build/static" && mkdir -p "$wt_top/.run/frontend-build/static/owner-marker"
+isolated FRONTEND_BUILD_DIR="$wt_top/.run/frontend-build" STATIC_DIR="$wt_top/.run/x/static" "${pytest_probe[@]}"
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+[ -d "$wt_top/.run/x/static" ] || why="$why inherited STATIC_DIR not created;"
+[ -e "$wt_top/.run/x/static/fonts" ] && why="$why inherited STATIC_DIR restaged;"
+[ -d "$wt_top/.run/data" ] || why="$why DATA_DIR not created;"
+[ -d "$wt_top/.run/frontend-build/static/owner-marker" ] || why="$why inherited FRONTEND_BUILD_DIR restaged;"
+[ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+verdict "backend pytest keeps an inherited pair and creates missing directories (11g)" "$why"
+rm -rf "$wt_top/.run/frontend-build/static/owner-marker"
 
 echo
 echo "guardrail self-test: $pass passed, $fail failed"
