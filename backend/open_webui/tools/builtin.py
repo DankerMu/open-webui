@@ -435,7 +435,7 @@ async def generate_image(
                     'status': 'success',
                     'message': 'The image has been successfully generated and is already visible to the user in the chat. You do not need to display or embed the image again - just acknowledge that it has been created.',
                     'images': images,
-                    **await save_generated_images(__chat_id__, user, images),
+                    **await save_generated_images(__chat_id__, user, images, shown=True),
                 },
                 ensure_ascii=False,
             )
@@ -512,7 +512,7 @@ async def edit_image(
                     'status': 'success',
                     'message': 'The edited image has been successfully generated and is already visible to the user in the chat. You do not need to display or embed the image again - just acknowledge that it has been created.',
                     'images': images,
-                    **await save_generated_images(__chat_id__, user, images),
+                    **await save_generated_images(__chat_id__, user, images, shown=True),
                 },
                 ensure_ascii=False,
             )

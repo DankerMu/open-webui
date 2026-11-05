@@ -6,7 +6,9 @@ image service returns, before the images are persisted to the message and emitte
 entry name. `save_generated_images` runs after the emit, while the result is built: when the
 workspace is enabled and the requester owns the saved chat, each image's bytes are read from
 WebUI storage by file id and uploaded to OCU with the WebUI file id as the import receipt, so
-the OCU wrapper's later attachment sync skips it. An upload failure becomes a short
+the OCU wrapper's later attachment sync skips it. The `workspace_note` depends on whether the
+image was emitted to the chat (`shown`): an emitted image must not be shown again, while one
+returned without an event emitter was never shown (#724). An upload failure becomes a short
 `workspace_error` and a warning; it never fails image generation.
 """
 
@@ -33,7 +35,14 @@ DEFAULT_NAME = 'generated-image'
 MAX_NAME_CHARS = 60
 # Where OCU mounts a chat's uploaded files inside its sandbox (docker_manager outputs bind).
 WORKSPACE_FILES_DIR = '/mnt/user-data/files'
+# Measured against the real model (#724); rewording voids that evidence.
 WORKSPACE_NOTE = (
+    'The image is already shown to the user. It is also saved in the chat workspace at the '
+    'workspace_files paths, for use in later files. Do not show it again: no Markdown image, '
+    'link or URL for it in your reply.'
+)
+# Without an event emitter the image was never shown, so the note must not claim it was.
+UNSHOWN_WORKSPACE_NOTE = (
     'The image is saved in the chat workspace at the workspace_files paths. '
     'Do not embed the workspace_files paths as images.'
 )
@@ -81,8 +90,9 @@ async def _may_upload(chat_id: str | None, user) -> bool:
     return workspace_enabled() and is_saved_chat_id(chat_id) and await Chats.is_chat_owner(chat_id, user.id)
 
 
-def _result(paths: list[str], errors: list[str], total: int) -> dict:
-    result = {'workspace_files': paths, 'workspace_note': WORKSPACE_NOTE} if paths else {}
+def _result(paths: list[str], errors: list[str], total: int, shown: bool) -> dict:
+    note = WORKSPACE_NOTE if shown else UNSHOWN_WORKSPACE_NOTE
+    result = {'workspace_files': paths, 'workspace_note': note} if paths else {}
     if errors:
         reasons = '; '.join(dict.fromkeys(errors))
         result['workspace_error'] = f'{len(errors)} of {total} image(s) not saved to the workspace: {reasons}'
@@ -122,9 +132,10 @@ async def name_generated_images(images: list[dict], name: str | None, user) -> l
     return images
 
 
-async def save_generated_images(chat_id: str | None, user, images: list[dict]) -> dict:
+async def save_generated_images(chat_id: str | None, user, images: list[dict], shown: bool = False) -> dict:
     """Upload the images into the chat's workspace; return the extra tool-result keys.
 
+    `shown` is true when the images were emitted to the chat; it selects the workspace note.
     Empty when a gate did not pass: no user or images, workspace off, a temporary or channel
     chat, or a requester who does not own the chat.
     """
@@ -132,7 +143,7 @@ async def save_generated_images(chat_id: str | None, user, images: list[dict]) -
         return {}
     client = _client(chat_id)
     if client is None:
-        return _result([], ['OCU is not configured'] * len(images), len(images))
+        return _result([], ['OCU is not configured'] * len(images), len(images), shown)
     paths, errors = [], []
     try:
         for image in images:
@@ -141,7 +152,7 @@ async def save_generated_images(chat_id: str | None, user, images: list[dict]) -
             errors.extend([error] if error else [])
     finally:
         await client.aclose()
-    return _result(paths, errors, len(images))
+    return _result(paths, errors, len(images), shown)
 
 
 def _client(chat_id: str) -> OcuClient | None:

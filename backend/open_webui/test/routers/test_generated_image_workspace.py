@@ -27,10 +27,24 @@ JPEG = b'\xff\xd8\xff\xe0image-workspace-jpeg-bytes'
 SOURCE = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\nsource').decode()
 MESSAGE_ID = 'assistant-message'
 LOGGER = 'open_webui.utils.ocu_image_workspace'
-NOTE = (
+# workspace_note when the image was emitted to the chat, measured against the real model (#724).
+SHOWN_NOTE = (
+    'The image is already shown to the user. It is also saved in the chat workspace at the '
+    'workspace_files paths, for use in later files. Do not show it again: no Markdown image, '
+    'link or URL for it in your reply.'
+)
+# workspace_note without an event emitter: the image was never shown.
+UNSHOWN_NOTE = (
     'The image is saved in the chat workspace at the workspace_files paths. '
     'Do not embed the workspace_files paths as images.'
 )
+# Upstream's `message` in the emitter branch, per tool.
+MESSAGES = {
+    'generate_image': 'The image has been successfully generated and is already visible to the user in the chat. '
+    'You do not need to display or embed the image again - just acknowledge that it has been created.',
+    'edit_image': 'The edited image has been successfully generated and is already visible to the user in the chat. '
+    'You do not need to display or embed the image again - just acknowledge that it has been created.',
+}
 CONFIG = {
     'image_generation.engine': 'openai',
     'image_generation.model': 'harness-image-model',
@@ -292,7 +306,7 @@ def test_named_image_is_uploaded_from_storage_with_its_receipt(world, engine, mo
     result, events = _run(ocu, tool, chat_id, world.owner, monkeypatch, name='雪崩')
 
     assert result['status'] == 'success'
-    assert 'already visible' in result['message']
+    assert result['message'] == MESSAGES[tool]
     file_id = result['images'][0]['id']
     assert len(ocu.uploads) == 1
     upload = ocu.uploads[0]
@@ -304,8 +318,8 @@ def test_named_image_is_uploaded_from_storage_with_its_receipt(world, engine, mo
     assert upload['attachment_id'] == file_id
     assert upload['data'] == PNG
     assert result['workspace_files'] == ['/mnt/user-data/files/雪崩.png']
-    assert result['workspace_note'] == NOTE
-    assert 'workspace_error' not in result
+    assert set(result) == {'status', 'message', 'images', 'workspace_files', 'workspace_note'}
+    assert result['workspace_note'] == SHOWN_NOTE
     assert result['images'][0]['name'] == '雪崩.png'
     assert _file_names(file_id) == ('雪崩.png', '雪崩.png')
     assert [file['name'] for file in events[0]['data']['files']] == ['雪崩.png']
@@ -514,7 +528,9 @@ def test_missing_ocu_configuration_leaves_the_image(world, engine, monkeypatch):
     _assert_generated_but_not_saved(result, 'OCU is not configured')
 
 
-def test_one_failed_upload_keeps_the_other_path(world, engine, monkeypatch):
+@pytest.mark.parametrize('tool', ['generate_image', 'edit_image'])
+@pytest.mark.parametrize('emitter', [_ABSENT, None], ids=['emitter', 'no-emitter'])
+def test_one_failed_upload_keeps_the_other_path(world, engine, monkeypatch, tool, emitter):
     ocu = _Ocu()
     engine.items = [base64.b64encode(PNG).decode(), base64.b64encode(PNG + b'second').decode()]
     chat_id = _chat(world, world.owner.id)
@@ -527,10 +543,16 @@ def test_one_failed_upload_keeps_the_other_path(world, engine, monkeypatch):
         return await first(request)
 
     ocu.upload = fail_second
-    result, _ = _run(ocu, 'generate_image', chat_id, world.owner, monkeypatch, name='雪崩')
+    result, _ = _run(ocu, tool, chat_id, world.owner, monkeypatch, emitter=emitter, name='雪崩')
 
     assert result['workspace_files'] == ['/mnt/user-data/files/雪崩.png']
     assert result['workspace_error'] == '1 of 2 image(s) not saved to the workspace: OCU answered HTTP 500'
+    if emitter is None:
+        assert 'message' not in result
+        assert result['workspace_note'] == UNSHOWN_NOTE
+    else:
+        assert result['message'] == MESSAGES[tool]
+        assert result['workspace_note'] == SHOWN_NOTE
 
 
 # ── ordering, emitter-less calls, defensive paths ─────────────────────────────
@@ -566,17 +588,20 @@ def test_stop_during_a_stuck_upload_keeps_the_shown_image(world, engine, monkeyp
     assert [file['name'] for file in _message_files(chat_id)] == ['雪崩.png']
 
 
-def test_call_without_an_event_emitter_lists_the_workspace_paths(world, engine, monkeypatch):
+@pytest.mark.parametrize('tool', ['generate_image', 'edit_image'])
+def test_call_without_an_event_emitter_lists_the_workspace_paths(world, engine, monkeypatch, tool):
     ocu = _Ocu()
     chat_id = _chat(world, world.owner.id)
 
-    result, events = _run(ocu, 'generate_image', chat_id, world.owner, monkeypatch, emitter=None, name='雪崩')
+    result, events = _run(ocu, tool, chat_id, world.owner, monkeypatch, emitter=None, name='雪崩')
 
     assert events == []
     assert set(result) == {'status', 'images', 'workspace_files', 'workspace_note'}
     assert result['workspace_files'] == ['/mnt/user-data/files/雪崩.png']
-    assert result['workspace_note'] == NOTE
-    assert 'must not be embedded again' not in json.dumps(result)
+    assert result['workspace_note'] == UNSHOWN_NOTE
+    # The image was never shown, so nothing in the result may claim it was.
+    text = json.dumps(result, ensure_ascii=False)
+    assert 'already shown' not in text and 'already visible' not in text
 
 
 def test_image_file_deleted_before_upload_is_reported_not_found(world, engine, monkeypatch):
