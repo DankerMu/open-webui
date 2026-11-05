@@ -284,7 +284,7 @@ has() { printf '%s\n' "$out" | grep -qF -- "$1"; }
 
 devbg() { # devbg BACKEND_PORT FRONTEND_PORT ARGS... -> out, rc, took (seconds)
   local backend="$1" frontend="$2" t0=$SECONDS; shift 2
-  out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="${devbg_path:-$PATH}" BACKEND_PORT="$backend" FRONTEND_PORT="$frontend" bash scripts/dev-bg.sh "$@") 2>&1)"; rc=$?
+  out="$( (unset DATA_DIR FRONTEND_BUILD_DIR STATIC_DIR; PATH="${devbg_path:-$PATH}" BACKEND_PORT="$backend" FRONTEND_PORT="$frontend" bash scripts/dev-bg.sh "$@") 2>&1)"; rc=$?
   took=$((SECONDS - t0))
 }
 
@@ -316,7 +316,7 @@ start_standin "$foreign_dir"; pid=$standin_pid; port=$standin_port
 rm -rf .run/backend.pid .run/frontend.pid .run/frontend-build
 devbg "$port" "$(idle_port "$port")" start
 created=""
-for f in .run/backend.pid .run/frontend.pid .run/frontend-build; do [ -e "$f" ] && created="$created $f"; done
+for f in .run/backend.pid .run/frontend.pid .run/frontend-build .run/backend-static; do [ -e "$f" ] && created="$created $f"; done
 # A dev-bg that ignores the foreign holder starts real servers in $wt; stop those fresh groups now.
 for n in backend frontend; do [ -f ".run/$n.pid" ] && { kill -- "-$(cat ".run/$n.pid")" 2>/dev/null || true; rm -f ".run/$n.pid"; }; done
 why=""
@@ -380,7 +380,7 @@ start_standin "$wt/.run/owned"; pid=$standin_pid; port=$standin_port
 other="$(idle_port "$port")"
 echo "$pid" > .run/backend.pid
 t0=$SECONDS
-out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="$no_lsof" BACKEND_PORT="$port" FRONTEND_PORT="$other" "$bash_abs" scripts/dev-bg.sh stop) 2>&1)"; rc=$?
+out="$( (unset DATA_DIR FRONTEND_BUILD_DIR STATIC_DIR; PATH="$no_lsof" BACKEND_PORT="$port" FRONTEND_PORT="$other" "$bash_abs" scripts/dev-bg.sh stop) 2>&1)"; rc=$?
 took=$((SECONDS - t0))
 why=""
 [ "$rc" -eq 2 ] || why="$why exit not 2;"
@@ -390,7 +390,7 @@ running "$pid" || why="$why owned pid $pid signalled;"
 verdict "dev-bg stop without lsof fails loud and signals nothing (10g)" "$why"
 rm -rf .run/backend.pid .run/frontend-build
 t0=$SECONDS
-out="$( (unset DATA_DIR FRONTEND_BUILD_DIR; PATH="$no_lsof" "$bash_abs" scripts/dev-bg.sh stage) 2>&1)"; rc=$?
+out="$( (unset DATA_DIR FRONTEND_BUILD_DIR STATIC_DIR; PATH="$no_lsof" "$bash_abs" scripts/dev-bg.sh stage) 2>&1)"; rc=$?
 took=$((SECONDS - t0))
 why=""
 [ "$rc" -eq 0 ] || why="$why exit not 0;"
@@ -444,6 +444,99 @@ why=""
 has "lsof failed on port $frontend" || why="$why frontend lsof failure not named;"
 verdict "dev-bg stop exits with the frontend's lsof failure (10k)" "$why"
 unset devbg_path
+
+# 11. Backend imports leave the tracked static tree and backend/data alone (#695). The probe
+# runs the main checkout's interpreter against $wt's backend and exits before importing
+# open_webui.config unless open_webui resolves inside $wt: the main checkout's editable install
+# points at its own backend, whose tracked tree a wrong resolution would wipe.
+if [ -e "$repo_root/backend/conftest.py" ]; then cp "$repo_root/backend/conftest.py" "$wt/backend/conftest.py"; else rm -f "$wt/backend/conftest.py"; fi
+cat > "$wt/backend/test_static_probe.py" <<'PY'
+import importlib.util
+import os
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+(HERE / 'static-probe.collected').touch()
+
+
+def test_backend_import_keeps_tracked_static():
+    origin = Path(importlib.util.find_spec('open_webui').origin).resolve()
+    if not origin.is_relative_to(HERE):
+        print(f'static probe: open_webui resolves to {origin}, outside {HERE}', file=sys.stderr, flush=True)
+        os._exit(3)
+    import open_webui.config  # noqa: F401
+
+
+if __name__ == '__main__':
+    test_backend_import_keeps_tracked_static()
+PY
+wt_top="$(git -C "$wt" rev-parse --show-toplevel)" # physical, as dev-env.sh and the conftest see it
+tracked_static="$wt_top/backend/open_webui/static"
+static_state() { local f; for f in "$tracked_static"/*; do [ -f "$f" ] && cksum "$f"; done; }
+reset_static() { # tracked static at HEAD plus one uncommitted edit, as a branding change leaves it
+  git -C "$wt" checkout --quiet -- backend/open_webui/static || exit 1
+  printf 'guardrail branding edit\n' >> "$tracked_static/favicon.png"
+  rm -rf "$wt_top/backend/data/webui.db" "$wt_top/backend/static-probe.collected" "$wt_top/.run/backend-static" "$wt_top/.run/x" "$tmp/x"
+  static_before="$(static_state)"
+}
+isolated() { # isolated [VAR=VALUE...] CMD... — in $wt, no inherited harness path -> out, err, rc, took
+  local t0=$SECONDS
+  # env.py exits without WEBUI_SECRET_KEY before config.py reaches the static wipe under test.
+  (cd "$wt_top" && unset DATA_DIR FRONTEND_BUILD_DIR STATIC_DIR DATABASE_URL && exec env WEBUI_SECRET_KEY=guardrail-probe "$@") > "$tmp/probe.out" 2> "$tmp/probe.err"; rc=$?
+  took=$((SECONDS - t0)); err="$(cat "$tmp/probe.err")"; out="$(cat "$tmp/probe.out" "$tmp/probe.err")"
+}
+pytest_probe=(sh -c 'cd backend && exec "$0" -m pytest -q -p no:cacheprovider test_static_probe.py' "$repo_root/.venv/bin/python")
+devenv_probe=(bash -c 'source scripts/dev-env.sh && stage_frontend_assets && echo "resolved STATIC_DIR=$STATIC_DIR" && cd backend && exec "$0" test_static_probe.py' "$repo_root/.venv/bin/python")
+
+reset_static
+isolated "${pytest_probe[@]}"
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+[ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+[ -e "$wt_top/backend/data/webui.db" ] && why="$why backend/data/webui.db created;"
+verdict "backend pytest keeps tracked static and backend/data (11a)" "$why"
+
+reset_static
+isolated STATIC_DIR="$tmp/x" "${pytest_probe[@]}"
+why=""
+[ "$rc" -ne 0 ] || why="$why exit 0;"
+printf '%s\n' "$err" | grep -qF STATIC_DIR || why="$why stderr does not name STATIC_DIR;"
+[ -e "$wt_top/backend/static-probe.collected" ] && why="$why probe collected;"
+[ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+[ -e "$tmp/x" ] && why="$why $tmp/x written;"
+verdict "backend pytest refuses an inherited STATIC_DIR outside .run (11b)" "$why"
+
+reset_static
+isolated "${devenv_probe[@]}"
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+has "resolved STATIC_DIR=$wt_top/.run/backend-static" || why="$why STATIC_DIR not derived as .run/backend-static;"
+[ -d "$wt_top/.run/backend-static/fonts" ] || why="$why tracked subdirectories not seeded;"
+cmp -s "$wt_top/.run/backend-static/favicon.png" "$wt_top/static/static/favicon.png" || why="$why favicon not refilled;"
+[ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+verdict "dev-env derives an owned STATIC_DIR (11c)" "$why"
+
+reset_static
+isolated STATIC_DIR="$wt_top/.run/x/static" "${devenv_probe[@]}"
+why=""
+[ "$rc" -eq 0 ] || why="$why exit not 0;"
+has "resolved STATIC_DIR=$wt_top/.run/x/static" || why="$why caller STATIC_DIR not kept;"
+[ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+verdict "dev-env keeps a caller STATIC_DIR under .run (11d)" "$why"
+
+mkdir -p "$wt_top/.run" && ln -sfn "$wt_top/backend/open_webui" "$wt_top/.run/link"
+for refused in "outside .run:$tmp/x" "dot-dot:$wt_top/.run/../backend/open_webui/static" "symlinked parent:$wt_top/.run/link/static"; do
+  reset_static
+  isolated STATIC_DIR="${refused#*:}" "${devenv_probe[@]}"
+  why=""
+  [ "$rc" -ne 0 ] || why="$why exit 0;"
+  printf '%s\n' "$err" | grep -qF STATIC_DIR || why="$why stderr does not name STATIC_DIR;"
+  has "resolved STATIC_DIR=" && why="$why staged anyway;"
+  [ "$(static_state)" = "$static_before" ] || why="$why tracked static changed;"
+  verdict "dev-env refuses a caller STATIC_DIR, ${refused%%:*} (11e)" "$why"
+done
+rm -f "$wt_top/.run/link"
 
 echo
 echo "guardrail self-test: $pass passed, $fail failed"
