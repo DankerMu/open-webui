@@ -232,6 +232,7 @@ type Settings = {
 	imageCompressionSize?: any;
 	textScale?: number;
 	fontFamily?: string | null;
+	skin?: string | null;
 	widescreenMode?: null;
 	largeTextAsFile?: boolean;
 	promptAutocomplete?: boolean;

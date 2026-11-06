@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import { onMount, tick, getContext } from 'svelte';
+	import { onMount, onDestroy, tick, getContext } from 'svelte';
 	import { openDB, deleteDB } from 'idb';
 	import fileSaver from 'file-saver';
 	const { saveAs } = fileSaver;
@@ -15,6 +15,7 @@
 	import { getTerminalServers } from '$lib/apis/terminal';
 	import { getUserSettings } from '$lib/apis/users';
 	import { setAppFontFamily, setTextScale } from '$lib/utils/text-scale';
+	import { applySkin, applySkinMirror, restoreSkin } from '$lib/skins';
 
 	import { WEBUI_VERSION, WEBUI_API_BASE_URL } from '$lib/constants';
 	import { compareVersion } from '$lib/utils';
@@ -99,6 +100,7 @@
 
 		setTextScale($settings?.textScale ?? 1);
 		setAppFontFamily($settings?.fontFamily ?? null);
+		restoreSkin($settings?.skin);
 
 		if (cb) {
 			await cb();
@@ -235,6 +237,9 @@
 		}
 	};
 
+	// Leaving the signed-in app (/auth, /s/*) must not keep the skin.
+	onDestroy(() => applySkin(null));
+
 	onMount(async () => {
 		if ($user === undefined || $user === null) {
 			await gotoAuth();
@@ -243,6 +248,7 @@
 		if (!['user', 'admin'].includes($user?.role)) {
 			return;
 		}
+		applySkinMirror();
 
 		clearChatInputStorage();
 		try {
