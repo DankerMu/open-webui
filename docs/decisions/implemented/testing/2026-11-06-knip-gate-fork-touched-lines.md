@@ -32,7 +32,7 @@ The rule lives in the knip report filter, the one place that reads the report. I
 
 ## Consequences
 
-- The advisory output keeps upstream dead exports visible without failing the gate. Its count is the baseline in AGENTS.md.
+- The advisory output keeps upstream dead exports visible without failing the gate. That printed list is the baseline (AGENTS.md); it is not a fixed count and can grow when the fork first touches another upstream file, so reviewers read the advisory lines of a PR that adds an `M` file. At 3e8d09e it is the 9 upstream findings in `src/lib/stores/index.ts`.
 - A fork edit to a line that already holds an upstream dead export makes that export blocking, so the editor must also handle it.
 - Line attribution uses the diff against the baseline, so moving an upstream export inside a modified file counts as fork-touched.
 - Files in scope only through uncommitted local edits follow the same rule.
