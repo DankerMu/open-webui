@@ -268,6 +268,22 @@ test('None restores the computed backgrounds of the unskinned app', async () => 
 	expect(errors).toEqual([]);
 });
 
+// Dark mode: picking a dark skin inlines upstream's dark grays (theme.ts) and None keeps them, so
+// the baseline is taken after one round trip and a second round trip must reproduce it exactly.
+test('None restores the computed backgrounds in dark mode too', async () => {
+	await openChat('dark');
+	await pick('Starfield');
+	await pick('None');
+	const before = await paint();
+	await page.screenshot({ path: `${evidence}/none-dark-chat.png` });
+	await pick('Starfield');
+	expect((await paint()).hooks).not.toEqual(before.hooks);
+	await pick('None');
+	expect(await skinOf()).toBeNull();
+	await expect.poll(paint).toEqual(before);
+	expect(errors).toEqual([]);
+});
+
 for (const [id, name, mode] of SKINS) {
 	test(`skin ${id} switches to ${mode}, persists and stays readable in both modes`, async () => {
 		await openChat(other(mode));
@@ -335,12 +351,14 @@ test('light mode chosen in Settings overrides the skin mode and keeps the skin',
 });
 
 test('a second browser gets the skin and keeps its own light/dark', async ({ browser }) => {
-	const second = await signIn(browser, 'dark');
+	// Light against the dark starfield: restoring the skin must not apply its suggested mode.
+	const second = await signIn(browser, 'light');
 	await second.goto(`/c/${chatId}`);
 	await finishOnboarding(second);
 	await expect(second.locator('html')).toHaveAttribute('data-skin', 'starfield');
-	await expect(second.locator('html')).toHaveClass(/\bdark\b/);
-	await shoot('second-context-dark-chat', 'starfield', second);
+	await expect(second.locator('html')).toHaveClass(/\blight\b/);
+	await expect(second.locator('html')).not.toHaveClass(/\bdark\b/);
+	await shoot('second-context-light-chat', 'starfield', second);
 	await openChat();
 	await expect(page.locator('html')).toHaveClass(/\blight\b/);
 	expect(errors).toEqual([]);

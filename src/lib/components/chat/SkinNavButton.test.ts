@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushSync, mount, tick, unmount } from 'svelte';
 import { toast } from 'svelte-sonner';
 import { i18n } from '../../../../test/ocu-workspace-fixtures';
-import { settings } from '$lib/stores';
+import { settings, user, type SessionUser } from '$lib/stores';
 import { selectSkin } from '$lib/skins';
 import SkinNavButton from './SkinNavButton.svelte';
 
@@ -78,6 +78,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	user.set(undefined);
 	if (priorAnimate) Object.defineProperty(Element.prototype, 'animate', priorAnimate);
 	else Reflect.deleteProperty(Element.prototype, 'animate');
 	vi.unstubAllGlobals();
@@ -85,6 +86,21 @@ afterEach(async () => {
 	component = undefined;
 	vi.clearAllMocks();
 	document.body.replaceChildren();
+});
+
+// Saving the skin needs settings.interface for non-admins (routers/users.py update_user_settings),
+// the same rule SettingsModal uses to show the Interface tab.
+describe('skin picker permission', () => {
+	it.each([
+		[true, 'an admin without the interface permission', 'admin', false],
+		[true, 'a user with the default permissions', 'user', undefined],
+		[false, 'a user without the interface permission', 'user', false]
+	])('shown=%s for %s', (shown, _case, role, allowed) => {
+		const permissions = allowed === undefined ? {} : { settings: { interface: allowed } };
+		user.set({ id: 'u1', role, permissions } as unknown as SessionUser);
+		render();
+		expect(document.querySelector('button[aria-label="Skin"]') !== null).toBe(shown);
+	});
 });
 
 describe('navbar skin picker', () => {

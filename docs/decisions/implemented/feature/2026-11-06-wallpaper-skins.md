@@ -12,7 +12,7 @@ references: openspec/changes/webui-wallpaper-skins, DankerMu/open-webui#732
 
 ## Problem
 
-Users asked for nine wallpaper styles on top of light/dark, switchable from the main screen (#732). Upstream's only background is the per-user or per-folder chat background inside the chat pane. It covers the chat pane only, and the shell and sidebar are opaque utilities, so a wallpaper cannot show behind the whole app.
+Users asked for nine wallpaper styles on top of light/dark, switchable from the main screen (#732). Upstream's only background is the per-user or per-folder chat background. It is visible only in the chat pane because the shell and sidebar are opaque utilities, so a wallpaper cannot show behind the whole app.
 
 ## Decision
 
@@ -34,14 +34,14 @@ Accepted deviations from the design:
 
 - **`#chat-container` panel rule.** The design listed `#chat-container` as a hook but gave it no rule. The pane panel comes from proposal decision 1 ("sidebar, top bar and chat pane become translucent panels"). Without it the new-chat page has no backing and the message column ends in a hard edge.
 - **Top bar `visibility: visible` on `/`.** Upstream hides `#navbar-bg-gradient-to-b` without a chat. Under a skin it stays visible so the navbar icons keep a panel.
-- **None comparison in light mode.** Re-applying dark inlines upstream's dark gray variables (`theme.ts`), so a live dark comparison differs whether or not skins exist. In light mode, picking a light skin re-applies light, which inlines nothing.
+- **None comparison: light mode, plus a dark mode baseline after one round trip.** Re-applying dark inlines upstream's dark gray variables (`theme.ts`), so the computed colours of a freshly loaded dark page differ from those after any dark skin, whether or not skins exist. In light mode, picking a light skin re-applies light, which inlines nothing, so the unskinned page is the baseline. In dark mode the baseline is taken after one dark skin and None, so the grays are already inlined, and a second round trip must reproduce it exactly.
 - **Injected `<a>` for the `/s/` check.** No in-app link to `/s/{id}` is reachable: `SharedChatsModal` passes `shareUrl={false}`. The spec appends a link inside `#chat-container` and checks a same-document marker, which proves the navigation was client-side.
 
 ## Alternatives considered
 
 - **Apply the mirror in `src/app.html` before first paint** — `app.html` carries an uncommitted branding change in the working checkout, so it is not touched. A hard reload shows None until the layout mounts.
 - **Store the skin per device, like light/dark** — the requester wanted the choice to follow the user. It is a user setting, so two devices are last-write-wins, the same as every other setting saved with the whole `ui` object.
-- **Hide upstream's chat background under a skin** — an explicit per-user or per-folder background is a more specific choice than a global skin. It still draws inside the chat pane, above the skin.
+- **Hide upstream's chat background under a skin, or contain it to the chat pane** — an explicit per-user or per-folder background is a more specific choice than a global skin, so it takes precedence app-wide. Its layers (`Chat.svelte:4270-4290`) are absolutely positioned against `.app`, not the chat pane. When one is set it covers the whole app above the skin wallpaper and shows through the translucent sidebar and top bar. Containing the layers to the pane would be a new layout change to an upstream component, so they are left as they are.
 - **Also route the desktop `theme:update` handler in `src/routes/+layout.svelte:941-960` through `setTheme`** — that copy of the theme logic is upstream's (present in `2a960a5`) and skins do not need it. It stays as a known duplicate.
 - **Put the backing on the message column only** — this left the new-chat greeting and suggestions on raw wallpaper.
 
