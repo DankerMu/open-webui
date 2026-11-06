@@ -36,6 +36,7 @@
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
 	import WorkspaceNavButton from './WorkspaceNavButton.svelte';
+	import SkinNavButton from './SkinNavButton.svelte';
 	import { isTemporaryChatId } from '$lib/utils/chatId';
 
 	const i18n = getContext('i18n');
@@ -231,6 +232,7 @@
 						</Tooltip>
 					{/if}
 
+					<SkinNavButton />
 					<WorkspaceNavButton />
 					{#if $user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true)}
 						<Tooltip content={$i18n.t('Controls')}>
