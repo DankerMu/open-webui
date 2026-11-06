@@ -51,7 +51,7 @@ export const queueWorkspacePrefs = (
 	return pending;
 };
 
-export type OcuDescribeBody = {
+type OcuDescribeBody = {
 	status?: string;
 	reason?: string;
 	capabilities?: string[];

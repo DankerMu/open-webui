@@ -52,7 +52,7 @@ export type OfficeVersions = {
 	versions: OfficeVersion[];
 };
 
-export type OfficeRestoreResult = {
+type OfficeRestoreResult = {
 	file_id: string;
 	number: number;
 	published: boolean;
@@ -60,7 +60,7 @@ export type OfficeRestoreResult = {
 
 export type OfficeResolveAction = 'save_as' | 'overwrite';
 
-export type OfficeResolveResult = {
+type OfficeResolveResult = {
 	session_id: string;
 	state: OfficeSessionState;
 	file_id: string;

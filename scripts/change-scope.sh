@@ -5,20 +5,23 @@
 # staged, unstaged and untracked (non-ignored) changes so a gate never runs on a
 # guessed scope.
 #
-# usage: scripts/change-scope.sh [--status] [--ext py|ts|js|svelte ...] [BASE_REV]
+# usage: scripts/change-scope.sh [--status] [--ext py|ts|js|svelte ...] [--base] [BASE_REV]
 #   --status  prefix each path with A (added since base) or M (modified)
+#   --base    print the resolved baseline commit instead of the file list
 set -u
 repo_root="$(git rev-parse --show-toplevel)" || exit 2
 cd "$repo_root" || exit 2
 
 with_status=0
+print_base=0
 exts=""
 base=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --status) with_status=1 ;;
+    --base) print_base=1 ;;
     --ext) shift; exts="$1" ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
     *) base="$1" ;;
   esac
   shift
@@ -31,6 +34,7 @@ if [ -z "$base" ] || ! git rev-parse --verify --quiet "$base^{commit}" >/dev/nul
   echo "change-scope: baseline rev '$base' not found (set constraints.yaml baseline.rev or pass BASE_REV)" >&2
   exit 2
 fi
+if [ "$print_base" -eq 1 ]; then git rev-parse --verify "$base^{commit}"; exit; fi
 
 # name-status vs base covers committed + staged + unstaged; untracked added separately.
 {
