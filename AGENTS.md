@@ -11,7 +11,8 @@
 Same logic must have exactly one implementation in the repo. Version evolution belongs in git history, not in filenames or identifiers.
 
 - Before adding any function, class, module, or file: grep the codebase for existing similar implementations. If found, extend or refactor the existing one. Only create new if truly absent.
-- Forbidden suffixes for filenames, class names, function names, and module names: `_v1`, `_v2`, `_v3`, `_new`, `_old`, `_backup`, `_temp`, `_copy`, `_final`, `_real`, `_improved`, `_refactored`, `_fixed`, `_legacy`, `_deprecated`. If one exists in the codebase already, treat it as debt to unify, not a pattern to extend.
+- Forbidden suffixes for filenames, class names, function names, and module names: `_v1`, `_v2`, `_v3`, `_new`, `_old`, `_backup`, `_temp`, `_copy`, `_final`, `_real`, `_improved`, `_refactored`, `_fixed`, `_legacy`, `_deprecated`.
+  If one exists in the codebase already, treat it as debt to unify, not a pattern to extend.
 - Refactor in place: commit the working state first, modify the original file, run tests. If it breaks, `git revert`. Never keep an old version alongside the new "just in case" — git is the safety net.
 - No parallel implementations as a transition. Replace atomically.
 - Commented-out code is a lint error, not a safety net. Delete it; git remembers.
@@ -20,16 +21,14 @@ Same logic must have exactly one implementation in the repo. Version evolution b
 
 ### Enforcement
 
-| Rule                 | Enforced by                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Forbidden suffixes   | `.git-hooks/check-naming.sh` (pre-commit hook) + `.claude/hooks/pre-write-naming/pre-write-naming.sh` (Claude Code write time) |
-| Duplicate code       | `jscpd` (`jscpd.json`) via `make anti-drift` — scoped to the fork's change list; fails above 3%                                |
-| Dead code            | `vulture` (Python) + `knip` (`knip.json`) via `make anti-drift`, scoped                                                        |
-| Commented-out code   | review-only — no lint rule wired (ruff ERA not enabled to keep the upstream diff minimal)                                      |
-| Scratchpad dirs      | `.git-hooks/check-naming.sh` (pre-commit hook)                                                                                 |
-| Conventional commits | `.git-hooks/commit-msg` (pre-commit `commit-msg` stage)                                                                        |
+- Forbidden suffixes: `.git-hooks/check-naming.sh` (pre-commit hook) + `.claude/hooks/pre-write-naming/pre-write-naming.sh` (Claude Code write time)
+- Duplicate code: `jscpd` (`jscpd.json`) via `make anti-drift` — scoped to the fork's change list; fails above 3%
+- Dead code: `vulture` (Python) + `knip` (`knip.json`) via `make anti-drift`, scoped
+- Commented-out code: review-only — no lint rule wired (ruff ERA not enabled to keep the upstream diff minimal)
+- Scratchpad dirs: `.git-hooks/check-naming.sh` (pre-commit hook)
+- Conventional commits: `.git-hooks/commit-msg` (pre-commit `commit-msg` stage)
 
-Every row above points at a tool that actually runs. If a tool is not wired, the row says `review-only`.
+Every entry above points at a tool that actually runs. If a tool is not wired, the entry says `review-only`.
 
 ## Project Identity
 
@@ -46,13 +45,9 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 
 ## Stack & Versions
 
-| Layer                        | Choice                                                                                                      | Version                                                                                  | Why                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Language                     | Python / TypeScript                                                                                         | 3.12 (`.python-version`; pyproject `>=3.11,<3.13`) / TS 5.5                              | upstream pins; local default Python 3.13 is out of range |
-| Runtime                      | Node                                                                                                        | 22 (`.nvmrc` / `.tool-versions`; engines `<=22`, `engine-strict`; lockfile needs ≥22.12) | local default Node 24 is rejected — `nvm use`            |
-| Framework                    | FastAPI + SvelteKit 2 / Svelte 5                                                                            | upstream v0.11.3                                                                         |                                                          |
-| Persistence                  | SQLite (dev/harness) or PostgreSQL (deploy overlay)                                                         | SQLAlchemy + Alembic (58 migrations)                                                     |                                                          |
-| Build / test / lint / format | Vite 5 · pytest+pytest-cov, Vitest 1.6, Playwright · ruff, ESLint 8, svelte-check · ruff format, Prettier 3 |                                                                                          |                                                          |
+- Python 3.12 (`.python-version`; pyproject `>=3.11,<3.13`); local default Python 3.13 is out of range.
+- Node 22 (`.nvmrc` / `.tool-versions`; engines `<=22`, `engine-strict`; lockfile needs ≥22.12); local default Node 24 is rejected — `nvm use`.
+- Full stack table (framework, persistence, build/test/lint/format tools): [docs/agents/stack-and-layout.md](docs/agents/stack-and-layout.md).
 
 ### Dependency policy
 
@@ -64,21 +59,13 @@ Open WebUI 0.11.3 fork，为局域网部署集成 Open Computer Use 工作区侧
 
 ## Directory Map
 
-```
-backend/open_webui/     FastAPI app — routers/ models/ utils/ socket/ retrieval/ migrations/
-src/routes/             SvelteKit pages ((app)/, auth/, s/)
-src/lib/                components/ apis/ stores/ utils/ i18n/ (generated) pyodide/ (vendored)
-docs/plans/             Plan 1 (implemented, epic #2) / Plan 2 (implemented; acceptance follow-ups open on epic #107)
-docs/decisions/         decision records — proposed/ implemented/ rejected/ archived/
-docs/postmortem/        postmortem contract (write one when an incident meets the criteria)
-smoke/ e2e/             hurl API smoke, Playwright UI baseline
-scripts/ .git-hooks/    harness scripts and hooks (logic lives here; Makefile stays thin)
-.omp/skills/            repo-local skills (gitignored — see Skill boundaries)
-```
+Directory tree: [docs/agents/stack-and-layout.md](docs/agents/stack-and-layout.md#directory-map).
 
 ### Module Boundaries
 
-Flat single app with an upstream/fork seam. New behavior lands on a seam, never inside the upstream spine: a new router module in `backend/open_webui/routers/` (one `include_router` line in `main.py`), a new component + chat-keyed store for UI, a new `src/lib/apis/<name>/` client, one plan-named additive Alembic migration. Touching the spine (`Chat.svelte`, `middleware.py`, `main.py`) means minimal diff + plan reference + decision record if non-trivial. Details: `CONTEXT.md § Bounded Contexts`.
+Flat single app with an upstream/fork seam.
+New behavior lands on a seam, never inside the upstream spine: a new router module in `backend/open_webui/routers/` (one `include_router` line in `main.py`), a new component + chat-keyed store for UI, a new `src/lib/apis/<name>/` client, one plan-named additive Alembic migration.
+Touching the spine (`Chat.svelte`, `middleware.py`, `main.py`) means minimal diff + plan reference + decision record if non-trivial. Details: `CONTEXT.md § Bounded Contexts`.
 
 ## Development Workflow
 
@@ -90,22 +77,15 @@ nvm use && make setup
 
 ### Daily commands
 
-| Task                                                   | Command                                                                    |
-| ------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Start dev server (foreground)                          | `make dev`                                                                 |
-| Run all checks / changed-since-HEAD only               | `make check` / `make check-fast`                                           |
-| Run unit tests                                         | `make test` (`make test-backend`, `make test-frontend`)                    |
-| Format / lint (upstream strength) / type-check / build | `make fmt`, `make lint`, `make typecheck`, `make build`                    |
-| L3 lint+size+complexity on the fork's change scope     | `make lint-scoped`                                                         |
-| Coverage gate (fork-added files ≥ 80%)                 | `make coverage-gate`                                                       |
-| Duplicate / dead code (scoped)                         | `make anti-drift`                                                          |
-| Docs drift gate / decision records check               | `make doc-gate`, `make decisions-verify`                                   |
-| OCU stub smoke (not `make smoke`)                      | `make smoke-stub`                                                          |
-| OCU gateway smoke (not `make smoke`)                   | `make smoke-proxy`                                                         |
-| Repeat one OCU browser spec against one owned stack    | `make verify-ui-ocu-repeat` (`SPEC=… REPEAT=…`, optional `GREP=…`)         |
-| Repeat entry-point validation unit test                | `make test-verify-ui-ocu-repeat`                                           |
-| Closing-reference guard self-test                      | `make test-pr-merge-guard`                                                 |
-| Check / merge a PR by its reviewed head                | `make pr-merge-check`, `make pr-merge` (`PR_REPO=… PR_NUMBER=… PR_HEAD=…`) |
+- Start dev server (foreground): `make dev`
+- Run all checks / changed-since-HEAD only: `make check` / `make check-fast`
+- Run unit tests: `make test` (`make test-backend`, `make test-frontend`)
+- Format / lint (upstream strength) / type-check / build: `make fmt`, `make lint`, `make typecheck`, `make build`
+- L3 lint+size+complexity on the fork's change scope: `make lint-scoped`; coverage gate (fork-added files ≥ 80%): `make coverage-gate`; duplicate / dead code (scoped): `make anti-drift`
+- Docs drift gate / decision records check: `make doc-gate`, `make decisions-verify`
+- OCU stub smoke / OCU gateway smoke (not `make smoke`): `make smoke-stub` / `make smoke-proxy`
+- Repeat one OCU browser spec against one owned stack: `make verify-ui-ocu-repeat` (`SPEC=… REPEAT=…`, optional `GREP=…`); its entry-point validation unit test: `make test-verify-ui-ocu-repeat`
+- Closing-reference guard self-test: `make test-pr-merge-guard`; check / merge a PR by its reviewed head: `make pr-merge-check`, `make pr-merge` (`PR_REPO=… PR_NUMBER=… PR_HEAD=…`)
 
 All commands route through `Makefile`. Do not invent ad-hoc commands; if a workflow is missing, add a Makefile target that calls a script in `scripts/`.
 
@@ -117,26 +97,22 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 
 ## Verification Matrix
 
-| Surface                                         | Verify with                                                                                                       | Command                                          | Evidence required                                                                                                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Liveness / health                               | `GET /health` probe                                                                                               | `make dev-status`                                | HTTP 200 + jsonpath `$.status == true`                                                                                                                            |
-| API endpoint                                    | hurl smoke: `/health`, `/api/config`, `/api/version`, signin, `/api/models`, `/api/v1/chats/`                     | `make smoke`                                     | HTTP status + body assertions                                                                                                                                     |
-| Web page / UI                                   | Playwright walk of `/auth` (renders) and `/` after login (chat shell renders)                                     | `make verify-ui` (`ROUTE="/auth"` for one route) | Screenshot in `.run/ui-evidence/` + zero console errors                                                                                                           |
-| DB migration                                    | alembic up → down -1 → up on the harness DB                                                                       | `make db-verify`                                 | Migration log, exit 0                                                                                                                                             |
-| Guardrails                                      | each guard rejects its staged violation                                                                           | `make test-guardrails`                           | per-guard PASS                                                                                                                                                    |
-| Docs                                            | AGENTS.md ↔ Makefile ↔ scripts ↔ links                                                                            | `make doc-gate`                                  | exit 0                                                                                                                                                            |
-| GET /api/v1/ocu/auth                            | hurl smoke: owner 200 + identity headers + empty body; anonymous 401 + empty body                                 | `make smoke`                                     | HTTP 200 + identity headers + empty body (owner); HTTP 401 + empty body (anonymous)                                                                               |
-| GET /api/v1/ocu/workspaces/{chat_id}            | hurl smoke: owner 200 + status; foreign-chat 404                                                                  | `make smoke`                                     | HTTP 200 + `status` (owner, OCU down → unavailable); HTTP 404 (foreign chat id)                                                                                   |
-| OCU reverse-proxy gateway                       | real WebUI owner/nonowner cookies + stub private observations                                                     | `make smoke-proxy`                               | HTTP 401/403/404 provenance, no OCU contact on denials, response containment, exact SHA                                                                           |
-| Workspace sidebar and saved-chat transitions    | Playwright: files/preview, Browser/Terminal tabs, persistence and reconciliation with deterministic OCU responses | `make verify-ui-ocu`                             | Screenshots in `.run/ui-evidence/`, assertions pass, zero unexpected console/page errors; not a real-model or deployment certification                            |
-| Office stub contract                            | stub Office routes, named scenarios, conflict resolutions, chat isolation, replay                                 | `make smoke-stub`                                | exit 0; fixture level, not proof of a real save                                                                                                                   |
-| Office routes through the gateway               | `smoke/proxy/office.hurl`: seven Office browser routes, owner/nonowner cookies, mutation header                   | `make smoke-proxy`                               | HTTP status + body assertions; denials never reach OCU                                                                                                            |
-| Office sidebar editor                           | Playwright `ocu-office.e2e.ts`, no DocumentServer: open, save, maximize, conflict save-as, recovery, leave guard  | `make verify-ui-ocu`                             | Screenshots in `.run/ui-evidence/`, assertions pass; not a real-editor save                                                                                       |
-| Video switch → OCU feature header               | Playwright `ocu-video-switch.e2e.ts`: pinned filters as admin, stub OpenAI model, stub `/system-prompt`           | `make verify-ui-ocu`                             | Screenshots in `.run/ui-evidence/`, zero console/page errors, switch shown, `X-OCU-Features: video` only while on; not real OCU or a real model                   |
-| Wallpaper skins                                 | Playwright `skins.e2e.ts`: picker, nine skins in both modes, `/`, `/workspace`, None, reload, sign-out, `/s/`     | `make verify-ui`                                 | Screenshots in `.run/ui-evidence/skins/`, assertions pass, zero console/page errors; readability judged by review                                                 |
-| Image generation placeholder                    | Playwright `ocu-image-placeholder.e2e.ts`: stub model calls `generate_image` 16:9, stub image endpoint waits 8 s  | `make verify-ui-ocu`                             | Light/dark/grouped screenshots in `.run/ui-evidence/`, zero console/page errors, 16:9 card, label, rising seconds, gone once the image shows                      |
-| Local real-editor Office round trip (not PR CI) | Pinned DocumentServer + production broker keyboard edit/save/fresh reopen; published OOXML and LibreOffice        | `make verify-office`                             | Three-format content checks, independent reopening, unjudged fidelity record under `.run/`, owned-resource cleanup; paired controls via `make test-verify-office` |
+| Surface (detail per surface in the linked doc)                           | Command                                          |
+| ------------------------------------------------------------------------ | ------------------------------------------------ |
+| Liveness / health                                                        | `make dev-status`                                |
+| API endpoint; GET /api/v1/ocu/auth; GET /api/v1/ocu/workspaces/{chat_id} | `make smoke`                                     |
+| Web page / UI; Wallpaper skins                                           | `make verify-ui` (`ROUTE="/auth"` for one route) |
+| DB migration                                                             | `make db-verify`                                 |
+| Guardrails                                                               | `make test-guardrails`                           |
+| Docs                                                                     | `make doc-gate`                                  |
+| OCU reverse-proxy gateway; Office routes through the gateway             | `make smoke-proxy`                               |
+| Workspace sidebar and saved-chat transitions; Office sidebar editor      | `make verify-ui-ocu`                             |
+| Video switch → OCU feature header; Image generation placeholder          | `make verify-ui-ocu`                             |
+| Office stub contract                                                     | `make smoke-stub`                                |
+| Local real-editor Office round trip (not PR CI)                          | `make verify-office`                             |
 
+- The local real-editor Office round trip is proven together with its paired controls: `make test-verify-office`.
+- What each surface exercises and the evidence it requires (including what a pass does _not_ prove): [docs/agents/verification-matrix.md](docs/agents/verification-matrix.md). Read the row before claiming a surface verified.
 - Every command in this table resolves to a `Makefile` target. A row whose command does not exist is forbidden.
 - A surface with no verification command means changes to it are review-only, and the PR must say so.
 - Every row requires fresh evidence from the current session — see `## Agent Operating Rules → Evidence requirements`.
@@ -145,15 +121,8 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 
 ### Dev server lifecycle
 
-| Action                                           | Command           |
-| ------------------------------------------------ | ----------------- |
-| Start (background: uvicorn :8080 + vite :5173)   | `make dev-bg`     |
-| Stop                                             | `make dev-stop`   |
-| Status                                           | `make dev-status` |
-| Tail logs                                        | `make logs`       |
-| Reset harness DB (`.run/data` only)              | `make db-reset`   |
-| Seed deterministic admin (`admin@harness.local`) | `make seed`       |
-
+- Start (background: uvicorn :8080 + vite :5173): `make dev-bg`; stop: `make dev-stop`; status: `make dev-status`; tail logs: `make logs`
+- Reset harness DB (`.run/data` only): `make db-reset`; seed deterministic admin (`admin@harness.local`): `make seed`
 - Backend health at `http://localhost:8080/health`; frontend at `http://localhost:5173`. Verify only after `make dev-status` reports health OK.
 - dev-bg stops and trusts only processes this checkout started: their working directory resolves to this checkout's repository root. `make dev-stop` leaves any other listener on 8080 or 5173 running and names it. Such a listener makes `make dev-bg` refuse and `make dev-status` fail. `lsof` is required.
 - Never verify against a stale build — restart after dependency, schema, or config changes.
@@ -171,8 +140,12 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 2. 2026-09-20 — Keep workspace state in a chat-keyed store (pattern: `chatRequestQueues` in `src/lib/stores/index.ts`), not in `artifactContents` (rewritten from message text on every streamed token, which would rebuild the workspace iframe).
 3. 2026-09-20 — Never use mtime as file identity or version; use `revision` + content hash (`touch -r`, `cp -p` and tar restore all forge mtime).
 4. 2026-09-20 — Touch upstream files with the minimal diff and put new code in new modules; the fork must stay rebase-able onto upstream Open WebUI.
-5. 2026-09-20 — Model-generated HTML/SVG always runs in an opaque origin: sandboxed iframe without `allow-same-origin` when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level; never reuse `$settings.iframeSandbox*` (user-changeable) for the trusted OCU SPA or generated content.
-6. 2026-09-21, extended 2026-11-05 — The backend wipes `STATIC_DIR` (default: the tracked `backend/open_webui/static/`) at import and refills it from `FRONTEND_BUILD_DIR/static` (`config.py`); without a frontend build the avatar/favicon routes 500 and the tracked files stay deleted. `scripts/dev-bg.sh` stages `static/static` into `.run/frontend-build` for this reason — never rely on `build/` (or the hatch build hook) being present. Setting `FRONTEND_BUILD_DIR` alone does not protect the tracked tree: `scripts/dev-env.sh` also exports an owned `STATIC_DIR` under `.run/`, and `backend/conftest.py` pins every backend pytest process to owned `.run/` paths (`.run/pytest/` and `.run/data` by default). A bare `python -c 'import open_webui.config'` outside both still wipes the tracked tree; see the [static isolation decision](docs/decisions/implemented/testing/2026-11-05-backend-pytest-static-isolation.md) (#695).
+5. 2026-09-20 — Model-generated HTML/SVG always runs in an opaque origin: sandboxed iframe without `allow-same-origin` when embedded, `Content-Security-Policy: sandbox allow-scripts allow-forms` when opened top-level;
+   never reuse `$settings.iframeSandbox*` (user-changeable) for the trusted OCU SPA or generated content.
+6. 2026-09-21, extended 2026-11-05 — The backend wipes `STATIC_DIR` (default: the tracked `backend/open_webui/static/`) at import and refills it from `FRONTEND_BUILD_DIR/static` (`config.py`);
+   without a frontend build the avatar/favicon routes 500 and the tracked files stay deleted. `scripts/dev-bg.sh` stages `static/static` into `.run/frontend-build` for this reason — never rely on `build/` (or the hatch build hook) being present.
+   Setting `FRONTEND_BUILD_DIR` alone does not protect the tracked tree: `scripts/dev-env.sh` also exports an owned `STATIC_DIR` under `.run/`, and `backend/conftest.py` pins every backend pytest process to owned `.run/` paths (`.run/pytest/` and `.run/data` by default).
+   A bare `python -c 'import open_webui.config'` outside both still wipes the tracked tree; see the [static isolation decision](docs/decisions/implemented/testing/2026-11-05-backend-pytest-static-isolation.md) (#695).
 7. 2026-10-18 — 隔离 UI 验证使用本轮独占的 Vite optimizer cache；先停本轮服务，再清理其缓存，不动默认前端缓存。机制与证明边界见[缓存归属决策](docs/decisions/implemented/testing/2026-10-12-isolated-browser-optimizer-cache.md)。
 
 ## Conventions
@@ -197,10 +170,13 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 ### Pull requests
 
 - Use `.github/PULL_REQUEST_TEMPLATE.md`: Summary, Test plan, Runtime evidence, Risk, Canonicality check.
-- Intended issue closures: the PR body carries exactly one `<!-- intended-closing-issues: [...] -->` marker listing every issue GitHub should close (`[]` means none); issues are referenced as `(#N)`, never with closing keywords. A PR is merged only through `make pr-merge PR_REPO=<owner/repo> PR_NUMBER=<n> PR_HEAD=<full reviewed head SHA>` (OCU PRs run the same target from the central checkout with the `-C <central-checkout>` option), which repeats `pr-merge-check` and refuses on a closing-reference mismatch; delete the remote and local branch afterwards. Decision: `docs/decisions/implemented/process/2026-10-19-pr-closing-reference-guard.md`.
+- Intended issue closures: the PR body carries exactly one `<!-- intended-closing-issues: [...] -->` marker listing every issue GitHub should close (`[]` means none); issues are referenced as `(#N)`, never with closing keywords.
+- A PR is merged only through `make pr-merge PR_REPO=<owner/repo> PR_NUMBER=<n> PR_HEAD=<full reviewed head SHA>` (OCU PRs run the same target from the central checkout with the `-C <central-checkout>` option),
+  which repeats `pr-merge-check` and refuses on a closing-reference mismatch; delete the remote and local branch afterwards. Decision: `docs/decisions/implemented/process/2026-10-19-pr-closing-reference-guard.md`.
 - Diff ≤ 400 lines excluding lockfiles/snapshots/i18n, or justified — review-only until the fork has CI.
 - Docs change with code in the same PR: AGENTS.md, `docs/plans/`, decision record (`docs/decisions/`, note-required rule). Prose quality: `.omp/skills/prose-contract/SKILL.md`.
-- Branch model: trunk-based on `main`; feature branches `<tool>/<short-slug>`; one task = one branch. `main` on the fork (`DankerMu/open-webui`) is protected: PR required, required check `All checks passed`, no force-push, no deletion, enforced for admins. Rewrite pushed feature-branch history only with `--force-with-lease`; no stacked-PR chains with manual retargeting.
+- Branch model: trunk-based on `main`; feature branches `<tool>/<short-slug>`; one task = one branch. `main` on the fork (`DankerMu/open-webui`) is protected: PR required, required check `All checks passed`, no force-push, no deletion, enforced for admins.
+  Rewrite pushed feature-branch history only with `--force-with-lease`; no stacked-PR chains with manual retargeting.
 
 ### Coverage threshold
 
@@ -224,26 +200,26 @@ Max 10 entries, dated, pruned at milestones. An undated note is unverifiable —
 
 ## Critical Paths
 
-Governance decision (verbatim): 「人工不审代码，只审最终功能呈现」. Humans gate on functional acceptance; code-level assurance on the paths below is **mechanical evidence plus reviewer-subagent cross-review** (`.claude/agents/reviewer.md`), not human white-box review. A diff touching a listed path must attach the listed evidence and a reviewer pass before it is called done.
+Governance decision (verbatim): 「人工不审代码，只审最终功能呈现」. Humans gate on functional acceptance; code-level assurance on the paths below is **mechanical evidence plus reviewer-subagent cross-review** (`.claude/agents/reviewer.md`), not human white-box review.
+A diff touching a listed path must attach the listed evidence and a reviewer pass before it is called done.
 
-| Path                                                                                                          | Risk class                                             | Requirement (every row also needs reviewer cross-review)                                                              |
-| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/`                               | auth, permissions                                      | tests for the 401/403/404 matrix + `make smoke`                                                                       |
-| `backend/open_webui/models/chats.py` (`is_chat_owner`)                                                        | authorization predicate                                | unit tests for owner/shared/admin cases                                                                               |
-| `backend/open_webui/routers/ocu_workspaces.py`                                                                | authorization, sandbox lifecycle                       | Plan 1 A-T08/A-T12 fixtures + `make smoke`                                                                            |
-| `backend/open_webui/migrations/versions/`                                                                     | schema, irreversible                                   | `make db-verify` + migration named in a plan                                                                          |
-| `backend/open_webui/socket/`                                                                                  | cross-user event leakage                               | tests that events reach only `user:{id}` rooms                                                                        |
-| `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py`                                      | upstream spine                                         | minimal diff + `make smoke`                                                                                           |
-| `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte`                                        | iframe sandbox / CSP                                   | Plan 1 A-T01 Playwright case (opaque origin, no token access)                                                         |
-| `src/lib/components/chat/office-editor-frame.ts` (`embed=office` editor host)                                 | iframe trust class admitting the DocumentServer origin | `make test-frontend` + `make verify-ui-ocu`; real save via `make verify-office`, or the PR states it was not verified |
-| `src/lib/components/chat/office-leave-guard.ts`, `src/lib/stores/ocu-office.ts`, `src/lib/apis/ocu/office.ts` | unsaved edits on leave, cross-chat Office state        | `make test-frontend` + `make verify-ui-ocu`                                                                           |
+- `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/` — auth, permissions: tests for the 401/403/404 matrix + `make smoke`
+- `backend/open_webui/models/chats.py` (`is_chat_owner`) — authorization predicate: unit tests for owner/shared/admin cases
+- `backend/open_webui/routers/ocu_workspaces.py` — authorization, sandbox lifecycle: Plan 1 A-T08/A-T12 fixtures + `make smoke`
+- `backend/open_webui/migrations/versions/` — schema, irreversible: `make db-verify` + migration named in a plan
+- `backend/open_webui/socket/` — cross-user event leakage: tests that events reach only `user:{id}` rooms
+- `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py` — upstream spine: minimal diff + `make smoke`
+- `src/lib/components/chat/Artifacts.svelte`, `WorkspaceArtifact.svelte` — iframe sandbox / CSP: Plan 1 A-T01 Playwright case (opaque origin, no token access)
+- `src/lib/components/chat/office-editor-frame.ts` (`embed=office` editor host) — iframe trust class admitting the DocumentServer origin: `make test-frontend` + `make verify-ui-ocu`; real save via `make verify-office`, or the PR states it was not verified
+- `src/lib/components/chat/office-leave-guard.ts`, `src/lib/stores/ocu-office.ts`, `src/lib/apis/ocu/office.ts` — unsaved edits on leave, cross-chat Office state: `make test-frontend` + `make verify-ui-ocu`
 
 ## Agent Operating Rules
 
 ### What agents may and may not do
 
 - May: commit to feature branches `<tool>/<slug>`, open PRs to `main`, run every `make` target and the runtime harness locally, propose `AGENTS.md` changes (human acceptance before merge).
-- May not: deploy to the LAN instance; force-push; use `--no-verify`; delete or rebuild any database other than `.run/data`; refactor upstream files the task does not touch (「顺手重构」); upgrade dependencies without explicit confirmation; add an Alembic migration not named in a plan; push to `main`; change CI files without flagging it in the PR.
+- May not: deploy to the LAN instance; force-push; use `--no-verify`; delete or rebuild any database other than `.run/data`; refactor upstream files the task does not touch (「顺手重构」);
+  upgrade dependencies without explicit confirmation; add an Alembic migration not named in a plan; push to `main`; change CI files without flagging it in the PR.
 
 ### Skill / Memory boundaries
 
@@ -252,7 +228,7 @@ Governance decision (verbatim): 「人工不审代码，只审最终功能呈现
 
 ### Debugging CI failures (protocol)
 
-CI (`.github/workflows/ci.yml`) runs on the fork (`origin` = `DankerMu/open-webui`; `upstream` = `open-webui/open-webui`) and its `All checks passed` job is the required check on `main`. Classify the layer (`layer1-fast-checks`, `layer2-unit-tests`, `layer3-integration-tests`, `layer4-anti-drift`, `layer5-secret-scan`), read the first actionable error, reproduce locally with the same `make` target, fix the root cause, re-run that target, then `make check` before pushing. Environment-parity mismatches become a dated entry in `## Important Development Notes`.
+CI's `All checks passed` job is the required check on `main`. Reproduce a failing layer locally with the same `make` target, fix the root cause, then `make check` before pushing; full protocol: [docs/agents/ci-debugging.md](docs/agents/ci-debugging.md).
 
 ### Evidence requirements
 
@@ -264,14 +240,11 @@ CI (`.github/workflows/ci.yml`) runs on the fork (`origin` = `DankerMu/open-webu
 
 Select the narrowest check that covers the changed behavior; report only commands actually run. Procedure: `.omp/skills/pre-push-checks/SKILL.md`.
 
-| Change surface                    | Narrowest evidence                                              |
-| --------------------------------- | --------------------------------------------------------------- |
-| One backend module                | its `pytest` module + `make lint-scoped` + `make coverage-gate` |
-| One frontend component            | `make test-frontend` + `make typecheck` + `make lint-scoped`    |
-| Route / auth / socket / migration | the above + `make smoke` (+ `make db-verify` for migrations)    |
-| UI-visible change                 | `make verify-ui`                                                |
-| Docs / AGENTS.md / decisions      | `make doc-gate`, `make decisions-verify`                        |
-
+- One backend module: its `pytest` module + `make lint-scoped` + `make coverage-gate`
+- One frontend component: `make test-frontend` + `make typecheck` + `make lint-scoped`
+- Route / auth / socket / migration: the above + `make smoke` (+ `make db-verify` for migrations)
+- UI-visible change: `make verify-ui`
+- Docs / AGENTS.md / decisions: `make doc-gate`, `make decisions-verify`
 - Never default to the full suite; never rerun a passing check just because a push comes next. Derive the change list via `bash scripts/change-scope.sh --status` — never from a guessed base. Name affected files explicitly for coverage; never hide an uncovered file behind `--passWithNoTests`.
 - Iteration gates: max 3 fix-and-recheck cycles per failing check, then stop and report; never weaken, skip, or delete a test to get green (a skip needs a linked issue + deadline); checkpoint commit at every green state.
 
@@ -283,7 +256,8 @@ Select the narrowest check that covers the changed behavior; report only command
 
 ### Decision records, incidents, generated artifacts
 
-- A non-trivial change ships its decision record in the same PR (`docs/decisions/README.md`; procedure `.omp/skills/decision-record-lifecycle/SKILL.md`; check `make decisions-verify`). An escaped defect meeting `docs/postmortem/README.md` criteria gets a postmortem whose lessons land as a named test, gate, or rule.
+- A non-trivial change ships its decision record in the same PR (`docs/decisions/README.md`; procedure `.omp/skills/decision-record-lifecycle/SKILL.md`; check `make decisions-verify`).
+  An escaped defect meeting `docs/postmortem/README.md` criteria gets a postmortem whose lessons land as a named test, gate, or rule.
 - Any non-obvious lesson costing >30 min becomes a dated entry in `## Important Development Notes`; the third same-class incident becomes a lint rule or hook. Notes cap at 10 and are pruned at milestones.
 - Lockfile changes accompany a manifest change; `src/lib/i18n/` is regenerated by `npm run i18n:parse`, never hand-patched; snapshot updates are reviewed hunk-by-hunk.
 
@@ -291,41 +265,33 @@ Select the narrowest check that covers the changed behavior; report only command
 
 Strictness profile: **L3** (see `constraints.yaml`). Levels: `advice` < `review-only` < `warn` < `block` < `gate`. Anything below `warn` is a human promise, not a machine check.
 
-| Rule / Convention                                                                                   | Where it lives                                                                       | Where it's checked                                                               | Level       |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------- |
-| Lint (upstream strength, repo-wide ruff F)                                                          | `pyproject.toml [tool.ruff]`                                                         | `make lint` + pre-commit (ruff) + CI layer1                                      | block       |
-| Lint / size / complexity at L3 (ruff full config + eslint per file), change scope, per-file ratchet | `constraints.yaml size_limits`, `.eslintrc.cjs` → `scripts/lint-scoped.sh`           | `make lint-scoped` + CI layer1 (repo-wide eslint crashes on upstream — baseline) | block       |
-| Formatter                                                                                           | `pyproject.toml [tool.ruff.format]`, `.prettierrc`                                   | `make fmt-check` + pre-commit (ruff-format) + CI layer1                          | block       |
-| Type strictness (frontend): svelte-check error count may only fall                                  | `constraints.yaml baseline.counts.typecheck_errors` → `scripts/typecheck-ratchet.sh` | `make typecheck` + CI layer1 (upstream has 7789 errors — ceiling, not pass/fail) | block       |
-| Test coverage gate (fork-added files, per-file 80%)                                                 | `constraints.yaml testing` → `scripts/coverage-gate.sh`                              | `make coverage-gate` + CI layer2                                                 | block       |
-| Duplicate code (scoped, 3%)                                                                         | `jscpd.json` → `scripts/anti-drift.sh`                                               | `make anti-drift` + CI layer4                                                    | block       |
-| Dead code (scoped)                                                                                  | `knip.json`, vulture → `scripts/anti-drift.sh`                                       | `make anti-drift` + CI layer4                                                    | block       |
-| PR diff size (400 lines)                                                                            | `constraints.yaml size_limits.max_pr_diff_lines`                                     | CI layer6 on pull_request (label `diff-limit-exempt` bypasses) + PR template     | block       |
-| Forbidden naming / scratchpad dirs                                                                  | `constraints.yaml code_canonicality` → `.git-hooks/check-naming.sh`                  | pre-commit hook (also a Claude Code write-time hook, machine-local)              | block       |
-| Conventional commits                                                                                | `.git-hooks/commit-msg`                                                              | pre-commit `commit-msg` stage                                                    | block       |
-| Secrets in commits                                                                                  | gitleaks (`.pre-commit-config.yaml`)                                                 | pre-commit + CI layer5                                                           | block       |
-| Large files (>500 KB) / private keys / merge markers                                                | `.pre-commit-config.yaml` (pre-commit-hooks)                                         | pre-commit                                                                       | block       |
-| Docs drift (AGENTS.md ↔ Makefile ↔ scripts ↔ links)                                                 | `scripts/doc-gate.sh`                                                                | `make doc-gate` + CI layer4 + weekly liveness                                    | block       |
-| Decision records (zones, kinds, frontmatter, archive freeze)                                        | `scripts/decisions-verify.py`, `docs/decisions/archived/MANIFEST.txt`                | `make decisions-verify` + CI layer4                                              | block       |
-| Guardrails prove they reject                                                                        | `scripts/test-guardrails.sh`                                                         | `make test-guardrails` + weekly liveness                                         | block       |
-| Backend mypy · SAST · module boundaries                                                             | `constraints.yaml downgrades` / `module_boundaries`                                  | review (ledger downgrades: untyped upstream, no semgrep/CodeQL)                  | review-only |
-| Forbidden operations (deploy, force-push, `--no-verify`, dependency upgrades, unplanned migrations) | `CONTEXT.md § Forbidden Logic`                                                       | review; Claude Code deny rules are machine-local, not a repo gate                | review-only |
-| DB reset confined to the harness DB                                                                 | `scripts/db-reset.sh`                                                                | `make db-reset` refuses any `DATA_DIR` outside the harness directory             | block       |
+| Rule / Convention                                                  | Where it lives                                                                       | Where it's checked                                                               | Level       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------- |
+| Lint (upstream strength, repo-wide ruff F)                         | `pyproject.toml [tool.ruff]`                                                         | `make lint` + pre-commit (ruff) + CI layer1                                      | block       |
+| Lint / size / complexity at L3, change scope, per-file ratchet     | `constraints.yaml size_limits`, `.eslintrc.cjs` → `scripts/lint-scoped.sh`           | `make lint-scoped` + CI layer1 (repo-wide eslint crashes on upstream — baseline) | block       |
+| Formatter                                                          | `pyproject.toml [tool.ruff.format]`, `.prettierrc`                                   | `make fmt-check` + pre-commit (ruff-format) + CI layer1                          | block       |
+| Type strictness (frontend): svelte-check error count may only fall | `constraints.yaml baseline.counts.typecheck_errors` → `scripts/typecheck-ratchet.sh` | `make typecheck` + CI layer1 (upstream has 7789 errors — ceiling, not pass/fail) | block       |
+| Test coverage gate (fork-added files, per-file 80%)                | `constraints.yaml testing` → `scripts/coverage-gate.sh`                              | `make coverage-gate` + CI layer2                                                 | block       |
+| Duplicate code (scoped, 3%)                                        | `jscpd.json` → `scripts/anti-drift.sh`                                               | `make anti-drift` + CI layer4                                                    | block       |
+| Dead code (scoped)                                                 | `knip.json`, vulture → `scripts/anti-drift.sh`                                       | `make anti-drift` + CI layer4                                                    | block       |
+| PR diff size (400 lines)                                           | `constraints.yaml size_limits.max_pr_diff_lines`                                     | CI layer6 on pull_request (label `diff-limit-exempt` bypasses) + PR template     | block       |
+| Forbidden naming / scratchpad dirs                                 | `constraints.yaml code_canonicality` → `.git-hooks/check-naming.sh`                  | pre-commit hook (also a Claude Code write-time hook, machine-local)              | block       |
+| Conventional commits                                               | `.git-hooks/commit-msg`                                                              | pre-commit `commit-msg` stage                                                    | block       |
+| Secrets in commits                                                 | gitleaks (`.pre-commit-config.yaml`)                                                 | pre-commit + CI layer5                                                           | block       |
+| Large files (>500 KB) / private keys / merge markers               | `.pre-commit-config.yaml` (pre-commit-hooks)                                         | pre-commit                                                                       | block       |
+| Docs drift (AGENTS.md ↔ Makefile ↔ scripts ↔ links)                | `scripts/doc-gate.sh`                                                                | `make doc-gate` + CI layer4 + weekly liveness                                    | block       |
+| Decision records (zones, kinds, frontmatter, archive freeze)       | `scripts/decisions-verify.py`, `docs/decisions/archived/MANIFEST.txt`                | `make decisions-verify` + CI layer4                                              | block       |
+| Guardrails prove they reject                                       | `scripts/test-guardrails.sh`                                                         | `make test-guardrails` + weekly liveness                                         | block       |
+| Backend mypy · SAST · module boundaries                            | `constraints.yaml downgrades` / `module_boundaries`                                  | review (ledger downgrades: untyped upstream, no semgrep/CodeQL)                  | review-only |
+| Forbidden operations (list: § Agent Operating Rules → May not)     | `CONTEXT.md § Forbidden Logic`                                                       | review; Claude Code deny rules are machine-local, not a repo gate                | review-only |
+| DB reset confined to the harness DB                                | `scripts/db-reset.sh`                                                                | `make db-reset` refuses any `DATA_DIR` outside the harness directory             | block       |
 
-`constraints.yaml` is the machine-readable source of truth for every threshold and regex above. Change it first; scripts read it at runtime.
+`constraints.yaml` is the machine-readable source of truth for every threshold and regex above. Change it first; scripts read it at runtime. The L3 lint row runs the full ruff config plus eslint per file.
 
 ### Legacy violation baseline (temporary)
 
-Remove this section — together with the `baseline` block in `constraints.yaml` and the advisory carve-out in `scripts/coverage-gate.sh` — when every Baseline count below reaches 0. This freeze is valid only under its precondition: new and changed code is held to the full L3 gates on the change scope (`scripts/change-scope.sh`, base = upstream v0.11.3 `2a960a5`), and per-file counts only decrease; it is a debt schedule with an end state of zero, not a permanent exemption.
-
-| Gate                                       | Baseline (upstream, advisory)            | Next milestone target                                       | Owner            |
-| ------------------------------------------ | ---------------------------------------- | ----------------------------------------------------------- | ---------------- |
-| Files > 800 lines                          | 75                                       | no fork-touched file grows while over the limit             | fork maintainers |
-| Functions with complexity > 15 (ruff C901) | 110                                      | 0 in fork-added files; no increase in touched files         | fork maintainers |
-| ruff errors (current config)               | 2594                                     | 0 in fork-added files; no increase in touched files         | fork maintainers |
-| Backend line coverage                      | 0% (gap 80)                              | ≥ 80% per fork-added file; modified upstream files advisory | fork maintainers |
-| svelte-check errors (repo-wide ceiling)    | 7789                                     | never rises; lower the ceiling in the same PR when it drops | fork maintainers |
-| Repo-wide eslint                           | crashes on upstream `AskUserCard.svelte` | eslint runs per file on the change scope only               | fork maintainers |
+Remove this section — together with the `baseline` block in `constraints.yaml`, the advisory carve-out in `scripts/coverage-gate.sh` and the counts doc itself — when every Baseline count in [docs/agents/enforcement-baseline.md](docs/agents/enforcement-baseline.md) reaches 0.
+This freeze is valid only under its precondition: new and changed code is held to the full L3 gates on the change scope (`scripts/change-scope.sh`, base = upstream v0.11.3 `2a960a5`), and per-file counts only decrease; it is a debt schedule with an end state of zero, not a permanent exemption.
 
 ### Known blind spots (handed to review)
 

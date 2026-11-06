@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 
-// Key UI routes (Q7.3) — keep in sync with AGENTS.md ## Verification Matrix.
+// Key UI routes (Q7.3) — keep in sync with docs/agents/verification-matrix.md
+// (linked from AGENTS.md ## Verification Matrix).
 // Evidence: screenshot per route under .run/ui-evidence/ + zero console errors.
 // Pending rows (add when implemented, never before): send a message on `/`
 // (needs a model backend), open the OCU workspace sidebar on `/c/{id}`.
