@@ -13,3 +13,4 @@ The removal trigger and precondition of the baseline stay in `AGENTS.md § Legac
 | Backend line coverage                      | 0% (gap 80)                              | ≥ 80% per fork-added file; modified upstream files advisory | fork maintainers |
 | svelte-check errors (repo-wide ceiling)    | 7789                                     | never rises; lower the ceiling in the same PR when it drops | fork maintainers |
 | Repo-wide eslint                           | crashes on upstream `AskUserCard.svelte` | eslint runs per file on the change scope only               | fork maintainers |
+| knip dead exports (scoped) | advisory list printed by anti-drift | 0 in fork-added files and on fork-touched lines | fork maintainers |

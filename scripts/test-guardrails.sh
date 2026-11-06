@@ -582,6 +582,39 @@ why=""
 verdict "backend pytest keeps an inherited pair and creates missing directories (11g)" "$why"
 rm -rf "$wt_top/.run/frontend-build/static/owner-marker"
 
+# 12. Scoped knip step (#735): an in-scope dead export and an unreadable knip report each fail it.
+# --only knip skips vulture, whose `uv run` would sync a fresh .venv in $wt. The node_modules
+# link is ignored (.gitignore), so it never enters the change scope.
+ln -s "$repo_root/node_modules" "$wt/node_modules"
+knip_gate() { bash scripts/anti-drift.sh --only knip; }
+expect_accept "knip gate (clean tree)" knip_gate
+printf 'export const used = 1;\nexport function dead() {}\n' > src/lib/knip-probe.ts
+printf "import { used } from './knip-probe';\n" > src/lib/knip-probe.test.ts
+expect_reject "knip gate (in-scope dead export)" "src/lib/knip-probe.ts  unused export: dead" knip_gate
+rm -f src/lib/knip-probe.ts src/lib/knip-probe.test.ts
+# In an upstream file the fork modified (M), upstream's own dead exports are advisory, but a
+# fork-added one blocks.
+m_file=src/lib/stores/index.ts
+printf 'export const knipProbeDead = 1;\n' >> "$m_file"
+if bash scripts/change-scope.sh --status --ext ts | grep -qxF "$(printf 'M\t%s' "$m_file")"; then
+  expect_reject "knip gate (fork-added export in a modified upstream file)" "$m_file  unused export: knipProbeDead" knip_gate
+else
+  echo "FAIL  knip gate fixture — $m_file is not an M file in the change scope"; fail=$((fail + 1))
+fi
+git checkout --quiet -- "$m_file"
+# A stand-in npx prints $knip_standin_out for knip and exits 1, as knip does on any finding.
+fake_npx="$tmp/fake-npx-bin"; mkdir -p "$fake_npx"
+cat > "$fake_npx/npx" <<'SH'
+#!/bin/sh
+for a in "$@"; do [ "$a" = knip ] && { printf '%s' "$knip_standin_out"; exit 1; }; done
+echo "fake npx: only knip is stubbed, got: $*" >&2; exit 99
+SH
+chmod +x "$fake_npx/npx"
+for payload in "empty:" "non-JSON:knip crashed" "no issues list:{}"; do
+  expect_reject "knip gate (stand-in knip prints ${payload%%:*})" "knip report unreadable" \
+    env PATH="$fake_npx:$PATH" knip_standin_out="${payload#*:}" bash scripts/anti-drift.sh --only knip
+done
+
 echo
 echo "guardrail self-test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
