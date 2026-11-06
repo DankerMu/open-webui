@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// UI smoke baseline (AGENTS.md ## Verification Matrix). The dev servers are
+// UI smoke baseline (docs/agents/verification-matrix.md, linked from
+// AGENTS.md ## Verification Matrix). The dev servers are
 // started by `make dev-bg` (scripts/dev-bg.sh) — Playwright reuses them.
 export default defineConfig({
 	testDir: './e2e',
