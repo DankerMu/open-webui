@@ -290,7 +290,8 @@ Strictness profile: **L3** (see `constraints.yaml`). Levels: `advice` < `review-
 
 ### Legacy violation baseline (temporary)
 
-Remove this section — together with the `baseline` block in `constraints.yaml`, the advisory carve-outs in `scripts/coverage-gate.sh` and `scripts/anti-drift.sh` and the counts doc itself — when every Baseline count in [docs/agents/enforcement-baseline.md](docs/agents/enforcement-baseline.md) reaches 0.
+Remove this section — together with the `baseline` block in `constraints.yaml`, the advisory carve-outs in `scripts/coverage-gate.sh` and `scripts/anti-drift.sh` and the counts doc itself —
+when every Baseline count in [docs/agents/enforcement-baseline.md](docs/agents/enforcement-baseline.md) reaches 0.
 This freeze is valid only under its precondition: new and changed code is held to the full L3 gates on the change scope (`scripts/change-scope.sh`, base = upstream v0.11.3 `2a960a5`), and per-file counts only decrease; it is a debt schedule with an end state of zero, not a permanent exemption.
 
 ### Known blind spots (handed to review)
