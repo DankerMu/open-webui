@@ -21,14 +21,14 @@ import {
 import type { WorkspaceFile } from '$lib/apis/ocu';
 import type { OfficeVersions } from '$lib/apis/ocu/office';
 
-export type OfficeOpenMessage = {
+type OfficeOpenMessage = {
 	type: string;
 	chat_id: string;
 	file_id: string;
 	generation: number;
 };
 
-export type OfficeHandshake = {
+type OfficeHandshake = {
 	sent: MockInstance;
 	openMessage: OfficeOpenMessage;
 };
@@ -156,7 +156,7 @@ export function installOfficePopoverModel() {
 	};
 }
 
-export type OfficeCommandMessage = {
+type OfficeCommandMessage = {
 	type: 'ocu:office-command';
 	chat_id: string;
 	generation: number;

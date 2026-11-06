@@ -316,7 +316,7 @@ Strictness profile: **L3** (see `constraints.yaml`). Levels: `advice` < `review-
 
 ### Legacy violation baseline (temporary)
 
-Remove this section — together with the `baseline` block in `constraints.yaml` and the advisory carve-out in `scripts/coverage-gate.sh` — when every Baseline count below reaches 0. This freeze is valid only under its precondition: new and changed code is held to the full L3 gates on the change scope (`scripts/change-scope.sh`, base = upstream v0.11.3 `2a960a5`), and per-file counts only decrease; it is a debt schedule with an end state of zero, not a permanent exemption.
+Remove this section — together with the `baseline` block in `constraints.yaml` and the advisory carve-outs in `scripts/coverage-gate.sh` and `scripts/anti-drift.sh` — when every Baseline count below reaches 0. This freeze is valid only under its precondition: new and changed code is held to the full L3 gates on the change scope (`scripts/change-scope.sh`, base = upstream v0.11.3 `2a960a5`), and per-file counts only decrease; it is a debt schedule with an end state of zero, not a permanent exemption.
 
 | Gate                                       | Baseline (upstream, advisory)            | Next milestone target                                       | Owner            |
 | ------------------------------------------ | ---------------------------------------- | ----------------------------------------------------------- | ---------------- |
@@ -326,6 +326,7 @@ Remove this section — together with the `baseline` block in `constraints.yaml`
 | Backend line coverage                      | 0% (gap 80)                              | ≥ 80% per fork-added file; modified upstream files advisory | fork maintainers |
 | svelte-check errors (repo-wide ceiling)    | 7789                                     | never rises; lower the ceiling in the same PR when it drops | fork maintainers |
 | Repo-wide eslint                           | crashes on upstream `AskUserCard.svelte` | eslint runs per file on the change scope only               | fork maintainers |
+| knip dead exports (scoped)                 | 9 in modified `src/lib/stores/index.ts`  | 0 in fork-added files and on fork-touched lines             | fork maintainers |
 
 ### Known blind spots (handed to review)
 

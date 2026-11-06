@@ -21,7 +21,7 @@ import {
 import { officeEditorFrame, type OfficeEditorController } from './office-editor-frame';
 import { isSavedChatId } from '$lib/utils/chatId';
 
-export const OFFICE_LEAVE_BUDGET = 15_000;
+const OFFICE_LEAVE_BUDGET = 15_000;
 const POLL_DELAY = 1000;
 const FOLLOWED_STATES: Record<string, true> = {
 	opening: true,
@@ -34,7 +34,7 @@ const FOLLOWED_STATES: Record<string, true> = {
 	orphaned: true
 };
 type Translate = (key: string, values?: Record<string, string>) => string;
-export type OfficeCloseReport = {
+type OfficeCloseReport = {
 	chat: string;
 	file: string;
 	name: string;
@@ -43,7 +43,7 @@ export type OfficeCloseReport = {
 	reason?: string;
 	path?: string;
 };
-export type OfficeLeaveSnapshot = {
+type OfficeLeaveSnapshot = {
 	holding: Record<string, boolean>;
 	reports: Record<string, OfficeCloseReport>;
 };
