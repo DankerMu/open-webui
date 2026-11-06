@@ -1,3 +1,5 @@
+/* First: Vite inlines @import only before every other statement, @reference included. */
+@import './lib/skins.css';
 @reference "./tailwind.css";
 
 @font-face {

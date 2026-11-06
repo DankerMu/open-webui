@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import postcss, { type AtRule, type Node as CssNode, type Rule } from 'postcss';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { toast } from 'svelte-sonner';
@@ -193,4 +194,66 @@ describe('layout restore', () => {
 			spies.forEach((spy) => expect(spy).not.toHaveBeenCalled());
 		}
 	);
+});
+
+describe('skin styles', () => {
+	const HOOKS = [
+		'.skin-shell',
+		'#sidebar',
+		'.sidebar-bg-gradient-to-b',
+		'.sidebar-bg-gradient-to-t',
+		'#navbar-bg-gradient-to-b',
+		'#chat-container',
+		'#messages-container',
+		'#message-input-container',
+		'#main-content'
+	];
+	const HOOK =
+		/\.skin-shell\b|#sidebar(?![\w-])|\.sidebar-bg-gradient|#navbar-bg-gradient-to-b|#chat-container|#messages-container|#message-input-container|#main-content/;
+	const css = (file: string) => postcss.parse(readFileSync(resolve(__dirname, file), 'utf8'));
+	const app = css('../app.css');
+	const rules: Rule[] = [];
+	// Both files, so a skin rule added back to app.css is held to the same scoping.
+	for (const root of [app, css('skins.css')])
+		root.walkRules((rule) => {
+			const usesVar = rule.nodes.some(
+				(node) => node.type === 'decl' && `${node.prop}:${node.value}`.includes('--skin-')
+			);
+			if (HOOK.test(rule.selector) || usesVar) rules.push(rule);
+		});
+	// Upstream's high-contrast hover colours (app.css html.high-contrast #sidebar ...) predate skins.
+	const skinRules = rules.filter((rule) => !rule.selector.trim().startsWith('html.high-contrast'));
+
+	it('scopes every rule on a skin hook or --skin-* under html[data-skin], outside any layer', () => {
+		expect(skinRules.length).toBeGreaterThan(0);
+		for (const rule of skinRules) {
+			for (const selector of rule.selectors)
+				expect(selector).toMatch(/^html\[data-skin\](?:$|[ .:])/);
+			for (let node: CssNode | undefined = rule.parent; node; node = node.parent)
+				expect(node.type === 'atrule' && (node as AtRule).name === 'layer').toBe(false);
+		}
+	});
+
+	// Vite drops an @import that follows any other statement (@reference included), silently.
+	it('is the first statement of app.css, imported without a layer', () => {
+		const statements = app.nodes.filter((node) => node.type !== 'comment');
+		expect(statements[0]).toMatchObject({ type: 'atrule', name: 'import' });
+		expect((statements[0] as AtRule).params).toBe("'./lib/skins.css'");
+		expect(
+			statements.filter((node) => node.type === 'atrule' && node.name === 'import')
+		).toHaveLength(1);
+	});
+
+	it.each(HOOKS)('paints %s', (hook) => {
+		expect(skinRules.some((rule) => rule.selector.includes(hook))).toBe(true);
+	});
+
+	it('draws the wallpaper with its overlay from the custom properties', () => {
+		const values = skinRules.flatMap((rule) =>
+			rule.nodes.flatMap((node) => (node.type === 'decl' ? [node.value] : []))
+		);
+		expect(
+			values.some((v) => v.includes('var(--skin-overlay)') && v.includes('var(--skin-image)'))
+		).toBe(true);
+	});
 });
