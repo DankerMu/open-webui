@@ -1,10 +1,9 @@
 import { get } from 'svelte/store';
-import { toast } from 'svelte-sonner';
 import { settings, user } from '$lib/stores';
 import { updateUserSettings } from '$lib/apis/users';
 import { setTheme } from '$lib/utils/theme';
 
-export type Skin = {
+type Skin = {
 	id: string;
 	mode: 'light' | 'dark';
 	overlay: { color: string; alpha: number };
@@ -82,7 +81,11 @@ export const restoreSkin = (id?: string | null) => {
 	writeMirror(id);
 };
 
-export const selectSkin = async (id: string | null) => {
+// Resolves true only when the server stored the choice. updateUserSettings resolves null
+// instead of throwing when fetch rejects or the body is not JSON, so null is a failure too.
+// The skin stays applied either way; the caller shows $i18n.t('Failed to update settings')
+// on false, because this module carries no display strings.
+export const selectSkin = async (id: string | null): Promise<boolean> => {
 	applySkin(id);
 
 	const skin = findSkin(id);
@@ -94,9 +97,9 @@ export const selectSkin = async (id: string | null) => {
 	writeMirror(id);
 
 	try {
-		await updateUserSettings(localStorage.token, { ui: get(settings) });
-	} catch (error) {
-		// The skin stays applied for this session; the server keeps the previous choice.
-		toast.error(`${error}`);
+		return (await updateUserSettings(localStorage.token, { ui: get(settings) })) !== null;
+	} catch {
+		// A rejected save is the same outcome as a null one: report false, keep the session skin.
+		return false;
 	}
 };

@@ -136,14 +136,20 @@ describe('selectSkin', () => {
 		});
 	});
 
-	it('keeps the skin applied and toasts when the save is rejected', async () => {
-		vi.mocked(updateUserSettings).mockRejectedValue('Server unavailable');
+	// updateUserSettings resolves null when fetch rejects or the body is not JSON (users/index.ts).
+	it.each([
+		['throws', () => Promise.reject('Server unavailable'), false],
+		['resolves null', () => Promise.resolve(null), false],
+		['resolves settings', () => Promise.resolve({ ui: { skin: 'glacier-lake' } }), true]
+	])('reports the save outcome when the save %s, without toasting', async (_case, save, saved) => {
+		vi.mocked(updateUserSettings).mockImplementation(save);
 
-		await expect(selectSkin('glacier-lake')).resolves.toBeUndefined();
+		await expect(selectSkin('glacier-lake')).resolves.toBe(saved);
 
 		expect(root().dataset.skin).toBe('glacier-lake');
-		expect(toast.error).toHaveBeenCalledTimes(1);
-		expect(toast.error).toHaveBeenCalledWith('Server unavailable');
+		expect(get(settings)).toEqual({ textScale: 1.25, skin: 'glacier-lake' });
+		expect(localStorage.getItem('skin:user-1')).toBe('glacier-lake');
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 });
 

@@ -100,7 +100,7 @@
 
 		setTextScale($settings?.textScale ?? 1);
 		setAppFontFamily($settings?.fontFamily ?? null);
-		restoreSkin($settings?.skin);
+		restoreSkin(userSettings?.ui?.skin);
 
 		if (cb) {
 			await cb();
