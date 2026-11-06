@@ -1,0 +1,86 @@
+/* Wallpaper skins (#732), imported unlayered at the top of app.css. src/lib/skins.ts sets data-skin,
+   --skin-image and --skin-overlay on <html>; every rule is scoped to html[data-skin], so None matches
+   nothing. Unlayered on purpose: these must beat Tailwind's layered bg-* utilities. */
+html[data-skin] {
+	--skin-surface: #fff;
+	--skin-panel: color-mix(in oklab, var(--skin-surface) 72%, transparent);
+	/* The message column sits on the chat pane: 1 - (1 - 0.72) * (1 - 0.29) = 0.80 combined. */
+	--skin-column: color-mix(in oklab, var(--skin-surface) 29%, transparent);
+	--skin-backing: color-mix(in oklab, var(--skin-surface) 80%, transparent);
+	--skin-drawer: color-mix(in oklab, var(--skin-surface) 95%, transparent);
+	--skin-blur: blur(16px) saturate(1.2);
+}
+
+/* Dark text is light on dark, so less backing keeps the same contrast; 0.75 combined. */
+html[data-skin].dark {
+	--skin-surface: var(--color-gray-900);
+	--skin-panel: color-mix(in oklab, var(--skin-surface) 55%, transparent);
+	--skin-column: color-mix(in oklab, var(--skin-surface) 45%, transparent);
+	--skin-backing: color-mix(in oklab, var(--skin-surface) 75%, transparent);
+}
+
+/* Upstream's muted grays assume a white page: over a dark wallpaper in light mode the gray-400
+   section labels (Folders, Chats) and gray-300 list bullets vanish, so shift them two steps darker. */
+html[data-skin]:not(.dark) #sidebar {
+	--color-gray-400: var(--color-gray-600);
+	--color-gray-500: var(--color-gray-700);
+}
+
+html[data-skin]:not(.dark) #messages-container .markdown-prose {
+	--tw-prose-bullets: var(--color-gray-500);
+}
+
+html[data-skin] body {
+	background:
+		linear-gradient(var(--skin-overlay), var(--skin-overlay)),
+		var(--skin-image) center / cover fixed;
+}
+
+html[data-skin] .skin-shell {
+	background: transparent;
+}
+
+html[data-skin] #sidebar,
+html[data-skin] #chat-container {
+	background-color: var(--skin-panel);
+}
+
+html[data-skin] #sidebar {
+	backdrop-filter: var(--skin-blur);
+}
+
+@media (max-width: 767.98px) {
+	html[data-skin] #sidebar {
+		background-color: var(--skin-drawer);
+	}
+}
+
+html[data-skin] .sidebar-bg-gradient-to-b {
+	background-image: linear-gradient(to bottom, var(--skin-panel) 50%, transparent);
+}
+
+html[data-skin] .sidebar-bg-gradient-to-t {
+	background-image: linear-gradient(to top, var(--skin-panel) 50%, transparent);
+}
+
+/* Visible on the new-chat page too (upstream hides it without a chat), so the icons keep a panel.
+   The mask fades the blur with the colour, so the top bar has no hard blurred edge. */
+html[data-skin] #navbar-bg-gradient-to-b {
+	visibility: visible;
+	background: var(--skin-panel);
+	backdrop-filter: var(--skin-blur);
+	mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+
+html[data-skin] #messages-container {
+	background-color: var(--skin-column);
+}
+
+html[data-skin] #main-content > :not(#chat-container) {
+	background-color: var(--skin-backing);
+}
+
+html[data-skin] #message-input-container {
+	background-color: var(--skin-backing);
+	backdrop-filter: var(--skin-blur);
+}
