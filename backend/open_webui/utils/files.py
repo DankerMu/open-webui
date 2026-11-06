@@ -50,6 +50,14 @@ _IMAGE_MIME_FALLBACK = {
     '.avif': 'image/avif',
 }
 
+# mimetypes has no `audio/wav` entry on some platforms, which named every speech file `generated-None` (#721).
+_AUDIO_FILE_EXTENSIONS = {
+    'audio/wav': '.wav',
+    'audio/x-wav': '.wav',
+    'audio/wave': '.wav',
+    'audio/mpeg': '.mp3',
+}
+
 
 async def get_image_base64_from_url(url: str, user=None) -> Optional[str]:
     try:
@@ -153,7 +161,8 @@ def load_b64_audio_data(b64_str):
 
 
 async def upload_audio(request, audio_data, content_type, metadata, user):
-    audio_format = mimetypes.guess_extension(content_type)
+    mime_type = content_type.split(';')[0].strip().lower()
+    audio_format = _AUDIO_FILE_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(mime_type) or '.wav'
     file = UploadFile(
         file=io.BytesIO(audio_data),
         filename=f'generated-{audio_format}',  # will be converted to a unique ID on upload_file

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import mimetypes
 import os
 import re
 import unicodedata
@@ -24,6 +23,7 @@ from pathlib import Path
 
 from open_webui.models.chats import Chats
 from open_webui.models.files import Files
+from open_webui.routers.images import image_extension
 from open_webui.storage.provider import Storage
 from open_webui.utils.chat_id import is_saved_chat_id
 from open_webui.utils.ocu_client import OcuClient, OcuUnreachable, OcuUpstreamError
@@ -58,7 +58,7 @@ def _clean_name(name: str | None, content_type: str | None) -> str:
     dropped; whitespace runs become one space; no leading dots; at most MAX_NAME_CHARS characters
     before the extension. Empty becomes DEFAULT_NAME.
     """
-    extension = mimetypes.guess_extension(content_type or '') or ''
+    extension = image_extension(content_type)
     text = _LINE_SPACES.sub(' ', unicodedata.normalize('NFC', name or ''))
     text = ''.join(char for char in _SEPARATORS.sub('', text) if unicodedata.category(char) != 'Cc')
     text = _SPACES.sub(' ', text).strip().lstrip('.').strip()

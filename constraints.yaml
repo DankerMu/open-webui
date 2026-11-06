@@ -108,8 +108,8 @@ size_limits:
         reason: "User-approved #160 call-only Office leave guard hooks."
         exit_condition: "Remove when Chat.svelte is <=800 lines or these Office hooks are removed."
       - path: "backend/open_webui/routers/images.py"
-        ceiling: 1205
-        reason: "User-approved #690 call-only aspect-ratio hooks; logic lives in utils/images/aspect_ratio.py."
+        ceiling: 1212
+        reason: "User-approved #690 call-only aspect-ratio hooks; logic lives in utils/images/aspect_ratio.py. User-approved (2026-11-05) #721 image_extension() next to IMAGE_FILE_EXTENSIONS, the one extension rule for images."
         exit_condition: "Remove when images.py is <=800 lines or the #690 hooks are removed."
       - path: "backend/open_webui/tools/builtin.py"
         ceiling: 4534

@@ -65,6 +65,13 @@ IMAGE_FILE_EXTENSIONS = {
     'image/webp': '.webp',
 }
 
+
+def image_extension(content_type: str | None) -> str:
+    # Without parameters and lower-cased: `image/png; charset=binary` is still `.png` (#721).
+    mime_type = (content_type or '').split(';')[0].strip().lower()
+    return IMAGE_FILE_EXTENSIONS.get(mime_type) or mimetypes.guess_extension(mime_type) or '.png'
+
+
 IMAGE_CONFIG_KEYS = {
     'ENABLE_IMAGE_GENERATION': 'image_generation.enable',
     'ENABLE_IMAGE_PROMPT_GENERATION': 'image_generation.prompt.enable',
@@ -159,7 +166,7 @@ def get_image_file_item(base64_string, param_name='image'):
     header, encoded = base64_string.split(',', 1)
     mime_type = header.split(';')[0].lstrip('data:') or 'image/png'
     image_data = base64.b64decode(encoded)
-    extension = IMAGE_FILE_EXTENSIONS.get(mime_type.lower()) or mimetypes.guess_extension(mime_type) or '.png'
+    extension = image_extension(mime_type)
     return (
         param_name,
         (
@@ -522,7 +529,7 @@ async def get_image_data(data: str, headers=None, trusted_base_url: str | None =
 async def upload_image(request, image_data, content_type, metadata, user, db=None):
     if image_data is None or content_type is None:
         raise ValueError('Failed to retrieve image data from the generation backend')
-    image_format = mimetypes.guess_extension(content_type)
+    image_format = image_extension(content_type)
     file = UploadFile(
         file=io.BytesIO(image_data),
         filename=f'generated-image{image_format}',  # will be converted to a unique ID on upload_file
