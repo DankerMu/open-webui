@@ -313,8 +313,9 @@ cypress/screenshots
 .cptr
 
 # AI agent 本地工具（my-agents 安装产物）
-.omp/
-.claude/
+# 不带结尾斜杠：worktree 里 .omp 可能是指向主 checkout 的符号链接，`.omp/` 只匹配目录。
+.omp
+.claude
 
 # eng-init runtime harness: pidfiles, dev logs, harness DB, UI evidence
 .run/
