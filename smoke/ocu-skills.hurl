@@ -1,5 +1,5 @@
 # smoke/ocu-skills.hurl — uploaded-skill upload/delete round trip as the seeded
-# harness admin (AGENTS.md ## Verification Matrix, API endpoint row). A rerun after
+# harness admin (AGENTS.md ## Verification Matrix, uploaded-skill round-trip row). A rerun after
 # an interrupted run is idempotent: re-uploading an existing name replaces it.
 # fixtures/ocu-smoke-skill.zip (sha256 asserted below) was built from the repo root with:
 #   python3 -c "import zipfile; i = zipfile.ZipInfo('SKILL.md', date_time=(1980, 1, 1, 0, 0, 0)); i.compress_type = zipfile.ZIP_DEFLATED; i.external_attr = 0o100644 << 16; z = zipfile.ZipFile('smoke/fixtures/ocu-smoke-skill.zip', 'w'); z.writestr(i, '---\nname: harness-smoke-skill\ndescription: Harness smoke skill, uploaded and deleted by make smoke.\n---\nNo instructions.\n'); z.close()"
