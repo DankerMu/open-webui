@@ -8,7 +8,7 @@ Give each user a list of the uploaded skills they are granted and a persistent p
 
 ### Requirement: Granted list with enabled state
 
-An authenticated user SHALL receive every uploaded skill they hold read access to, each with its name, description and an `enabled` flag that is false only when that user has disabled it. Skills without read access SHALL NOT appear. Administrators SHALL follow the existing administrator access-control bypass setting. When `ENABLE_OCU_WORKSPACE` is not `true` the endpoint SHALL return 404; without a session it SHALL return 401.
+An authenticated user SHALL receive every uploaded skill they can read under design.md Decision 6, each with its name, description and an `enabled` flag that is true exactly when the skill is in the user's enabled set (Decision 6), that is, false only when that user has disabled it. Skills the user cannot read SHALL NOT appear. The response SHALL NOT load or carry the ZIP bytes. When `ENABLE_OCU_WORKSPACE` is not `true` the endpoint SHALL return 404; without a session it SHALL return 401.
 
 #### Scenario: Group-narrowed skill hidden
 - **WHEN** `invoice-builder` is granted only to group A and a non-member requests the list

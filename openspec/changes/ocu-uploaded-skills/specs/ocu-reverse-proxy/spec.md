@@ -8,7 +8,7 @@ The browser gateway SHALL answer 404 to every method on paths under `/api/v1/ocu
 
 #### Scenario: Internal path denied
 - **WHEN** a browser client sends `GET /api/v1/ocu/skills/api/internal/user-config/a@b.c` through the gateway with a valid key header
-- **THEN** the gateway returns 404 and WebUI receives no request
+- **THEN** the gateway returns a plain 404; WebUI itself would have answered 401 to a wrong key and 200 to an unknown email with the right key, so the 404 shows the request was not forwarded
 
 #### Scenario: User path still forwarded
 - **WHEN** a signed-in user sends `GET /api/v1/ocu/skills/` through the gateway
