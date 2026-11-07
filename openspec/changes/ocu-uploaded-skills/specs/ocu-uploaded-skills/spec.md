@@ -20,6 +20,15 @@ Upload, list-all, access update and delete of uploaded skills SHALL require an a
 - **WHEN** `ENABLE_OCU_WORKSPACE` is `false` and an administrator calls the upload, list-all, access or delete endpoint
 - **THEN** each response is 404
 
+### Requirement: Administrator listing with grants
+
+`GET /api/v1/ocu/skills/admin` SHALL return every uploaded skill as `{name, description, zip_sha256, size, created_by, updated_at, access_grants}`, without loading the ZIP bytes. `access_grants` SHALL list the skill's current read grants as `{principal_type, principal_id, permission}` entries, the same format `POST /{name}/access` accepts and the `AccessControl` component consumes. The everyone grant appears as `user` / `*` / `read`.
+
+#### Scenario: Listing shows the current grant set
+
+- **WHEN** skill `a` holds the `user:*` read grant and skill `b`'s only grant is group A read
+- **THEN** the listing shows `a` with exactly the `user` / `*` / `read` grant and `b` with exactly the group A read grant, and neither item carries the ZIP bytes
+
 ### Requirement: Upload creates a skill visible to everyone
 
 A first upload of a valid ZIP SHALL, in one DB transaction, create a skill whose name is the `SKILL.md` frontmatter `name` and whose description is the frontmatter `description`, store the ZIP bytes in the `ocu_skill.data` column (not in `Storage` or `UPLOAD_DIR`), record its SHA-256 and size, and write exactly one read access grant to the wildcard principal `user:*`. If the commit fails, no row and no grant SHALL remain.

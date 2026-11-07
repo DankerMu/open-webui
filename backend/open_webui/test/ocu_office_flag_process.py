@@ -1,4 +1,8 @@
-"""Fresh-process Office flag import: harness first, then env, then app."""
+"""Fresh-process Office flag import: harness first, then env, then app.
+
+Optionally reports the status of GET /api/v1/ocu/skills{path} requests sent by a
+session of the given role, for gates decided at import time by the workspace flag.
+"""
 
 from __future__ import annotations
 
@@ -10,13 +14,16 @@ import shutil
 import subprocess
 import sys
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 
 _BACKEND = Path(__file__).resolve().parents[2]
 _REPO = Path(__file__).resolve().parents[3]
 
 
-def run_office_flag_process(*, office: str | None, workspace: str) -> dict:
+def run_office_flag_process(
+    *, office: str | None, workspace: str, skills_paths: Sequence[str] = (), skills_role: str = 'admin'
+) -> dict:
     data_dir = _REPO / '.run' / 'data' / f'office-flag-{uuid.uuid4()}'
     data_dir.mkdir(parents=True, exist_ok=True)
     command = [
@@ -32,6 +39,10 @@ def run_office_flag_process(*, office: str | None, workspace: str) -> dict:
         command.append('--unset-office')
     else:
         command.extend(['--office', office])
+    for path in skills_paths:
+        command.extend(['--skills-path', path])
+    if skills_paths:
+        command.extend(['--skills-role', skills_role])
     env = os.environ.copy()
     pythonpath = env.get('PYTHONPATH', '')
     env['PYTHONPATH'] = str(_BACKEND) if not pythonpath else os.pathsep.join([str(_BACKEND), pythonpath])
@@ -56,6 +67,8 @@ def _main() -> None:
     parser.add_argument('--unset-office', action='store_true')
     parser.add_argument('--workspace', required=True)
     parser.add_argument('--data-dir', required=True)
+    parser.add_argument('--skills-path', action='append', default=[])
+    parser.add_argument('--skills-role', choices=('user', 'admin'), default='admin')
     args = parser.parse_args()
 
     import open_webui.test.ocu_harness as ocu_harness
@@ -83,17 +96,24 @@ def _main() -> None:
             anon = anon_response.json()['features']
         finally:
             asyncio.run(ocu_harness._delete_user(user.id))
-    sys.stdout.write(
-        json.dumps(
-            {
-                'auth_office': auth['enable_ocu_office_edit'],
-                'auth_workspace': auth['enable_ocu_workspace'],
-                'anon_office': 'enable_ocu_office_edit' in anon,
-                'anon_workspace': 'enable_ocu_workspace' in anon,
-            }
-        )
-        + '\n'
-    )
+        payload = {
+            'auth_office': auth['enable_ocu_office_edit'],
+            'auth_workspace': auth['enable_ocu_workspace'],
+            'anon_office': 'enable_ocu_office_edit' in anon,
+            'anon_workspace': 'enable_ocu_workspace' in anon,
+        }
+        if args.skills_path:
+            payload['skills'] = _skills_statuses(client, ocu_harness, args.skills_role, args.skills_path)
+    sys.stdout.write(json.dumps(payload) + '\n')
+
+
+def _skills_statuses(client, ocu_harness, role: str, paths: list[str]) -> dict[str, int]:
+    user = asyncio.run(ocu_harness._insert_user(role=role, prefix='skills-flag'))
+    try:
+        headers = ocu_harness._session_headers(user.id)
+        return {path: client.get(f'/api/v1/ocu/skills{path}', headers=headers).status_code for path in paths}
+    finally:
+        asyncio.run(ocu_harness._delete_user(user.id))
 
 
 if __name__ == '__main__':

@@ -26,7 +26,44 @@ Risk packs:
 
 ## 1. [webui] Registry data model, admin listing, access and delete
 
-- [ ] 1.1 Add `backend/open_webui/models/ocu_skills.py` with the `ocu_skill` table (ZIP bytes in a deferred `LargeBinary` column `data`) and the `ocu_skill_user_disable` table, plus the get and list-all table methods; list-all never loads `data`. Add one additive Alembic migration (down_revision `e6f7a8b9c0d1`) whose downgrade drops both tables and deletes `resource_type='ocu_skill'` grants. Add `backend/open_webui/routers/ocu_skills.py`, which registers its routes unconditionally on its own router and imports nothing from `ocu_workspaces`. Mount it by calling `router.include_router(ocu_skills.router, prefix='/skills')` inside the existing `if ENABLE_OCU_WORKSPACE:` block of `routers/ocu_workspaces.py:290` (giving `/api/v1/ocu/skills`; `main.py` is not changed), so with the flag off every `ocu_skills` route returns 404. Because the gate is the mount, monkeypatching `ocu_workspaces.ENABLE_OCU_WORKSPACE` after import does not remove the routes: every "workspace disabled" case in this change imports the app in a fresh process with `ENABLE_OCU_WORKSPACE=false`. Extend the existing fresh-process helper `backend/open_webui/test/ocu_office_flag_process.py` (it already runs with `--workspace false`) to report the status of given `/api/v1/ocu/skills` requests, and reuse it in every later task; add no second subprocess helper. Add the admin `GET /admin` route. Ship the decision record `docs/decisions/implemented/architecture/2026-11-07-ocu-uploaded-skills.md`, recording design.md Decisions 1-4, 6 and 10 and linking the source plan; the AGENTS.md Critical Paths row for `backend/open_webui/routers/ocu_skills.py` and `models/ocu_skills.py`, requiring the auth matrix tests plus `make smoke`; and the glossary term **上传 skill** in `openspec/glossary.md`. Verify with model pytest (list-all does not load `data`), router pytest via `TestClient` (an admin gets the listing; a user gets 401; no session gets 401; with the workspace disabled the route gets 404), `make db-verify`, `make decisions-verify` and `make doc-gate`.
+- [ ] 1.1 Add `backend/open_webui/models/ocu_skills.py` with the `ocu_skill` table (ZIP bytes in a deferred `LargeBinary` column `data`) and the `ocu_skill_user_disable` table, plus the get and list-all table methods; list-all never loads `data`. Add one additive Alembic migration (down_revision `e6f7a8b9c0d1`) whose downgrade drops both tables and deletes `resource_type='ocu_skill'` grants. Add `backend/open_webui/routers/ocu_skills.py`, which registers its routes unconditionally on its own router and imports nothing from `ocu_workspaces`. Mount it by calling `router.include_router(ocu_skills.router, prefix='/skills')` inside the existing `if ENABLE_OCU_WORKSPACE:` block of `routers/ocu_workspaces.py:290` (giving `/api/v1/ocu/skills`; `main.py` is not changed), so with the flag off every `ocu_skills` route returns 404. Because the gate is the mount, monkeypatching `ocu_workspaces.ENABLE_OCU_WORKSPACE` after import does not remove the routes: every "workspace disabled" case in this change imports the app in a fresh process with `ENABLE_OCU_WORKSPACE=false`. Extend the existing fresh-process helper `backend/open_webui/test/ocu_office_flag_process.py` (it already runs with `--workspace false`) to report the status of given `/api/v1/ocu/skills` requests, and reuse it in every later task; add no second subprocess helper. Add the admin `GET /admin` route, returning each skill's current read grant set (spec: Administrator listing with grants; Stage 3 finding SA-1). Ship the decision record `docs/decisions/implemented/architecture/2026-11-07-ocu-uploaded-skills.md`, recording design.md Decisions 1-4, 6 and 10 and linking the source plan; the AGENTS.md Critical Paths row for `backend/open_webui/routers/ocu_skills.py` and `models/ocu_skills.py`, requiring the auth matrix tests plus `make smoke`; and the glossary term **上传 skill** in `openspec/glossary.md`. Verify with model pytest (list-all does not load `data`), router pytest via `TestClient` (an admin gets the listing; a user gets 401; no session gets 401; with the workspace disabled the route gets 404), `make db-verify`, `make decisions-verify` and `make doc-gate`.
+      Task 1.1 required evidence (issue #742; each item is input → expected output):
+  - **Model (list-all).**
+    - Seed two `ocu_skill` rows with non-empty `data` through the ORM session. The 1.1 model has no insert method.
+    - List-all returns both rows.
+    - For each returned row, `'data' in sqlalchemy.inspect(row).unloaded` holds. Alternatively, a `before_cursor_execute` listener shows that the list-all SELECT does not name the `data` column.
+    - A Pydantic model without a `data` field is not proof.
+  - **Migration.**
+    - `make db-verify` exits 0: up, down -1, up.
+    - A migration pytest, following `backend/open_webui/test/models/test_ocu_chat_state.py:206`, first creates `access_grant` in the tmp engine (for example `AccessGrant.__table__.create(conn)`), so the downgrade's delete really runs. It then seeds:
+      - one `ocu_skill` grant;
+      - one decoy grant (`resource_type='skill'`, same `resource_id`).
+    - After `downgrade()`, both tables are gone, the `ocu_skill` grant is gone, and the decoy grant survives.
+  - **Admin listing (SA-1).**
+    - Seed skills `a` and `b` through the ORM session, and their grants through `AccessGrants.grant_access`:
+      - `a` gets `user` / `*` / `read`;
+      - `b` gets only group A read;
+      - add a decoy native grant: `resource_type='skill'`, `resource_id='b'`, `user` / `*` / `read`.
+    - As an admin, `GET /api/v1/ocu/skills/admin` returns 200 with exactly these items: `a` with the `user` / `*` / `read` grant, and `b` with exactly the group A read grant. The decoy does not appear, and no item carries `data`.
+    - A user-role caller gets 401. No session gets 401.
+  - **Workspace disabled.**
+    - Run the extended fresh-process helper `backend/open_webui/test/ocu_office_flag_process.py`.
+    - New interface: an optional list of `/api/v1/ocu/skills` paths and a role (`user` or `admin`) for the session that sends them. It returns the status for each path.
+    - With `--workspace false`, admin `GET /admin` returns 404.
+    - Positive control: the same helper with `--workspace true` returns 200, so a mistyped path cannot pass.
+    - Must preserve:
+      - The helper's existing `/api/config` output keys `auth_office`, `auth_workspace`, `anon_office` and `anon_workspace` stay unchanged for `test/routers/test_ocu_workspaces.py:64-79`.
+      - Its payload stays deterministic for `test/test_harness_environment.py:490-503` (`inherited['payload'] == clean['payload']`).
+      - With no path list, the output is byte-identical to today.
+  - **Spine regression.**
+    - `make smoke` passes.
+    - `backend/open_webui/test/routers/test_ocu_workspaces.py` passes unchanged: the `/auth` route stays unconditional, and the `/workspaces/*` routes stay gated as before.
+    - The new Critical Paths row's `make smoke` clause is first met by a `smoke/` hurl case in task 2.2. 1.1 adds no hurl case.
+  - **Seam.**
+    - `git diff --name-only $(git merge-base HEAD origin/main) -- backend/open_webui/main.py` prints nothing. Do not use `change-scope.sh`: it compares against the frozen upstream baseline, and earlier fork work already lists `main.py` there.
+    - `grep -n ocu_workspaces backend/open_webui/routers/ocu_skills.py` prints nothing.
+  - **Docs.** `make decisions-verify` and `make doc-gate` exit 0.
+  - **Gates.** `make lint-scoped` and `make coverage-gate` pass, with every new file at 80% line coverage or more.
 - [ ] 1.2 Add the delete-with-grants-and-disables table method as one DB transaction, and the admin `POST /{name}/access` and `DELETE /{name}` routes. Verify with router pytest: an admin succeeds; a user gets 401; no session gets 401; an unknown name gets 404; with the workspace disabled both routes get 404; access replaces the grant set (after narrowing to group A, the stored `ocu_skill` grants are exactly group A read); delete leaves no row, grant or disable row.
 
 Suggested fixture level: expanded - schema, migration and admin authorization.

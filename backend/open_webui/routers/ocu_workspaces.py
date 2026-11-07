@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.routing import APIRoute
 from open_webui.models.chats import Chats
 from open_webui.models.ocu_chat_state import OcuChatStates
+from open_webui.routers import ocu_skills
 from open_webui.utils.auth import get_verified_user
 from open_webui.utils.chat_id import is_saved_chat_id
 from open_webui.utils.ocu_client import OcuClient, OcuNeverCreated, OcuUnreachable, OcuUpstreamError
@@ -292,3 +293,4 @@ if ENABLE_OCU_WORKSPACE:
     router.add_api_route('/workspaces/{chat_id}/launch', launch_workspace, methods=['POST'])
     router.add_api_route('/workspaces/{chat_id}/refresh', refresh_workspace, methods=['POST'])
     router.add_api_route('/workspaces/{chat_id}/prefs', put_prefs, methods=['PUT'])
+    router.include_router(ocu_skills.router, prefix='/skills')
