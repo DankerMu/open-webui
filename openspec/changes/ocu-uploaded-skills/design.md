@@ -93,6 +93,7 @@ Sibling surfaces that share the invariant:
      - at most 2000 entries;
      - uncompressed bytes are counted while reading and capped at 200 MB, so a forged `file_size` does not help.
    - The single top-level directory is stripped exactly as OCU does. `SKILL.md` must then sit at the root with YAML frontmatter containing a valid `name` and a non-empty `description`.
+   - `SKILL.md` is read as UTF-8 (one leading BOM stripped, CRLF normalized), capped at 1 MB, and its `description` must be a non-empty string.
    - Any other failure returns 400 with a reason and writes nothing.
    - The insert or replace (row with `data`, plus the `user:*` grant on a first upload) is one DB transaction after validation. A failed commit rolls back, so the previous row and its downloadable bytes stay unchanged; there is no file to order or clean up.
 6. **Authorization semantics.** This is the single definition of the **enabled set**; every other artifact refers to it. A skill is in a user's enabled set exactly when:
@@ -153,7 +154,7 @@ Review focus:
 - [A shared token means a leak compromises both directions] → accepted by the user; same private network; the proxy deny row removes browser reachability.
 - [The reserved list drifts when OCU adds a built-in] → the drift test runs in CI against the pinned OCU checkout; a pin bump that adds a built-in fails until the list is updated.
 - [Admin-uploaded scripts run in every granted sandbox] → the trust boundary is the administrator; no content review.
-- [Large uploads are held in memory, at most 50 MB] → bounded by the size cap; administrators only. The deferred `data` column keeps list queries from loading the bytes.
+- [Large uploads are held in memory: the 50 MB body plus one read chunk plus a `SKILL.md` capped at 1 MB] → bounded by the size caps; administrators only. The deferred `data` column keeps list queries from loading the bytes.
 
 ## Migration Plan
 

@@ -74,7 +74,8 @@ The upload SHALL return 400 with a reason, and SHALL leave skill rows (with thei
 - an entry is a symbolic link or is encrypted;
 - the archive has more than 2000 entries;
 - the uncompressed total, counted from bytes actually read, exceeds 200 MB;
-- after stripping a single shared top-level directory, there is no root `SKILL.md`, or its frontmatter lacks a `name` matching `^[a-z0-9][a-z0-9-]{0,63}$` or a non-empty `description`;
+- after stripping a single shared top-level directory, there is no root `SKILL.md`, or its frontmatter lacks a `name` matching `^[a-z0-9][a-z0-9-]{0,63}$` or a non-empty string `description`;
+- the root `SKILL.md` is larger than 1 MB or is not UTF-8;
 - the body is not a ZIP.
 
 A body larger than 50 MB SHALL return 413 with the same no-change guarantee. 413 is used only for size; every other rejection SHALL return 400.
