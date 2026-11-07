@@ -6,10 +6,13 @@ open_webui.env import.
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import struct
 import sys
 import uuid
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
@@ -183,3 +186,42 @@ class _StubSession:
 
     async def close(self):
         self.closed = True
+
+
+_ZERO_CHUNK = b'\0' * (1 << 20)
+# Per signature: offset of the file name, and of each patchable field with its struct format.
+_ZIP_HEADERS = {
+    b'PK\x03\x04': (30, {'flag_bits': (6, '<H'), 'compress_type': (8, '<H'), 'file_size': (22, '<I')}),
+    b'PK\x01\x02': (46, {'flag_bits': (8, '<H'), 'compress_type': (10, '<H'), 'file_size': (24, '<I')}),
+}
+
+
+def skill_zip(entries, *, patch: dict[str, dict[str, int]] | None = None) -> bytes:
+    """Build a deflated ZIP in memory from (name or ZipInfo, content) pairs.
+
+    An int content streams that many zero bytes. `patch` overwrites header fields of the named
+    entries after writing, for archives zipfile will not write (writestr resets flag_bits).
+    """
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name, content in entries:
+            if isinstance(content, int):
+                with archive.open(name, 'w') as stream:
+                    for start in range(0, content, len(_ZERO_CHUNK)):
+                        stream.write(_ZERO_CHUNK[: content - start])
+            else:
+                archive.writestr(name, content)
+    data = bytearray(buffer.getvalue())
+    for name, fields in (patch or {}).items():
+        _patch_zip_headers(data, name.encode(), fields)
+    return bytes(data)
+
+
+def _patch_zip_headers(data: bytearray, name: bytes, fields: dict[str, int]) -> None:
+    for signature, (name_at, offsets) in _ZIP_HEADERS.items():
+        start = data.find(signature)
+        while start != -1:
+            if data[start + name_at : start + name_at + len(name)] == name:
+                for field, value in fields.items():
+                    struct.pack_into(offsets[field][1], data, start + offsets[field][0], value)
+            start = data.find(signature, start + 1)

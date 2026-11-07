@@ -113,11 +113,88 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
 
 - [ ] 2.1 Add the upload validator as `backend/open_webui/utils/ocu_skill_zip.py` with its paired test file. It implements every rule of design.md Decision 5:
   - reject absolute paths, `..` components, backslashes, symlinks and encrypted entries;
-  - cap the archive at 2000 entries and the bytes actually read at 200 MB;
+  - accept only stored and deflated entries that are regular files or directories; cap the archive at 2000 entries and the declared uncompressed total at 200 MB, reading every entry CRC-checked;
   - strip a single shared top-level directory;
   - require a root `SKILL.md` whose frontmatter has a valid `name` and a non-empty `description`.
 
   Wire it to its only caller, the first-upload path of admin `POST /upload`, and add the insert table method and the hardcoded reserved list in `routers/ocu_skills.py` (the 29 names at the pinned OCU revision: every `skills/public/` directory name, `remotion`, and every key of `NATIVE_PROMPT_DESCRIPTIONS`, per design.md Decision 4, written as one compact `frozenset` literal): read at most 50 MB plus one byte (413 above 50 MB), validate, reject a reserved name with 400 before any insert, then in one DB transaction insert the row with `data` and replace (never append) the skill's `ocu_skill` grants with the single `user:*` read grant, so a grant orphaned under that name (task 1.2) is never inherited. Every other rejection returns 400. Verify with one validator pytest case per rejection class in spec `ocu-uploaded-skills` "ZIP validation", plus the wrapped-directory acceptance case; and router pytest: a first upload yields a single wildcard grant and the right SHA-256 and size; with an orphan `ocu_skill` / `invoice-builder` group A read grant seeded and no row, a first upload of `invoice-builder` leaves `AccessGrants.get_grants_by_resource` returning exactly the single `user` / `*` / `read` grant; `docx` and `internal-comms` (parametrized rejection cases) each get 400 with the listing and grants unchanged; a 51 MB body gets 413; every rejection leaves the listing and grants unchanged; an injected commit failure (patch the session commit to raise) on a first upload leaves no row or grant, and a success-path spy on the session commit sees exactly one call; after the existing admin "reset uploads" (`routers/retrieval.py:3204-3220`) and "delete all files" (`routers/files.py:562-569`) actions the skill is still listed and its bytes unchanged; a user-role caller gets 401 with the listing and grants unchanged; with the workspace disabled the route gets 404.
+
+      Task 2.1 required evidence (issue #744; each item is input → expected output):
+
+  - **Transport.**
+    - `POST /api/v1/ocu/skills/upload` takes the raw ZIP as the request body (`Content-Type: application/zip`; the type is not checked).
+    - It is read through `request.stream()` with a running byte count. Reading stops after 50 MB plus one byte, and that request gets 413.
+    - Multipart is not used: Starlette spools a whole multipart file before the handler runs, so the cap would not bound what the server reads.
+    - The response is 200 `{name, description, zip_sha256, size}`. `zip_sha256` is the hex SHA-256 of the body bytes and `size` is their length.
+    - A rejection is an `HTTPException` with the reason in `detail`.
+  - **Validator** `backend/open_webui/utils/ocu_skill_zip.py`.
+    - Pure function over bytes, with no DB and no filesystem. It returns the frontmatter `name` and `description`, or raises one error type carrying the reason, which the route maps to 400.
+    - Paired test `backend/open_webui/test/utils/test_ocu_skill_zip.py` uses one in-memory ZIP-building helper. Each case below asserts that the error is raised and that its reason names the class:
+      - absolute path: `/etc/x` and a drive-letter `C:/x`;
+      - a `..` component: `a/../x` and `../../evil.sh` next to a valid `SKILL.md`;
+      - a backslash: `a\x`;
+      - a non-canonical stripped path (`./a` next to `a/b`, `a/./b`, `a//b`, `a//`) and a file path under another file (`SKILL.md` with `SKILL.md/x`, either order, also through a wrapper directory); the conflict check is linear in total path length;
+      - a symlink: an entry whose `external_attr >> 16` has `S_IFLNK`;
+      - an encrypted entry: `flag_bits & 0x1`;
+      - 2001 entries;
+      - over 200 MB uncompressed: one honest deflated entry of 200 MB plus one byte of zeros (about 200 KB compressed), several entries whose sum exceeds the cap, and a 1-byte entry whose declared `file_size` is patched to 200 MB plus one, all rejected by the declared-total check before reading; BZIP2 and LZMA entries rejected by method before reading;
+      - a forged header: an entry whose declared `file_size` is smaller than its real data is rejected, whatever the reason;
+      - no root `SKILL.md`, including mixed top-level directories `a/SKILL.md` plus `b/x`, which are not stripped;
+      - frontmatter that is missing, not YAML or not a mapping;
+      - `name` missing, not a string (`name: 123`), failing `^[a-z0-9][a-z0-9-]{0,63}$` (uppercase, a 65-character name, a leading `-`, a trailing newline), or `description` missing or blank;
+      - a body that is not a ZIP, and an empty body;
+      - stdlib failures while reading, each mapped to the validator's error type (never a 500): a corrupt deflate stream (`zlib.error`), a `SKILL.md` that is not UTF-8 or a UTF-8-flagged entry name with invalid bytes (`UnicodeDecodeError`), and an unsupported feature flag such as compressed-patched data (`NotImplementedError`);
+      - `description` that is not a string (`description: 123`, a list);
+      - a `SKILL.md` larger than 1 MB.
+    - Building the encrypted case: on Python 3.12, `writestr` resets `flag_bits`, so the helper sets bit `0x1` by patching the local and central headers after the archive is written, as the forged-`file_size` case patches sizes.
+    - Frontmatter rule: strip one leading UTF-8 BOM, normalize CRLF to LF, then the first line must be `---` and the frontmatter ends at the next line that is exactly `---`.
+    - Acceptance cases:
+      - root `SKILL.md`;
+      - a CRLF `SKILL.md` with a UTF-8 BOM;
+      - every entry under `invoice-builder/`, with or without a directory entry for it, accepted as if at the root;
+      - directory entries are path-checked but not read, and are left out of the file-conflict check.
+    - Every file entry is read in bounded chunks and CRC-checked; only `SKILL.md` bytes are counted and kept, capped at 1 MB, so peak memory is the 50 MB body plus one chunk plus 1 MB. Frontmatter is parsed with `yaml.safe_load`; PyYAML is already used by `utils/tools.py`, so there is no new dependency.
+    - Must preserve: the top-level strip is the same rule as the pinned OCU extractor (`computer-use-server/skill_manager.py` at `constraints.yaml ocu_checkout.sha`: the first name's first segment plus `/` is a prefix of every name), so a ZIP that WebUI accepts mounts with `SKILL.md` at the root in OCU.
+  - **Reserved names.**
+    - One `frozenset` literal in `routers/ocu_skills.py` holds exactly these 29 names, derived at the pinned OCU revision `4dab0cf30be033ec95818c2108487a61b7213029`:
+      - 16 `skills/public/` directories;
+      - `remotion`;
+      - 27 `NATIVE_PROMPT_DESCRIPTIONS` keys;
+      - the union of these: `algorithmic-art artifacts-builder brand-guidelines canvas-design copy-editing describe-image doc-coauthoring docx file-reading frontend-design gitlab-explorer internal-comms mcp-builder pdf pdf-reading playwright-cli pptx product-marketing-context remotion single-cell-rna-qc skill-creator slack-gif-creator social-content sub-agent test-driven-development theme-factory webapp-testing writing-skills xlsx`.
+    - Router pytest, parametrized over `docx` and `internal-comms`: → 400, and the listing, the grants and the disables are unchanged. The drift test is task 2.3.
+  - **First upload (table method).**
+    - One insert method in `models/ocu_skills.py` does the following in one session with one `commit`:
+      - inserts the row with `data`, `zip_sha256`, `size`, `created_by` (the admin's id) and `created_at`/`updated_at`;
+      - deletes every `ocu_skill` grant and every `ocu_skill_user_disable` row for that name;
+      - adds the single `user` / `*` / `read` grant row.
+    - It does not call `AccessGrants.set_access_grants`, which commits in its own session.
+    - There is no existence pre-check. A primary-key `IntegrityError` at flush or commit (the ORM flushes the added row when the next delete executes) rolls back the whole transaction (including the grant and disable deletes) and is mapped to 409. Sequential and concurrent duplicate uploads therefore take the same path.
+    - Commit spy, in the model test around a direct call of the table method only: exactly one `AsyncSession.commit` call. A spy over a whole request would also count the background `Users.update_last_active_by_id` commit (`utils/auth.py:436`).
+    - Failure path:
+      - In the model test (direct call) and in the router test, `AsyncSession.commit` is patched at class level to raise `RuntimeError('injected commit failure')`, and the test asserts `pytest.raises(RuntimeError, match='injected commit failure')`, as in `test/models/test_ocu_skill_tables.py:216`.
+      - Seed an orphan `ocu_skill` grant and a disable row for the name first. After the patch is removed, the full registry state equals the state before the attempt: no row, `get_by_name` returns `None`, the orphan grant and disable row are still present, and there is no `user:*` grant.
+  - **First upload (route).**
+    - An admin upload of a valid `invoice-builder` ZIP → 200 with `name`, `description`, the SHA-256 of the sent bytes and its length.
+    - `GET /admin` then lists it with exactly the `user` / `*` / `read` grant, and `get_by_name` returns the same bytes.
+    - Orphan case: seed an `ocu_skill` / `invoice-builder` group A read grant and a disable row with no row. A first upload leaves `AccessGrants.get_grants_by_resource` returning exactly the single wildcard grant, and no disable row.
+    - An existing name, with narrowed grants and a disable row → 409 with a reason that names it. The row, data, grants and disables are unchanged; the rolled-back grant and disable deletes are proven by the unchanged state.
+      - This branch is the only behavior for an existing name until task 2.2 replaces it with the replace path. There is no silent overwrite and no 500 from the primary key.
+  - **Rejections leave everything unchanged.**
+    - 51 MB body → 413.
+    - Every 400 class, routed through the endpoint (at least path traversal, the zip bomb, not a ZIP and a reserved name).
+    - Each asserts that the full registry state before and after is equal: the names, the `ocu_skill` grants and the disables.
+  - **Upload-directory resets.**
+    - These actions are destructive on the session-scoped harness DB: they delete every `file` row and reset the vector DB. The test must not rely on other modules' files, and no other module may rely on files surviving it.
+    - After an upload, run the existing admin "reset uploads" (`routers/retrieval.py:3204-3220`) and "delete all files" (`routers/files.py:562-569`) through `TestClient` as an admin; both return success.
+    - The skill is still listed, and `get_by_name(...).data` and its SHA-256 equal the uploaded bytes.
+  - **Auth matrix.**
+    - A user-role caller and a no-session caller → 401 with the state unchanged.
+    - Workspace off: the shared fresh-process helper with `--workspace false` returns 404 for an admin `POST /upload`.
+    - Positive control: `--workspace true` with `skills_role='user'` returns 401.
+  - **Seam and gates.**
+    - No migration, `main.py`, frontend or CI change (`git diff --name-only $(git merge-base HEAD origin/main) -- backend/open_webui/main.py backend/open_webui/migrations src .github` prints nothing).
+    - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass. Each new or changed fork file has at least 80% line coverage, and the validator is covered by its own test file.
+    - The diff is at most 400 lines, or carries `diff-limit-exempt` with the task's slice reason.
 
 - [ ] 2.2 Add the replace path of `POST /upload`: an existing name replaces `data`, SHA-256, size and description in one DB transaction and keeps grants and disables. Verify with router pytest: replace keeps narrowed grants and disables; an injected commit failure (patch the session commit to raise) on a replace leaves the previous row, its `data` and its SHA-256 unchanged (read back through the table get method), and a success-path spy on the session commit sees exactly one call. Add a `smoke/` hurl case for an admin upload, then delete it.
 - [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Add the pinned OCU checkout steps (as in `layer3-integration-tests`, `.github/workflows/ci.yml:111-121`) to `layer2-unit-tests` and export `OCU_CHECKOUT`; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.

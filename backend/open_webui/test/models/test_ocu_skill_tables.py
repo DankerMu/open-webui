@@ -1,4 +1,4 @@
-"""Uploaded-skill registry tables, list-all/get accessors and the add_ocu_skill migration."""
+"""Uploaded-skill registry tables, list-all/get/insert/delete accessors and the add_ocu_skill migration."""
 
 from __future__ import annotations
 
@@ -220,6 +220,95 @@ async def test_delete_commit_failure_keeps_row_grants_and_disables():
     row = await OcuSkills.get_by_name('del-a')
     assert row is not None and row.data == b'ZIPdel-a'
     assert await _grants_and_disables('del-a') == ([('user', '*', 'read')], ['user-u'])
+
+
+async def _seed_orphans(name: str) -> None:
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.ocu_skills import OcuSkillUserDisable
+
+    await AccessGrants.grant_access('ocu_skill', name, 'group', 'group-a', 'read')
+    async with get_async_db() as db:
+        db.add(OcuSkillUserDisable(user_id='user-u', skill_name=name))
+        await db.commit()
+
+
+async def _insert(name: str):
+    from open_webui.models.ocu_skills import OcuSkills
+
+    return await OcuSkills.insert_with_everyone_grant(
+        name=name, description=f'{name} description', data=b'PK-' + name.encode(), created_by='admin-id'
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_insert_writes_row_and_replaces_orphans_with_one_wildcard_grant_in_one_commit():
+    import hashlib
+    from unittest.mock import patch
+
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    await _seed_orphans('ins-a')
+    commits = []
+    original_commit = AsyncSession.commit
+
+    async def spy(self):
+        commits.append(self)
+        await original_commit(self)
+
+    with patch.object(AsyncSession, 'commit', spy):
+        inserted = await _insert('ins-a')
+
+    assert len(commits) == 1
+    row = await OcuSkills.get_by_name('ins-a')
+    assert row is not None and row.model_dump(exclude={'data'}) == inserted.model_dump()
+    assert (row.data, row.zip_sha256, row.size) == (b'PK-ins-a', hashlib.sha256(b'PK-ins-a').hexdigest(), 8)
+    assert (row.description, row.created_by, row.created_at) == ('ins-a description', 'admin-id', row.updated_at)
+    assert await _grants_and_disables('ins-a') == ([('user', '*', 'read')], [])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_insert_commit_failure_writes_nothing_and_keeps_orphans():
+    from unittest.mock import patch
+
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    await _seed_orphans('ins-a')
+    before = await _grants_and_disables('ins-a')
+
+    async def failing_commit(self):
+        raise RuntimeError('injected commit failure')
+
+    with patch.object(AsyncSession, 'commit', failing_commit):
+        with pytest.raises(RuntimeError, match='injected commit failure'):
+            await _insert('ins-a')
+
+    assert await OcuSkills.get_all() == []
+    assert await OcuSkills.get_by_name('ins-a') is None
+    assert before == ([('group', 'group-a', 'read')], ['user-u'])
+    assert await _grants_and_disables('ins-a') == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_insert_of_existing_name_raises_integrity_error_and_rolls_back_the_purge():
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.exc import IntegrityError
+
+    await _seed('ins-a')
+    await _seed_orphans('ins-a')
+    before = await _grants_and_disables('ins-a')
+
+    with pytest.raises(IntegrityError):
+        await _insert('ins-a')
+
+    row = await OcuSkills.get_by_name('ins-a')
+    assert row is not None and (row.data, row.zip_sha256) == (b'ZIPins-a', 'sha-ins-a')
+    assert await _grants_and_disables('ins-a') == before
 
 
 def test_registry_schema_matches_the_data_model():
