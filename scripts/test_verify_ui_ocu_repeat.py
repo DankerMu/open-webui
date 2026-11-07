@@ -1,4 +1,4 @@
-"""Repeat entry point validation for scripts/verify-ui-ocu.py (OCU_UI_SPEC + OCU_UI_REPEAT)."""
+"""Entry point validation for scripts/verify-ui-ocu.py: repeat (OCU_UI_SPEC + OCU_UI_REPEAT) and OCU_UI_SHARD."""
 
 import importlib.util
 from pathlib import Path
@@ -20,6 +20,7 @@ def selection(monkeypatch):
     monkeypatch.delenv('OCU_UI_SPEC', raising=False)
     monkeypatch.delenv('OCU_UI_REPEAT', raising=False)
     monkeypatch.delenv('OCU_UI_GREP', raising=False)
+    monkeypatch.delenv('OCU_UI_SHARD', raising=False)
 
     def reject(message: str) -> None:
         raise Rejected(message)
@@ -135,3 +136,60 @@ def test_harness_alarm_scales_only_with_the_repeat_count():
     assert HARNESS.harness_alarm(1) == 1500
     assert HARNESS.harness_alarm(2) == 2100
     assert HARNESS.harness_alarm(20) == 12900
+
+
+@pytest.fixture
+def shard(monkeypatch):
+    for name in ('OCU_UI_SPEC', 'OCU_UI_REPEAT', 'OCU_UI_GREP', 'OCU_UI_SHARD'):
+        monkeypatch.delenv(name, raising=False)
+
+    def reject(message: str) -> None:
+        raise Rejected(message)
+
+    monkeypatch.setattr(HARNESS, 'fail', reject)
+
+    def select(value: str | None, **extra: str):
+        if value is not None:
+            monkeypatch.setenv('OCU_UI_SHARD', value)
+        for name, setting in extra.items():
+            monkeypatch.setenv(name, setting)
+        return HARNESS.shard_selection()
+
+    return select
+
+
+def test_shard_unset_selects_the_whole_default_run(shard):
+    assert shard(None) is None
+
+
+@pytest.mark.parametrize('value', ['1/1', '1/3', '3/3', '10/12'])
+def test_valid_shard_is_returned_verbatim(shard, value):
+    assert shard(value) == value
+
+
+@pytest.mark.parametrize('value', ['', '0/3', '4/3', '1/0', '01/3', '1/03', 'a/b', '1-3', '1/3 ', ' 1/3', '1/3/5', '2'])
+def test_malformed_or_out_of_range_shard_fails(shard, value):
+    with pytest.raises(Rejected, match='OCU_UI_SHARD must be <current>/<total>'):
+        shard(value)
+
+
+@pytest.mark.parametrize(
+    'extra',
+    [
+        {'OCU_UI_SPEC': 'ocu-workspace.e2e.ts', 'OCU_UI_REPEAT': '2'},
+        {'OCU_UI_SPEC': 'ocu-workspace.e2e.ts'},
+        {'OCU_UI_REPEAT': '2'},
+    ],
+)
+def test_shard_cannot_combine_with_the_repeat_entry_point(shard, extra):
+    with pytest.raises(Rejected, match='OCU_UI_SHARD cannot combine with OCU_UI_SPEC or OCU_UI_REPEAT'):
+        shard('1/3', **extra)
+
+
+def test_harness_forwards_the_shard_only_to_the_run_and_keeps_full_discovery():
+    assert HARNESS.BrowserHarness(None).shard_args == []
+    sharded = HARNESS.BrowserHarness(None, '2/3')
+    assert sharded.shard_args == ['--shard', '2/3']
+    # Discovery still has to find every required spec, so no shard narrows it.
+    assert sharded.specs == HARNESS.REQUIRED_SPECS
+    assert sharded.spec_args == []

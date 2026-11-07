@@ -102,6 +102,7 @@ FILTER_SOURCES = {
 # Collected only through the repeat entry point (OCU_UI_SPEC); never part of the default run.
 DIAGNOSTIC_SPECS = ('ocu-popup-release.e2e.ts',)
 REPEAT_RE = re.compile(r'^[1-9][0-9]*$')
+SHARD_RE = re.compile(r'^([1-9][0-9]*)/([1-9][0-9]*)$')
 
 
 def repeat_selection() -> tuple[str, int, str | None] | None:
@@ -127,14 +128,34 @@ def repeat_selection() -> tuple[str, int, str | None] | None:
     return spec, int(repeat), grep
 
 
+def shard_selection() -> str | None:
+    """Validate OCU_UI_SHARD (CI fan-out of the default run) before any owned service starts.
+
+    None runs every required spec; otherwise '<current>/<total>' for Playwright --shard.
+    """
+    shard = os.environ.get('OCU_UI_SHARD')
+    if shard is None:
+        return None
+    match = SHARD_RE.match(shard)
+    if not match or int(match.group(1)) > int(match.group(2)):
+        fail('OCU_UI_SHARD must be <current>/<total> with 1 <= current <= total')
+    # A shard splits the default required-spec run; the repeat path already narrows to one spec.
+    if os.environ.get('OCU_UI_SPEC') is not None or os.environ.get('OCU_UI_REPEAT') is not None:
+        fail('OCU_UI_SHARD cannot combine with OCU_UI_SPEC or OCU_UI_REPEAT')
+    return shard
+
+
 def harness_alarm(repeat_count: int) -> int:
     # The only timing change on the opt-in path: one spec repeated n times may outlast the default run.
     return max(1500, 900 + 600 * repeat_count)
 
 
 class BrowserHarness(Smoke):
-    def __init__(self, selection: tuple[str, int, str | None] | None = None) -> None:
+    def __init__(self, selection: tuple[str, int, str | None] | None = None, shard: str | None = None) -> None:
         super().__init__()
+        self.shard = shard
+        # Only the run is sharded: discovery still lists every required spec in every shard.
+        self.shard_args = ['--shard', shard] if shard else []
         self.specs = (selection[0],) if selection else REQUIRED_SPECS
         self.repeat_count = selection[1] if selection else 1
         self.spec_env = {'OCU_UI_SPEC': selection[0]} if selection else {}
@@ -614,6 +635,7 @@ class BrowserHarness(Smoke):
                     *self.spec_args,
                     *self.repeat_args,
                     *self.grep_args,
+                    *self.shard_args,
                 ],
                 cwd=self.root,
                 env=browser_env,
@@ -639,7 +661,10 @@ class BrowserHarness(Smoke):
                 sys.stdout.write(redact(output.read(), self.secrets))
         if code:
             fail(f'workspace browser verification failed ({code})')
-        log.info('verify-ui-ocu: all required browser cases completed')
+        if self.shard:
+            log.info('verify-ui-ocu: browser cases of shard %s completed', self.shard)
+        else:
+            log.info('verify-ui-ocu: all required browser cases completed')
         return 0
 
 
@@ -647,6 +672,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format='%(message)s')
     try:
         selection = repeat_selection()
+        shard = shard_selection()
     except Fail as cop:
         log.error('verify-ui-ocu: %s', cop)
         return 1
@@ -654,7 +680,7 @@ def main() -> int:
     signal.signal(signal.SIGALRM, lambda _signum, _frame: fail(f'workspace harness exceeded {alarm} seconds'))
     signal.alarm(alarm)
     try:
-        return run_owned_lifecycle(BrowserHarness(selection), log)
+        return run_owned_lifecycle(BrowserHarness(selection, shard), log)
     finally:
         signal.alarm(0)
 

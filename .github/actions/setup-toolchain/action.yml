@@ -1,0 +1,97 @@
+# Toolchain setup shared by the ci.yml jobs, sized to what each job runs so no job restores a
+# cache it never reads. Runs after actions/checkout (a local action is read from the checkout).
+name: Setup toolchain
+description: Node with a lockfile-keyed node_modules cache, Python via uv, and the runtime-harness tools.
+inputs:
+  node:
+    description: "'true' restores node_modules (npm ci on a cache miss); 'false' skips Node."
+    required: true
+  python:
+    description: "'full' = backend dependencies + dev group (3 GB uv cache), 'dev' = dev group only (ruff, vulture, pytest), 'none'."
+    required: true
+  runtime:
+    description: "'true' installs hurl and native nginx and checks out the pinned OCU revision under .run/open-computer-use."
+    default: 'false'
+  browser:
+    description: "'true' installs Playwright Chromium with its system dependencies."
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    # A misspelt input must fail the job, not silently skip a toolchain.
+    - name: Validate setup inputs
+      shell: bash
+      env:
+        NODE: ${{ inputs.node }}
+        PY: ${{ inputs.python }}
+        RUNTIME: ${{ inputs.runtime }}
+        BROWSER: ${{ inputs.browser }}
+      run: |
+        bad=0
+        for pair in "node=$NODE" "runtime=$RUNTIME" "browser=$BROWSER"; do
+          case "${pair#*=}" in true|false) ;; *) echo "::error::setup-toolchain ${pair%%=*} must be true or false, got '${pair#*=}'"; bad=1 ;; esac
+        done
+        case "$PY" in full|dev|none) ;; *) echo "::error::setup-toolchain python must be full, dev or none, got '$PY'"; bad=1 ;; esac
+        exit "$bad"
+
+    - if: inputs.node == 'true'
+      id: node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .tool-versions
+    # node_modules itself, not the npm download cache: `npm ci` re-extracting ~1 GB from the
+    # npm cache took ~55 s per job; restoring node_modules takes seconds.
+    - if: inputs.node == 'true'
+      id: node-modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
+    - if: inputs.node == 'true' && steps.node-modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: npm ci
+
+    - if: inputs.python != 'none'
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: .python-version
+    # The full environment keeps the default cache key, which agents-md-liveness.yml also reads;
+    # the dev-only environment gets its own small cache instead of restoring the 3 GB one.
+    - if: inputs.python != 'none'
+      uses: astral-sh/setup-uv@v10.1.0
+      with:
+        enable-cache: true
+        cache-suffix: ${{ inputs.python == 'dev' && 'dev-only' || '' }}
+    - if: inputs.python == 'full'
+      shell: bash
+      run: uv sync --frozen --group dev --no-install-project
+    - if: inputs.python == 'dev'
+      shell: bash
+      run: uv sync --frozen --only-group dev --no-install-project
+
+    - if: inputs.runtime == 'true'
+      name: Install hurl and native nginx with auth_request
+      shell: bash
+      run: |
+        curl -fsSL --retry 3 -o /tmp/hurl.deb \
+          https://github.com/Orange-OpenSource/hurl/releases/download/8.0.1/hurl_8.0.1_amd64.deb
+        sudo apt-get update
+        sudo apt-get install -y nginx-full /tmp/hurl.deb
+    - if: inputs.runtime == 'true'
+      name: Resolve pinned OCU SHA
+      id: ocu
+      shell: bash
+      run: |
+        SHA=$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("constraints.yaml").read_text(); m=re.search(r"ocu_checkout:\n(?:  .*\n)*?  sha:\s*\"([0-9a-f]{40})\"", t); sys.exit("constraints.yaml missing ocu_checkout.sha") if not m else print(m.group(1))')
+        echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+    - if: inputs.runtime == 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: DankerMu/open-computer-use
+        ref: ${{ steps.ocu.outputs.sha }}
+        path: .run/open-computer-use
+        persist-credentials: false
+
+    - if: inputs.browser == 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium

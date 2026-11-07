@@ -5,7 +5,23 @@
 # tests, so a per-file gate there would freeze every upstream touch (baseline
 # freeze, Q1.4b). Remove the advisory carve-out when baseline.counts.coverage_gap
 # reaches 0.
+#
+# usage: scripts/coverage-gate.sh [--only backend|frontend]
+#   --only PART  gate one half; CI runs the two halves in parallel jobs. The
+#                backend half's pytest run is also CI's backend test run, so it
+#                prints the whole pytest log on failure. Any other argument exits 2.
 set -u
+only=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --only)
+      case "${2:-}" in
+        backend|frontend) only="$2"; shift 2 ;;
+        *) echo "coverage-gate: --only accepts 'backend' or 'frontend', got '${2:-}'" >&2; exit 2 ;;
+      esac ;;
+    *) echo "coverage-gate: unknown argument '$1'" >&2; exit 2 ;;
+  esac
+done
 repo_root="$(git rev-parse --show-toplevel)" || exit 2
 cd "$repo_root" || exit 2
 min="$(sed -n '/^testing:/,/^dependencies:/p' constraints.yaml | sed -n 's/^ *value: *\([0-9]*\).*/\1/p' | head -n 1)"
@@ -16,13 +32,20 @@ fail=0
 added_py="$(bash scripts/change-scope.sh --status --ext py | awk -F'\t' '$1=="A"{print $2}' | grep '^backend/open_webui/' | grep -v '/test_' | grep -v '/tests/' | grep -v '^backend/open_webui/test/' || true)"
 mod_py="$(bash scripts/change-scope.sh --status --ext py | awk -F'\t' '$1=="M"{print $2}' | grep '^backend/open_webui/' || true)"
 added_web="$(bash scripts/change-scope.sh --status --ext "ts js svelte" | awk -F'\t' '$1=="A"{print $2}' | grep '^src/' | grep -v '\.test\.' || true)"
+[ "$only" = frontend ] && added_py="" && mod_py=""
+[ "$only" = backend ] && added_web=""
 
 if [ -n "$added_py$mod_py" ]; then
   echo "--- backend coverage (pytest --cov)"
   (
     cd backend || exit 2
-    uv run --quiet pytest -q --cov=open_webui --cov-report= -p no:cacheprovider open_webui 2>&1 | tail -n 3
-    exit "${PIPESTATUS[0]}"
+    log="$(mktemp "${TMPDIR:-/tmp}/coverage-gate-pytest.XXXXXX")" || exit 2
+    uv run --quiet pytest -q --cov=open_webui --cov-report= -p no:cacheprovider open_webui > "$log" 2>&1
+    status=$?
+    # A failed run shows its tracebacks; a passing (or uncollected) run only its summary.
+    if [ "$status" -ne 0 ] && [ "$status" -ne 5 ]; then cat "$log"; else tail -n 3 "$log"; fi
+    rm -f "$log"
+    exit "$status"
   )
   pytest_status=$?
   # Match test-backend's no-tests-collected tolerance (pytest exit 5).

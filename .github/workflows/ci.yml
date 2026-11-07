@@ -29,97 +29,114 @@ env:
   UV_NO_SYNC: '1'
 
 jobs:
+  # Docs-only pull requests skip the code jobs. A workflow-level `paths` filter would not do:
+  # the required `All checks passed` check would then never report and block the PR forever.
+  # Pushes to main always run everything.
+  changes:
+    name: Change classification
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.classify.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/ci-gate.py
+          sparse-checkout-cone-mode: false
+      - name: Classify changed paths
+        id: classify
+        # An explicit bash runs with pipefail, so a failed classification is not hidden by tee.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "code=true" | tee -a "$GITHUB_OUTPUT"; exit 0; fi
+          gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | [.filename, (.previous_filename // "")] | @tsv' > "$RUNNER_TEMP/paths"
+          python3 scripts/ci-gate.py classify --expected-files "$CHANGED_FILES" < "$RUNNER_TEMP/paths" | tee -a "$GITHUB_OUTPUT"
+
   layer1-fast-checks:
     name: Fast checks (fmt + lint + typecheck)
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Full history with blobs: lint-scoped lints every modified file's baseline revision.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          node: 'true'
+          python: dev
+      # fmt-check also covers Markdown (prettier), so it runs on docs-only PRs.
+      - run: make fmt-check
+      - if: needs.changes.outputs.code == 'true'
+        run: make lint
+      - if: needs.changes.outputs.code == 'true'
+        run: make typecheck
+      - if: needs.changes.outputs.code == 'true'
+        run: make lint-scoped
+
+  # Its pytest run is CI's backend test run (make test-backend would repeat it), so the
+  # gate prints the whole pytest log when a test fails.
+  layer2-backend-tests:
+    name: Backend tests + coverage gate
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # The change scope needs commits and trees back to the upstream base, not old blobs.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          node: 'false'
+          python: full
+      - run: make coverage-gate PART=backend
+
+  layer2-frontend-tests:
+    name: Frontend tests + coverage gate
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          filter: blob:none
+      - uses: ./.github/actions/setup-toolchain
         with:
-          node-version-file: .tool-versions
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --group dev --no-install-project
-      - run: npm ci
-      - run: make fmt-check
-      - run: make lint
-      - run: make typecheck
-      - run: make lint-scoped
+          node: 'true'
+          python: none
+      # test-frontend also runs the e2e/ Vitest files the coverage run excludes.
+      - run: make test-frontend
+      - run: make coverage-gate PART=frontend
 
-  layer2-unit-tests:
-    name: Unit tests + coverage gate
-    needs: layer1-fast-checks
+  layer3-runtime-smoke:
+    name: Runtime smoke (migrations + API + proxy)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          filter: blob:none
+      - uses: ./.github/actions/setup-toolchain
         with:
-          node-version-file: .tool-versions
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --group dev --no-install-project
-      - run: npm ci
-      - run: make test
-      - run: make coverage-gate
-
-  layer3-integration-tests:
-    name: Runtime verification (smoke + migrations + UI)
-    # Fans out from layer1 alongside layer2: the repo is public (runner minutes are
-    # free), so serialising smoke behind unit tests only lengthened the critical path.
-    needs: layer1-fast-checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .tool-versions
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --group dev --no-install-project
-      - run: npm ci
-      - name: Install hurl
-        run: |
-          curl -fsSL --retry 3 -o /tmp/hurl.deb \
-            https://github.com/Orange-OpenSource/hurl/releases/download/8.0.1/hurl_8.0.1_amd64.deb
-          sudo dpkg -i /tmp/hurl.deb
-      - name: Install native nginx with auth_request
-        run: sudo apt-get update && sudo apt-get install -y nginx-full
-      - name: Resolve pinned OCU SHA
-        id: ocu
-        run: |
-          SHA=$(python3 -c 'import pathlib,re,sys; t=pathlib.Path("constraints.yaml").read_text(); m=re.search(r"ocu_checkout:\n(?:  .*\n)*?  sha:\s*\"([0-9a-f]{40})\"", t); sys.exit("constraints.yaml missing ocu_checkout.sha") if not m else print(m.group(1))')
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
-        with:
-          repository: DankerMu/open-computer-use
-          ref: ${{ steps.ocu.outputs.sha }}
-          path: .run/open-computer-use
-          persist-credentials: false
-      - run: npx playwright install --with-deps chromium
+          node: 'true'
+          python: full
+          runtime: 'true'
       - run: make db-verify
       - run: make dev-bg
       - run: make smoke
@@ -127,16 +144,44 @@ jobs:
         env:
           OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
         run: make smoke-proxy
+      - run: make dev-stop
+        if: always()
+
+  # The baseline and OCU browser runs split into Playwright shards, one per runner; together
+  # the shards are exactly `make verify-ui`. Three balance best on the measured spec times
+  # (each ~3.5 min of browser time); a fourth would not shorten the longest shard.
+  layer3-browser:
+    name: Browser verification (shard ${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Every shard reports, so one failure does not hide another.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          node: 'true'
+          python: full
+          runtime: 'true'
+          browser: 'true'
       - name: Baseline and isolated workspace browser verification
         id: workspace_browser
         env:
           OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
-        run: make verify-ui
+        run: make verify-ui SHARD=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload workspace browser failure evidence
         if: failure() && steps.workspace_browser.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: workspace-browser-failure
+          name: workspace-browser-failure-shard-${{ matrix.shard }}
           retention-days: 7
           if-no-files-found: error
           include-hidden-files: true
@@ -158,28 +203,22 @@ jobs:
 
   layer4-anti-drift:
     name: Anti-drift (duplicate + dead code, scoped) + docs
-    needs: layer1-fast-checks
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # knip's ratchet diffs modified files against the baseline revision's blobs.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/setup-toolchain
         with:
-          node-version-file: .tool-versions
-          cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-      - uses: astral-sh/setup-uv@v10.1.0
-        with:
-          enable-cache: true
-      - run: uv sync --frozen --group dev --no-install-project
-      - run: npm ci
+          node: 'true'
+          python: dev
       - name: Verify constraints.yaml is the naming-guard source
         run: grep -q 'constraints\.yaml' .git-hooks/check-naming.sh
-      - run: make anti-drift
+      - if: needs.changes.outputs.code == 'true'
+        run: make anti-drift
       - run: make doc-gate
       - run: make decisions-verify
 
@@ -250,9 +289,12 @@ jobs:
     name: All checks passed
     if: always()
     needs:
+      - changes
       - layer1-fast-checks
-      - layer2-unit-tests
-      - layer3-integration-tests
+      - layer2-backend-tests
+      - layer2-frontend-tests
+      - layer3-runtime-smoke
+      - layer3-browser
       - layer4-anti-drift
       - layer5-secret-scan
       - lockfile-consistency
@@ -260,20 +302,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Fail on any failed, cancelled, or skipped required job
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/ci-gate.py
+          sparse-checkout-cone-mode: false
+      - name: Fail on any failed, cancelled, or wrongly skipped required job
         env:
           NEEDS: ${{ toJSON(needs) }}
           EVENT: ${{ github.event_name }}
+          CODE: ${{ needs.changes.outputs.code }}
         run: |
           echo "$NEEDS"
-          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled)"'; then
-            echo "::error::A required job failed or was cancelled."
-            exit 1
-          fi
-          # Skipped counts as failure because GitHub counts a skipped required check as passing.
-          # The two PR-only jobs (lockfile-consistency, layer6-diff-size-guard) are skipped by
-          # design on push events, so skipped is only a failure on pull_request.
-          if [ "$EVENT" = "pull_request" ] && echo "$NEEDS" | grep -Eq '"result": "skipped"'; then
-            echo "::error::A required job was skipped on a pull request."
-            exit 1
-          fi
+          python3 scripts/ci-gate.py verdict

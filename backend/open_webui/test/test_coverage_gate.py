@@ -28,6 +28,10 @@ args = sys.argv[1:]
 if command == 'uv' and args[:3] == ['run', '--quiet', 'pytest']:
     operation = 'pytest'
     status = int(os.environ['GATE_PYTEST_STATUS'])
+    if status:
+        # A traceback far above the summary: the gate must not cut it off on failure.
+        print('TRACEBACK-MARKER assert 1 == 2')
+        print('\n'.join(f'filler {index}' for index in range(5)))
     print('1 failed' if status else '1 passed')
 elif command == 'uv' and args[:4] == ['run', '--quiet', 'coverage', 'report']:
     gated = any(arg.startswith('--fail-under=') for arg in args)
@@ -119,6 +123,7 @@ def run_gate(
     advisory_status=0,
     frontend_status=0,
     file_coverage=None,
+    part=None,
 ):
     workspace, record, base_env = coverage_gate
     (workspace / 'scope-py').write_text(python_scope, encoding='utf-8')
@@ -133,7 +138,7 @@ def run_gate(
     if file_coverage is not None:
         env['GATE_FILE_COVERAGE'] = json.dumps(file_coverage)
     completed = subprocess.run(
-        ['make', 'coverage-gate'],
+        ['make', 'coverage-gate', *([f'PART={part}'] if part is not None else [])],
         cwd=workspace,
         env=env,
         capture_output=True,
@@ -274,3 +279,69 @@ def test_failed_file_report_continues_other_files_advisory_and_frontend(coverage
         < outcomes.index({'operation': 'vitest', 'status': 0})
     ), output
     assert completed.returncode != 0, output
+
+
+def test_failed_backend_tests_print_the_whole_log(coverage_gate):
+    completed, _ = run_gate(coverage_gate, pytest_status=1)
+    assert 'TRACEBACK-MARKER assert 1 == 2' in completed.stdout, completed.stdout + completed.stderr
+    assert completed.returncode != 0
+
+
+def test_passing_backend_tests_print_only_the_summary(coverage_gate):
+    completed, _ = run_gate(coverage_gate)
+    assert '1 passed' in completed.stdout, completed.stdout + completed.stderr
+    assert 'TRACEBACK-MARKER' not in completed.stdout
+
+
+def test_backend_part_runs_only_the_backend_half(coverage_gate):
+    completed, outcomes = run_gate(
+        coverage_gate,
+        python_scope=ADDED_PYTHON + MODIFIED_PYTHON,
+        web_scope=ADDED_FRONTEND,
+        frontend_status=1,
+        part='backend',
+    )
+    output = completed.stdout + completed.stderr
+    assert [item['operation'] for item in outcomes] == ['pytest', 'coverage', 'advisory'], output
+    assert completed.returncode == 0, output
+
+
+def test_backend_part_still_rejects_failed_backend_tests(coverage_gate):
+    completed, _ = run_gate(coverage_gate, pytest_status=1, part='backend')
+    assert completed.returncode != 0, completed.stdout + completed.stderr
+
+
+def test_frontend_part_runs_only_the_frontend_half(coverage_gate):
+    completed, outcomes = run_gate(
+        coverage_gate,
+        python_scope=ADDED_PYTHON + MODIFIED_PYTHON,
+        web_scope=ADDED_FRONTEND,
+        pytest_status=1,
+        part='frontend',
+    )
+    output = completed.stdout + completed.stderr
+    assert [item['operation'] for item in outcomes] == ['vitest'], output
+    assert completed.returncode == 0, output
+
+
+def test_frontend_part_still_rejects_failed_frontend_tests(coverage_gate):
+    completed, _ = run_gate(coverage_gate, web_scope=ADDED_FRONTEND, frontend_status=1, part='frontend')
+    assert completed.returncode != 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize('arguments', [['--only', 'both'], ['--only'], ['--only', ''], ['--frontend']])
+def test_unknown_part_fails_before_any_tool_starts(coverage_gate, arguments):
+    workspace, record, env = coverage_gate
+    record.unlink(missing_ok=True)
+    (workspace / 'scope-web').write_text(ADDED_FRONTEND, encoding='utf-8')
+    completed = subprocess.run(
+        ['bash', 'scripts/coverage-gate.sh', *arguments],
+        cwd=workspace,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert completed.returncode == 2, completed.stdout + completed.stderr
+    assert 'coverage-gate:' in completed.stderr
+    assert not record.exists()
