@@ -152,7 +152,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
       - a CRLF `SKILL.md` with a UTF-8 BOM;
       - every entry under `invoice-builder/`, with or without a directory entry for it, accepted as if at the root;
       - directory entries are ignored.
-    - Bytes are read in bounded chunks and counted. Only `SKILL.md` is kept, capped at 1 MB, so peak memory is the 50 MB body plus one chunk plus 1 MB. Frontmatter is parsed with `yaml.safe_load`; PyYAML is already used by `utils/tools.py`, so there is no new dependency.
+    - Every file entry is read in bounded chunks and CRC-checked; only `SKILL.md` bytes are counted and kept, capped at 1 MB, so peak memory is the 50 MB body plus one chunk plus 1 MB. Frontmatter is parsed with `yaml.safe_load`; PyYAML is already used by `utils/tools.py`, so there is no new dependency.
     - Must preserve: the top-level strip is the same rule as the pinned OCU extractor (`computer-use-server/skill_manager.py` at `constraints.yaml ocu_checkout.sha`: the first name's first segment plus `/` is a prefix of every name), so a ZIP that WebUI accepts mounts with `SKILL.md` at the root in OCU.
   - **Reserved names.**
     - One `frozenset` literal in `routers/ocu_skills.py` holds exactly these 29 names, derived at the pinned OCU revision `4dab0cf30be033ec95818c2108487a61b7213029`:

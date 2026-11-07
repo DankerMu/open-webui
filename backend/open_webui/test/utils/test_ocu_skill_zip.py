@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import stat
+import struct
+import time
 import zipfile
 
 import pytest
@@ -45,6 +48,16 @@ REJECTIONS = {
     # OCU extracts SKILL.md as a file and then needs it as the directory of SKILL.md/x.
     'file-then-path-under-it': ([VALID, ('SKILL.md/x', 'y')], {}, "under file entry 'SKILL.md'"),
     'path-under-file-then-file': ([('a/x', 'y'), VALID, ('a', 'z')], {}, "under file entry 'a'"),
+    'path-under-file-after-strip': (
+        [('s/SKILL.md', SKILL_MD), ('s/a', 'y'), ('s/a/b', 'z')],
+        {},
+        "'a/b' lies under file entry 'a'",
+    ),
+    # OCU joins the stripped path without normalizing it, so './a' and 'a' would be two entries.
+    'dot-segment-leading': ([VALID, ('./a', 'y'), ('a/b', 'z')], {}, "non-canonical entry path '\\./a'"),
+    'dot-segment-inner': ([VALID, ('a/./b', 'y')], {}, "non-canonical entry path 'a/\\./b'"),
+    'empty-segment': ([VALID, ('a//b', 'y')], {}, "non-canonical entry path 'a//b'"),
+    'empty-segment-directory': ([VALID, ('a//', b'')], {}, "non-canonical entry path 'a//'"),
     'encrypted': ([VALID, ('secret', 'x')], {'secret': {'flag_bits': 0x1}}, 'encrypted'),
     'too-many-entries': ([VALID, *((f'f{i}', '') for i in range(2000))], {}, '2001 entries'),
     'bomb-one-entry': ([VALID, ('zeros', 200 * MB + 1)], {}, DECLARED),
@@ -112,6 +125,43 @@ def test_rejects_a_utf8_flagged_entry_name_that_is_not_utf8():
         validate_skill_zip(body)
 
 
+def _duplicate_central_record(body: bytes, name: str, size: int) -> bytes:
+    # A second central-directory record for `name` points at the same local header and declares
+    # `size` bytes; zipfile only warns about the overlap, then runs out of stored data reading it.
+    eocd = body.rfind(b'PK\x05\x06')
+    count, cd_size, cd_offset = struct.unpack_from('<HII', body, eocd + 10)
+    record = cd_offset
+    while body[record + 46 : record + 46 + len(name)] != name.encode():
+        record = body.find(b'PK\x01\x02', record + 1)
+    end = cd_offset + cd_size
+    forged = bytearray(body[record:end])
+    struct.pack_into('<II', forged, 20, size, size)
+    tail = bytearray(body[eocd:])
+    struct.pack_into('<HHI', tail, 8, count + 1, count + 1, cd_size + len(forged))
+    return body[:record] + bytes(forged) + body[record:end] + bytes(tail)
+
+
+def test_rejects_a_duplicated_central_record_that_overruns_the_archive():
+    stored = io.BytesIO()
+    with zipfile.ZipFile(stored, 'w', zipfile.ZIP_STORED) as archive:
+        archive.writestr(*VALID)
+        archive.writestr('payload', 'x' * 10)
+    body = _duplicate_central_record(stored.getvalue(), 'payload', 10 * MB)
+
+    with pytest.warns(UserWarning), pytest.raises(SkillZipError, match='EOFError'):
+        validate_skill_zip(body)
+
+
+def test_checks_a_deep_entry_path_in_linear_time():
+    # 32,000 segments in a 64 KB name; a quadratic parent check spends seconds on each such entry.
+    deep = '/'.join(['a'] * 32_000)
+    body = skill_zip([VALID, (deep, ''), (deep[:-1] + 'b', '')])
+
+    started = time.perf_counter()
+    assert validate_skill_zip(body) == ('invoice-builder', 'Builds invoices')
+    assert time.perf_counter() - started < 0.5
+
+
 ACCEPTED = {
     'root': [VALID, ('scripts/run.py', 'print(1)')],
     'bom-crlf': [('SKILL.md', '\ufeff' + SKILL_MD.replace('\n', '\r\n'))],
@@ -122,6 +172,8 @@ ACCEPTED = {
         ('invoice-builder/scripts/', b''),
     ],
     'entry-limit': [VALID, *((f'f{i}', '') for i in range(1999))],
+    # Every name starts with './', so './' is the stripped wrapper and no '.' segment remains.
+    'dot-slash-wrapper': [('./', b''), ('./SKILL.md', SKILL_MD), ('./scripts/', b''), ('./scripts/run.py', 'x')],
 }
 
 

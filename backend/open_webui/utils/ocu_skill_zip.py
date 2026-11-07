@@ -6,6 +6,7 @@ with the reason, which the upload route returns as a 400.
 
 from __future__ import annotations
 
+import bisect
 import io
 import re
 import stat
@@ -26,9 +27,10 @@ _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
 _FILE_TYPES = (0, stat.S_IFREG, stat.S_IFDIR)
 _QUOTED_CHARS = 200
 # zipfile and its decompressors report a corrupt archive or deflate stream (BadZipFile, zlib.error),
-# an unsupported header feature (NotImplementedError) and an entry name that is not the UTF-8 its
-# flag claims (UnicodeDecodeError) through these; each is the uploader's error, never the server's.
-_STDLIB_READ_ERRORS = (zipfile.BadZipFile, zlib.error, NotImplementedError, UnicodeDecodeError)
+# a stored entry that declares more bytes than the archive holds (EOFError), an unsupported header
+# feature (NotImplementedError) and an entry name that is not the UTF-8 its flag claims
+# (UnicodeDecodeError) through these; each is the uploader's error, never the server's.
+_STDLIB_READ_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, UnicodeDecodeError)
 
 
 class SkillZipError(Exception):
@@ -61,15 +63,24 @@ def _check_path(path: str) -> None:
         raise SkillZipError(f"'..' component in entry path {_quoted(path)}")
 
 
+def _check_canonical(stripped: str, is_dir: bool) -> None:
+    # OCU joins the stripped path without normalizing it, so './a' and 'a' would be two entries.
+    # A directory entry ends in one '/'; the wrapper directory itself strips to ''.
+    path = stripped.removesuffix('/') if is_dir else stripped
+    if (path or not is_dir) and {'', '.'} & set(path.split('/')):
+        raise SkillZipError(f'non-canonical entry path {_quoted(stripped)}')
+
+
 def _check_file_tree(files: list[str]) -> None:
     # OCU writes each file at its stripped path, so a file cannot also be a parent directory.
-    known = set(files)
-    for path in files:
-        parts = path.split('/')
-        for depth in range(1, len(parts)):
-            parent = '/'.join(parts[:depth])
-            if parent in known:
-                raise SkillZipError(f'entry path {_quoted(path)} lies under file entry {_quoted(parent)}')
+    # The paths under `path` sort as one block starting at bisect(path + '/'), so one comparison
+    # per file decides it: no per-depth prefix strings, and no per-segment nodes held in memory.
+    ordered = sorted(files)
+    for path in ordered:
+        parent = path + '/'
+        at = bisect.bisect_left(ordered, parent)
+        if at < len(ordered) and ordered[at].startswith(parent):
+            raise SkillZipError(f'entry path {_quoted(ordered[at])} lies under file entry {_quoted(path)}')
 
 
 def _checked_entries(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, str]]:
@@ -86,6 +97,7 @@ def _checked_entries(archive: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, st
         # The stripped path is what OCU joins onto its target directory, so both forms are checked.
         _check_path(info.filename)
         _check_path(stripped)
+        _check_canonical(stripped, info.is_dir())
         file_type = stat.S_IFMT(info.external_attr >> 16)
         if file_type == stat.S_IFLNK:
             raise SkillZipError(f'symlink entry {_quoted(info.filename)}')
