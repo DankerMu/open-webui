@@ -40,13 +40,14 @@ runs:
       with:
         node-version-file: .tool-versions
     # node_modules itself, not the npm download cache: `npm ci` re-extracting ~1 GB from the
-    # npm cache took ~55 s per job; restoring node_modules takes seconds.
+    # npm cache took ~55 s per job; restoring node_modules takes seconds. package.json is in the
+    # key so a manifest change without its lockfile misses the cache and `npm ci` still rejects it.
     - if: inputs.node == 'true'
       id: node-modules
       uses: actions/cache@v4
       with:
         path: node_modules
-        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package.json', 'package-lock.json') }}
     - if: inputs.node == 'true' && steps.node-modules.outputs.cache-hit != 'true'
       shell: bash
       run: npm ci

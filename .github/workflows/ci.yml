@@ -36,6 +36,10 @@ jobs:
     name: Change classification
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    # The pull request files API; explicit so the job keeps working if the repo turns private.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       code: ${{ steps.classify.outputs.code }}
     steps:
