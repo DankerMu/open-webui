@@ -53,6 +53,7 @@ def _empty_registry():
         with _engine().begin() as conn:
             conn.execute(text('DELETE FROM ocu_skill'))
             conn.execute(text('DELETE FROM ocu_skill_user_disable'))
+            conn.execute(text("DELETE FROM access_grant WHERE resource_type = 'ocu_skill'"))
 
     wipe()
     yield
@@ -79,6 +80,30 @@ async def _seed(*names: str) -> None:
                 )
             )
         await db.commit()
+
+
+async def _seed_grant_and_disable(name: str) -> None:
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.ocu_skills import OcuSkillUserDisable
+
+    await AccessGrants.grant_access('ocu_skill', name, 'user', '*', 'read')
+    async with get_async_db() as db:
+        db.add(OcuSkillUserDisable(user_id='user-u', skill_name=name))
+        await db.commit()
+
+
+async def _grants_and_disables(name: str) -> tuple[list[tuple[str, str, str]], list[str]]:
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.ocu_skills import OcuSkillUserDisable
+    from sqlalchemy import select
+
+    grants = await AccessGrants.get_grants_by_resource('ocu_skill', name)
+    async with get_async_db() as db:
+        result = await db.execute(select(OcuSkillUserDisable.user_id).where(OcuSkillUserDisable.skill_name == name))
+        disables = list(result.scalars().all())
+    return [(g.principal_type, g.principal_id, g.permission) for g in grants], disables
 
 
 class _SelectRecorder:
@@ -138,6 +163,58 @@ async def test_get_by_name_loads_data_and_returns_none_for_unknown():
     assert (row.name, row.zip_sha256, row.data) == ('get-a', 'sha-get-a', b'ZIPget-a')
     assert any('ocu_skill.data' in s for s in recorder.statements), recorder.statements
     assert await OcuSkills.get_by_name('get-missing') is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_delete_removes_row_grants_and_disables_with_one_commit():
+    from unittest.mock import patch
+
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    await _seed('del-a', 'del-b')
+    for name in ('del-a', 'del-b'):
+        await _seed_grant_and_disable(name)
+    commits = []
+    original_commit = AsyncSession.commit
+
+    async def spy(self):
+        commits.append(self)
+        await original_commit(self)
+
+    with patch.object(AsyncSession, 'commit', spy):
+        existed = await OcuSkills.delete_with_grants_and_disables('del-a')
+
+    assert existed is True
+    assert len(commits) == 1
+    assert await OcuSkills.get_by_name('del-a') is None
+    assert await _grants_and_disables('del-a') == ([], [])
+    assert (await OcuSkills.get_by_name('del-b')).data == b'ZIPdel-b'
+    assert await _grants_and_disables('del-b') == ([('user', '*', 'read')], ['user-u'])
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_delete_commit_failure_keeps_row_grants_and_disables():
+    from unittest.mock import patch
+
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    await _seed('del-a')
+    await _seed_grant_and_disable('del-a')
+
+    async def failing_commit(self):
+        raise RuntimeError('injected commit failure')
+
+    with patch.object(AsyncSession, 'commit', failing_commit):
+        with pytest.raises(RuntimeError, match='injected commit failure'):
+            await OcuSkills.delete_with_grants_and_disables('del-a')
+
+    row = await OcuSkills.get_by_name('del-a')
+    assert row is not None and row.data == b'ZIPdel-a'
+    assert await _grants_and_disables('del-a') == ([('user', '*', 'read')], ['user-u'])
 
 
 def test_registry_schema_matches_the_data_model():

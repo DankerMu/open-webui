@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from open_webui.internal.db import Base, get_async_db_context
+from open_webui.models.access_grants import AccessGrant
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, LargeBinary, Text, select
+from sqlalchemy import BigInteger, Column, LargeBinary, Text, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import deferred, undefer
 
@@ -58,6 +59,23 @@ class OcuSkillTable:
         async with get_async_db_context(db) as db:
             result = await db.execute(select(OcuSkill).order_by(OcuSkill.name))
             return [OcuSkillModel.model_validate(row) for row in result.scalars().all()]
+
+    async def delete_with_grants_and_disables(self, name: str, db: AsyncSession | None = None) -> bool:
+        """Delete the row, its grants and every disable in one commit; return whether the row existed.
+
+        The grant and disable deletes run even without a row, so a grant orphaned by an access
+        update racing a delete is purged by the next delete of that name.
+        """
+        async with get_async_db_context(db) as db:
+            result = await db.execute(delete(OcuSkill).where(OcuSkill.name == name))
+            await db.execute(
+                delete(AccessGrant).where(
+                    AccessGrant.resource_type == OCU_SKILL_RESOURCE_TYPE, AccessGrant.resource_id == name
+                )
+            )
+            await db.execute(delete(OcuSkillUserDisable).where(OcuSkillUserDisable.skill_name == name))
+            await db.commit()
+            return result.rowcount > 0
 
 
 OcuSkills = OcuSkillTable()

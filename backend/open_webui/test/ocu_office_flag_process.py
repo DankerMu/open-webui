@@ -1,7 +1,8 @@
 """Fresh-process Office flag import: harness first, then env, then app.
 
-Optionally reports the status of GET /api/v1/ocu/skills{path} requests sent by a
-session of the given role, for gates decided at import time by the workspace flag.
+Optionally reports the status of /api/v1/ocu/skills{path} requests sent by a session
+of the given role, for gates decided at import time by the workspace flag. A path is
+sent as GET unless it carries a method prefix, as in 'DELETE /name'.
 """
 
 from __future__ import annotations
@@ -111,7 +112,11 @@ def _skills_statuses(client, ocu_harness, role: str, paths: list[str]) -> dict[s
     user = asyncio.run(ocu_harness._insert_user(role=role, prefix='skills-flag'))
     try:
         headers = ocu_harness._session_headers(user.id)
-        return {path: client.get(f'/api/v1/ocu/skills{path}', headers=headers).status_code for path in paths}
+        statuses = {}
+        for spec in paths:
+            method, _, path = spec.rpartition(' ')
+            statuses[spec] = client.request(method or 'GET', f'/api/v1/ocu/skills{path}', headers=headers).status_code
+        return statuses
     finally:
         asyncio.run(ocu_harness._delete_user(user.id))
 
