@@ -1,6 +1,7 @@
 # Tasks
 
 Prefixes:
+
 - `[webui]` = this repository.
 - `[ocu]` = sibling checkout `open-computer-use`. Branch `<tool>/<slug>` off `main`; tests live in the OCU repo root `tests/` and run with the command in its `AGENTS.md`.
 - `[deploy]` = the OCU repo `deploy/` overlay. Tests live in `tests/deploy/` and `deploy/proxy/tests/`.
@@ -8,6 +9,7 @@ Prefixes:
 Every production file ships with its test file in the same task (AGENTS.md § TDD), and each test is red before the implementation. No task may implement an item from design.md Non-Goals. "Enabled set" is defined once, in design.md Decision 6; tasks refer to it and do not restate it. Each task is sized to fit one PR of at most 400 diff lines, tests and docs included (CI layer6), unless its group states a `diff-limit-exempt` reason.
 
 Risk packs:
+
 - **Selected:**
   - Public API: new routes;
   - Config: reuse of `ENABLE_OCU_WORKSPACE` and `OCU_INTERNAL_TOKEN`, overlay env;
@@ -39,6 +41,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
   - require a root `SKILL.md` whose frontmatter has a valid `name` and a non-empty `description`.
 
   Wire it to its only caller, the first-upload path of admin `POST /upload`, and add the insert table method and the hardcoded reserved list in `routers/ocu_skills.py` (the 29 names at the pinned OCU revision: every `skills/public/` directory name, `remotion`, and every key of `NATIVE_PROMPT_DESCRIPTIONS`, per design.md Decision 4, written as one compact `frozenset` literal): read at most 50 MB plus one byte (413 above 50 MB), validate, reject a reserved name with 400 before any insert, then in one DB transaction insert the row with `data` and the `user:*` read grant. Every other rejection returns 400. Verify with one validator pytest case per rejection class in spec `ocu-uploaded-skills` "ZIP validation", plus the wrapped-directory acceptance case; and router pytest: a first upload yields a single wildcard grant and the right SHA-256 and size; `docx` and `internal-comms` (parametrized rejection cases) each get 400 with the listing and grants unchanged; a 51 MB body gets 413; every rejection leaves the listing and grants unchanged; an injected commit failure (patch the session commit to raise) on a first upload leaves no row or grant; after the existing admin "reset uploads" (`routers/retrieval.py:3204-3220`) and "delete all files" (`routers/files.py:562-569`) actions the skill is still listed and its bytes unchanged; a user-role caller gets 401 with the listing and grants unchanged; with the workspace disabled the route gets 404.
+
 - [ ] 2.2 Add the replace path of `POST /upload`: an existing name replaces `data`, SHA-256, size and description in one DB transaction and keeps grants and disables. Verify with router pytest: replace keeps narrowed grants and disables; an injected commit failure (patch the session commit to raise) on a replace leaves the previous row, its `data` and its SHA-256 unchanged (read back through the table get method). Add a `smoke/` hurl case for an admin upload, then delete it.
 - [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Add the pinned OCU checkout steps (as in `layer3-integration-tests`, `.github/workflows/ci.yml:111-121`) to `layer2-unit-tests` and export `OCU_CHECKOUT`; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
 

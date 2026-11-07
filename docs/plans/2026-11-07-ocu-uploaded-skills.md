@@ -42,6 +42,7 @@ Status: proposed（设计稿，未实现）。2026-11-07 用户经三轮 grill �
 ### 存在条件
 
 本功能不新增开关，跟随 `ENABLE_OCU_WORKSPACE`：
+
 - 为 `true` 时启用全部功能。
 - 为 `false` 时，路由不注册（返回 404），管理员标签、个人设置标签和 `/` 分组全部隐藏。
 - 内部端点在 `OCU_INTERNAL_TOKEN` 为空时一律拒绝，绝不接受空密钥。
@@ -62,16 +63,16 @@ Status: proposed（设计稿，未实现）。2026-11-07 用户经三轮 grill �
 
 ### 后端：新建 router `routers/ocu_skills.py`，由 fork 自有的 `routers/ocu_workspaces.py` 以 `router.include_router(..., prefix='/skills')` 挂载，`main.py` 不改（它已超行数上限）
 
-| 端点 | 鉴权 | 作用 |
-|---|---|---|
-| `POST /api/v1/ocu/skills/upload` | 管理员 | 上传 ZIP。新名字就新建并写入通配授权；名字已存在就原地替换 ZIP、`zip_sha256`、`description`，授权和禁用记录保持不变 |
-| `GET /api/v1/ocu/skills/admin` | 管理员 | 全部新增 skill 及其授权 |
-| `POST /api/v1/ocu/skills/{name}/access` | 管理员 | 修改授权 |
-| `DELETE /api/v1/ocu/skills/{name}` | 管理员 | 硬删除：记录（连同 ZIP 字节）、授权、所有用户的禁用记录，在一个事务里完成 |
-| `GET /api/v1/ocu/skills/` | 已登录用户 | 本人有读权限的新增 skill（管理员遵循现有的 `BYPASS_ADMIN_ACCESS_CONTROL`），以及各自的启用状态 |
-| `POST /api/v1/ocu/skills/{name}/toggle` | 已登录用户 | 本人禁用或启用；对没有读权限的 skill 返回 404 |
-| `GET /api/v1/ocu/skills/api/internal/user-config/{email}` | 仅 `X-Internal-Api-Key` | 按 OCU 契约格式返回已授权且未被禁用的新增 skill：`category='user'`，带 `description` 和 `zip_sha256` |
-| `GET /api/v1/ocu/skills/api/internal/skills/{name}/download` | 仅 `X-Internal-Api-Key` | 返回 ZIP 字节 |
+| 端点                                                         | 鉴权                    | 作用                                                                                                                |
+| ------------------------------------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/ocu/skills/upload`                             | 管理员                  | 上传 ZIP。新名字就新建并写入通配授权；名字已存在就原地替换 ZIP、`zip_sha256`、`description`，授权和禁用记录保持不变 |
+| `GET /api/v1/ocu/skills/admin`                               | 管理员                  | 全部新增 skill 及其授权                                                                                             |
+| `POST /api/v1/ocu/skills/{name}/access`                      | 管理员                  | 修改授权                                                                                                            |
+| `DELETE /api/v1/ocu/skills/{name}`                           | 管理员                  | 硬删除：记录（连同 ZIP 字节）、授权、所有用户的禁用记录，在一个事务里完成                                           |
+| `GET /api/v1/ocu/skills/`                                    | 已登录用户              | 本人有读权限的新增 skill（管理员遵循现有的 `BYPASS_ADMIN_ACCESS_CONTROL`），以及各自的启用状态                      |
+| `POST /api/v1/ocu/skills/{name}/toggle`                      | 已登录用户              | 本人禁用或启用；对没有读权限的 skill 返回 404                                                                       |
+| `GET /api/v1/ocu/skills/api/internal/user-config/{email}`    | 仅 `X-Internal-Api-Key` | 按 OCU 契约格式返回已授权且未被禁用的新增 skill：`category='user'`，带 `description` 和 `zip_sha256`                |
+| `GET /api/v1/ocu/skills/api/internal/skills/{name}/download` | 仅 `X-Internal-Api-Key` | 返回 ZIP 字节                                                                                                       |
 
 - 部署时设置 `MCP_TOKENS_URL=http://open-webui:8080/api/v1/ocu/skills`，OCU 拼出的路径正好对上上表最后两行；`MCP_TOKENS_API_KEY` 取 `OCU_INTERNAL_TOKEN` 的值。
 - 内部端点的鉴权：用 `hmac.compare_digest` 比对 `X-Internal-Api-Key` 和 `OCU_INTERNAL_TOKEN`，不认 cookie。
@@ -99,11 +100,11 @@ Status: proposed（设计稿，未实现）。2026-11-07 用户经三轮 grill �
 
 ### 生效时机（下一个新建沙箱；撤销也不要求立即生效）
 
-| 操作 | `<available_skills>` 里的显示 | 沙箱里的挂载 |
-|---|---|---|
-| 上传、授权、启用 | 新对话约 ≤ 120 s；已有对话最坏约 ≤ 420 s（filter 300 s + OCU 各层缓存） | 下一个新建的沙箱 |
-| 撤销授权、禁用、删除 | 同上 | 已有沙箱里的文件仍然可读，直到沙箱被重建 |
-| 替换 ZIP | 同上 | 任一被授权用户的下一次 system prompt 渲染（`system_prompt.py:728-733` 调用 `ensure_skill_cached`）就会按 `zip_sha256` 重新下载并原地替换缓存目录（`skill_manager.py:443-453`）；**正在运行、已挂载该目录的沙箱也会在约 60–420 s 内看到新内容**。新建沙箱只读缓存（`docker_manager.py:1312`） |
+| 操作                 | `<available_skills>` 里的显示                                           | 沙箱里的挂载                                                                                                                                                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 上传、授权、启用     | 新对话约 ≤ 120 s；已有对话最坏约 ≤ 420 s（filter 300 s + OCU 各层缓存） | 下一个新建的沙箱                                                                                                                                                                                                                                                                             |
+| 撤销授权、禁用、删除 | 同上                                                                    | 已有沙箱里的文件仍然可读，直到沙箱被重建                                                                                                                                                                                                                                                     |
+| 替换 ZIP             | 同上                                                                    | 任一被授权用户的下一次 system prompt 渲染（`system_prompt.py:728-733` 调用 `ensure_skill_cached`）就会按 `zip_sha256` 重新下载并原地替换缓存目录（`skill_manager.py:443-453`）；**正在运行、已挂载该目录的沙箱也会在约 60–420 s 内看到新内容**。新建沙箱只读缓存（`docker_manager.py:1312`） |
 
 ### OCU 仓库改动（`[ocu]`/`[deploy]` task，OCU 服务端不改）
 
@@ -142,6 +143,7 @@ Status: proposed（设计稿，未实现）。2026-11-07 用户经三轮 grill �
 ## Amendments after Stage 3 review (2026-11-07)
 
 Stage 3 审核发现了以下事实错误，已直接改在上文：标记格式实际是 `$` 形式；替换 ZIP 由 prompt 渲染触发下载；超过 50 MB 返回 413；回滚时 OCU 仍会使用缓存；管理员遵循 `BYPASS_ADMIN_ACCESS_CONTROL`。另有三处设计调整：
+
 - ZIP 改为存在 `ocu_skill.data` 里，不再放 `Storage`/`UPLOAD_DIR`。原因有三：现有的「重置上传目录」和「删除全部文件」两个管理员操作会清空这个目录（`routers/retrieval.py:3204-3220`、`routers/files.py:562-569`）；存数据库后替换和删除都能在一个事务里完成，不会留下孤儿文件；数据库备份也会自动带上 ZIP。代价是数据库体积变大（每个 skill 最多 50 MB）。
 - router 通过 `ocu_workspaces.py` 挂载，`main.py` 不改。
 - 用户批准为 `SettingsModal.svelte` 加一条 `bounded_overrides` 上限（约 1350 行），两个新标签只在这里注册并加渲染分支，标签内容放在新组件里。
@@ -154,26 +156,26 @@ Stage 3 审核发现了以下事实错误，已直接改在上文：标记格式
 
 ## Decision Ledger（2026-11-07 grill，用户确认共同理解）
 
-| # | 分支 | 结论 | 谁定的 |
-|---|---|---|---|
-| 1 | 谁能上传 | 只有管理员 | 用户 |
-| 2 | 默认可见范围 | 全员开放（`user:*:read`），管理员可以收窄 | 用户 |
-| 3 | 何时生效 | 下一个新建沙箱；撤销也不要求立即生效 | 用户 |
-| 4 | `/` 菜单范围 | 只列新增 skill | 用户 |
-| 5 | OCU 服务端 | 不改 | 用户 |
-| 6 | 内部密钥 | 复用 `OCU_INTERNAL_TOKEN` | 用户 |
-| 7 | 同名再次上传 | 原地替换，保留授权和禁用记录 | 用户 |
-| 8 | 管理员入口 | 管理员面板 → 设置新标签 | 用户 |
-| 9 | 与内置 skill 重名 | 写死保留名单（`skills/public/` + `remotion` + `NATIVE_PROMPT_DESCRIPTIONS` 的名字），重名拒绝；Stage 3 SC-7 之后由用户追加确认 | 用户 |
-| 10 | 用户开关入口 | 个人设置新标签，持久保存 | 用户 |
-| 11 | `/` 分组何时显示 | 工作区开启就一直显示，不管沙箱有没有启动 | 用户 |
-| 12 | 功能开关 | 不新增，跟随 `ENABLE_OCU_WORKSPACE` | 用户 |
-| 13 | ZIP 限额 | 50 MB / 解压 200 MB / 2000 条目 | 用户 |
-| 14 | 名字来源 | `SKILL.md` frontmatter 的 `name` | 用户 |
-| 15 | 删除 | 确认后硬删除全部 | 用户 |
-| 16 | 保留名单防漂移 | CI 对照固定版本 OCU 的 `skills/public/` 和 `NATIVE_PROMPT_DESCRIPTIONS` | 用户 |
-| 17 | OCU 工作的跟踪位置 | 本仓库 issue，task 标 `[ocu]` 前缀 | 事实核查 |
-| 18 | 授权界面 | 复用 `AccessControl.svelte` | 事实核查 |
-| 19 | filter 能否读到标记 | 能，inlet（`middleware.py:2635`）先于提及解析（`:2732`） | 事实核查 |
+| #   | 分支                | 结论                                                                                                                           | 谁定的   |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 1   | 谁能上传            | 只有管理员                                                                                                                     | 用户     |
+| 2   | 默认可见范围        | 全员开放（`user:*:read`），管理员可以收窄                                                                                      | 用户     |
+| 3   | 何时生效            | 下一个新建沙箱；撤销也不要求立即生效                                                                                           | 用户     |
+| 4   | `/` 菜单范围        | 只列新增 skill                                                                                                                 | 用户     |
+| 5   | OCU 服务端          | 不改                                                                                                                           | 用户     |
+| 6   | 内部密钥            | 复用 `OCU_INTERNAL_TOKEN`                                                                                                      | 用户     |
+| 7   | 同名再次上传        | 原地替换，保留授权和禁用记录                                                                                                   | 用户     |
+| 8   | 管理员入口          | 管理员面板 → 设置新标签                                                                                                        | 用户     |
+| 9   | 与内置 skill 重名   | 写死保留名单（`skills/public/` + `remotion` + `NATIVE_PROMPT_DESCRIPTIONS` 的名字），重名拒绝；Stage 3 SC-7 之后由用户追加确认 | 用户     |
+| 10  | 用户开关入口        | 个人设置新标签，持久保存                                                                                                       | 用户     |
+| 11  | `/` 分组何时显示    | 工作区开启就一直显示，不管沙箱有没有启动                                                                                       | 用户     |
+| 12  | 功能开关            | 不新增，跟随 `ENABLE_OCU_WORKSPACE`                                                                                            | 用户     |
+| 13  | ZIP 限额            | 50 MB / 解压 200 MB / 2000 条目                                                                                                | 用户     |
+| 14  | 名字来源            | `SKILL.md` frontmatter 的 `name`                                                                                               | 用户     |
+| 15  | 删除                | 确认后硬删除全部                                                                                                               | 用户     |
+| 16  | 保留名单防漂移      | CI 对照固定版本 OCU 的 `skills/public/` 和 `NATIVE_PROMPT_DESCRIPTIONS`                                                        | 用户     |
+| 17  | OCU 工作的跟踪位置  | 本仓库 issue，task 标 `[ocu]` 前缀                                                                                             | 事实核查 |
+| 18  | 授权界面            | 复用 `AccessControl.svelte`                                                                                                    | 事实核查 |
+| 19  | filter 能否读到标记 | 能，inlet（`middleware.py:2635`）先于提及解析（`:2732`）                                                                       | 事实核查 |
 
 用户同时确认了两条默认做法：缺少 `description` 时返回 400；手动写出无权限的标记不会越权。

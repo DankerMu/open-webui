@@ -19,6 +19,7 @@ See `proposal.md` (Why) and the source plan `docs/plans/2026-11-07-ocu-uploaded-
 - **OCU work is tracked here.** OCU has GitHub issues disabled, so its tasks are tracked in this repository with an `[ocu]` / `[deploy]` prefix.
 
 Change surface:
+
 - `backend/open_webui/models/ocu_skills.py` (new);
 - `backend/open_webui/routers/ocu_skills.py` (new);
 - a migration (new);
@@ -28,6 +29,7 @@ Change surface:
 - OCU `openwebui/functions/computer_link_filter.py`, `deploy/production-like-test/`, `deploy/proxy/nginx.conf.in`.
 
 Must preserve:
+
 - native Skills behaviour (table, routes, `view_skill`, mentions);
 - OCU built-in skills and their prompt;
 - every existing proxy row;
@@ -37,6 +39,7 @@ Must preserve:
 Governing invariant: a user's sandbox mounts an uploaded skill only if that skill is in the user's enabled set (Decision 6). Only an administrator can create, replace or delete that skill.
 
 Sibling surfaces that share the invariant:
+
 - `GET /api/v1/ocu/skills/` (per-user list);
 - the `/` menu;
 - the internal `user-config`;
@@ -46,12 +49,14 @@ Sibling surfaces that share the invariant:
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Upload, replace and hard-delete ZIP skills by administrators, with validation stricter than OCU's extractor.
 - Default visibility to everyone (`user:*:read`) that administrators can narrow with the existing access-control UI.
 - Persistent per-user disable, and a `/` group of the user's enabled uploaded skills.
 - Serve OCU's existing registry contract so that `computer-use-server/` needs no change.
 
 **Non-Goals:**
+
 - Changes to native Open WebUI Skills.
 - Built-in OCU skills in the `/` menu, or disabling them.
 - Any `computer-use-server/` change, including OCU extractor hardening (#740).
@@ -96,6 +101,7 @@ Sibling surfaces that share the invariant:
    - the user has no disable row for it.
 
    The per-user list `GET /` returns the readable skills (the first two conditions) with `enabled` reflecting the third; the `/` menu shows its enabled entries; `user-config` returns the enabled set. All three use the same query, so an administrator sees a group-narrowed skill in `user-config` exactly when it appears in that administrator's `GET /`. A user's toggle on a skill without read access returns 404. The admin endpoints require `role == 'admin'`.
+
 7. **`user-config` response.** It returns `{"email", "enabled_skills": [{"name", "description", "category": "user", "zip_sha256"}]}`. An unknown email returns an empty list with 200, because OCU then falls back to its built-ins. Email lookup uses the existing normalized unique email index (`f0bd01a18a3d`). `download` returns `application/zip` for an existing skill and 404 otherwise, whoever asks; the key is the authority, so no per-user check is applied.
 8. **Frontend placement.**
    - Admin Settings gets a 「工作区 Skills」 tab. It provides upload, a list, access editing through `AccessControl.svelte`, and delete with a confirmation dialog. The tab states both timings: revocation and deletion reach running sandboxes only after they are rebuilt; a replaced ZIP reaches running sandboxes that already mount it within minutes.
@@ -110,12 +116,14 @@ Sibling surfaces that share the invariant:
 10. **Proxy second line.** `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` sits ahead of the catch-all row, so browser traffic never reaches the internal routes, even with a leaked key.
 
 Seams under test:
+
 - WebUI HTTP API of the `ocu_skills` router through FastAPI `TestClient` against the harness DB. It is the highest seam that covers validation, grants, disables, the internal contract and the 401/403/404 matrix in one place.
 - OCU filter `Filter.inlet()` called with a real body. It is the only seam where marker rewrite and prompt append are observable.
 - Browser through Playwright under `make verify-ui-ocu`, for the three UI entry points. These are user-visible flows with no lower seam that proves rendering.
 - Proxy through `make smoke-proxy` hurl with the pinned OCU SHA, because the deny row only exists in rendered nginx.
 
 Required evidence:
+
 - valid ZIP → 200 and listed for every user; replace → grants and disables unchanged; delete → absent everywhere;
 - body over 50 MB → 413; each other rejection class → 400; both with the DB unchanged;
 - an injected commit failure on first upload or replace → the previous row and its downloadable bytes unchanged;
@@ -129,6 +137,7 @@ Required evidence:
 - the internal path through the proxy → 404.
 
 Review focus:
+
 - the ZIP validator against zip-slip and zip bombs;
 - one enabled-set query shared by all consumers, with `data` deferred;
 - the internal key never accepts empty and never accepts a cookie;
