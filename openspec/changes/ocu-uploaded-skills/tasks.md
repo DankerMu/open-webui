@@ -133,6 +133,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
       - absolute path: `/etc/x` and a drive-letter `C:/x`;
       - a `..` component: `a/../x` and `../../evil.sh` next to a valid `SKILL.md`;
       - a backslash: `a\x`;
+      - a non-canonical stripped path (`./a` next to `a/b`, `a/./b`, `a//b`, `a//`) and a file path under another file (`SKILL.md` with `SKILL.md/x`, either order, also through a wrapper directory); the conflict check is linear in total path length;
       - a symlink: an entry whose `external_attr >> 16` has `S_IFLNK`;
       - an encrypted entry: `flag_bits & 0x1`;
       - 2001 entries;
@@ -151,7 +152,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
       - root `SKILL.md`;
       - a CRLF `SKILL.md` with a UTF-8 BOM;
       - every entry under `invoice-builder/`, with or without a directory entry for it, accepted as if at the root;
-      - directory entries are ignored.
+      - directory entries are path-checked but not read, and are left out of the file-conflict check.
     - Every file entry is read in bounded chunks and CRC-checked; only `SKILL.md` bytes are counted and kept, capped at 1 MB, so peak memory is the 50 MB body plus one chunk plus 1 MB. Frontmatter is parsed with `yaml.safe_load`; PyYAML is already used by `utils/tools.py`, so there is no new dependency.
     - Must preserve: the top-level strip is the same rule as the pinned OCU extractor (`computer-use-server/skill_manager.py` at `constraints.yaml ocu_checkout.sha`: the first name's first segment plus `/` is a prefix of every name), so a ZIP that WebUI accepts mounts with `SKILL.md` at the root in OCU.
   - **Reserved names.**

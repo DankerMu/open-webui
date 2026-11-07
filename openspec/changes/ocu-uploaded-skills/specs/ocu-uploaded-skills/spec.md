@@ -72,6 +72,7 @@ The upload SHALL return 400 with a reason, and SHALL leave skill rows (with thei
 
 - an entry has an absolute path, a `..` component or a backslash;
 - an entry is a symbolic link or is encrypted;
+- after stripping the shared top-level directory, an entry path has an empty or `.` segment, or a file entry's path lies under another file entry's path (OCU could not write both);
 - the archive has more than 2000 entries;
 - an entry uses a compression method other than stored or deflated, or is not a regular file or directory;
 - the declared uncompressed total exceeds 200 MB; every entry is read and CRC-checked against its declared size, so a forged size cannot hide more data;

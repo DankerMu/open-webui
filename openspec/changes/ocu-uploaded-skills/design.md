@@ -91,6 +91,7 @@ Sibling surfaces that share the invariant:
    - Each entry is checked:
      - absolute paths, any `..` component, backslashes, symlink mode bits in `external_attr` and the encryption flag are all rejected;
      - at most 2000 entries;
+     - after the top-level strip, paths must be canonical (no empty or `.` segment) and no file may lie under another file's path, so every accepted archive extracts in OCU;
      - only stored and deflated entries are accepted (CPython bounds decompressed output per read only for deflate), and only regular files and directories;
      - the declared uncompressed total is capped at 200 MB before anything is read; every entry is then read in bounded chunks and CRC-checked, and `zipfile` never returns more than the declared size, so a forged `file_size` does not help.
    - The single top-level directory is stripped exactly as OCU does. `SKILL.md` must then sit at the root with YAML frontmatter containing a valid `name` and a non-empty `description`.
