@@ -9,7 +9,7 @@ import uuid
 from open_webui.internal.db import Base, get_async_db_context
 from open_webui.models.access_grants import AccessGrant
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, LargeBinary, Text, delete, select
+from sqlalchemy import BigInteger, Column, LargeBinary, Text, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import deferred, undefer
 
@@ -83,12 +83,14 @@ class OcuSkillTable:
             await db.commit()
             return result.rowcount > 0
 
-    async def insert_with_everyone_grant(
+    async def upsert(
         self, *, name: str, description: str, data: bytes, created_by: str, db: AsyncSession | None = None
     ) -> OcuSkillModel:
-        """Insert a first upload and replace every grant and disable of its name with one user:* read grant.
+        """Replace an existing skill in place, or insert a first upload with one user:* read grant.
 
-        One commit and no existence pre-check: a duplicate name raises IntegrityError at commit, and
+        One commit. The UPDATE runs first and never loads the old data: a replace keeps created_by,
+        created_at, grants and disables. A first upload purges orphaned grants and disables of its
+        name. A concurrent first upload between the UPDATE and the INSERT raises IntegrityError, and
         closing the session rolls the purge back with it. AccessGrants.set_access_grants is not used
         because it commits in its own session.
         """
@@ -112,9 +114,20 @@ class OcuSkillTable:
             permission='read',
             created_at=now,
         )
+        replace = {key: getattr(row, key) for key in ('data', 'zip_sha256', 'size', 'description', 'updated_at')}
         async with get_async_db_context(db) as db:
-            await _purge_grants_and_disables(db, name)
-            db.add_all([row, grant])
+            # synchronize_session=False: the 'auto' default may add a SELECT or RETURNING to the UPDATE.
+            result = await db.execute(
+                update(OcuSkill)
+                .where(OcuSkill.name == name)
+                .values(**replace)
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount:
+                row = (await db.execute(select(OcuSkill).where(OcuSkill.name == name))).scalar_one()
+            else:
+                await _purge_grants_and_disables(db, name)
+                db.add_all([row, grant])
             await db.commit()
             return OcuSkillModel.model_validate(row)
 

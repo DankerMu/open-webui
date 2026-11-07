@@ -102,6 +102,7 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 | ------------------------------------------------------------------------ | ------------------------------------------------ |
 | Liveness / health                                                        | `make dev-status`                                |
 | API endpoint; GET /api/v1/ocu/auth; GET /api/v1/ocu/workspaces/{chat_id} | `make smoke`                                     |
+| Uploaded-skill upload/delete round trip                                  | `make smoke`                                     |
 | Web page / UI; Wallpaper skins                                           | `make verify-ui` (`ROUTE="/auth"` for one route) |
 | DB migration                                                             | `make db-verify`                                 |
 | Guardrails                                                               | `make test-guardrails`                           |

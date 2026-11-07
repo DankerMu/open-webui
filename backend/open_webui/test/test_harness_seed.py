@@ -519,7 +519,7 @@ def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
     require(len(hurl) == 1, 'Smoke did not run Hurl exactly once')
     selected = {Path(hurl[0]['cwd'], operand).resolve() for operand in fixture_operands(hurl[0]['args'])}
     expected = {path.resolve() for path in workspace.glob('smoke/*.hurl')}
-    require(len(expected) == 3, 'Workspace fixture set changed shape')
+    require(len(expected) == 4, 'Workspace fixture set changed shape')
     require(
         not any(foreign.resolve() in path.parents for path in selected),
         "Smoke selected the caller directory's fixtures",

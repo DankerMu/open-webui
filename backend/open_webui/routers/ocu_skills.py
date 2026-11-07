@@ -156,9 +156,7 @@ async def upload_skill(request: Request, user=Depends(get_admin_user)):
     if name in RESERVED_SKILL_NAMES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"'{name}' is a reserved built-in skill")
     try:
-        skill = await OcuSkills.insert_with_everyone_grant(
-            name=name, description=description, data=body, created_by=user.id
-        )
+        skill = await OcuSkills.upsert(name=name, description=description, data=body, created_by=user.id)
     except IntegrityError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"skill '{name}' already exists") from exc
     return OcuSkillUploaded(**skill.model_dump(include=set(OcuSkillUploaded.model_fields)))

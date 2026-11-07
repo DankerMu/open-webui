@@ -348,10 +348,11 @@ def test_delete_of_unknown_name_is_404_and_purges_orphans(admin, seeded_grants):
 UPLOAD_PATH = f'{SKILLS_PATH}/upload'
 INVOICE = 'invoice-builder'
 MB = 1024 * 1024
+DESCRIPTION_B = 'invoice-builder skill B'
 
 
-def _skill_zip_for(name: str, *extra) -> bytes:
-    skill_md = f'---\nname: {name}\ndescription: {name} skill\n---\nBody\n'
+def _skill_zip_for(name: str, *extra, description: str | None = None) -> bytes:
+    skill_md = f'---\nname: {name}\ndescription: {description or f"{name} skill"}\n---\nBody\n'
     return skill_zip([(f'{name}/SKILL.md', skill_md), (f'{name}/run.py', 'print(1)'), *extra])
 
 
@@ -360,15 +361,20 @@ def _upload(user, body: bytes):
     return get_client().post(UPLOAD_PATH, content=body, headers=headers)
 
 
-async def _seed_orphans(name: str, group_id: str) -> None:
+async def _seed_disable(name: str) -> None:
     from open_webui.internal.db import get_async_db
-    from open_webui.models.access_grants import AccessGrants
     from open_webui.models.ocu_skills import OcuSkillUserDisable
 
-    await AccessGrants.grant_access('ocu_skill', name, 'group', group_id, 'read')
     async with get_async_db() as db:
         db.add(OcuSkillUserDisable(user_id=USER_U, skill_name=name))
         await db.commit()
+
+
+async def _seed_orphans(name: str, group_id: str) -> None:
+    from open_webui.models.access_grants import AccessGrants
+
+    await AccessGrants.grant_access('ocu_skill', name, 'group', group_id, 'read')
+    await _seed_disable(name)
 
 
 @pytest.mark.usefixtures('registry')
@@ -398,17 +404,118 @@ def test_first_upload_replaces_orphaned_grants_and_disables(admin):
     assert _disables(INVOICE) == []
 
 
-def test_upload_of_an_existing_name_is_409_and_changes_nothing(admin, seeded_grants):
+@pytest.fixture
+def stored_invoice(admin):
+    """ZIP A uploaded by `admin`, narrowed to group A read, and disabled by user U."""
     from open_webui.models.ocu_skills import OcuSkills
 
-    before = (_registry_state(), asyncio.run(OcuSkills.get_by_name('b')))
-    assert before[0]['grants']['b'] and before[0]['disables']['b']
+    asyncio.run(_wipe_registry())
+    body = _skill_zip_for(INVOICE)
+    assert _upload(admin, body).status_code == 200
+    group_a = f'group-a-{uuid.uuid4()}'
+    narrowed = get_client().post(
+        f'{SKILLS_PATH}/{INVOICE}/access',
+        json={'access_grants': [_group_read(group_a)]},
+        headers=_session_headers(admin.id),
+    )
+    assert narrowed.status_code == 200, narrowed.text
+    asyncio.run(_seed_disable(INVOICE))
+    state = _registry_state((INVOICE,))
+    assert state['grants'][INVOICE] == [('group', group_a, 'read')] and state['disables'][INVOICE] == [USER_U]
+    yield {'body': body, 'group_a': group_a, 'skill': asyncio.run(OcuSkills.get_by_name(INVOICE)), 'state': state}
+    asyncio.run(_wipe_registry())
 
-    response = _upload(admin, _skill_zip_for('b'))
+
+@pytest.fixture
+def second_admin():
+    user = asyncio.run(_insert_user(role='admin', prefix='skills-admin-b'))
+    yield user
+    asyncio.run(_delete_user(user.id))
+
+
+def test_replace_keeps_narrowed_grants_and_disables(admin, second_admin, stored_invoice):
+    from open_webui.models.ocu_skills import OcuSkills
+
+    a = stored_invoice['skill']
+    body = _skill_zip_for(INVOICE, (f'{INVOICE}/notes.md', 'B'), description=DESCRIPTION_B)
+    assert body != stored_invoice['body']
+
+    response = _upload(second_admin, body)
+
+    assert response.status_code == 200, response.text
+    sha = hashlib.sha256(body).hexdigest()
+    assert response.json() == {'name': INVOICE, 'description': DESCRIPTION_B, 'zip_sha256': sha, 'size': len(body)}
+    b = asyncio.run(OcuSkills.get_by_name(INVOICE))
+    assert (b.data, b.zip_sha256, b.size, b.description) == (body, sha, len(body), DESCRIPTION_B)
+    assert (b.created_by, b.created_at) == (admin.id, a.created_at)
+    assert b.updated_at >= a.updated_at
+    assert _registry_state((INVOICE,)) == stored_invoice['state']
+    listed = _listing(get_client(), admin)[INVOICE]
+    assert (listed['zip_sha256'], listed['access_grants']) == (sha, [_group_read(stored_invoice['group_a'])])
+
+
+def test_replace_commit_failure_keeps_the_previous_skill(admin, stored_invoice):
+    from open_webui.internal.db import async_engine
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy import event
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    statements = []
+
+    def record(_conn, _cursor, statement, *_args):
+        statements.append(statement.lstrip().upper())
+
+    async def failing_commit(self):
+        raise RuntimeError('injected commit failure')
+
+    event.listen(async_engine.sync_engine, 'before_cursor_execute', record)
+    try:
+        with patch.object(AsyncSession, 'commit', failing_commit):
+            with pytest.raises(RuntimeError, match='injected commit failure'):
+                _upload(admin, _skill_zip_for(INVOICE, description=DESCRIPTION_B))
+    finally:
+        event.remove(async_engine.sync_engine, 'before_cursor_execute', record)
+
+    # Proves the replace's UPDATE ran inside the failed transaction and was rolled back with it.
+    assert any(s.startswith('UPDATE OCU_SKILL') for s in statements), statements
+    assert asyncio.run(OcuSkills.get_by_name(INVOICE)) == stored_invoice['skill']
+    assert _registry_state((INVOICE,)) == stored_invoice['state']
+    assert _listing(get_client(), admin)[INVOICE]['zip_sha256'] == hashlib.sha256(stored_invoice['body']).hexdigest()
+
+
+@pytest.mark.parametrize('case', ['path-traversal', 'body-51-mb'])
+def test_rejected_replace_keeps_the_stored_skill(admin, stored_invoice, case):
+    from open_webui.models.ocu_skills import OcuSkills
+
+    build, expected, reason = REJECTED_UPLOADS[case]
+
+    response = _upload(admin, build())
+
+    assert response.status_code == expected, response.text
+    assert re.search(reason, response.json()['detail'])
+    assert asyncio.run(OcuSkills.get_by_name(INVOICE)) == stored_invoice['skill']
+    assert _registry_state((INVOICE,)) == stored_invoice['state']
+
+
+def test_upload_integrity_error_is_409_and_changes_nothing(admin, seeded_grants):
+    import sqlite3
+
+    from open_webui.models.ocu_skills import OcuSkills
+    from sqlalchemy.exc import IntegrityError
+
+    # Only a concurrent first upload between the UPDATE and the INSERT can raise this (Postgres).
+    conflict = IntegrityError(
+        'INSERT INTO ocu_skill (name) VALUES (?)', (INVOICE,), sqlite3.IntegrityError('UNIQUE constraint failed')
+    )
+    names = ('a', 'b', INVOICE)
+    before = _registry_state(names)
+
+    with patch.object(OcuSkills, 'upsert', side_effect=conflict):
+        response = _upload(admin, _skill_zip_for(INVOICE))
 
     assert response.status_code == 409
-    assert "'b'" in response.json()['detail']
-    assert (_registry_state(), asyncio.run(OcuSkills.get_by_name('b'))) == before
+    assert f"'{INVOICE}'" in response.json()['detail']
+    assert _registry_state(names) == before
 
 
 REJECTED_UPLOADS = {
