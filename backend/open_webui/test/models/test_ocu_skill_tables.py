@@ -41,7 +41,12 @@ def _migrate(engine, *steps: str) -> None:
 
 @pytest.fixture(scope='module', autouse=True)
 def _registry_tables():
+    from open_webui.models.access_grants import AccessGrant
+
     engine = _engine()
+    # _empty_registry and OcuSkills.delete touch access_grant, which only the full alembic chain
+    # (app import) creates; in the default full-suite order this module runs before any app import.
+    AccessGrant.__table__.create(engine, checkfirst=True)
     if not set(_TABLES) <= set(inspect(engine).get_table_names()):
         _migrate(engine, 'upgrade')
     yield
