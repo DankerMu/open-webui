@@ -437,6 +437,39 @@ def test_rejected_upload_changes_nothing(admin, seeded_grants, case):
     assert _registry_state(names) == before
 
 
+def _chunked_body(chunks: int):
+    """An HTTP request with no content-length whose receive() hands out 1 MB chunks, counting calls."""
+    from starlette.requests import Request
+
+    calls = []
+
+    async def receive():
+        calls.append(None)
+        return {'type': 'http.request', 'body': b'\0' * MB, 'more_body': len(calls) < chunks}
+
+    return Request({'type': 'http', 'method': 'POST', 'headers': []}, receive), calls
+
+
+def test_capped_body_stops_reading_one_chunk_past_50_mb():
+    from fastapi import HTTPException
+    from open_webui.routers.ocu_skills import _read_capped_body
+
+    request, calls = _chunked_body(60)
+
+    with pytest.raises(HTTPException) as raised:
+        asyncio.run(_read_capped_body(request))
+
+    assert (raised.value.status_code, len(calls)) == (413, 51)
+
+
+def test_capped_body_reads_exactly_50_mb_whole():
+    from open_webui.routers.ocu_skills import _read_capped_body
+
+    request, calls = _chunked_body(50)
+
+    assert (asyncio.run(_read_capped_body(request)), len(calls)) == (b'\0' * (50 * MB), 50)
+
+
 @pytest.mark.usefixtures('registry')
 def test_first_upload_commit_failure_writes_nothing_and_keeps_orphans(admin):
     from open_webui.models.ocu_skills import OcuSkill, OcuSkills

@@ -113,7 +113,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
 
 - [ ] 2.1 Add the upload validator as `backend/open_webui/utils/ocu_skill_zip.py` with its paired test file. It implements every rule of design.md Decision 5:
   - reject absolute paths, `..` components, backslashes, symlinks and encrypted entries;
-  - cap the archive at 2000 entries and the bytes actually read at 200 MB;
+  - accept only stored and deflated entries that are regular files or directories; cap the archive at 2000 entries and the declared uncompressed total at 200 MB, reading every entry CRC-checked;
   - strip a single shared top-level directory;
   - require a root `SKILL.md` whose frontmatter has a valid `name` and a non-empty `description`.
 
@@ -136,13 +136,13 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
       - a symlink: an entry whose `external_attr >> 16` has `S_IFLNK`;
       - an encrypted entry: `flag_bits & 0x1`;
       - 2001 entries;
-      - over 200 MB counted from bytes read: one honest deflated entry of 200 MB plus one byte of zeros (about 200 KB compressed), and several entries whose sum exceeds the cap;
+      - over 200 MB uncompressed: one honest deflated entry of 200 MB plus one byte of zeros (about 200 KB compressed), several entries whose sum exceeds the cap, and a 1-byte entry whose declared `file_size` is patched to 200 MB plus one, all rejected by the declared-total check before reading; BZIP2 and LZMA entries rejected by method before reading;
       - a forged header: an entry whose declared `file_size` is smaller than its real data is rejected, whatever the reason;
       - no root `SKILL.md`, including mixed top-level directories `a/SKILL.md` plus `b/x`, which are not stripped;
       - frontmatter that is missing, not YAML or not a mapping;
       - `name` missing, not a string (`name: 123`), failing `^[a-z0-9][a-z0-9-]{0,63}$` (uppercase, a 65-character name, a leading `-`, a trailing newline), or `description` missing or blank;
       - a body that is not a ZIP, and an empty body;
-      - stdlib failures while reading, each mapped to the validator's error type (never a 500): a corrupt deflate stream (`zlib.error`), a `SKILL.md` that is not UTF-8 (`UnicodeDecodeError`), and an unsupported compression method (`NotImplementedError`);
+      - stdlib failures while reading, each mapped to the validator's error type (never a 500): a corrupt deflate stream (`zlib.error`), a `SKILL.md` that is not UTF-8 or a UTF-8-flagged entry name with invalid bytes (`UnicodeDecodeError`), and an unsupported feature flag such as compressed-patched data (`NotImplementedError`);
       - `description` that is not a string (`description: 123`, a list);
       - a `SKILL.md` larger than 1 MB.
     - Building the encrypted case: on Python 3.12, `writestr` resets `flag_bits`, so the helper sets bit `0x1` by patching the local and central headers after the archive is written, as the forged-`file_size` case patches sizes.
