@@ -130,12 +130,17 @@ An upload whose frontmatter name equals a reserved built-in name SHALL return 40
 
 ### Requirement: Access update
 
-An administrator SHALL be able to replace a skill's read grants with any set of users, groups and the `user:*` wildcard, using the same grant format as other access-controlled resources. Updating the access of an unknown skill SHALL return 404.
+An administrator SHALL be able to replace a skill's read grants with any set of users, groups and the `user:*` wildcard, using the same grant format as other access-controlled resources. Updating the access of an unknown skill SHALL return 404. A grant whose permission is not `read`, whose principal type is not `user` or `group`, or whose principal id is empty SHALL be rejected with 422 and SHALL leave the stored grants unchanged.
 
 #### Scenario: Narrow to a group
 
 - **WHEN** an administrator replaces `invoice-builder` grants with group A read only
 - **THEN** a member of group A holds read access and a non-member does not
+
+#### Scenario: Write grant rejected
+
+- **WHEN** an administrator replaces `invoice-builder` grants with a list containing a group A `write` grant
+- **THEN** the response is 422 and the stored grants of `invoice-builder` equal those before the call
 
 ### Requirement: Hard delete
 
