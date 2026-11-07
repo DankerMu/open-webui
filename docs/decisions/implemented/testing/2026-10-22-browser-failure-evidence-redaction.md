@@ -25,7 +25,7 @@ When the browser run fails, the `run()` failure branch of `scripts/verify-ui-ocu
 
 `trace.zip` is never copied. Destination names come only from the scratch directory listing. The server logs are copied first. Each case file is then copied in its own `try`. A copy or redaction failure is logged with the case and file name. A failure to list the cases is logged with its exception type and skips the case copy. In both cases the branch still re-raises the original exception.
 
-The `workspace-browser-failure` CI artifact uploads:
+The `workspace-browser-failure-shard-<n>` CI artifacts (one per browser shard) upload:
 
 - the copied case evidence;
 - the redacted `stub.log`, `backend.log`, `stub-restart.log` and `backend-restart.log`. `run_stack()` restarts the owned stub and backend before the browser starts, so the server output of the browser phase is in the `*-restart.log` files;
