@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import time
+import uuid
+
 from open_webui.internal.db import Base, get_async_db_context
 from open_webui.models.access_grants import AccessGrant
 from pydantic import BaseModel, ConfigDict
@@ -49,6 +53,13 @@ class OcuSkillDataModel(OcuSkillModel):
     data: bytes
 
 
+async def _purge_grants_and_disables(db: AsyncSession, name: str) -> None:
+    await db.execute(
+        delete(AccessGrant).where(AccessGrant.resource_type == OCU_SKILL_RESOURCE_TYPE, AccessGrant.resource_id == name)
+    )
+    await db.execute(delete(OcuSkillUserDisable).where(OcuSkillUserDisable.skill_name == name))
+
+
 class OcuSkillTable:
     async def get_by_name(self, name: str, db: AsyncSession | None = None) -> OcuSkillDataModel | None:
         async with get_async_db_context(db) as db:
@@ -68,14 +79,44 @@ class OcuSkillTable:
         """
         async with get_async_db_context(db) as db:
             result = await db.execute(delete(OcuSkill).where(OcuSkill.name == name))
-            await db.execute(
-                delete(AccessGrant).where(
-                    AccessGrant.resource_type == OCU_SKILL_RESOURCE_TYPE, AccessGrant.resource_id == name
-                )
-            )
-            await db.execute(delete(OcuSkillUserDisable).where(OcuSkillUserDisable.skill_name == name))
+            await _purge_grants_and_disables(db, name)
             await db.commit()
             return result.rowcount > 0
+
+    async def insert_with_everyone_grant(
+        self, *, name: str, description: str, data: bytes, created_by: str, db: AsyncSession | None = None
+    ) -> OcuSkillModel:
+        """Insert a first upload and replace every grant and disable of its name with one user:* read grant.
+
+        One commit and no existence pre-check: a duplicate name raises IntegrityError at commit, and
+        closing the session rolls the purge back with it. AccessGrants.set_access_grants is not used
+        because it commits in its own session.
+        """
+        now = int(time.time())
+        row = OcuSkill(
+            name=name,
+            description=description,
+            zip_sha256=hashlib.sha256(data).hexdigest(),
+            size=len(data),
+            data=data,
+            created_by=created_by,
+            created_at=now,
+            updated_at=now,
+        )
+        grant = AccessGrant(
+            id=str(uuid.uuid4()),
+            resource_type=OCU_SKILL_RESOURCE_TYPE,
+            resource_id=name,
+            principal_type='user',
+            principal_id='*',
+            permission='read',
+            created_at=now,
+        )
+        async with get_async_db_context(db) as db:
+            await _purge_grants_and_disables(db, name)
+            db.add_all([row, grant])
+            await db.commit()
+            return OcuSkillModel.model_validate(row)
 
 
 OcuSkills = OcuSkillTable()

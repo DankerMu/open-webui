@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import re
 import time
 import uuid
+from unittest.mock import patch
 
 import pytest
-from open_webui.test.ocu_harness import _delete_user, _insert_user, _session_headers, get_client
+from open_webui.test.ocu_harness import _delete_user, _insert_user, _session_headers, get_client, skill_zip
 
 SKILLS_PATH = '/api/v1/ocu/skills'
 ADMIN_PATH = f'{SKILLS_PATH}/admin'
@@ -121,14 +124,13 @@ def _disables(name: str) -> list[str]:
     return asyncio.run(query())
 
 
-def _registry_state() -> dict:
+def _registry_state(names: tuple[str, ...] = ('a', 'b')) -> dict:
     from open_webui.models.ocu_skills import OcuSkills
 
-    names = [skill.name for skill in asyncio.run(OcuSkills.get_all())]
     return {
-        'names': names,
-        'grants': {name: _grants('ocu_skill', name) for name in ('a', 'b')},
-        'disables': {name: _disables(name) for name in ('a', 'b')},
+        'names': [skill.name for skill in asyncio.run(OcuSkills.get_all())],
+        'grants': {name: _grants('ocu_skill', name) for name in names},
+        'disables': {name: _disables(name) for name in names},
         'decoys': {name: _grants('skill', name) for name in DECOY_NAMES},
     }
 
@@ -187,9 +189,9 @@ def test_admin_listing_refuses_user_role_and_no_session(member, seeded_grants):
 @pytest.mark.parametrize(
     'workspace,role,expected',
     [
-        ('false', 'admin', {'/admin': 404, 'POST /a/access': 404, 'DELETE /a': 404}),
+        ('false', 'admin', {'/admin': 404, 'POST /a/access': 404, 'DELETE /a': 404, 'POST /upload': 404}),
         ('true', 'admin', {'/admin': 200}),
-        ('true', 'user', {'/admin': 401, 'POST /a/access': 401, 'DELETE /a': 401}),
+        ('true', 'user', {'/admin': 401, 'POST /a/access': 401, 'DELETE /a': 401, 'POST /upload': 401}),
     ],
     ids=['workspace-off-404', 'workspace-on-positive-control', 'workspace-on-user-401'],
 )
@@ -343,11 +345,156 @@ def test_delete_of_unknown_name_is_404_and_purges_orphans(admin, seeded_grants):
     assert _registry_state() == before
 
 
+UPLOAD_PATH = f'{SKILLS_PATH}/upload'
+INVOICE = 'invoice-builder'
+MB = 1024 * 1024
+
+
+def _skill_zip_for(name: str, *extra) -> bytes:
+    skill_md = f'---\nname: {name}\ndescription: {name} skill\n---\nBody\n'
+    return skill_zip([(f'{name}/SKILL.md', skill_md), (f'{name}/run.py', 'print(1)'), *extra])
+
+
+def _upload(user, body: bytes):
+    headers = {**_session_headers(user.id), 'Content-Type': 'application/zip'}
+    return get_client().post(UPLOAD_PATH, content=body, headers=headers)
+
+
+async def _seed_orphans(name: str, group_id: str) -> None:
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.ocu_skills import OcuSkillUserDisable
+
+    await AccessGrants.grant_access('ocu_skill', name, 'group', group_id, 'read')
+    async with get_async_db() as db:
+        db.add(OcuSkillUserDisable(user_id=USER_U, skill_name=name))
+        await db.commit()
+
+
+@pytest.mark.usefixtures('registry')
+def test_first_upload_creates_the_skill_with_one_wildcard_grant(admin):
+    from open_webui.models.ocu_skills import OcuSkills
+
+    body = _skill_zip_for(INVOICE)
+
+    response = _upload(admin, body)
+
+    assert response.status_code == 200, response.text
+    sha = hashlib.sha256(body).hexdigest()
+    assert response.json() == {'name': INVOICE, 'description': f'{INVOICE} skill', 'zip_sha256': sha, 'size': len(body)}
+    listed = _listing(get_client(), admin)[INVOICE]
+    assert (listed['created_by'], listed['zip_sha256'], listed['access_grants']) == (admin.id, sha, [EVERYONE_READ])
+    assert asyncio.run(OcuSkills.get_by_name(INVOICE)).data == body
+
+
+@pytest.mark.usefixtures('registry')
+def test_first_upload_replaces_orphaned_grants_and_disables(admin):
+    asyncio.run(_seed_orphans(INVOICE, f'group-a-{uuid.uuid4()}'))
+
+    response = _upload(admin, _skill_zip_for(INVOICE))
+
+    assert response.status_code == 200, response.text
+    assert _grants('ocu_skill', INVOICE) == [('user', '*', 'read')]
+    assert _disables(INVOICE) == []
+
+
+def test_upload_of_an_existing_name_is_409_and_changes_nothing(admin, seeded_grants):
+    from open_webui.models.ocu_skills import OcuSkills
+
+    before = (_registry_state(), asyncio.run(OcuSkills.get_by_name('b')))
+    assert before[0]['grants']['b'] and before[0]['disables']['b']
+
+    response = _upload(admin, _skill_zip_for('b'))
+
+    assert response.status_code == 409
+    assert "'b'" in response.json()['detail']
+    assert (_registry_state(), asyncio.run(OcuSkills.get_by_name('b'))) == before
+
+
+REJECTED_UPLOADS = {
+    'reserved-docx': (lambda: _skill_zip_for('docx'), 400, 'reserved'),
+    'reserved-internal-comms': (lambda: _skill_zip_for('internal-comms'), 400, 'reserved'),
+    'path-traversal': (lambda: _skill_zip_for(INVOICE, ('../../evil.sh', 'x')), 400, r'\.\.'),
+    'zip-bomb': (lambda: _skill_zip_for(INVOICE, ('zeros', 200 * MB + 1)), 400, '200 MB'),
+    'not-a-zip': (lambda: b'not a zip', 400, 'not a readable ZIP'),
+    'invalid-name': (lambda: _skill_zip_for('Invoice'), 400, 'name'),
+    # The cap is on bytes read: exactly 50 MB is read whole and fails validation, one byte more is 413.
+    'body-at-cap': (lambda: b'\0' * (50 * MB), 400, 'not a readable ZIP'),
+    'body-51-mb': (lambda: b'\0' * (51 * MB), 413, '50 MB'),
+}
+
+
+@pytest.mark.parametrize('case', list(REJECTED_UPLOADS))
+def test_rejected_upload_changes_nothing(admin, seeded_grants, case):
+    build, expected, reason = REJECTED_UPLOADS[case]
+    names = ('a', 'b', INVOICE, 'docx', 'internal-comms')
+    before = _registry_state(names)
+
+    response = _upload(admin, build())
+
+    assert response.status_code == expected, response.text
+    assert re.search(reason, response.json()['detail'])
+    assert _registry_state(names) == before
+
+
+@pytest.mark.usefixtures('registry')
+def test_first_upload_commit_failure_writes_nothing_and_keeps_orphans(admin):
+    from open_webui.models.ocu_skills import OcuSkill, OcuSkills
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    asyncio.run(_seed_orphans(INVOICE, f'group-a-{uuid.uuid4()}'))
+    before = _registry_state((INVOICE,))
+    reached_insert = []
+
+    async def failing_commit(self):
+        # Proves the failure hit the upload's own commit, not an earlier one in the request.
+        reached_insert.append(any(isinstance(obj, OcuSkill) for obj in self.new))
+        raise RuntimeError('injected commit failure')
+
+    with patch.object(AsyncSession, 'commit', failing_commit):
+        with pytest.raises(RuntimeError, match='injected commit failure'):
+            _upload(admin, _skill_zip_for(INVOICE))
+
+    assert True in reached_insert
+    assert asyncio.run(OcuSkills.get_by_name(INVOICE)) is None
+    assert _registry_state((INVOICE,)) == before
+    assert ('user', '*', 'read') not in before['grants'][INVOICE] and before['disables'][INVOICE] == [USER_U]
+
+
+@pytest.mark.usefixtures('registry')
+def test_skill_survives_reset_uploads_and_delete_all_files(admin):
+    # Destructive on the shared harness DB: every file row and the vector DB are reset.
+    from pathlib import Path
+
+    from open_webui.config import UPLOAD_DIR
+    from open_webui.models.ocu_skills import OcuSkills
+
+    client = get_client()
+    headers = _session_headers(admin.id)
+    body = _skill_zip_for(INVOICE)
+    assert _upload(admin, body).status_code == 200
+    canary = Path(UPLOAD_DIR) / f'canary-{uuid.uuid4()}'
+
+    for method, path, expected in [
+        ('POST', '/api/v1/retrieval/reset/uploads', True),
+        ('DELETE', '/api/v1/files/all', {'message': 'All files deleted successfully'}),
+    ]:
+        canary.write_bytes(b'canary')
+        response = client.request(method, path, headers=headers)
+        assert (response.status_code, response.json()) == (200, expected), response.text
+        assert not canary.exists()
+
+    assert INVOICE in _listing(client, admin)
+    skill = asyncio.run(OcuSkills.get_by_name(INVOICE))
+    assert (skill.data, skill.zip_sha256) == (body, hashlib.sha256(body).hexdigest())
+
+
 ADMIN_WRITES = {
     'access': ('POST', '/a/access', {'access_grants': [EVERYONE_READ]}),
     # The admin dependency runs before body validation: a non-admin learns nothing about the form.
     'access-invalid-body': ('POST', '/a/access', {'access_grants': [{**EVERYONE_READ, 'permission': 'write'}]}),
     'delete': ('DELETE', '/a', None),
+    'upload': ('POST', '/upload', _skill_zip_for(INVOICE)),
 }
 
 
@@ -358,7 +505,9 @@ def test_admin_writes_refuse_non_admins_and_change_nothing(member, seeded_grants
     headers = _session_headers(member.id) if caller == 'user-role' else {}
     before = _registry_state()
 
-    response = get_client().request(method, f'{SKILLS_PATH}{path}', json=body, headers=headers)
+    payload = {'content': body} if isinstance(body, bytes) else {'json': body}
+
+    response = get_client().request(method, f'{SKILLS_PATH}{path}', headers=headers, **payload)
 
     assert response.status_code == 401
     assert _registry_state() == before
