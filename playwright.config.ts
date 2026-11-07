@@ -8,6 +8,8 @@ export default defineConfig({
 	// *.e2e.ts keeps Playwright specs out of Vitest's default **/*.spec.ts glob.
 	testMatch: '**/*.e2e.ts',
 	testIgnore: '**/ocu-*.e2e.ts',
+	// Every shard starts on a cold dev server; warm it once instead of relying on spec order.
+	globalSetup: './e2e/dev-warm-up.ts',
 	timeout: 30_000,
 	// First navigation compiles the route in Vite dev; on a cold CI runner that exceeds
 	// Playwright's 5s default expect timeout (observed: /auth locator not found at 5.9s).

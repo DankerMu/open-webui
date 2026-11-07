@@ -61,11 +61,12 @@ check-fast:
 	bash scripts/check-fast.sh
 
 fmt:
-	uv run ruff format backend
+	uv run ruff format . --exclude .venv --exclude venv
 	npx prettier --plugin-search-dir --write "**/*.{js,ts,svelte,css,md,html,json}"
 
+# The whole tree, as upstream's backend.yaml checks it, so that workflow can stay disabled.
 fmt-check:
-	uv run ruff format --check backend
+	uv run ruff format --check . --exclude .venv --exclude venv
 	npx prettier --plugin-search-dir --check "**/*.{js,ts,svelte,css,md,html,json}"
 
 # Repo-wide lint at upstream strength (what upstream CI runs). Repo-wide eslint is NOT here:
