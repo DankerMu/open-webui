@@ -149,8 +149,8 @@ jobs:
         if: always()
 
   # The baseline and OCU browser runs split into Playwright shards, one per runner; together
-  # the shards are exactly `make verify-ui`. Three balance best on the measured spec times
-  # (each ~3.5 min of browser time); a fourth would not shorten the longest shard.
+  # the shards are exactly `make verify-ui`. Three balance best on the measured per-file times
+  # (each shard's step took 5-6.5 min on PR #758); a fourth would not shorten the longest one.
   layer3-browser:
     name: Browser verification (shard ${{ matrix.shard }})
     needs: changes

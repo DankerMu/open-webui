@@ -37,7 +37,7 @@ Every check that ran before still runs, on every push to `main` and on every pul
 - `make verify-ui SHARD=i/n` passes Playwright `--shard` to the baseline run and, through a validated `OCU_UI_SHARD`, to the OCU run.
 - OCU test discovery still requires every spec in every shard.
 - Playwright splits each run into contiguous groups of test files, so the shards together are exactly `make verify-ui`.
-- Three shards balance best on the measured spec times: about 3.5 min of browser time each. With four, the longest shard gets longer, because whole files cannot be split.
+- Three shards balance best on the measured per-file times. On PR #758 their browser steps took 301 s, 354 s and 387 s, including the dev server and OCU stack start. A simulation on those times puts the longest of four combined shards higher than the longest of three, because whole files cannot be split.
 - The failure-evidence artifact is uploaded once per shard.
 
 **Setup.**
@@ -61,13 +61,14 @@ Every check that ran before still runs, on every push to `main` and on every pul
 
 - **Workflow-level `paths-ignore` for docs.** Rejected. The required `All checks passed` check would never report on a docs-only PR, and that PR could not merge.
 - **Hand-picked spec lists per shard.** Rejected. These lists would repeat `REQUIRED_SPECS` in `ci.yml`, and a new spec could silently join no shard. Playwright's `--shard` partitions whatever the configuration collects.
-- **Shard backend pytest across runners.** Deferred. It would need coverage files combined in an extra job. One pytest run (about 4 min with setup) is shorter than a browser shard, so splitting it would not shorten the critical path.
+- **Shard backend pytest across runners.** Deferred. It would need coverage files combined in an extra job. The backend job (358 s on PR #758, 289 s of it pytest) already finishes before the slowest browser shard (8.0 min), so splitting it would not shorten the critical path.
 - **Cache `.venv` instead of the uv cache.** Rejected. The CUDA `torch` wheels in `uv.lock` make the environment about 3 GB either way, and `uv sync` from a warm cache takes about 3 s.
 - **Fold anti-drift into the fast-checks job.** Rejected. The Enforcement Index names CI layers by number, and that job is not on the critical path.
 
 ## Consequences
 
-- The critical path is now the slowest browser shard plus its setup.
+- The critical path is now the slowest browser shard plus its setup. On PR #758, with warm caches, a run took 8.5 min of wall time. Before the change, the median over 35 successful runs was 24.9 min.
+- Each browser shard spends about 3.5 min before its first test: setup, the dev server, the warm-up and the OCU stack. That fixed cost, not test time, now limits further sharding. Separate baseline and OCU jobs (four OCU shards) are the next lever, and the ~100 s `open_webui.main` import is the floor for any backend shard.
 - Runner minutes rise: setup now repeats on seven parallel jobs instead of four. That is free on this public repository.
 - Each browser shard starts its own dev and OCU stacks.
 - Lint jobs with a warm cache read only a small dev-only uv cache.
