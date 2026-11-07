@@ -16,11 +16,11 @@ Measured coverage proves that lines execute, not that assertions pass. Standalon
 
 ## Decision
 
-Repository maintainers own this policy; `scripts/coverage-gate.sh` owns the gate's exit semantics. The backend subshell exits with `PIPESTATUS[0]` immediately after the pytest/tail pipeline, before another command can overwrite that status. A failed backend directory change also remains nonzero.
+Repository maintainers own this policy; `scripts/coverage-gate.sh` owns the gate's exit semantics. The backend subshell exits with pytest's own status, captured before another command can overwrite it; pytest writes to a log that is printed whole on failure and as its last three lines otherwise. A failed backend directory change also remains nonzero.
 
 Pytest exit0 and exit5 (no tests collected) are acceptable, matching `test-backend`. Other nonzero statuses set the existing failure accumulator and produce a backend-test diagnostic distinct from coverage failures. Exit5 does not excuse a gated coverage-report failure.
 
-Gated coverage reports, modified-upstream advisory reports, and frontend tests continue after backend test failure. Advisory report failures remain advisory; gated coverage and frontend test failures remain fatal. Independent `test-backend`, `check`, and CI test steps, coverage thresholds, and source-discovery rules remain unchanged.
+Gated coverage reports, modified-upstream advisory reports, and frontend tests continue after backend test failure. Advisory report failures remain advisory; gated coverage and frontend test failures remain fatal. Independent `test-backend` and `check`, coverage thresholds, and source-discovery rules remain unchanged. CI no longer runs `test-backend` separately: `make coverage-gate PART=backend` is its backend test run ([CI critical path](../process/2026-11-07-ci-critical-path.md)).
 
 `make test-coverage-gate` exercises the actual Make/script boundary in disposable Git repositories. Executable receivers control external tool statuses without replacing the gate or importing the application.
 

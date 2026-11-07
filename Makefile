@@ -61,11 +61,12 @@ check-fast:
 	bash scripts/check-fast.sh
 
 fmt:
-	uv run ruff format backend
+	uv run ruff format . --exclude .venv --exclude venv
 	npx prettier --plugin-search-dir --write "**/*.{js,ts,svelte,css,md,html,json}"
 
+# The whole tree, as upstream's backend.yaml checks it, so that workflow can stay disabled.
 fmt-check:
-	uv run ruff format --check backend
+	uv run ruff format --check . --exclude .venv --exclude venv
 	npx prettier --plugin-search-dir --check "**/*.{js,ts,svelte,css,md,html,json}"
 
 # Repo-wide lint at upstream strength (what upstream CI runs). Repo-wide eslint is NOT here:
@@ -136,8 +137,9 @@ test-smoke-cleanup:
 test-coverage-gate:
 	cd backend && uv run --no-sync pytest -q -p no:cacheprovider open_webui/test/test_coverage_gate.py
 
+# PART=backend|frontend gates one half (CI runs them in parallel jobs); no PART = both.
 coverage-gate:
-	bash scripts/coverage-gate.sh
+	bash scripts/coverage-gate.sh $(if $(PART),--only "$(PART)",)
 
 anti-drift:
 	bash scripts/anti-drift.sh
@@ -172,12 +174,14 @@ e2e-auth-bootstrap:
 	bash scripts/seed.sh >/dev/null
 	umask 077; npx playwright test e2e/auth-bootstrap.e2e.ts --workers=1 --output=.run/auth-bootstrap-results
 
-# verify-ui ROUTE="/auth" runs one route's test; no ROUTE = all.
+# verify-ui ROUTE="/auth" runs one route's test; no ROUTE = all. SHARD=i/n runs the i-th of n
+# Playwright shards of both the baseline and the OCU run (CI fan-out); the n shards together are
+# the full run. A malformed SHARD fails in Playwright or verify-ui-ocu.py, never as a silent full run.
 verify-ui:
 	bash scripts/dev-bg.sh status >/dev/null || bash scripts/dev-bg.sh start
 	bash scripts/seed.sh
-	npx playwright test $(if $(ROUTE),--grep "route $(ROUTE) ",)
-	python3 scripts/verify-ui-ocu.py
+	npx playwright test $(if $(ROUTE),--grep "route $(ROUTE) ",) $(if $(SHARD),--shard="$(SHARD)",)
+	$(if $(SHARD),OCU_UI_SHARD="$(SHARD)",) python3 scripts/verify-ui-ocu.py
 
 verify-ui-ocu:
 	python3 scripts/verify-ui-ocu.py

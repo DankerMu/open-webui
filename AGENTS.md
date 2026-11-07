@@ -81,9 +81,10 @@ nvm use && make setup
 - Run all checks / changed-since-HEAD only: `make check` / `make check-fast`
 - Run unit tests: `make test` (`make test-backend`, `make test-frontend`)
 - Format / lint (upstream strength) / type-check / build: `make fmt`, `make lint`, `make typecheck`, `make build`
-- L3 lint+size+complexity on the fork's change scope: `make lint-scoped`; coverage gate (fork-added files ≥ 80%): `make coverage-gate`; duplicate / dead code (scoped): `make anti-drift`
+- L3 lint+size+complexity on the fork's change scope: `make lint-scoped`; coverage gate (fork-added files ≥ 80%): `make coverage-gate` (`PART=backend|frontend` for one half); duplicate / dead code (scoped): `make anti-drift`
 - Docs drift gate / decision records check: `make doc-gate`, `make decisions-verify`
 - OCU stub smoke / OCU gateway smoke (not `make smoke`): `make smoke-stub` / `make smoke-proxy`
+- One of n CI browser shards of the baseline + OCU run: `make verify-ui SHARD=i/n`
 - Repeat one OCU browser spec against one owned stack: `make verify-ui-ocu-repeat` (`SPEC=… REPEAT=…`, optional `GREP=…`); its entry-point validation unit test: `make test-verify-ui-ocu-repeat`
 - Closing-reference guard self-test: `make test-pr-merge-guard`; check / merge a PR by its reviewed head: `make pr-merge-check`, `make pr-merge` (`PR_REPO=… PR_NUMBER=… PR_HEAD=…`)
 
