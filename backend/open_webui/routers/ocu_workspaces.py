@@ -294,3 +294,11 @@ if ENABLE_OCU_WORKSPACE:
     router.add_api_route('/workspaces/{chat_id}/refresh', refresh_workspace, methods=['POST'])
     router.add_api_route('/workspaces/{chat_id}/prefs', put_prefs, methods=['PUT'])
     router.include_router(ocu_skills.router, prefix='/skills')
+else:
+    # Unmounted skills paths would fall through to the SPA mount at '/': 405 for writes, index.html for GET.
+    router.add_api_route(
+        '/skills/{path:path}',
+        _not_found,
+        methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        include_in_schema=False,
+    )
