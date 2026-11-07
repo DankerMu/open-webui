@@ -35,3 +35,7 @@ _Avoid_: save (ambiguous), commit (git sense)
 **fence**:
 publish 窗口内对沙箱写入者的围栏，始终在 per-chat 锁内：容器在运行则 pause → 替换 → unpause（暂停失败即发布失败），容器未运行则直接替换；与容器 launch 共用同一把锁。
 _Avoid_: lock (alone), freeze, mutex
+
+**上传 skill (uploaded skill)**:
+管理员在 WebUI 以 ZIP 上传的 OCU skill，名字取自 `SKILL.md` frontmatter 的 `name`，ZIP 字节存在 WebUI 数据库 `ocu_skill` 表里；WebUI 按授权和个人开关把它提供给 OCU，OCU 只读挂载到沙箱的 `/mnt/skills/user/{name}`。不同于随 OCU 镜像发布的内置 skill，也不同于 Open WebUI 原生 Skills。
+_Avoid_: 自定义 skill, native skill（指 Open WebUI 原生 Skills）, 内置 skill（指随 OCU 镜像发布的 skill）

@@ -207,6 +207,7 @@ A diff touching a listed path must attach the listed evidence and a reviewer pas
 - `backend/open_webui/routers/auths.py`, `utils/auth.py`, `utils/access_control/` — auth, permissions: tests for the 401/403/404 matrix + `make smoke`
 - `backend/open_webui/models/chats.py` (`is_chat_owner`) — authorization predicate: unit tests for owner/shared/admin cases
 - `backend/open_webui/routers/ocu_workspaces.py` — authorization, sandbox lifecycle: Plan 1 A-T08/A-T12 fixtures + `make smoke`
+- `backend/open_webui/routers/ocu_skills.py`, `models/ocu_skills.py` — uploaded-skill admin, user and internal-key authorization, ZIP bytes in the DB: tests for the 401/404 auth matrix + `make smoke`
 - `backend/open_webui/migrations/versions/` — schema, irreversible: `make db-verify` + migration named in a plan
 - `backend/open_webui/socket/` — cross-user event leakage: tests that events reach only `user:{id}` rooms
 - `backend/open_webui/utils/middleware.py`, `backend/open_webui/config.py` — upstream spine: minimal diff + `make smoke`
