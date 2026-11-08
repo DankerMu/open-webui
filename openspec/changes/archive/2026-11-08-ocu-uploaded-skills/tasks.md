@@ -26,7 +26,7 @@ Risk packs:
 
 ## 1. [webui] Registry data model, admin listing, access and delete
 
-- [ ] 1.1 Add `backend/open_webui/models/ocu_skills.py` with the `ocu_skill` table (ZIP bytes in a deferred `LargeBinary` column `data`) and the `ocu_skill_user_disable` table, plus the get and list-all table methods; list-all never loads `data`. Add one additive Alembic migration (down_revision `e6f7a8b9c0d1`) whose downgrade drops both tables and deletes `resource_type='ocu_skill'` grants. Add `backend/open_webui/routers/ocu_skills.py`, which registers its routes unconditionally on its own router and imports nothing from `ocu_workspaces`. Mount it by calling `router.include_router(ocu_skills.router, prefix='/skills')` inside the existing `if ENABLE_OCU_WORKSPACE:` block of `routers/ocu_workspaces.py:290` (giving `/api/v1/ocu/skills`; `main.py` is not changed), so with the flag off every `ocu_skills` route returns 404. Because the gate is the mount, monkeypatching `ocu_workspaces.ENABLE_OCU_WORKSPACE` after import does not remove the routes: every "workspace disabled" case in this change imports the app in a fresh process with `ENABLE_OCU_WORKSPACE=false`. Extend the existing fresh-process helper `backend/open_webui/test/ocu_office_flag_process.py` (it already runs with `--workspace false`) to report the status of given `/api/v1/ocu/skills` requests, and reuse it in every later task; add no second subprocess helper. Add the admin `GET /admin` route, returning each skill's current read grant set (spec: Administrator listing with grants; Stage 3 finding SA-1). Ship the decision record `docs/decisions/implemented/architecture/2026-11-07-ocu-uploaded-skills.md`, recording design.md Decisions 1-4, 6 and 10 and linking the source plan; the AGENTS.md Critical Paths row for `backend/open_webui/routers/ocu_skills.py` and `models/ocu_skills.py`, requiring the auth matrix tests plus `make smoke`; and the glossary term **上传 skill** in `openspec/glossary.md`. Verify with model pytest (list-all does not load `data`), router pytest via `TestClient` (an admin gets the listing; a user gets 401; no session gets 401; with the workspace disabled the route gets 404), `make db-verify`, `make decisions-verify` and `make doc-gate`.
+- [x] 1.1 Add `backend/open_webui/models/ocu_skills.py` with the `ocu_skill` table (ZIP bytes in a deferred `LargeBinary` column `data`) and the `ocu_skill_user_disable` table, plus the get and list-all table methods; list-all never loads `data`. Add one additive Alembic migration (down_revision `e6f7a8b9c0d1`) whose downgrade drops both tables and deletes `resource_type='ocu_skill'` grants. Add `backend/open_webui/routers/ocu_skills.py`, which registers its routes unconditionally on its own router and imports nothing from `ocu_workspaces`. Mount it by calling `router.include_router(ocu_skills.router, prefix='/skills')` inside the existing `if ENABLE_OCU_WORKSPACE:` block of `routers/ocu_workspaces.py:290` (giving `/api/v1/ocu/skills`; `main.py` is not changed), so with the flag off every `ocu_skills` route returns 404. Because the gate is the mount, monkeypatching `ocu_workspaces.ENABLE_OCU_WORKSPACE` after import does not remove the routes: every "workspace disabled" case in this change imports the app in a fresh process with `ENABLE_OCU_WORKSPACE=false`. Extend the existing fresh-process helper `backend/open_webui/test/ocu_office_flag_process.py` (it already runs with `--workspace false`) to report the status of given `/api/v1/ocu/skills` requests, and reuse it in every later task; add no second subprocess helper. Add the admin `GET /admin` route, returning each skill's current read grant set (spec: Administrator listing with grants; Stage 3 finding SA-1). Ship the decision record `docs/decisions/implemented/architecture/2026-11-07-ocu-uploaded-skills.md`, recording design.md Decisions 1-4, 6 and 10 and linking the source plan; the AGENTS.md Critical Paths row for `backend/open_webui/routers/ocu_skills.py` and `models/ocu_skills.py`, requiring the auth matrix tests plus `make smoke`; and the glossary term **上传 skill** in `openspec/glossary.md`. Verify with model pytest (list-all does not load `data`), router pytest via `TestClient` (an admin gets the listing; a user gets 401; no session gets 401; with the workspace disabled the route gets 404), `make db-verify`, `make decisions-verify` and `make doc-gate`.
       Task 1.1 required evidence (issue #742; each item is input → expected output):
   - **Model (list-all).**
     - Seed two `ocu_skill` rows with non-empty `data` through the ORM session. The 1.1 model has no insert method.
@@ -64,7 +64,7 @@ Risk packs:
     - `grep -n ocu_workspaces backend/open_webui/routers/ocu_skills.py` prints nothing.
   - **Docs.** `make decisions-verify` and `make doc-gate` exit 0.
   - **Gates.** `make lint-scoped` and `make coverage-gate` pass, with every new file at 80% line coverage or more.
-- [ ] 1.2 Add the delete-with-grants-and-disables table method as one DB transaction, and the admin `POST /{name}/access` and `DELETE /{name}` routes. Verify with router pytest: an admin succeeds; a user gets 401; no session gets 401; an unknown name gets 404; with the workspace disabled both routes get 404; access replaces the grant set (after narrowing to group A, the stored `ocu_skill` grants are exactly group A read); delete leaves no row, grant or disable row.
+- [x] 1.2 Add the delete-with-grants-and-disables table method as one DB transaction, and the admin `POST /{name}/access` and `DELETE /{name}` routes. Verify with router pytest: an admin succeeds; a user gets 401; no session gets 401; an unknown name gets 404; with the workspace disabled both routes get 404; access replaces the grant set (after narrowing to group A, the stored `ocu_skill` grants are exactly group A read); delete leaves no row, grant or disable row.
       Task 1.2 required evidence (issue #743; each item is input → expected output):
   - **Access form contract.**
     - Body: `{access_grants: [{principal_type, principal_id, permission}]}`.
@@ -111,7 +111,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
 
 ## 2. [webui] ZIP validation, reserved names and upload
 
-- [ ] 2.1 Add the upload validator as `backend/open_webui/utils/ocu_skill_zip.py` with its paired test file. It implements every rule of design.md Decision 5:
+- [x] 2.1 Add the upload validator as `backend/open_webui/utils/ocu_skill_zip.py` with its paired test file. It implements every rule of design.md Decision 5:
   - reject absolute paths, `..` components, backslashes, symlinks and encrypted entries;
   - accept only stored and deflated entries that are regular files or directories; cap the archive at 2000 entries and the declared uncompressed total at 200 MB, reading every entry CRC-checked;
   - strip a single shared top-level directory;
@@ -196,7 +196,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
     - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass. Each new or changed fork file has at least 80% line coverage, and the validator is covered by its own test file.
     - The diff is at most 400 lines, or carries `diff-limit-exempt` with the task's slice reason.
 
-- [ ] 2.2 Add the replace path of `POST /upload`: an existing name replaces `data`, SHA-256, size and description in one DB transaction and keeps grants and disables. Verify with router pytest: replace keeps narrowed grants and disables; an injected commit failure (patch the session commit to raise) on a replace leaves the previous row, its `data` and its SHA-256 unchanged (read back through the table get method), and a success-path spy on the session commit sees exactly one call. Add a `smoke/` hurl case for an admin upload, then delete it.
+- [x] 2.2 Add the replace path of `POST /upload`: an existing name replaces `data`, SHA-256, size and description in one DB transaction and keeps grants and disables. Verify with router pytest: replace keeps narrowed grants and disables; an injected commit failure (patch the session commit to raise) on a replace leaves the previous row, its `data` and its SHA-256 unchanged (read back through the table get method), and a success-path spy on the session commit sees exactly one call. Add a `smoke/` hurl case for an admin upload, then delete it.
       Task 2.2 required evidence (issue #745; each item is input → expected output):
   - **Table method.**
     - The first-upload insert from task 2.1 becomes one upsert method in `models/ocu_skills.py`. There are no two parallel write methods.
@@ -242,7 +242,7 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
     - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass; the `ocu_skills` files stay at 80% or more.
     - The seam check prints nothing: `git diff --name-only $(git merge-base HEAD origin/main) -- backend/open_webui/main.py backend/open_webui/migrations src .github scripts`.
 
-- [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Give the pinned OCU checkout to `layer2-backend-tests` (the job that runs `make coverage-gate PART=backend` since the CI split) and export `OCU_CHECKOUT` there; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
+- [x] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Give the pinned OCU checkout to `layer2-backend-tests` (the job that runs `make coverage-gate PART=backend` since the CI split) and export `OCU_CHECKOUT` there; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
       Task 2.3 required evidence (issue #746; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded.
@@ -319,7 +319,7 @@ Minimal mergeable slice: task 2.1 first (the validator, the reserved-name check 
 
 ## 3. [webui] Per-user list and toggle
 
-- [ ] 3.1 Add the enabled-set query of design.md Decision 6 to `models/ocu_skills.py`, without loading `data`. Add the user routes `GET /` (readable skills with `enabled`) and `POST /{name}/toggle` (404 without read access or for an unknown name). Verify with router pytest: a group-narrowed skill is hidden from a non-member; an administrator outside the group sees it exactly when `BYPASS_ADMIN_ACCESS_CONTROL` is on; the default-open skill is listed as enabled; a disable affects only the caller; an ungranted toggle gets 404 and stores nothing; no session gets 401; the workspace disabled gets 404.
+- [x] 3.1 Add the enabled-set query of design.md Decision 6 to `models/ocu_skills.py`, without loading `data`. Add the user routes `GET /` (readable skills with `enabled`) and `POST /{name}/toggle` (404 without read access or for an unknown name). Verify with router pytest: a group-narrowed skill is hidden from a non-member; an administrator outside the group sees it exactly when `BYPASS_ADMIN_ACCESS_CONTROL` is on; the default-open skill is listed as enabled; a disable affects only the caller; an ungranted toggle gets 404 and stores nothing; no session gets 401; the workspace disabled gets 404.
       Task 3.1 required evidence (issue #747; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded (authorization, persisted per-user state).
@@ -404,7 +404,7 @@ Minimal mergeable slice: atomic - one query and the two routes that are its only
 
 ## 4. [webui] Internal registry endpoints
 
-- [ ] 4.1 Add `GET /api/internal/user-config/{email}` and `GET /api/internal/skills/{name}/download`:
+- [x] 4.1 Add `GET /api/internal/user-config/{email}` and `GET /api/internal/skills/{name}/download`:
   - authenticate by `X-Internal-Api-Key` equal to `OCU_INTERNAL_TOKEN`, read from `os.environ` at request time (design.md Decision 2; no import from `ocu_workspaces`), via `hmac.compare_digest`, with an empty token or missing header giving 401 with an empty body, and cookies ignored;
   - user-config returns the OCU contract shape built from the task 3.1 enabled-set query; an unknown email gives 200 with an empty list;
   - download reads `ocu_skill.data` and returns `application/zip`, or 404 for an unknown name.
@@ -510,7 +510,7 @@ Minimal mergeable slice: atomic - the two routes form one contract that OCU call
 
 ## 5. [webui] Admin Settings tab
 
-- [ ] 5.1 Add the `constraints.yaml` `bounded_overrides` entry for `src/lib/components/chat/SettingsModal.svelte`: ceiling about 1350, a reason naming change `ocu-uploaded-skills` and the user's approval (2026-11-07), and exit_condition "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed". Add `src/lib/apis/ocu/skills.ts` (with `skills.test.ts`) covering the admin routes. Add the Admin Settings 「工作区 Skills」 tab as a new component: upload with the server's rejection reason shown, a list, access editing through `workspace/common/AccessControl.svelte`, delete behind a confirmation dialog, and both timing notices (revocation and deletion wait for a sandbox rebuild; a replaced ZIP reaches running sandboxes that already mount it within minutes). In `SettingsModal.svelte` add only the `admin:` tab registration and its render branch, shown only when `features.enable_ocu_workspace`. Run `npm run i18n:parse` for new strings. Create `e2e/ocu-skills.e2e.ts`, add its bare filename `ocu-skills.e2e.ts` to `REQUIRED_SPECS` in `scripts/verify-ui-ocu.py:86-95` (the tuple lists bare filenames), and add an assertion for it to `scripts/test_verify_ui_ocu_repeat.py` (which asserts that list). Verify with `make test-frontend`, `make test-verify-ui-ocu-repeat`, `make lint-scoped` (SettingsModal within the new ceiling) and the Playwright case under `make verify-ui-ocu`: upload a fixture ZIP and see it listed; both notices shown; cancel delete and see it remain; confirm delete and see it disappear; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no admin tab and zero `/api/v1/ocu/skills` requests; screenshots, zero console errors.
+- [x] 5.1 Add the `constraints.yaml` `bounded_overrides` entry for `src/lib/components/chat/SettingsModal.svelte`: ceiling about 1350, a reason naming change `ocu-uploaded-skills` and the user's approval (2026-11-07), and exit_condition "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed". Add `src/lib/apis/ocu/skills.ts` (with `skills.test.ts`) covering the admin routes. Add the Admin Settings 「工作区 Skills」 tab as a new component: upload with the server's rejection reason shown, a list, access editing through `workspace/common/AccessControl.svelte`, delete behind a confirmation dialog, and both timing notices (revocation and deletion wait for a sandbox rebuild; a replaced ZIP reaches running sandboxes that already mount it within minutes). In `SettingsModal.svelte` add only the `admin:` tab registration and its render branch, shown only when `features.enable_ocu_workspace`. Run `npm run i18n:parse` for new strings. Create `e2e/ocu-skills.e2e.ts`, add its bare filename `ocu-skills.e2e.ts` to `REQUIRED_SPECS` in `scripts/verify-ui-ocu.py:86-95` (the tuple lists bare filenames), and add an assertion for it to `scripts/test_verify_ui_ocu_repeat.py` (which asserts that list). Verify with `make test-frontend`, `make test-verify-ui-ocu-repeat`, `make lint-scoped` (SettingsModal within the new ceiling) and the Playwright case under `make verify-ui-ocu`: upload a fixture ZIP and see it listed; both notices shown; cancel delete and see it remain; confirm delete and see it disappear; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no admin tab and zero `/api/v1/ocu/skills` requests; screenshots, zero console errors.
       Task 5.1 required evidence (issue #749; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded. The change touches the shared `SettingsModal.svelte` entry point, and a hard delete sits behind a confirmation.
@@ -635,7 +635,7 @@ Minimal mergeable slice: atomic - the API client is dead without its first calle
 
 ## 6. [webui] Personal Settings tab
 
-- [ ] 6.1 Add the personal Settings 「工作区 Skills」 tab as a new component, with one switch per readable skill backed by `GET /` and `POST /{name}/toggle`; extend `src/lib/apis/ocu/skills.ts` and `skills.test.ts` with those two user routes. In `SettingsModal.svelte` add only the tab registration and its render branch, shown only when `features.enable_ocu_workspace`, within the `bounded_overrides` ceiling added in task 5.1. Verify with `make test-frontend`, `make lint-scoped` and a Playwright case in `e2e/ocu-skills.e2e.ts`: turn a switch off, reload, and see it still off; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no personal tab and zero `/api/v1/ocu/skills` requests; zero console errors.
+- [x] 6.1 Add the personal Settings 「工作区 Skills」 tab as a new component, with one switch per readable skill backed by `GET /` and `POST /{name}/toggle`; extend `src/lib/apis/ocu/skills.ts` and `skills.test.ts` with those two user routes. In `SettingsModal.svelte` add only the tab registration and its render branch, shown only when `features.enable_ocu_workspace`, within the `bounded_overrides` ceiling added in task 5.1. Verify with `make test-frontend`, `make lint-scoped` and a Playwright case in `e2e/ocu-skills.e2e.ts`: turn a switch off, reload, and see it still off; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no personal tab and zero `/api/v1/ocu/skills` requests; zero console errors.
       Task 6.1 required evidence (issue #750; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded. The change touches the shared `SettingsModal.svelte` entry point and persisted per-user state.
@@ -740,7 +740,7 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
 
 ## 7. [webui] Slash menu group
 
-- [ ] 7.1 Add the 「工作区 Skills」 group to `Commands/SlashCommands.svelte` and its selection handling in `CommandSuggestionList.svelte`, as minimal upstream diffs. The group lists the user's enabled set (design.md Decision 6) whenever `features.enable_ocu_workspace` is true, whatever the sandbox state or model filters. Selecting an entry inserts a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`), plus `mentionSuggestionChar: '/'`. The chat input's `/` command inserts the given attrs without a trigger char (`MessageInput.svelte:1418-1426`), so the branch passes `mentionSuggestionChar: '/'`; without it the editor falls back to `@` and writes `<@…>`. The editor then serializes only the id, `/` written as `$`, so the sent text carries `<$ocu--{name}|{name}>` (`RichTextInput.svelte:117-125`; no `RichTextInput.svelte` change). Built-in OCU skills never appear, and nothing is requested when the workspace is disabled. Add the fallback backend pytest: a message carrying `<$ocu--invoice-builder|invoice-builder>` passed through `strip_skill_mentions` comes out as `invoice-builder` (`SKILL_MENTION_STRIP_RE`, `middleware.py:2293`, matches the `$` form; the unknown id is skipped at `:2775-2780`). Verify with `make test-frontend`, that pytest module, and a Playwright case in `e2e/ocu-skills.e2e.ts`: a disabled skill is absent; the outgoing request body for a selected skill contains `<$ocu--invoice-builder|invoice-builder>`; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no group and zero `/api/v1/ocu/skills` requests.
+- [x] 7.1 Add the 「工作区 Skills」 group to `Commands/SlashCommands.svelte` and its selection handling in `CommandSuggestionList.svelte`, as minimal upstream diffs. The group lists the user's enabled set (design.md Decision 6) whenever `features.enable_ocu_workspace` is true, whatever the sandbox state or model filters. Selecting an entry inserts a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`), plus `mentionSuggestionChar: '/'`. The chat input's `/` command inserts the given attrs without a trigger char (`MessageInput.svelte:1418-1426`), so the branch passes `mentionSuggestionChar: '/'`; without it the editor falls back to `@` and writes `<@…>`. The editor then serializes only the id, `/` written as `$`, so the sent text carries `<$ocu--{name}|{name}>` (`RichTextInput.svelte:117-125`; no `RichTextInput.svelte` change). Built-in OCU skills never appear, and nothing is requested when the workspace is disabled. Add the fallback backend pytest: a message carrying `<$ocu--invoice-builder|invoice-builder>` passed through `strip_skill_mentions` comes out as `invoice-builder` (`SKILL_MENTION_STRIP_RE`, `middleware.py:2293`, matches the `$` form; the unknown id is skipped at `:2775-2780`). Verify with `make test-frontend`, that pytest module, and a Playwright case in `e2e/ocu-skills.e2e.ts`: a disabled skill is absent; the outgoing request body for a selected skill contains `<$ocu--invoice-builder|invoice-builder>`; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no group and zero `/api/v1/ocu/skills` requests.
       Task 7.1 required evidence (issue #751; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded. The change touches the shared chat-input command menu, which sits next to the upstream spine.
@@ -842,34 +842,296 @@ Minimal mergeable slice: atomic - one group and its selection branch; splitting 
 
 ## 8. [ocu] Filter marker rewrite
 
-- [ ] 8.1 In `openwebui/functions/computer_link_filter.py` `inlet`, with a regex keyed on the `<$ocu--` prefix:
+- [x] 8.1 In `openwebui/functions/computer_link_filter.py` `inlet`, with a regex keyed on the `<$ocu--` prefix:
   - replace each `<$ocu--{name}|{label}>` in all user messages (string content and text parts) with `{label}`;
   - for the last user message only, append the named-skill sentence to the system message once per distinct name;
   - leave marker-free bodies byte-identical.
 
   Verify with OCU pytest for the single, repeated, earlier-message and no-marker cases, and confirm the existing `ocu-filter-auth` tests stay green. This task changes only the OCU repository.
+  Task 8.1 required evidence (issue #752; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task parses and rewrites message text inside the filter inlet, which every OCU chat request passes through.
+    - Selected packs:
+      - public contract: the marker grammar shared with the #751 `/` menu, which produces it, and native `strip_skill_mentions`, which is the fallback consumer;
+      - error handling: every existing early return of `inlet` stays unchanged;
+      - legacy compatibility: `ocu-filter-auth` behaviour and the injected-prompt layout stay byte-identical for marker-free bodies;
+      - prompt integrity: user text must not reach the system message except as a grammar-checked skill name;
+      - resource limits: the inlet runs synchronously on the request path over every user message of the history, and the gateway sets no body cap (`client_max_body_size 0`), so the scan must be linear in the text length (review finding on OCU PR #223);
+      - documentation: the OCU filter docs and changelog describe the new inlet step (#702 precedent: `CHANGELOG.md` Unreleased entry and `docs/openwebui-filter.md`, commit `c07baae`).
+    - Not selected:
+      - config: no new Valve or environment variable;
+      - auth/secrets: the token path is untouched, and a marker grants nothing (design.md Decision 9);
+      - schema: no stored data.
+    - Governing invariant: the marker rewrite changes a body only on the path where the filter injected the OCU prompt. On that path, its only changes are label rewrites in user messages and at most one sentence per distinct name of the last user message.
+    - Sibling surfaces:
+      - producer: the #751 `/` menu emits `<$ocu--{name}|{name}>`;
+      - fallback consumer: native `strip_skill_mentions` (`middleware.py:2293`);
+      - the `<available_skills>` block of the OCU prompt, which the sentence points at;
+      - the `inlet` early returns: non-saved chat id, `INJECT_SYSTEM_PROMPT` off, failed or unauthorized fetch, empty `messages`;
+      - all three system-message branches: insert before the template-variable block, plain string append, and non-string content coerced to a string (existing test `tests/test_filter.py:782`); plus the system message the inlet inserts when none exists.
+  - **Where the rewrite runs.**
+    - The rewrite and the sentence run only after the OCU prompt has been injected, that is after the whole existing system-message step at the end of `inlet`. The sentence is appended to the final system-message content, never to `system_prompt` before insertion, so in the template-variable branch it lands after the template block.
+    - Every early return returns `body` exactly as today, raw marker included. Native `strip_skill_mentions` then removes it downstream: it runs unconditionally after the inlet filters (`middleware.py:2635` inlet, `:2807` strip). The sentence names `<available_skills>`, which exists only in an injected prompt.
+  - **Marker grammar.**
+    - One module-level compiled regex: `<\$ocu--([a-z0-9][a-z0-9-]{0,63})\|([^<>]*)>`, applied in a single `sub` pass per text with a callback that collects names; no second `finditer` pass.
+    - The name class equals the WebUI upload name rule `_NAME` (`backend/open_webui/utils/ocu_skill_zip.py:22`). The label class excludes `<` as well as `>`, so every match attempt stops at the next `<` and the scan is linear; a label from the #751 menu is the name and never contains `<`. A marker whose label holds `<` is left to native stripping, whose label class is `[^>]*`.
+    - A `<$ocu--` sequence that does not fully match is left verbatim by the filter and adds no sentence (native stripping may still rewrite it downstream, e.g. `<$ocu--a_b|x>` becomes `x`). Examples: `<$ocu--Bad Name|x>`, `<$ocu--a_b|x>`, ``<$ocu--x`y|x>``, and a missing `|`. This is what keeps arbitrary user text out of the system message.
+  - **Rewrite cases.** Each case calls `Filter.inlet()` with a saved `CHAT_ID`, `OCU_INTERNAL_TOKEN` set, and the prompt fetch mocked to return `PROMPT`:
+    - Single: last user message `请用 <$ocu--invoice-builder|invoice-builder> 生成发票` → its content is `请用 invoice-builder 生成发票`, and the system message content ends with `\n\n` followed by the exact sentence of design.md Decision 9 with `{name}` = `invoice-builder` (the test spells the sentence out as a literal).
+    - Repeated: the same marker twice in the last user message → both replaced, and the sentence occurs exactly once (`count == 1`).
+    - Two names: `<$ocu--a|a>` then `<$ocu--b|b>` → two sentences, `a` first, joined by `\n` after one `\n\n` separator.
+    - Label differs from name: `<$ocu--invoice-builder|Invoice Builder>` → the text contains `Invoice Builder`, and the sentence names `invoice-builder`.
+    - Earlier message: a marker for `old` in the first user message, and a marker-free last user message → the earlier text has its label, and the system message content equals the no-marker expectation exactly, with no sentence.
+    - Mixed: `old` only in an earlier message, `new` in the last → only the `new` sentence.
+    - Text parts: the last user message has content `[{"type": "text", "text": "用 <$ocu--a|a>"}, {"type": "image_url", "image_url": {"url": "data:x"}}]` → the text part becomes `用 a`, and the image part is equal and still at index 1. The same holds for a parts list in an earlier message.
+    - System message forms: an existing plain system message, one containing `{{CURRENT_DATE}}` (the prompt still sits before that block), one with non-string (list) content that the inlet coerces to a string, and none (the inlet inserts it at index 0). In each, the content ends with the sentence.
+  - **Controls (green before and after; they guard must-preserve).**
+    - No marker: the output equals what today's inlet produces for the same body: `tool_ids` plus the injected `PROMPT`, the user messages `==` their deep-copied input, and the system message content exactly `PROMPT` or `existing\n\nPROMPT`.
+    - Early returns with a marker: a non-saved chat id, `INJECT_SYSTEM_PROMPT=False`, `OCU_INTERNAL_TOKEN` unset (`monkeypatch.delenv`, because the autouse `_filter_test_token` fixture sets it), and a fetch answering 401 each leave `messages ==` the deep-copied input, raw marker included, and `tool_ids` exactly as today.
+    - Other roles: a marker inside an assistant or system message is left verbatim. Only `role == "user"` messages are rewritten.
+    - Grammar negatives from the grammar item above, plus a leading hyphen (`<$ocu---a|x>`), an upper-case-only name (`<$ocu--Abc|x>`) and a label holding `<` (`<$ocu--a|x<y>`) → the text is unchanged and there is no sentence.
+    - Grammar boundary (a rewrite case): a 64-character name is rewritten and named in the sentence; the 65-character twin stays a negative.
+    - Linear scan: a user message of `"<$ocu--a|" * 20000` (180 KB, no `>`) passes through `inlet` unchanged in under 1 s; the quadratic `[^>]*` form takes several seconds on the same input.
+    - Cache: after a first call whose last user message carries `<$ocu--a|a>`, a second `inlet` call on the same filter for the same chat with a marker-free body has no sentence, so the sentence never enters `_prompt_cache`.
+  - **Red and green.**
+    - Every rewrite case is red on OCU `main` `2fea8f6` (no rewrite, no sentence) and green after.
+    - The controls pass on both.
+    - Tests go in `tests/test_filter.py`, reusing `_make_filter`, `_urlopen_mock`, `_system_content` and `CHAT_ID`. Add no new production file.
+  - **Docs in the same change.**
+    - The module docstring FUNCTIONALITY block describes the marker rewrite and the sentence.
+    - The header `version` goes from 5.1.0 to 5.2.0.
+    - `docs/openwebui-filter.md` gains a short section on the marker rewrite, the sentence and the early-return fallback.
+    - `CHANGELOG.md` gains an entry under "Unreleased — `main` branch" / Added.
+  - **Must preserve and gates.**
+    - The existing `tests/test_filter.py` cases (69 today), `tests/test_video_production_filter.py` and `tests/test_org_prompt_filter.py` pass unchanged.
+    - The full OCU unit command from OCU `AGENTS.md` passes. The PR states its passed and skipped counts before and after.
+    - `uvx ruff check` on the changed files adds no finding over `main`.
+    - The PR changes only `openwebui/functions/computer_link_filter.py`, `tests/test_filter.py`, `docs/openwebui-filter.md` and `CHANGELOG.md`. The two docs files widen the issue's PR Boundary, which names only the module and its tests, because docs change with code in the same PR (#702 precedent).
+  - **Non-goals.**
+    - No `computer-use-server/` change.
+    - No authorization check of the named skill.
+    - No rewrite when the filter skips prompt injection; native stripping covers that path.
+    - No persistence: the rewrite applies to the request body only.
+    - Issue acceptance wording: "a body with no marker equals the input byte for byte" cannot hold literally for a saved chat, because the inlet already adds `tool_ids` and the prompt; the control above uses the spec delta's wording, "equals the body produced before this change".
 
 Suggested fixture level: expanded - a parser/writer of message text inside the shared request entrypoint (filter inlet) that every OCU chat request passes through.
 Minimal mergeable slice: atomic - one transform plus its tests.
 
 ## 9. [deploy] Wire OCU to the WebUI registry
 
-- [ ] 9.1 In `deploy/production-like-test/` compose and bootstrap, set `MCP_TOKENS_URL=http://open-webui:8080/api/v1/ocu/skills` on `computer-use-server`, and set `MCP_TOKENS_API_KEY` from the `OCU_INTERNAL_TOKEN` already in `runtime.env` (`bootstrap-test.sh:389`), never written to a repository file, command line or log. Add a registry status line to `scripts/write-deployed-version.sh` following its configured yes/no pattern (`:44-53`), never printing the key. Verify with `tests/deploy/` cases: the rendered `computer-use-server` environment has both values; no file added by this change carries the token value (the pre-existing `runtime.env`, which already holds `OCU_INTERNAL_TOKEN`, is out of scope); `MCP_TOKENS_API_KEY` appears in no service environment other than `computer-use-server`; the deployment record shows `yes` when configured and `no` when not, and never the key; an unset `OCU_INTERNAL_TOKEN` still triggers the existing bootstrap refusal.
+- [x] 9.1 In `deploy/production-like-test/` compose and bootstrap, set `MCP_TOKENS_URL=http://open-webui:8080/api/v1/ocu/skills` on `computer-use-server`, and set `MCP_TOKENS_API_KEY` from the `OCU_INTERNAL_TOKEN` already in `runtime.env` (`bootstrap-test.sh:389`), never written to a repository file, command line or log. Add a registry status line to `scripts/write-deployed-version.sh` following its configured yes/no pattern (`:44-53`), never printing the key. Verify with `tests/deploy/` cases: the rendered `computer-use-server` environment has both values; no file added by this change carries the token value (the pre-existing `runtime.env`, which already holds `OCU_INTERNAL_TOKEN`, is out of scope); `MCP_TOKENS_API_KEY` appears in no service environment other than `computer-use-server`; the deployment record shows `yes` when configured and `no` when not, and never the key; an unset `OCU_INTERNAL_TOKEN` still triggers the existing bootstrap refusal.
+      Task 9.1 required evidence (issue #753; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task changes production deploy config and routes a secret to a new consumer.
+    - Selected packs:
+      - auth/secrets: `MCP_TOKENS_API_KEY` carries the `OCU_INTERNAL_TOKEN` value; it must reach no repository file, command line, log, other service or sandbox;
+      - config: one new optional runtime.env knob, `MCP_TOKENS_URL`, with defined absent, set and empty states;
+      - legacy compatibility: a runtime.env written before #753 (the LAN instance) must turn the registry on with no manual edit; the existing `OCU_INTERNAL_TOKEN` refusal and every other service environment stay unchanged;
+      - documentation: the deployment record line and the overlay docs.
+    - Not selected:
+      - network: OCU already reaches `open-webui:8080` on the shared control-plane bridge; the browser deny row is #754;
+      - schema, resource limits, concurrency: none.
+    - Governing invariant: `MCP_TOKENS_API_KEY` exists only in the `computer-use-server` environment, never in a sandbox, and its value is exactly the runtime `OCU_INTERNAL_TOKEN`, interpolated by Compose and never copied into a new file, argument or output.
+    - Sibling surfaces:
+      - `deploy/up.sh` and `deploy/compose-snapshot.sh` resolve the protected compose snapshot, which already holds the resolved `OCU_INTERNAL_TOKEN`;
+      - `write-deployed-version.sh`;
+      - `bootstrap-test.sh`, unchanged (see Wiring);
+      - `deploy/recovery.py`: not affected. `MCP_TOKENS_URL` matches no `SECRET_MARKERS` entry (`_TOKENS_` is not `_TOKEN_`, `recovery.py:76,592`), and retarget keeps every existing key (`:546`); the PR cites these lines;
+      - sandboxes: `_create_container` `extra_env` and `_PASSTHROUGH_BY_CLI` (`docker_manager.py:471-543,1201-1240`) name neither variable, so no sandbox gets the key;
+      - `computer-use-server` consumers: `skill_manager.py:34-35,298-360`, the GitLab-token fetch `docker_manager.py:617-689`, `/api/skill-stats` (`app.py:1688-1700`), and OCU's own `scripts/check-config.sh:115-123`.
+  - **Wiring (one design).**
+    - `compose.core.override.yml` `computer-use-server.environment` gains exactly two entries:
+      - `MCP_TOKENS_URL: ${MCP_TOKENS_URL-http://open-webui:8080/api/v1/ocu/skills}`, the pattern of `SANDBOX_RETENTION_DAYS: ${SANDBOX_RETENTION_DAYS-30}` (`:54`), with a comment naming the three states;
+      - `MCP_TOKENS_API_KEY: ${OCU_INTERNAL_TOKEN:?OCU_INTERNAL_TOKEN is required}`.
+    - States:
+      - absent from runtime.env (every runtime.env, fresh or written before #753) → the registry URL, so the LAN instance gets the registry on its next `up` without an edit;
+      - set → that value;
+      - explicitly empty (`MCP_TOKENS_URL=`) → `""`, the disabled state.
+    - `bootstrap-test.sh` is not changed: the compose default already covers a fresh runtime.env, and runtime.env gets no `MCP_TOKENS_*` line and no second copy of the token. This deviates from the task text "compose and bootstrap"; the PR records it.
+    - `deploy/up.sh`'s `require` list is unchanged.
+  - **Disabled state, stated honestly.** With `MCP_TOKENS_URL=` the key is still set, because it is wired from `OCU_INTERNAL_TOKEN`:
+    - `skill_manager._fetch_user_config` checks only the key (`:305`), builds the relative URL `/api/internal/user-config/{email}`, aiohttp refuses it before any connection, the error is logged at `:326` without the key, and OCU falls back to the disk-cached user-config, then built-ins;
+    - this logs one warning per user per `MEMORY_CACHE_TTL`, as `main` already logs `MCP_TOKENS_API_KEY not configured` per fetch;
+    - `docker_manager.py:676,683` skip the GitLab fetch because they check the URL;
+    - `scripts/check-config.sh` would call it partial config; that script is not part of this overlay's `up` path.
+    - So the rollback step "unset `MCP_TOKENS_URL` and `MCP_TOKENS_API_KEY` on OCU" (design.md Migration Plan) becomes, for this overlay: set `MCP_TOKENS_URL=` in runtime.env (or deploy the previous release), then clear `SKILLS_CACHE_DIR` as the Migration Plan says. `NETWORK-HARDENING.md` states this; the user guide (#756) cites it.
+  - **Structure (red on `main`, green after).** On the parsed override, in the style of `test_tts_settings_reach_only_the_computer_use_server` and `:295-302`:
+    - `core_env["MCP_TOKENS_URL"] == "${MCP_TOKENS_URL-http://open-webui:8080/api/v1/ocu/skills}"`;
+    - `interpolated(core_env["MCP_TOKENS_API_KEY"], "OCU_INTERNAL_TOKEN")` holds (the `:?` helper at `:124`);
+    - `interpolate_value(core_env["MCP_TOKENS_URL"], {})` is the URL, with `{"MCP_TOKENS_URL": ""}` is `""`, and with another value is that value;
+    - no other service in the core, webui or proxy documents names `MCP_TOKENS_` (checked by name, `assertNotIn("MCP_TOKENS_", json.dumps(service))`; by value would wrongly fail, because WebUI and the proxy legitimately carry `OCU_INTERNAL_TOKEN`).
+  - **Native compose (red on `main`, green after).** With `resolved_stacks`, which refuses a non-zero exit and any "is not set" warning:
+    - `MCP_TOKENS_URL` unset → `computer-use-server` has the URL and `MCP_TOKENS_API_KEY ==` the synthetic `OCU_INTERNAL_TOKEN`;
+    - `MCP_TOKENS_URL=""` → `""`, key unchanged;
+    - no other resolved service has an `MCP_TOKENS_API_KEY` or `MCP_TOKENS_URL` key.
+  - **No secret in files or arguments.**
+    - After a bootstrap run with the harness's generated token: runtime.env contains the token value exactly once (the existing `OCU_INTERNAL_TOKEN=` line) and no `MCP_TOKENS_` line.
+    - After the consumer `up` run (the existing token test around `test_bootstrap_runtime.py:490-531`): the token is absent from stdout and stderr, from the fake docker's `ops.log`, and from every `argv` in `executed.json` (`tests/deploy/fakebin/docker:51,343`). It may appear only inside the recorded resolved documents.
+    - This case uses the hand-written `token_docs()` documents, so it proves only the argv/log side. The overlay file itself is proven by the Structure and Native compose cases; the PR says so.
+  - **Deployment record (red on `main`, green after).**
+    - `write-deployed-version.sh` gains one line in `## Runtime policy`, following `retention_days` (`:25-32`): `- Uploaded-skill registry: configured \`yes|no\`; the registry URL and internal key are not recorded`.
+    - `yes` when runtime.env has no `MCP_TOKENS_URL` line or a non-empty one; `no` when it has `MCP_TOKENS_URL=`.
+    - Cases, in the `write_version` style of `test_bootstrap_runtime.py:950-980`: the bootstrap-written runtime.env → `yes`; `MCP_TOKENS_URL=http://x.example/y` → `yes`; `MCP_TOKENS_URL=` → `no`; a runtime.env with a misplaced `MCP_TOKENS_API_KEY=<sentinel>` line → neither the sentinel nor `open-webui:8080` nor `x.example` is in the record.
+    - The script never reads `OCU_INTERNAL_TOKEN` or `MCP_TOKENS_API_KEY`.
+  - **Existing refusal (controls; green before and after).** The task text says "bootstrap refusal", but bootstrap generates the token itself (`bootstrap-test.sh:346,389`); the refusal is in `up.sh` and Compose.
+    - `up.sh` with `OCU_INTERNAL_TOKEN` absent exits non-zero with `deploy: OCU_INTERNAL_TOKEN is required`, and the fake docker records no start and no op. Extend the pattern of `test_office_settings_are_required_in_both_flag_states` (`test_deploy_entry.py:200-220`, `starts() == []`, `ops() == []`).
+    - Native compose with `extra={"OCU_INTERNAL_TOKEN": ""}` makes `resolved_stacks` raise, with `OCU_INTERNAL_TOKEN is required` in the message.
+  - **Known effects, accepted (no `computer-use-server` change, design.md Non-Goals).**
+    - GitLab-token fetch: with the URL set, `_ensure_gitlab_token` runs on every bash and sub_agent tool call (`mcp_tools.py:512,589,662,735,1086`) and `_server_gitlab_token` at sandbox creation (`docker_manager.py:1186`). Each requests `{MCP_TOKENS_URL}/api/internal/tokens/{email}/gitlab` with the internal key. WebUI has no such route; its `SPAStaticFiles` (`backend/open_webui/main.py:294-304`) answers 200 with `index.html`, so aiohttp's JSON decode fails and `:655` swallows it. Cost: one loopback round trip (5 s timeout) and one log line with the user's email per tool call; no GitLab token, as today. The orchestrator files a follow-up issue for it.
+    - `/api/skill-stats` (`app.py:1688-1700`) is open today because the key is empty; afterwards it requires `X-Internal-Api-Key == OCU_INTERNAL_TOKEN`. Nothing in OCU or WebUI calls it.
+    - Residual: an MCP caller that already holds `OCU_INTERNAL_TOKEN` can send `X-Mcp-Tokens-Url` (`mcp_tools.py:1472`) and redirect the GitLab fetch, with the env key, to a URL of its choice (`docker_manager.py:673-674`). `openwebui/` sends no such header. The PR records this.
+  - **Docs in the same change.**
+    - `deploy/production-like-test/NETWORK-HARDENING.md`, near the runtime.env paragraph at `:214`: the knob, its three states, that the key reuses `OCU_INTERNAL_TOKEN`, and the disabled-state behaviour above.
+    - The same section states the ordering: deploy the WebUI image with the registry routes first. If OCU is upgraded first, an old WebUI answers the user-config path with a non-JSON 200 (`SPAStaticFiles`, `backend/open_webui/main.py:294-304`), not a 404; OCU swallows it at `skill_manager.py:326` and falls back to the disk cache, then built-ins.
+    - `CHANGELOG.md` gains an Unreleased `main` / Added entry.
+  - **File gate and must preserve.**
+    - The PR changes only `deploy/production-like-test/compose.core.override.yml`, `deploy/production-like-test/scripts/write-deployed-version.sh`, `deploy/production-like-test/NETWORK-HARDENING.md`, `CHANGELOG.md` and `tests/deploy/`.
+    - It changes no `computer-use-server/`, proxy, bootstrap or WebUI file.
+    - Every existing `tests/deploy/` case passes. If an existing exact-set assertion over a service environment must grow, the PR names each edited assertion and why.
+    - The full OCU unit command passes; the PR states passed and skipped counts before and after.
+  - **Non-goals.** No separate key (design.md Decision 2); no deploy to the LAN instance; no proxy row (#754); no change to the GitLab-token fetch or `/api/skill-stats`.
 
 Suggested fixture level: expanded - production config and a secret.
 Minimal mergeable slice: atomic - two environment entries consumed together by the skill manager, plus their status line.
 
 ## 10. [deploy] Proxy deny row and gateway smoke
 
-- [ ] 10.1 [deploy] Add `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` to `deploy/proxy/nginx.conf.in` ahead of the catch-all row. Verify with `deploy/proxy/tests/` render and entrypoint cases: the internal path gets 404 for every method, and other `/api/v1/ocu/skills` paths still reach WebUI.
-- [ ] 10.2 [webui] Bump `constraints.yaml ocu_checkout.sha` to the OCU commit containing tasks 8.1, 9.1 and 10.1. Add a `smoke/proxy/` hurl case: `GET /api/v1/ocu/skills/api/internal/user-config/x@y.z` through the gateway with a key header gets a plain 404 (WebUI itself would answer 401 to a wrong key and 200 to an unknown email with the right key, so the 404 proves the gateway answered); `GET /api/v1/ocu/skills/` as a signed-in user gets 200. Add an AGENTS.md Verification Matrix row. Verify with `make smoke-proxy`.
+- [x] 10.1 [deploy] Add `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` to `deploy/proxy/nginx.conf.in` ahead of the catch-all row. Verify with `deploy/proxy/tests/` render and entrypoint cases: the internal path gets 404 for every method, and other `/api/v1/ocu/skills` paths still reach WebUI.
+      Task 10.1 required evidence (issue #754; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The change is on the browser gateway's auth boundary, in front of a server-to-server secret route.
+    - Selected packs:
+      - auth/secrets: the internal routes must stay out of browser reach, even when a key leaks (design.md Decision 10);
+      - path safety: nginx matches the normalized URI but forwards the raw one, so encoded and dot-segment forms must hit the deny row too;
+      - legacy compatibility: every existing proxy row and the catch-all forwarding stay unchanged;
+      - public API: the gateway's public surface changes, because a prefix that used to be forwarded now gets 404; mapped to the native deny cases and the still-forwarded controls;
+      - documentation: `deploy/proxy/README.md` `:8-9` ("Outside `/ocu`, the gateway listener forwards to WebUI") becomes false and is corrected, plus a changelog entry; mapped to the Docs item.
+    - Not selected:
+      - config: no new variable;
+      - resource limits: one prefix location;
+      - schema, concurrency: none;
+      - release/packaging: the proxy image already ships `nginx.conf.in` (`test_proxy_packaging_copies_only_public_sources` in `tests/deploy/test_overlay_structure.py`); the row takes effect in a rebuilt proxy image, and redeploying is out of scope;
+      - error handling: nginx answers a plain `return 404`, with no partial output;
+      - a decision record: design.md Decision 10 and the WebUI decision record already cover it.
+    - Governing invariant: no browser request whose normalized path lies under `/api/v1/ocu/skills/api/internal/` reaches WebUI, whatever its method, cookies or `X-Internal-Api-Key`.
+    - Sibling surfaces:
+      - the gateway is the only browser path to WebUI: `open-webui` publishes no port (`tests/deploy/test_overlay_structure.py:295`), and only the proxy publishes 8082 and 8083 (`:259-263`);
+      - the gateway server block of `deploy/proxy/nginx.conf.in`, with its catch-all `location /` (`:156`) and the rendered `@@LOCATIONS@@`, which are all `~ ^/ocu/...` regexes and cannot match `/api/`;
+      - the template's other `proxy_pass` targets into WebUI: the `internal` auth subrequests (`nginx.conf.in:86-118`) and the issuer location (`render.py:374-375`). Their URIs are fixed and cannot be steered by the browser, so they need no row;
+      - the Office listener (`:168-205`), which forwards only to DocumentServer. It is not WebUI, so it needs no row;
+      - `deploy/proxy/messages-ingress.conf`, which forwards only `^/api/v1/messages(?:/count_tokens)?$` and answers 404 otherwise. Sandboxes therefore cannot reach the internal routes, and it needs no row;
+      - `routes.json` and its `REVIEWED_TABLE_SHA256` in `render.py:154`, which stay unchanged because the row lives in the template, not the table;
+      - WebUI's `make smoke-proxy`, which pins these files (#755).
+  - **Row.** `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` sits in the gateway server block before `location / {`. `^~` stops regex location evaluation. Nothing else in the template changes.
+  - **Render.**
+    - Input: render with the existing `test_render.py` helpers.
+    - Expected:
+      - the rendered config contains the row exactly once;
+      - its offset is smaller than that of the first `location / {`, the one inside the first `server {` block (the Office block has a second one);
+      - native `nginx -t` passes;
+      - the office server block does not contain it.
+    - Red on OCU `main` and green after.
+  - **Native deny.** Add the cases to `deploy/proxy/tests/test_native.py`. It runs against `tests/fixture.py`, whose `auth` role records every request that reaches "WebUI".
+    - Methods `GET`, `HEAD`, `POST`, `PUT` and `DELETE` to `/api/v1/ocu/skills/api/internal/user-config/x@y.z` and `/api/v1/ocu/skills/api/internal/skills/a/download`, each sent:
+      - with no credentials;
+      - with `Cookie: session=owner`;
+      - with `X-Internal-Api-Key: <synthetic>`.
+    - Each gets 404 from nginx, and the recorder sees no new `auth` or `ocu` request: `self.since("auth", before) == []` and `self.since("ocu", before) == []`.
+    - Normalized forms get the same 404 with no contact, each sent raw through `http.client`:
+      - `/api/v1/ocu/skills/api/%69nternal/user-config/x`;
+      - `/api/v1/ocu/skills/api%2Finternal/user-config/x`;
+      - `/api/v1/ocu/skills//api/internal/user-config/x`;
+      - `/api/v1/ocu/skills/api/internal/../internal/user-config/x`;
+      - `/api/v1/ocu/skills/./api/internal/user-config/x`;
+      - `/api/v1/ocu/skills/x/%2e%2e/api/internal/user-config/x` (decode, then dot segment).
+    - The `%69` and `%2F` forms would leak on `main`, because uvicorn decodes them itself. The `//`, `../`, `./` and `%2e%2e` forms do not leak on `main` (Starlette neither merges slashes nor resolves dot segments), but they prove that the row matches the normalized URI.
+    - Every request in these cases and in the controls carries no body: `http.client` with `body=None` sends `Content-Length: 0` (POST, PUT) or none (GET, HEAD, DELETE), both of which `fixture.py:86-98` treats as bodyless. A body would make the fixture answer 400.
+    - Case variants are not tested: Homebrew nginx on macOS matches prefix locations case-insensitively while the Linux image does not, and Starlette routes case-sensitively, so nothing leaks either way.
+    - Every deny case is red on `main` and green after. With the new `do_PUT` in the fixture, the old template forwards each case and the recorder sees it, with `200 webui` instead of 404.
+    - `tests/fixture.py` gains `do_PUT` routed to `_serve`, so a forwarded `PUT` is recorded like the other methods.
+  - **Still forwarded (controls; green before and after).**
+    - With `Cookie: session=owner`, each of these gets the fixture's WebUI answer (`200`, body `webui`), and the recorder sees one `auth` request whose target equals the sent path:
+      - `GET /api/v1/ocu/skills/`;
+      - `GET /api/v1/ocu/skills/admin`;
+      - `POST /api/v1/ocu/skills/a/toggle`;
+      - `GET /api/v1/ocu/skills/api/internalx`, a sibling prefix that is not under the denied directory;
+      - `GET /api/v1/ocu/skills/api/internal`, without the trailing slash (the non-goal below); nginx sends no 301, because the deny row has no `proxy_pass`.
+    - `test_webui_default_location_preserves_http_and_bidirectional_websocket` and every other existing native and render case pass unchanged.
+  - **Entrypoint smoke.**
+    - `deploy/proxy/tests/run-entrypoint-smoke.sh` gains one check through the real entrypoint: `GET /api/v1/ocu/skills/api/internal/user-config/x` with an `X-Internal-Api-Key` header gets 404.
+    - Its existing "webui origin is forwarded" check still passes.
+    - Run: `PATH=/opt/homebrew/bin:$PATH bash deploy/proxy/tests/run-entrypoint-smoke.sh` ends `FAILED=0`.
+  - **Commands and counts.**
+    - `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v`;
+    - the native suite per `deploy/proxy/README.md` "Focused native proof": start `tests/fixture.py` and the rendered nginx, then run `OCU_TEST_RECORD=<private path> python3 -m unittest discover -s deploy/proxy/tests -p 'test_native.py' -v`, and stop both;
+    - the entrypoint smoke;
+    - the full OCU unit command from OCU `AGENTS.md`, because `tests/deploy/test_overlay_structure.py` reads `nginx.conf.in`.
+    - The PR states each command's pass and fail counts before and after.
+  - **Docs.**
+    - `deploy/proxy/README.md`, next to "Outside `/ocu`, the gateway listener forwards to WebUI", states the one exception: the internal skill registry prefix answers 404.
+    - `CHANGELOG.md` gains an Unreleased `main` / Added entry.
+    - These two files widen the issue's PR Boundary ("the proxy template and `deploy/proxy/tests/`"), because docs change with code in the same PR and README `:8-9` would otherwise be false (#702 precedent, as in task 8.1).
+  - **File gate.**
+    - The PR changes only:
+      - `deploy/proxy/nginx.conf.in`;
+      - `deploy/proxy/tests/test_render.py`;
+      - `deploy/proxy/tests/test_native.py`;
+      - `deploy/proxy/tests/fixture.py`;
+      - `deploy/proxy/tests/run-entrypoint-smoke.sh`;
+      - `deploy/proxy/README.md`;
+      - `CHANGELOG.md`.
+    - It does not change `routes.json`, `render.py`, `messages-ingress.conf`, any compose file, or WebUI.
+  - **Non-goals.**
+    - No deny for `/api/v1/ocu/skills/api/internal` without the trailing slash: WebUI has no route there.
+    - No change to the Office listener or the messages ingress.
+    - The gateway-level hurl proof in WebUI is #755.
+- [x] 10.2 [webui] Bump `constraints.yaml ocu_checkout.sha` to the OCU commit containing tasks 8.1, 9.1 and 10.1. Add a `smoke/proxy/` hurl case: `GET /api/v1/ocu/skills/api/internal/user-config/x@y.z` through the gateway with a key header gets a plain 404 (WebUI itself would answer 401 to a wrong key and 200 to an unknown email with the right key, so the 404 proves the gateway answered); `GET /api/v1/ocu/skills/` as a signed-in user gets 200. Add an AGENTS.md Verification Matrix row. Verify with `make smoke-proxy`.
+      Task 10.2 required evidence (issue #755; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task pins the gateway auth boundary that hides the internal registry from browsers, and it moves the pinned OCU revision every OCU-dependent check uses.
+    - Selected packs:
+      - auth/secrets: the gateway, not the internal key, is what keeps browsers off the internal prefix (design.md Decision 10);
+      - config: `constraints.yaml ocu_checkout.sha`, consumed by `make smoke-proxy` (`scripts/smoke-proxy.py:148-152`), the reserved-name drift test (task 2.3) and the CI jobs that export `OCU_CHECKOUT` (`.github/workflows/ci.yml:112,154,187`);
+      - legacy compatibility: every existing `smoke/proxy/` case keeps passing against the new pin;
+      - documentation: the AGENTS.md Verification Matrix row and its detail row.
+    - Not selected:
+      - schema, migration, resource limits, concurrency: none;
+      - release/packaging: no image or dependency change in this repository.
+    - Governing invariant: through the gateway, every request under `/api/v1/ocu/skills/api/internal/` gets nginx's 404 and never reaches WebUI, while the user route `/api/v1/ocu/skills/` still reaches WebUI.
+    - Sibling surfaces:
+      - the OCU-side proof in `deploy/proxy/tests/` (task 10.1, #754), which this smoke repeats against the real WebUI;
+      - `smoke/proxy/deny.hurl` and its "denied request contacted OCU" check (`scripts/smoke_proxy_support.py:668-672`);
+      - `scripts/smoke-proxy.py` `PINNED_FILES` and `HURL_GLOBS` (`:42-62`), which stay unchanged;
+      - `smoke/ocu-skills.hurl` (task 4.1), which proves the same internal routes directly against WebUI;
+      - the reserved-name drift test, which reads the pinned OCU `skills/public/` and `NATIVE_PROMPT_DESCRIPTIONS`.
+  - **Pin.**
+    - `constraints.yaml ocu_checkout.sha` becomes the full SHA of an OCU `main` commit that contains the merged PRs for #752, #753 and #754. The PR proves it with `git -C <ocu> merge-base --is-ancestor <merge-commit> <pin>` for each of the three merge commits, and `git -C <ocu> branch -r --contains <pin>` lists `origin/main`.
+    - Nothing else in `constraints.yaml` changes.
+  - **Hurl case (red on the old pin, green on the new).** Added to the end of `smoke/proxy/deny.hurl` under a comment naming the uploaded-skill registry, so `HURL_GLOBS` and `smoke-proxy.py` stay unchanged. The file's header comment (`deny.hurl:1`, "404, no OCU contact") is reworded in the same PR, because the direct 401 control and the user-route 200 below are not denials:
+    - Positive control first: `GET {{webui_url}}/api/v1/ocu/skills/api/internal/user-config/x@y.z` with `X-Internal-Api-Key: smoke-wrong-key`, sent directly to WebUI, gets `HTTP 401`. This proves the internal route is mounted in the running WebUI, so a 404 through the gateway cannot come from a missing route or the SPA fallback.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/api/internal/user-config/x@y.z` with the same header gets `HTTP 404`, and the body contains `<center>nginx</center>`, nginx's own error page; WebUI would have answered 401.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/api/internal/skills/a/download` with the same header gets the same nginx 404.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/` with `Cookie: {{owner_cookie}}` (a `user`-role session) gets `HTTP 200` with a JSON body (`jsonpath "$" isCollection`); together with the status, this shows WebUI answered.
+    - The key is a fixed wrong literal, not WebUI's internal key (`OCU_INTERNAL_TOKEN` from `scripts/dev-env.sh:73`), so the case deviates from the spec scenario's "valid key header" (`specs/ocu-reverse-proxy/spec.md:11`). The deviation is forced: `smoke-proxy.py:736` generates its own gateway token, so the hurl run has no access to WebUI's key without changing `smoke-proxy.py`, which this task keeps unchanged. It is safe, because `return 404` is decided before any header is read. The OCU native cases of task 10.1 (#754) already cover a request that carries a key.
+    - Red evidence: with the hurl case added and the pin unchanged, `make smoke-proxy` fails on the gateway 404 assertion (the old template forwards the request and WebUI answers 401). The PR records that run.
+  - **Must preserve.**
+    - Every existing `smoke/proxy/` case passes against the new pin; `make smoke-proxy` exits 0.
+    - The reserved-name drift test passes with `OCU_CHECKOUT` pointing at a checkout of the new pin. If the new pin added a built-in name, that test fails and the reserved list update belongs in this PR. The pin moves across every OCU merge from the old pin `4dab0cf` to the new pin, not only #752, #753 and #754. Across `4dab0cf..b9d4118`, the `skills/public/` directory list and the 27 `NATIVE_PROMPT_DESCRIPTIONS` keys are unchanged, so no update is expected. The PR re-checks both over its final range and states the drift-test result.
+    - `scripts/smoke-proxy.py`, `scripts/smoke_proxy_support.py`, CI workflow files and backend routes are unchanged.
+  - **Docs.**
+    - AGENTS.md Verification Matrix gains one row: `Uploaded-skill internal path through the gateway` → `make smoke-proxy`. The user approved this row as part of the issue.
+    - `docs/agents/verification-matrix.md` gains the matching detail row. This goes beyond the issue's PR boundary ("one AGENTS.md row"), because the AGENTS.md matrix keeps each surface's detail in that doc (AGENTS.md:103, "detail per surface in the linked doc"), and a row without its detail would leave the evidence undefined: what it exercises (the four requests above), and its evidence (nginx 404 body through the gateway, direct WebUI 401 control, user route 200; not OCU's real registry fetch).
+    - `make doc-gate` exits 0.
+  - **Runtime prerequisites.** `make smoke-proxy` needs `make dev-bg` running (it checks `/health`), `nginx` with the auth-request module on `PATH`, and `OCU_CHECKOUT` pointing at an OCU checkout that has the pin commit. Before `make dev-bg`, check ports 8080 and 5173 with `lsof`, and stop the stack with `make dev-stop` afterwards.
+  - **Fixtures for the OCU issues ride in this PR.** As in the #740 precedent, this PR also carries the WebUI-side fixture commits for #752, #753, #754, #776 and #777: the task 8.1, 9.1 and 10.1 evidence blocks, the `ocu-filter-async` change and the #776 change. The #762 and #775 fixtures already landed in #780. That pushes the PR past 400 diff lines, so it gets the `diff-limit-exempt` label and a reason in the body.
+  - **Non-goals.** No OCU change; no route change; no new `smoke/proxy/` file; no CI change.
 
 Suggested fixture level: expanded - the browser gateway auth boundary.
 Minimal mergeable slice: task 10.1 in the OCU repository first; it keeps OCU green alone. Task 10.2 depends on the merged OCU commit, on task 3.1 (the forwarded user route) and on task 4.1 (the internal routes the gateway must hide).
 
 ## 11. [webui] User guide
 
-- [ ] 11.1 Add the user guide `docs/uploaded-skills.md`, linked from AGENTS.md Project Identity next to the Office user guide. It covers uploading as an administrator, ZIP layout, limits and rejection reasons (413 for size, 400 otherwise), narrowing access, personal switches, `/` usage, and the effect timing table from the source plan (replacement reaches running sandboxes within minutes; revocation waits for a rebuild). It states the revocation and rollback steps of design.md Migration Plan: revoke by deleting in WebUI while the registry is reachable; unsetting `MCP_TOKENS_URL` alone does not return OCU to built-ins only; a full rollback also clears OCU's `SKILLS_CACHE_DIR` including `_user_configs/`. Verify with `make doc-gate`.
+- [x] 11.1 Add the user guide `docs/uploaded-skills.md`, linked from AGENTS.md Project Identity next to the Office user guide. It covers uploading as an administrator, ZIP layout, limits and rejection reasons (413 for size, 400 otherwise), narrowing access, personal switches, `/` usage, and the effect timing table from the source plan (replacement reaches running sandboxes within minutes; revocation waits for a rebuild). It states the revocation and rollback steps of design.md Migration Plan: revoke by deleting in WebUI while the registry is reachable; unsetting `MCP_TOKENS_URL` alone does not return OCU to built-ins only; a full rollback also clears OCU's `SKILLS_CACHE_DIR` including `_user_configs/`. Verify with `make doc-gate`.
 
 Suggested fixture level: none - docs only.
 Minimal mergeable slice: atomic - one document.
