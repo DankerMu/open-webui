@@ -94,7 +94,8 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 
 - `.env.example` lists variables. The harness never reads `.env`: `scripts/dev-bg.sh` sets `DATA_DIR=.run/data`, `WEBUI_SECRET_KEY`, and disables Ollama/OpenAI so smoke tests need no model.
 - Secrets in the LAN deployment come from the deploy overlay in the OCU repo, never from this repo.
-- Local services: none required; SQLite under `.run/data`.
+- Local services: none required; SQLite under `.run/data`. Backend pytest (`make test-backend`, `make coverage-gate`, `make check`) reads the sibling OCU checkout for the reserved skill-name drift test:
+  `OCU_CHECKOUT`, default `<repo root>/../open-computer-use`. A linked worktree must set `OCU_CHECKOUT`, because the default resolves from the worktree root.
 
 ## Verification Matrix
 

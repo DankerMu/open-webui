@@ -242,7 +242,77 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
     - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass; the `ocu_skills` files stay at 80% or more.
     - The seam check prints nothing: `git diff --name-only $(git merge-base HEAD origin/main) -- backend/open_webui/main.py backend/open_webui/migrations src .github scripts`.
 
-- [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Add the pinned OCU checkout steps (as in `layer3-integration-tests`, `.github/workflows/ci.yml:111-121`) to `layer2-unit-tests` and export `OCU_CHECKOUT`; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
+- [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Give the pinned OCU checkout to `layer2-backend-tests` (the job that runs `make coverage-gate PART=backend` since the CI split) and export `OCU_CHECKOUT` there; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
+      Task 2.3 required evidence (issue #746; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded.
+      - `setup-toolchain` is the shared entry point of every `ci.yml` job, and every job feeds the single required check.
+      - The test parses an external file.
+    - Selected packs: config / project setup; public API / script entry (the new composite input); file IO / path (checkout resolution); error handling (fail, never skip); documentation.
+    - Not selected: resource limits, persisted state, auth, schema, concurrency.
+    - Governing invariant: at the `constraints.yaml ocu_checkout.sha` revision, every name OCU lists from `skills/public/`, and every name whose description it forces, is in `RESERVED_SKILL_NAMES`.
+      - Any PR that could break this fails `layer2-backend-tests`.
+      - That includes the #755 pin bump, because `ci-gate.py` classifies `constraints.yaml` as code.
+    - Sibling surfaces:
+      - the reserved check in the upload route, shared by first upload and replace;
+      - the single "Resolve pinned OCU SHA" step in `action.yml`, which layer2 and the layer3 jobs read;
+      - `layer3-runtime-smoke` and `layer3-browser` as regression controls for the `runtime || ocu` condition;
+      - `ci-gate.py` classify and verdict, whose job set is unchanged;
+      - local `test-backend`, `coverage-gate` and `check`, which now need the checkout.
+  - **Test module.**
+    - The test lives at `backend/open_webui/test/test_ocu_skill_reserved_drift.py`, at the top level. It is not under `test/routers/`, because that directory's autouse `client` fixture imports the whole app.
+    - It imports `RESERVED_SKILL_NAMES` from `routers/ocu_skills.py` and reads OCU from a checkout. It makes no network call and imports nothing else from the app.
+    - One-off local proof: running `pytest -v --setup-show <module>` on the module alone shows no `client` or `_bind_client` setup. The proof is not a `sys.modules` assertion, which fails in the full suite after `routers/` has imported the app. It is also not a bare `python -c` import, which wipes the tracked static tree (AGENTS.md note 6).
+  - **Checkout resolution.**
+    - `OCU_CHECKOUT` is used when it is set.
+    - Otherwise the path is `<repo root>/../open-computer-use`, where the repo root is found from the test file's own path (`Path(__file__).resolve().parents[...]`). It does not depend on the pytest working directory.
+    - A missing directory fails with `pytest.fail` (never `skip`). The message names the resolved path and says to clone OCU at `constraints.yaml ocu_checkout.sha` or to set `OCU_CHECKOUT`.
+    - A checkout that exists but has no `skills/public/` or no `computer-use-server/skill_manager.py` also fails, naming the missing file.
+  - **Expected set.**
+    - Every directory name under `skills/public/` (directories only), plus `remotion`, plus the keys of `NATIVE_PROMPT_DESCRIPTIONS`.
+    - The keys come from `ast`-parsing `skill_manager.py`. The module-level assignment is accepted as either `ast.Assign` or `ast.AnnAssign`; at the pin it is `NATIVE_PROMPT_DESCRIPTIONS: dict[str, str] = {`. Its value must be a dict literal with string-constant keys.
+    - Anything else fails with a message, not a silent empty set: a missing assignment, a value that is not a dict literal, or a key that is not a string.
+    - At the pin the expected counts are 16 directories and 27 keys, giving a union of 29, which equals the literal's size.
+    - The test asserts that this set is a subset of `RESERVED_SKILL_NAMES`. The failure message lists every missing name, sorted. Extra reserved names are allowed: a built-in removed upstream may stay reserved harmlessly.
+  - **Proof that the test can fail.** Run each locally, then restore the original state:
+    - remove one `skills/public/` name, for example `file-reading`, from the literal → the test fails naming it;
+    - remove one dict-only key, for example `internal-comms` → the test fails naming it;
+    - `OCU_CHECKOUT=/nonexistent` → the test fails with the message;
+    - the full list against a checkout at the pinned SHA `4dab0cf30be033ec95818c2108487a61b7213029` (for example a `git worktree` or `git archive` of the sibling checkout in the scratchpad) → the test passes.
+    - Cwd independence, against the pinned checkout: run once from `backend/` and once from the repository root, and both pass. Without `OCU_CHECKOUT`, a run from each directory fails, and both messages name the same `<repo root>/../open-computer-use`. This proof runs from a linked worktree, where that sibling path does not exist.
+    - Each structural failure path is a parametrized case against a fake checkout built in `tmp_path`, so it runs in CI and locally without the real checkout. The cases are:
+      - no `skills/public/`;
+      - no `computer-use-server/skill_manager.py`;
+      - no `NATIVE_PROMPT_DESCRIPTIONS` assignment;
+      - a value that is not a dict literal;
+      - a non-string key.
+
+      Each asserts that `pytest.fail`'s message names the reason. A positive case uses a fake checkout whose names are a subset of the literal.
+
+    - Also report the result against the sibling checkout's current HEAD. Name any built-in added after the pin as a finding for #755 (the pin bump); it is not fixed here.
+
+  - **CI.**
+    - `.github/actions/setup-toolchain/action.yml` gains a validated input `ocu` (`true`/`false`, default `false`; any other value fails the job, as the existing inputs do).
+    - The pinned-SHA resolution and the `actions/checkout` of `DankerMu/open-computer-use` into `.run/open-computer-use` run when `inputs.runtime == 'true' || inputs.ocu == 'true'`. There is one copy of those steps, not a second one in `ci.yml`.
+    - `layer2-backend-tests` passes `ocu: 'true'`, and its `make coverage-gate PART=backend` step sets `OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use`.
+    - No other job changes.
+    - CI proof, from the PR's `layer2-backend-tests` log:
+      - the OCU checkout step checked out the pinned SHA;
+      - `make coverage-gate PART=backend` exited 0;
+      - its passed count exceeds the latest `main` layer2 run by this module's test count.
+
+      `coverage-gate.sh` prints only the last pytest lines and excludes `test/` from the coverage report, so the module itself is not listed there.
+
+    - The PR flags both CI files: `.github/actions/setup-toolchain/action.yml` and `.github/workflows/ci.yml`.
+
+  - **Local gates.**
+    - With `OCU_CHECKOUT=<sibling checkout>` set, `make coverage-gate PART=backend` exits 0, and `pytest -v` of the module lists its test IDs.
+    - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make doc-gate` exit 0.
+    - `python3 scripts/ci-gate.py` tests (`backend/open_webui/test/test_ci_gate.py`) still pass, because the job set is unchanged.
+  - **Docs.**
+    - The AGENTS.md `### Environment` "Local services" line states that backend pytest (`make test-backend`, `make coverage-gate`, `make check`) now reads the sibling OCU checkout.
+    - It names `OCU_CHECKOUT`, the default `<repo root>/../open-computer-use`, and that a linked worktree must set `OCU_CHECKOUT`, because the default resolves from the worktree root.
+    - The PR flags this AGENTS.md change.
 
 Suggested fixture level: expanded - path safety, resource limits and persisted bytes.
 Minimal mergeable slice: task 2.1 first (the validator, the reserved-name check and the first-upload route that is their only caller, so no dead code and no window in which `main` accepts a reserved name); depends on 1.1. Estimated about 380 diff lines (validator about 100, its parametrized tests about 90 over one ZIP-building helper, route, insert method and the compact reserved literal about 75, router tests about 115 reusing that helper); if the implemented diff exceeds 400, use the `diff-limit-exempt` label with this reason instead of splitting the reserved check away from the route. Task 2.2 depends on 2.1 and 1.2 (its smoke case deletes through the `DELETE /{name}` route). Task 2.3 depends on 2.1 (the list it checks) and is the only part that carries a CI change: the drift test plus the CI checkout.
