@@ -16,6 +16,9 @@ const MARKER = `<$ocu--${INVOICE}|${INVOICE}>`;
 // The OCU stub provider answers every completion with this reply (scripts/ocu_stub_model.py).
 const STUB_MODEL = 'ocu-stub-model';
 const STUB_REPLY = 'Stub reply. Saw: no OCU system prompt.';
+// A native skill (/api/v1/skills), created and deleted by the native slash menu case.
+const NATIVE_ID = 'harness-native-skill';
+const NATIVE_NAME = 'Harness native skill';
 const DEEP_LINK = '/?settings=admin%3Aocu-skills';
 const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 const TAB = '工作区 Skills';
@@ -343,6 +346,82 @@ test('slash menu: the enabled uploaded skill is offered and sent as a mention ma
 			...(chatId ? [removeQuietly(api, `/api/v1/chats/${chatId}`)] : []),
 			removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`),
 			removeQuietly(api, `${SKILLS_PATH}/${SKILL}`),
+			post(api, '/openai/config/update', openai)
+		]);
+	}
+	const failed = restore.find((result) => result.status === 'rejected');
+	if (failed) throw failed.reason;
+	checkErrors(0);
+});
+
+test('slash menu: a native skill is sent as a $ mention and injected', async ({ page }) => {
+	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
+	test.setTimeout(120_000);
+	const checkErrors = collectErrors(page);
+	await openAuthenticatedPage(page);
+	const api = await admin(page);
+	const openaiResponse = await api.request.get('/openai/config', { headers: api.headers });
+	expect(openaiResponse.status()).toBe(200);
+	const openai = await openaiResponse.json();
+	let chatId: string | null = null;
+	let restore: PromiseSettledResult<unknown>[] = [];
+	try {
+		await removeQuietly(api, `/api/v1/skills/id/${NATIVE_ID}/delete`);
+		await post(api, '/api/v1/skills/create', {
+			id: NATIVE_ID,
+			name: NATIVE_NAME,
+			content: 'Harness native skill body.'
+		});
+		await post(api, '/openai/config/update', {
+			ENABLE_OPENAI_API: true,
+			OPENAI_API_BASE_URLS: [`${context.stub}/v1`],
+			OPENAI_API_KEYS: ['ocu-stub'],
+			OPENAI_API_CONFIGS: {}
+		});
+		// A fresh load picks up the provider; then reload in Chinese with the stub model selected.
+		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);
+		await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
+		await page.reload();
+		const input = page.locator('#chat-input');
+		await expect(input).toBeVisible();
+
+		const searched = page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return url.pathname === '/api/v1/skills/list' && url.searchParams.get('query') === 'harness';
+		});
+		await input.click();
+		await page.keyboard.type('/harness');
+		await searched;
+		// `harness` also matches admin@harness.local, so other admin skills may list; the new one sorts first.
+		const row = page.locator('#suggestions-container').locator('button', { hasText: NATIVE_NAME });
+		await expect(row).toBeVisible();
+		await expect(row).toHaveAttribute('data-selected', 'true');
+		await page.keyboard.press('Enter');
+		await page.keyboard.type(' 你好');
+
+		const completion = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === '/api/chat/completions' &&
+				response.request().method() === 'POST'
+		);
+		await page.locator('#send-message-button').click();
+		const answer = await completion;
+		chatId = (await answer.json()).chat_id;
+		expect(typeof chatId).toBe('string');
+		const body = answer.request().postDataJSON();
+		expect(body.user_message.content).toContain(`<$${NATIVE_ID}|${NATIVE_NAME}>`);
+		expect(body.user_message.content).not.toContain('<@');
+		// No `skill_ids`: the skill can only have been loaded through the mention.
+		expect(body.skill_ids).toBeUndefined();
+		// The stub names each full-content `<skill>` block, so the backend injected the skill.
+		await expect(
+			page.locator('#messages-container').getByText(`${STUB_REPLY} Skills: ${NATIVE_NAME}.`)
+		).toBeVisible();
+	} finally {
+		// Restore everything even when one step fails; a failure of the case itself still wins.
+		restore = await Promise.allSettled([
+			...(chatId ? [removeQuietly(api, `/api/v1/chats/${chatId}`)] : []),
+			removeQuietly(api, `/api/v1/skills/id/${NATIVE_ID}/delete`),
 			post(api, '/openai/config/update', openai)
 		]);
 	}
