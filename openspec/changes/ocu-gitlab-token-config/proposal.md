@@ -19,7 +19,7 @@ Issue #776.
   - an environment key is never sent to a URL that came from a header.
 - `docker_manager.MCP_TOKENS_URL` and `docker_manager.MCP_TOKENS_API_KEY` are removed, together with their re-import in `mcp_tools.py:176`. The skill registry (`skill_manager.py`) and `/api/skill-stats` (`app.py:1699`) read their own copies and are unchanged.
 - Docs:
-  - `computer-use-server/README.md` environment table;
+  - `computer-use-server/README.md` environment table, root `README.md` env rows and PAT paragraph, `.env.example`;
   - the `mcp_tools.py` header/env table;
   - `NETWORK-HARDENING.md`, the GitLab sentence in the #753 entry;
   - a `CHANGELOG.md` entry with the upgrade note.
@@ -39,6 +39,6 @@ Repository: `DankerMu/open-computer-use`. As for every `[ocu]` issue, this fixtu
 
 ## Impact
 
-- `computer-use-server/docker_manager.py`, `computer-use-server/mcp_tools.py` (import line and docstring table), `computer-use-server/README.md`, `deploy/production-like-test/NETWORK-HARDENING.md`, `CHANGELOG.md`.
+- `computer-use-server/docker_manager.py`, `computer-use-server/mcp_tools.py` (import line and docstring table), `computer-use-server/README.md`, `README.md`, `.env.example`, `deploy/production-like-test/NETWORK-HARDENING.md`, `CHANGELOG.md`.
 - Tests: `tests/orchestrator/test_gitlab_token_config.py` (new), and `tests/orchestrator/test_lifecycle.py:528-560` and `:2370-2400`, which switch to the new names.
 - Deployments that used `MCP_TOKENS_URL` for an external MCP Tokens Wrapper must set `GITLAB_TOKENS_URL` and `GITLAB_TOKENS_API_KEY` to keep GitLab tokens. This fork's overlay sets neither, so GitLab fetching is off there, and that was the state before #753.

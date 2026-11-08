@@ -41,7 +41,7 @@ OCU `main` @ `b9d4118` (DankerMu/open-computer-use). Facts:
 3. **Remove `docker_manager.MCP_TOKENS_URL` and `MCP_TOKENS_API_KEY`, and their unused re-import in `mcp_tools.py:176`:**
    - no alias and no fallback, so the old names cannot silently re-enable the fetch;
    - `git grep` shows no other reader. The tests that patch them switch to the new names.
-4. **No change to `_fetch_gitlab_token`:** its timeout, log lines and status handling stay. Acceptance item 2 is met by not calling it, not by shortening its timeout.
+4. **`_fetch_gitlab_token` keeps its timeout and status handling.** Acceptance item 2 is met by not calling it, not by shortening its timeout. The only change is the log text at `:630`, which names `GITLAB_TOKENS_API_KEY` instead of `MCP_TOKENS_API_KEY`.
 
 ## Risks / Trade-offs
 
