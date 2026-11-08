@@ -511,6 +511,124 @@ Minimal mergeable slice: atomic - the two routes form one contract that OCU call
 ## 5. [webui] Admin Settings tab
 
 - [ ] 5.1 Add the `constraints.yaml` `bounded_overrides` entry for `src/lib/components/chat/SettingsModal.svelte`: ceiling about 1350, a reason naming change `ocu-uploaded-skills` and the user's approval (2026-11-07), and exit_condition "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed". Add `src/lib/apis/ocu/skills.ts` (with `skills.test.ts`) covering the admin routes. Add the Admin Settings 「工作区 Skills」 tab as a new component: upload with the server's rejection reason shown, a list, access editing through `workspace/common/AccessControl.svelte`, delete behind a confirmation dialog, and both timing notices (revocation and deletion wait for a sandbox rebuild; a replaced ZIP reaches running sandboxes that already mount it within minutes). In `SettingsModal.svelte` add only the `admin:` tab registration and its render branch, shown only when `features.enable_ocu_workspace`. Run `npm run i18n:parse` for new strings. Create `e2e/ocu-skills.e2e.ts`, add its bare filename `ocu-skills.e2e.ts` to `REQUIRED_SPECS` in `scripts/verify-ui-ocu.py:86-95` (the tuple lists bare filenames), and add an assertion for it to `scripts/test_verify_ui_ocu_repeat.py` (which asserts that list). Verify with `make test-frontend`, `make test-verify-ui-ocu-repeat`, `make lint-scoped` (SettingsModal within the new ceiling) and the Playwright case under `make verify-ui-ocu`: upload a fixture ZIP and see it listed; both notices shown; cancel delete and see it remain; confirm delete and see it disappear; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no admin tab and zero `/api/v1/ocu/skills` requests; screenshots, zero console errors.
+      Task 5.1 required evidence (issue #749; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The change touches the shared `SettingsModal.svelte` entry point, and a hard delete sits behind a confirmation.
+    - Selected packs:
+      - UI flow: upload, list, access, delete and the notices;
+      - feature gating: zero requests when the workspace flag is off;
+      - API client contract with the merged admin routes;
+      - destructive action: delete only after confirmation;
+      - upstream spine: a minimal diff to `SettingsModal.svelte` within the new ceiling;
+      - i18n: generated, never hand-patched.
+    - Not selected:
+      - backend, schema and migration: no backend change;
+      - auth: the admin routes already enforce `get_admin_user` (tasks 1.1–2.2);
+      - concurrency: single-admin UI.
+    - Governing invariants:
+      - with `features.enable_ocu_workspace` not `true`, no admin 「工作区 Skills」 entry renders and the page sends zero `/api/v1/ocu/skills` requests, even on a deep link `/?settings=admin%3Aocu-skills`;
+      - a DELETE is sent only after the user confirms;
+      - the grants handed to `POST /{name}/access` keep the `{principal_type, principal_id, permission}` shape of `GET /admin`.
+    - Sibling surfaces:
+      - `SettingsModal.svelte`: its tab list, group map, search filter, URL deep link and render chain;
+      - `/admin/settings/[tab]`, which redirects to `?settings=admin:<tab>`;
+      - `AdminTabIcon.svelte`;
+      - `AccessControlModal.svelte` / `AccessControl.svelte`, unchanged;
+      - `ConfirmDialog.svelte`;
+      - `scripts/verify-ui-ocu.py` `REQUIRED_SPECS` and its unit test;
+      - `playwright.ocu.config.ts` `testMatch` (a brace glob of spec names);
+      - #750, which extends the same client file and the same e2e spec.
+  - **API client `src/lib/apis/ocu/skills.ts` with `skills.test.ts` (red first).**
+    - It exports exactly four functions for the admin routes, each taking the session token first:
+      - `getAdminSkills(token)` → `GET {WEBUI_API_BASE_URL}/ocu/skills/admin`;
+      - `uploadSkill(token, file: Blob)` → `POST …/ocu/skills/upload`, with the raw ZIP as the body and `Content-Type: application/zip`. The body is not multipart: the route reads `request.stream()`;
+      - `updateSkillAccess(token, name, accessGrants)` → `POST …/ocu/skills/{encodeURIComponent(name)}/access` with the JSON body `{"access_grants": [{principal_type, principal_id, permission}]}`. Each grant is reduced to those three keys, so an `id` from `AccessControl` is dropped;
+      - `deleteSkill(token, name)` → `DELETE …/ocu/skills/{encodeURIComponent(name)}`.
+    - Every request carries `Authorization: Bearer <token>`.
+    - A non-2xx response throws an `Error` whose message is the server's `detail` when that is a string (the 400 rejection reason, 409, 413). Otherwise the message is `HTTP <status>`. A response that is not JSON gives `HTTP <status>`.
+    - Before adding the client, grep `src/lib/apis/` for an existing fetch or error helper and reuse it if it fits. Do not add a second one.
+    - Unit test with mocked `fetch`, for each function:
+      - the URL, method, headers and body (for upload, the same `Blob` instance);
+      - the parsed success value;
+      - error messages for a string `detail`, a list `detail` (422 → `HTTP 422`) and a non-JSON body.
+  - **Tab component `src/lib/components/admin/Settings/OcuSkills.svelte` with `OcuSkills.test.ts`.**
+    - All logic lives here. Stable `data-cy` hooks:
+      - `ocu-skills-upload` (the file input, `accept=".zip,application/zip"`);
+      - `ocu-skills-upload-error`;
+      - `ocu-skills-row-{name}`;
+      - `ocu-skills-access-{name}`;
+      - `ocu-skills-delete-{name}`;
+      - `ocu-skills-notice-revocation`;
+      - `ocu-skills-notice-replacement`.
+    - On mount it calls `getAdminSkills` once and lists each skill's name and description.
+    - Upload:
+      - Choosing a file uploads it.
+      - On success the error is cleared and the list is re-fetched, with no navigation.
+      - On failure the server's reason is shown verbatim in `ocu-skills-upload-error` and the list stays unchanged.
+      - The input is reset after each attempt, so the same file can be chosen again.
+    - Access:
+      - The access button opens `AccessControlModal` with `accessRoles={['read']}` and `shareOpen={false}`, so no write and no `anyone` grant can be produced.
+      - The modal opens with `accessGrants` set to that skill's `access_grants` from the last `GET /admin` (SA-1).
+      - Each change calls `updateSkillAccess`, and the row's grants are replaced by the response.
+      - On failure an error toast is shown and the list is re-fetched.
+    - Delete:
+      - The delete button opens `ConfirmDialog` naming the skill.
+      - Cancel sends nothing.
+      - Confirm calls `deleteSkill` and removes the row on success. On failure it shows a toast and keeps the row.
+    - Both notices are always visible:
+      - revocation: revocation and deletion reach running sandboxes only after they are rebuilt;
+      - replacement: a replaced ZIP reaches running sandboxes that already mount it within minutes (roughly 60–420 s), while new sandboxes read the cache.
+    - Component test (vitest and `@testing-library/svelte`, with the client mocked, following `ImageGenerationPlaceholder.test.ts` for the i18n context):
+      - the list renders from `getAdminSkills`;
+      - a rejected upload shows the reason;
+      - a successful upload calls `getAdminSkills` again;
+      - cancel sends no `deleteSkill`;
+      - confirm calls it once and the row disappears;
+      - the access modal receives the stored grants, and a change calls `updateSkillAccess` with the three-key grants;
+      - both notices render.
+    - The fork-added files keep 80% or more under `make coverage-gate`.
+  - **`SettingsModal.svelte` (the minimal upstream diff; record its line count).**
+    - It may only add:
+      - one import of `OcuSkills`;
+      - one `adminSettings` entry `{id: 'admin:ocu-skills', title: 'Workspace Skills', keywords: [...]}`;
+      - its `adminSettingGroups` row (`'Tools'`);
+      - a filter in `getAvailableSettings`, so the tab exists only for admins when `$config?.features?.enable_ocu_workspace === true`;
+      - one render branch `{:else if selectedTab === 'admin:ocu-skills' && $config?.features?.enable_ocu_workspace === true}<OcuSkills />`.
+    - The render branch's `=== true` guard is the only deep-link gate, and it must not be removed. `setFilteredSettings` runs only on mount, on `config.subscribe` and on search. A deep link sets `selectedTab` after mount through the `show` reactive statement, so the `filteredSettings` fallback does not run and `selectedTab` stays `admin:ocu-skills`. Compare `admin:analytics`, which is filtered the same way and still renders on a deep link through its unguarded branch. With the guard false, `OcuSkills` never mounts and no request is sent. No test may assert a fallback to the first tab.
+    - `AdminTabIcon.svelte` gains exactly two lines: `{:else if id === 'ocu-skills'}` and an icon component the file already imports, for example `WrenchAlt`. There is no new import and no new icon file. Without the branch the sidebar entry would have no icon, because the file has no `{:else}` fallback. This is a recorded deviation from "SettingsModal only", and it is inside the PR boundary.
+    - `constraints.yaml` `bounded_overrides` gains `src/lib/components/chat/SettingsModal.svelte` with ceiling 1350, a reason naming change `ocu-uploaded-skills` and the user's approval (2026-11-07), and exit_condition "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed". `make lint-scoped` passes with the file under that ceiling.
+      - Both 工作区 Skills tabs share this one ceiling (design.md). The PR records the file's line count after this change and the headroom left for the registration and render branch #750 adds, about 12 lines.
+      - If 1350 cannot hold both, set the ceiling now to the measured count plus 15, at most 1360, and state that in the reason, so #750 needs no new approval.
+  - **i18n.**
+    - The UI strings are English keys passed through `$i18n.t`. The key for the tab title is `Workspace Skills`.
+    - `npm run i18n:parse` regenerates the locale files.
+    - Only the `zh-CN` values of the new keys are filled in; the tab title is 「工作区 Skills」. This follows the #709 precedent `a5e4e4ad4`. No other locale value and no existing key is edited.
+    - Proof: after the values are filled, a second `npm run i18n:parse` leaves `git diff --exit-code src/lib/i18n` empty against the staged result. Other locales gain only the new keys parse generates, with empty values.
+  - **Playwright `e2e/ocu-skills.e2e.ts`.**
+    - Uses `openAuthenticatedPage` and `admin` from `e2e/ocu-auth.ts`, and sets `localStorage.locale = 'zh-CN'` as `ocu-image-placeholder.e2e.ts:65` does. Order matters here. `openSettingsFromUrl` strips `?settings=` with `replaceState` (`(app)/+layout.svelte:214-221`), so reloading after the deep link would land on `/` with the modal closed. Set the locale on `/`, reload, and only then `goto` the deep link. Both cases run in zh-CN.
+    - It collects `pageerror` and console errors and asserts that none occurred. It saves screenshots under `.run/ui-evidence/` named `ocu-skills-*.png`.
+    - Case "admin tab":
+      - Open `/?settings=admin%3Aocu-skills`.
+      - The tab 「工作区 Skills」 is selected, and both notice elements are visible.
+      - Upload `smoke/fixtures/ocu-smoke-skill.zip` through `setInputFiles`. `harness-smoke-skill` appears in the list. A `window` marker set before the upload is still present afterwards, which proves there was no reload.
+      - Upload the in-memory payload `setInputFiles({ name: 'not-a-zip.txt', mimeType: 'text/plain', buffer: Buffer.from('not a zip') })`. The text of `ocu-skills-upload-error` must equal that response's `detail` and be non-empty.
+      - Through the API, narrow the skill to a group the test creates. Re-open the tab; the access editor opens showing that group (SA-1). Restore the grant afterwards.
+      - Click delete, then cancel. No `DELETE /api/v1/ocu/skills/` request is recorded, and the row remains.
+      - Click delete, then confirm. Exactly one DELETE is sent, and the row disappears.
+      - Cleanup deletes the skill and the group through the API, even when the test fails.
+    - Case "workspace off":
+      - Use `page.route('**/api/config', …)` to rewrite the response with `features.enable_ocu_workspace = false`, installed before the first navigation.
+      - As admin, open the settings modal. Step 1, search box empty: the Database 「数据库」 tab is visible, which proves the admin section rendered. Step 2, type `skills` (the new tab's `keywords` include it; search matches English titles and keywords only): `getByRole('tab', { name: '工作区 Skills' })` has count 0 and the "No matches" notice is visible. The admin section is hidden at this point because `filteredAdminSettings` is empty.
+      - Positive control in the "admin tab" case: with the flag on, the same `skills` search finds exactly one tab, 「工作区 Skills」.
+      - Navigate to `/?settings=admin%3Aocu-skills`. No `ocu-skills-*` element renders.
+      - Across the whole case, zero requests match `/api/v1/ocu/skills`.
+    - Add `'ocu-skills.e2e.ts'` to `REQUIRED_SPECS` in `scripts/verify-ui-ocu.py`, and add `assert 'ocu-skills.e2e.ts' in HARNESS.REQUIRED_SPECS` to `scripts/test_verify_ui_ocu_repeat.py`.
+    - Add `skills` to the `testMatch` brace glob in `playwright.ocu.config.ts:7-9`, as #709 `6fd42e7c1` did for `image-placeholder`. Without it, the full `make verify-ui-ocu` fails with "required Playwright spec contributes no tests". The repeat path hides the failure, because `OCU_UI_SPEC` overrides `testMatch`, so only the full run proves it.
+  - **Gates.**
+    - Run `make test-frontend`, `make typecheck` (the ratchet must not rise), `make lint-scoped`, `make fmt-check`, `make anti-drift` (no unused exports: #750 adds the user functions) and `make coverage-gate`.
+    - Run `make test-verify-ui-ocu-repeat`.
+    - Run `make verify-ui-ocu-repeat SPEC=ocu-skills.e2e.ts REPEAT=1`, then the full `make verify-ui-ocu`, both with zero console errors and with screenshots.
+    - No backend, migration or OCU-repo change.
 
 Suggested fixture level: expanded - touches the shared `SettingsModal.svelte` entrypoint and guards a hard delete behind a confirmation.
 Minimal mergeable slice: atomic - the API client is dead without its first caller, and this tab is that caller; the line-ceiling override lands with the first diff that needs it. Depends on 1.2 and 2.1.
