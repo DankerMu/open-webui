@@ -33,7 +33,7 @@ Must add/change:
   - all cache mutations happen after the await, on the loop thread.
 - **Cache generation guard:**
   - `Filter` gains `self._cache_generation`, an integer that grows by one at every clear of `_prompt_cache`: an authority switch, an unavailable token or bad orchestrator URL, a 401/403/3xx, and a missing `X-Public-Base-URL`. All these clears go through one private method.
-  - `_fetch_system_prompt` captures the generation before the await. After the await, every cache effect requires the generation to be unchanged:
+  - `_fetch_system_prompt` captures the generation after `_configured_authority()` has returned, before the await. Capturing it earlier would leave the first fetch after every authority switch uncached. After the await, every cache effect requires the generation to be unchanged:
     - a successful entry is stored only then; otherwise it is returned, not cached;
     - the clearing on 401/403/3xx or a missing `X-Public-Base-URL` happens only then, so a late rejection cannot wipe entries stored after a newer clear;
     - the transport-error fallback returns the stale entry captured before the await only then; otherwise it returns `None`.
