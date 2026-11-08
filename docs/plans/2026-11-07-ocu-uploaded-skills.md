@@ -146,7 +146,7 @@ Stage 3 审核发现了以下事实错误，已直接改在上文：标记格式
 
 - ZIP 改为存在 `ocu_skill.data` 里，不再放 `Storage`/`UPLOAD_DIR`。原因有三：现有的「重置上传目录」和「删除全部文件」两个管理员操作会清空这个目录（`routers/retrieval.py:3204-3220`、`routers/files.py:562-569`）；存数据库后替换和删除都能在一个事务里完成，不会留下孤儿文件；数据库备份也会自动带上 ZIP。代价是数据库体积变大（每个 skill 最多 50 MB）。
 - router 通过 `ocu_workspaces.py` 挂载，`main.py` 不改。
-- 用户批准为 `SettingsModal.svelte` 加一条 `bounded_overrides` 上限（约 1350 行），两个新标签只在这里注册并加渲染分支，标签内容放在新组件里。
+- 用户批准为 `SettingsModal.svelte` 加一条 `bounded_overrides` 上限（约 1350 行；2026-11-08 用户批准提到 1365，因为个人标签需要手写的侧栏按钮），两个新标签只在这里注册并加渲染分支，标签内容放在新组件里。
 
 保留名单扩展到 `NATIVE_PROMPT_DESCRIPTIONS`，由用户在 Stage 3 之后追加确认（Decision Ledger #9、#16）。
 

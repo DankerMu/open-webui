@@ -7,6 +7,7 @@
 	import type { SettingsModalRequest } from '$lib/stores';
 	import { getUserSettings, updateUserSettings } from '$lib/apis/users';
 	import { getBackendConfig, getModels as _getModels } from '$lib/apis';
+	import { workspaceFilesEnabled } from '$lib/apis/ocu';
 
 	import Modal from '../common/Modal.svelte';
 	import Account from './Settings/Account.svelte';
@@ -54,6 +55,7 @@
 	import AdminImages from '$lib/components/admin/Settings/Images.svelte';
 	import AdminPipelines from '$lib/components/admin/Settings/Pipelines.svelte';
 	import AdminDatabase from '$lib/components/admin/Settings/Database.svelte';
+	import OcuSkills from '$lib/components/admin/Settings/OcuSkills.svelte';
 
 	const i18n: Writable<any> = getContext('i18n');
 
@@ -162,6 +164,7 @@
 		'admin:web': 'Tools',
 		'admin:code-execution': 'Tools',
 		'admin:pipelines': 'Tools',
+		'admin:ocu-skills': 'Tools',
 		'admin:interface': 'Experience',
 		'admin:audio': 'Experience',
 		'admin:images': 'Experience',
@@ -780,6 +783,11 @@
 			title: 'Pipelines',
 			keywords: ['pipelines', 'workflows', 'filters', 'valves', 'middleware']
 		},
+		{
+			id: 'admin:ocu-skills',
+			title: 'Workspace Skills',
+			keywords: ['workspace skills', 'skills', 'ocu', 'zip', 'sandbox']
+		},
 
 		{
 			id: 'admin:db',
@@ -822,7 +830,9 @@
 			return true;
 		});
 
-		return $user?.role === 'admin' ? [...personalSettings, ...adminSettings] : personalSettings;
+		const ocuSkills = workspaceFilesEnabled($config);
+		const adminTabs = adminSettings.filter((tab) => tab.id !== 'admin:ocu-skills' || ocuSkills);
+		return $user?.role === 'admin' ? [...personalSettings, ...adminTabs] : personalSettings;
 	};
 
 	const setFilteredSettings = () => {
@@ -1313,6 +1323,8 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
+			{:else if selectedTab === 'admin:ocu-skills' && workspaceFilesEnabled($config)}
+				<OcuSkills />
 			{:else if selectedTab === 'admin:pipelines'}
 				<AdminPipelines
 					saveHandler={() => {

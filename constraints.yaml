@@ -115,6 +115,10 @@ size_limits:
         ceiling: 4534
         reason: "User-approved #690 generate_image aspect_ratio argument (logic in utils/images/aspect_ratio.py); User-approved (2026-11-03) #713 name argument and workspace calls (logic in utils/ocu_image_workspace.py)."
         exit_condition: "Remove when builtin.py is <=800 lines or the #690 and #713 hooks are removed."
+      - path: "src/lib/components/chat/SettingsModal.svelte"
+        ceiling: 1365
+        reason: "User-approved (2026-11-07) change ocu-uploaded-skills: registration and render branch of the two 工作区 Skills tabs (admin #749, personal #750); tab logic lives in new components. Ceiling raised from ~1350 to 1365 by user approval (2026-11-08, PR #767 review): each personal tab needs a hand-written ~13-line sidebar button."
+        exit_condition: "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed"
   max_complexity:
     value: 15                      # L3 minimum; ruff keeps upstream mccabe=10 (stricter), eslint complexity=15
     severity: "block"
