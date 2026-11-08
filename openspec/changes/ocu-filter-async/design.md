@@ -31,13 +31,18 @@ Must add/change:
   - authority check, cache lookup and TTL check run on the loop as today;
   - then `await asyncio.to_thread(self._request_prompt, req)`, a synchronous helper that only opens the request, reads the body and returns the decoded prompt and the `X-Public-Base-URL` header value. An `HTTPError`, `URLError`, `TimeoutError` or `UnicodeDecodeError` propagates out of the thread exactly as today;
   - all cache mutations happen after the await, on the loop thread.
-- **Stale-authority guard:** after the await, every cache effect is conditional on `self._cache_authority` still equalling the authority captured before the await:
-  - a successful entry is stored only then; otherwise it is returned, not cached;
-  - the clearing on 401/403/3xx or a missing `X-Public-Base-URL` happens only then, so a late rejection of the old credential cannot wipe entries of the new one;
-  - the transport-error fallback returns the stale entry captured before the await only then; otherwise it returns `None`.
+- **Cache generation guard:**
+  - `Filter` gains `self._cache_generation`, an integer that grows by one at every clear of `_prompt_cache`: an authority switch, an unavailable token or bad orchestrator URL, a 401/403/3xx, and a missing `X-Public-Base-URL`. All these clears go through one private method.
+  - `_fetch_system_prompt` captures the generation before the await. After the await, every cache effect requires the generation to be unchanged:
+    - a successful entry is stored only then; otherwise it is returned, not cached;
+    - the clearing on 401/403/3xx or a missing `X-Public-Base-URL` happens only then, so a late rejection cannot wipe entries stored after a newer clear;
+    - the transport-error fallback returns the stale entry captured before the await only then; otherwise it returns `None`.
+  - This covers both an authority change during the fetch and a same-authority clear by another request (for example a concurrent 401). On `main` neither ordering was possible, because the blocked loop serialized every fetch.
 - The `except` structure and the printed messages stay the same.
 
-Governing invariant: no `Filter` coroutine blocks the event loop on network I/O, and `_prompt_cache` is read and written only on the event-loop thread.
+Governing invariant: no `Filter` coroutine blocks the event loop on network I/O; `_prompt_cache`, `_cache_authority` and `_cache_generation` are read and written only on the event-loop thread; and no result fetched before a cache clear outlives that clear.
+
+Cancellation: every cache effect sits after the await, so a cancelled `inlet` leaves the cache untouched. The worker thread runs to its 10 s timeout and its result is dropped.
 
 Sibling surfaces:
 
@@ -57,6 +62,9 @@ Non-goals:
 - An async HTTP client library.
 - Single-flight deduplication of concurrent misses for the same key. Before this change those fetches were serialized by the blocked loop; now each may fetch.
 - Changes to the other filters.
+- `http.client` exceptions that are not `URLError` (`RemoteDisconnected`, `IncompleteRead`) already escape `_fetch_system_prompt` on `main`; the `except` structure stays as it is.
+
+Residual risk: the default executor has `min(32, cpu + 4)` workers, and each cache miss holds one for up to 10 s. A burst of slow misses can queue behind each other, but it no longer stalls the loop. `docs/openwebui-filter.md` states this.
 
 Review focus:
 
