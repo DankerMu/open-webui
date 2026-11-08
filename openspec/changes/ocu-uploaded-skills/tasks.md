@@ -856,11 +856,11 @@ Minimal mergeable slice: atomic - one group and its selection branch; splitting 
       - error handling: every existing early return of `inlet` stays unchanged;
       - legacy compatibility: `ocu-filter-auth` behaviour and the injected-prompt layout stay byte-identical for marker-free bodies;
       - prompt integrity: user text must not reach the system message except as a grammar-checked skill name;
+      - resource limits: the inlet runs synchronously on the request path over every user message of the history, and the gateway sets no body cap (`client_max_body_size 0`), so the scan must be linear in the text length (review finding on OCU PR #223);
       - documentation: the OCU filter docs and changelog describe the new inlet step (#702 precedent: `CHANGELOG.md` Unreleased entry and `docs/openwebui-filter.md`, commit `c07baae`).
     - Not selected:
       - config: no new Valve or environment variable;
       - auth/secrets: the token path is untouched, and a marker grants nothing (design.md Decision 9);
-      - resource limits: one linear regex pass per text, with no backtracking construct;
       - schema: no stored data.
     - Governing invariant: the marker rewrite changes a body only on the path where the filter injected the OCU prompt. On that path, its only changes are label rewrites in user messages and at most one sentence per distinct name of the last user message.
     - Sibling surfaces:
@@ -873,8 +873,8 @@ Minimal mergeable slice: atomic - one group and its selection branch; splitting 
     - The rewrite and the sentence run only after the OCU prompt has been injected, that is after the whole existing system-message step at the end of `inlet`. The sentence is appended to the final system-message content, never to `system_prompt` before insertion, so in the template-variable branch it lands after the template block.
     - Every early return returns `body` exactly as today, raw marker included. Native `strip_skill_mentions` then removes it downstream: it runs unconditionally after the inlet filters (`middleware.py:2635` inlet, `:2807` strip). The sentence names `<available_skills>`, which exists only in an injected prompt.
   - **Marker grammar.**
-    - One module-level compiled regex: `<\$ocu--([a-z0-9][a-z0-9-]{0,63})\|([^>]*)>`.
-    - The name class equals the WebUI upload name rule `_NAME` (`backend/open_webui/utils/ocu_skill_zip.py:22`). The label class equals native `SKILL_MENTION_STRIP_RE`.
+    - One module-level compiled regex: `<\$ocu--([a-z0-9][a-z0-9-]{0,63})\|([^<>]*)>`, applied in a single `sub` pass per text with a callback that collects names; no second `finditer` pass.
+    - The name class equals the WebUI upload name rule `_NAME` (`backend/open_webui/utils/ocu_skill_zip.py:22`). The label class excludes `<` as well as `>`, so every match attempt stops at the next `<` and the scan is linear; a label from the #751 menu is the name and never contains `<`. A marker whose label holds `<` is left to native stripping, whose label class is `[^>]*`.
     - A `<$ocu--` sequence that does not fully match is left verbatim by the filter and adds no sentence (native stripping may still rewrite it downstream, e.g. `<$ocu--a_b|x>` becomes `x`). Examples: `<$ocu--Bad Name|x>`, `<$ocu--a_b|x>`, ``<$ocu--x`y|x>``, and a missing `|`. This is what keeps arbitrary user text out of the system message.
   - **Rewrite cases.** Each case calls `Filter.inlet()` with a saved `CHAT_ID`, `OCU_INTERNAL_TOKEN` set, and the prompt fetch mocked to return `PROMPT`:
     - Single: last user message `请用 <$ocu--invoice-builder|invoice-builder> 生成发票` → its content is `请用 invoice-builder 生成发票`, and the system message content ends with `\n\n` followed by the exact sentence of design.md Decision 9 with `{name}` = `invoice-builder` (the test spells the sentence out as a literal).
@@ -889,7 +889,9 @@ Minimal mergeable slice: atomic - one group and its selection branch; splitting 
     - No marker: the output equals what today's inlet produces for the same body: `tool_ids` plus the injected `PROMPT`, the user messages `==` their deep-copied input, and the system message content exactly `PROMPT` or `existing\n\nPROMPT`.
     - Early returns with a marker: a non-saved chat id, `INJECT_SYSTEM_PROMPT=False`, `OCU_INTERNAL_TOKEN` unset (`monkeypatch.delenv`, because the autouse `_filter_test_token` fixture sets it), and a fetch answering 401 each leave `messages ==` the deep-copied input, raw marker included, and `tool_ids` exactly as today.
     - Other roles: a marker inside an assistant or system message is left verbatim. Only `role == "user"` messages are rewritten.
-    - Grammar negatives from the grammar item above → the text is unchanged and there is no sentence.
+    - Grammar negatives from the grammar item above, plus a leading hyphen (`<$ocu---a|x>`), an upper-case-only name (`<$ocu--Abc|x>`) and a label holding `<` (`<$ocu--a|x<y>`) → the text is unchanged and there is no sentence.
+    - Grammar boundary (a rewrite case): a 64-character name is rewritten and named in the sentence; the 65-character twin stays a negative.
+    - Linear scan: a user message of `"<$ocu--a|" * 20000` (180 KB, no `>`) passes through `inlet` unchanged in under 1 s; the quadratic `[^>]*` form takes several seconds on the same input.
     - Cache: after a first call whose last user message carries `<$ocu--a|a>`, a second `inlet` call on the same filter for the same chat with a marker-free body has no sentence, so the sentence never enters `_prompt_cache`.
   - **Red and green.**
     - Every rewrite case is red on OCU `main` `2fea8f6` (no rewrite, no sentence) and green after.
@@ -918,6 +920,76 @@ Minimal mergeable slice: atomic - one transform plus its tests.
 ## 9. [deploy] Wire OCU to the WebUI registry
 
 - [ ] 9.1 In `deploy/production-like-test/` compose and bootstrap, set `MCP_TOKENS_URL=http://open-webui:8080/api/v1/ocu/skills` on `computer-use-server`, and set `MCP_TOKENS_API_KEY` from the `OCU_INTERNAL_TOKEN` already in `runtime.env` (`bootstrap-test.sh:389`), never written to a repository file, command line or log. Add a registry status line to `scripts/write-deployed-version.sh` following its configured yes/no pattern (`:44-53`), never printing the key. Verify with `tests/deploy/` cases: the rendered `computer-use-server` environment has both values; no file added by this change carries the token value (the pre-existing `runtime.env`, which already holds `OCU_INTERNAL_TOKEN`, is out of scope); `MCP_TOKENS_API_KEY` appears in no service environment other than `computer-use-server`; the deployment record shows `yes` when configured and `no` when not, and never the key; an unset `OCU_INTERNAL_TOKEN` still triggers the existing bootstrap refusal.
+      Task 9.1 required evidence (issue #753; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task changes production deploy config and routes a secret to a new consumer.
+    - Selected packs:
+      - auth/secrets: `MCP_TOKENS_API_KEY` carries the `OCU_INTERNAL_TOKEN` value; it must reach no repository file, command line, log, other service or sandbox;
+      - config: one new optional runtime.env knob, `MCP_TOKENS_URL`, with defined absent, set and empty states;
+      - legacy compatibility: a runtime.env written before #753 (the LAN instance) must turn the registry on with no manual edit; the existing `OCU_INTERNAL_TOKEN` refusal and every other service environment stay unchanged;
+      - documentation: the deployment record line and the overlay docs.
+    - Not selected:
+      - network: OCU already reaches `open-webui:8080` on the shared control-plane bridge; the browser deny row is #754;
+      - schema, resource limits, concurrency: none.
+    - Governing invariant: `MCP_TOKENS_API_KEY` exists only in the `computer-use-server` environment, never in a sandbox, and its value is exactly the runtime `OCU_INTERNAL_TOKEN`, interpolated by Compose and never copied into a new file, argument or output.
+    - Sibling surfaces:
+      - `deploy/up.sh` and `deploy/compose-snapshot.sh` resolve the protected compose snapshot, which already holds the resolved `OCU_INTERNAL_TOKEN`;
+      - `write-deployed-version.sh`;
+      - `bootstrap-test.sh`, unchanged (see Wiring);
+      - `deploy/recovery.py`: not affected. `MCP_TOKENS_URL` matches no `SECRET_MARKERS` entry (`_TOKENS_` is not `_TOKEN_`, `recovery.py:76,592`), and retarget keeps every existing key (`:546`); the PR cites these lines;
+      - sandboxes: `_create_container` `extra_env` and `_PASSTHROUGH_BY_CLI` (`docker_manager.py:471-543,1201-1240`) name neither variable, so no sandbox gets the key;
+      - `computer-use-server` consumers: `skill_manager.py:34-35,298-360`, the GitLab-token fetch `docker_manager.py:617-689`, `/api/skill-stats` (`app.py:1688-1700`), and OCU's own `scripts/check-config.sh:115-123`.
+  - **Wiring (one design).**
+    - `compose.core.override.yml` `computer-use-server.environment` gains exactly two entries:
+      - `MCP_TOKENS_URL: ${MCP_TOKENS_URL-http://open-webui:8080/api/v1/ocu/skills}`, the pattern of `SANDBOX_RETENTION_DAYS: ${SANDBOX_RETENTION_DAYS-30}` (`:54`), with a comment naming the three states;
+      - `MCP_TOKENS_API_KEY: ${OCU_INTERNAL_TOKEN:?OCU_INTERNAL_TOKEN is required}`.
+    - States:
+      - absent from runtime.env (every runtime.env, fresh or written before #753) → the registry URL, so the LAN instance gets the registry on its next `up` without an edit;
+      - set → that value;
+      - explicitly empty (`MCP_TOKENS_URL=`) → `""`, the disabled state.
+    - `bootstrap-test.sh` is not changed: the compose default already covers a fresh runtime.env, and runtime.env gets no `MCP_TOKENS_*` line and no second copy of the token. This deviates from the task text "compose and bootstrap"; the PR records it.
+    - `deploy/up.sh`'s `require` list is unchanged.
+  - **Disabled state, stated honestly.** With `MCP_TOKENS_URL=` the key is still set, because it is wired from `OCU_INTERNAL_TOKEN`:
+    - `skill_manager._fetch_user_config` checks only the key (`:305`), builds the relative URL `/api/internal/user-config/{email}`, aiohttp refuses it before any connection, the error is logged at `:326` without the key, and OCU falls back to the disk-cached user-config, then built-ins;
+    - this logs one warning per user per `MEMORY_CACHE_TTL`, as `main` already logs `MCP_TOKENS_API_KEY not configured` per fetch;
+    - `docker_manager.py:676,683` skip the GitLab fetch because they check the URL;
+    - `scripts/check-config.sh` would call it partial config; that script is not part of this overlay's `up` path.
+    - So the rollback step "unset `MCP_TOKENS_URL` and `MCP_TOKENS_API_KEY` on OCU" (design.md Migration Plan) becomes, for this overlay: set `MCP_TOKENS_URL=` in runtime.env (or deploy the previous release), then clear `SKILLS_CACHE_DIR` as the Migration Plan says. `NETWORK-HARDENING.md` states this; the user guide (#756) cites it.
+  - **Structure (red on `main`, green after).** On the parsed override, in the style of `test_tts_settings_reach_only_the_computer_use_server` and `:295-302`:
+    - `core_env["MCP_TOKENS_URL"] == "${MCP_TOKENS_URL-http://open-webui:8080/api/v1/ocu/skills}"`;
+    - `interpolated(core_env["MCP_TOKENS_API_KEY"], "OCU_INTERNAL_TOKEN")` holds (the `:?` helper at `:124`);
+    - `interpolate_value(core_env["MCP_TOKENS_URL"], {})` is the URL, with `{"MCP_TOKENS_URL": ""}` is `""`, and with another value is that value;
+    - no other service in the core, webui or proxy documents names `MCP_TOKENS_` (checked by name, `assertNotIn("MCP_TOKENS_", json.dumps(service))`; by value would wrongly fail, because WebUI and the proxy legitimately carry `OCU_INTERNAL_TOKEN`).
+  - **Native compose (red on `main`, green after).** With `resolved_stacks`, which refuses a non-zero exit and any "is not set" warning:
+    - `MCP_TOKENS_URL` unset → `computer-use-server` has the URL and `MCP_TOKENS_API_KEY ==` the synthetic `OCU_INTERNAL_TOKEN`;
+    - `MCP_TOKENS_URL=""` → `""`, key unchanged;
+    - no other resolved service has an `MCP_TOKENS_API_KEY` or `MCP_TOKENS_URL` key.
+  - **No secret in files or arguments.**
+    - After a bootstrap run with the harness's generated token: runtime.env contains the token value exactly once (the existing `OCU_INTERNAL_TOKEN=` line) and no `MCP_TOKENS_` line.
+    - After the consumer `up` run (the existing token test around `test_bootstrap_runtime.py:490-531`): the token is absent from stdout and stderr, from the fake docker's `ops.log`, and from every `argv` in `executed.json` (`tests/deploy/fakebin/docker:51,343`). It may appear only inside the recorded resolved documents.
+    - This case uses the hand-written `token_docs()` documents, so it proves only the argv/log side. The overlay file itself is proven by the Structure and Native compose cases; the PR says so.
+  - **Deployment record (red on `main`, green after).**
+    - `write-deployed-version.sh` gains one line in `## Runtime policy`, following `retention_days` (`:25-32`): `- Uploaded-skill registry: configured \`yes|no\`; the registry URL and internal key are not recorded`.
+    - `yes` when runtime.env has no `MCP_TOKENS_URL` line or a non-empty one; `no` when it has `MCP_TOKENS_URL=`.
+    - Cases, in the `write_version` style of `test_bootstrap_runtime.py:950-980`: the bootstrap-written runtime.env → `yes`; `MCP_TOKENS_URL=http://x.example/y` → `yes`; `MCP_TOKENS_URL=` → `no`; a runtime.env with a misplaced `MCP_TOKENS_API_KEY=<sentinel>` line → neither the sentinel nor `open-webui:8080` nor `x.example` is in the record.
+    - The script never reads `OCU_INTERNAL_TOKEN` or `MCP_TOKENS_API_KEY`.
+  - **Existing refusal (controls; green before and after).** The task text says "bootstrap refusal", but bootstrap generates the token itself (`bootstrap-test.sh:346,389`); the refusal is in `up.sh` and Compose.
+    - `up.sh` with `OCU_INTERNAL_TOKEN` absent exits non-zero with `deploy: OCU_INTERNAL_TOKEN is required`, and the fake docker records no start and no op. Extend the pattern of `test_office_settings_are_required_in_both_flag_states` (`test_deploy_entry.py:200-220`, `starts() == []`, `ops() == []`).
+    - Native compose with `extra={"OCU_INTERNAL_TOKEN": ""}` makes `resolved_stacks` raise, with `OCU_INTERNAL_TOKEN is required` in the message.
+  - **Known effects, accepted (no `computer-use-server` change, design.md Non-Goals).**
+    - GitLab-token fetch: with the URL set, `_ensure_gitlab_token` runs on every bash and sub_agent tool call (`mcp_tools.py:512,589,662,735,1086`) and `_server_gitlab_token` at sandbox creation (`docker_manager.py:1186`). Each requests `{MCP_TOKENS_URL}/api/internal/tokens/{email}/gitlab` with the internal key. WebUI has no such route; its `SPAStaticFiles` (`backend/open_webui/main.py:294-304`) answers 200 with `index.html`, so aiohttp's JSON decode fails and `:655` swallows it. Cost: one loopback round trip (5 s timeout) and one log line with the user's email per tool call; no GitLab token, as today. The orchestrator files a follow-up issue for it.
+    - `/api/skill-stats` (`app.py:1688-1700`) is open today because the key is empty; afterwards it requires `X-Internal-Api-Key == OCU_INTERNAL_TOKEN`. Nothing in OCU or WebUI calls it.
+    - Residual: an MCP caller that already holds `OCU_INTERNAL_TOKEN` can send `X-Mcp-Tokens-Url` (`mcp_tools.py:1472`) and redirect the GitLab fetch, with the env key, to a URL of its choice (`docker_manager.py:673-674`). `openwebui/` sends no such header. The PR records this.
+  - **Docs in the same change.**
+    - `deploy/production-like-test/NETWORK-HARDENING.md`, near the runtime.env paragraph at `:214`: the knob, its three states, that the key reuses `OCU_INTERNAL_TOKEN`, and the disabled-state behaviour above.
+    - The same section states the ordering: deploy the WebUI image with the registry routes first. If OCU is upgraded first, an old WebUI answers the user-config path with a non-JSON 200 (`SPAStaticFiles`, `backend/open_webui/main.py:294-304`), not a 404; OCU swallows it at `skill_manager.py:326` and falls back to the disk cache, then built-ins.
+    - `CHANGELOG.md` gains an Unreleased `main` / Added entry.
+  - **File gate and must preserve.**
+    - The PR changes only `deploy/production-like-test/compose.core.override.yml`, `deploy/production-like-test/scripts/write-deployed-version.sh`, `deploy/production-like-test/NETWORK-HARDENING.md`, `CHANGELOG.md` and `tests/deploy/`.
+    - It changes no `computer-use-server/`, proxy, bootstrap or WebUI file.
+    - Every existing `tests/deploy/` case passes. If an existing exact-set assertion over a service environment must grow, the PR names each edited assertion and why.
+    - The full OCU unit command passes; the PR states passed and skipped counts before and after.
+  - **Non-goals.** No separate key (design.md Decision 2); no deploy to the LAN instance; no proxy row (#754); no change to the GitLab-token fetch or `/api/skill-stats`.
 
 Suggested fixture level: expanded - production config and a secret.
 Minimal mergeable slice: atomic - two environment entries consumed together by the skill manager, plus their status line.
