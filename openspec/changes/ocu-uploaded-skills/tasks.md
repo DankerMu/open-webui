@@ -599,6 +599,7 @@ Minimal mergeable slice: atomic - the two routes form one contract that OCU call
     - `constraints.yaml` `bounded_overrides` gains `src/lib/components/chat/SettingsModal.svelte` with ceiling 1350, a reason naming change `ocu-uploaded-skills` and the user's approval (2026-11-07), and exit_condition "Remove when SettingsModal.svelte is <=800 lines or the 工作区 Skills tabs are removed". `make lint-scoped` passes with the file under that ceiling.
       - Both 工作区 Skills tabs share this one ceiling (design.md). The PR records the file's line count after this change and the headroom left for the registration and render branch #750 adds, about 12 lines.
       - If 1350 cannot hold both, set the ceiling now to the measured count plus 15, at most 1360, and state that in the reason, so #750 needs no new approval.
+      - User decision (2026-11-08, PR #767 review): each personal tab has a hand-written sidebar button of about 13 lines (`SettingsModal.svelte:994-1167`). #750 therefore needs about 25 lines, and 1350 and 1360 are both too small. The ceiling is 1365, approved by the user, and the reason records that approval.
   - **i18n.**
     - The UI strings are English keys passed through `$i18n.t`. The key for the tab title is `Workspace Skills`.
     - `npm run i18n:parse` regenerates the locale files.

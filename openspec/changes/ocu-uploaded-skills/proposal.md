@@ -65,7 +65,7 @@ Evidence floor: backend pytest (router + validation + drift), make db-verify, ma
 - Frontend:
   - `src/lib/apis/ocu/skills.ts` (new);
   - new Admin Settings and personal Settings tab components;
-  - in `chat/SettingsModal.svelte` (1325 lines, over the limit) only tab registration and render branches, under a user-approved `constraints.yaml` `bounded_overrides` entry (ceiling about 1350);
+  - in `chat/SettingsModal.svelte` (1325 lines, over the limit) only tab registration and render branches, under a user-approved `constraints.yaml` `bounded_overrides` entry (ceiling about 1350, raised to 1365 by user approval on 2026-11-08);
   - minimal diffs to `Commands/SlashCommands.svelte` / `CommandSuggestionList.svelte`;
   - the bare filename `ocu-skills.e2e.ts` added to `REQUIRED_SPECS` in `scripts/verify-ui-ocu.py` (the spec file lives at `e2e/ocu-skills.e2e.ts`).
 - OCU repository: `openwebui/functions/computer_link_filter.py`, `deploy/production-like-test/` compose/bootstrap and `scripts/write-deployed-version.sh`, `deploy/proxy/nginx.conf.in`, and the pinned OCU SHA in `constraints.yaml`.
