@@ -740,7 +740,7 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
 
 ## 7. [webui] Slash menu group
 
-- [ ] 7.1 Add the 「工作区 Skills」 group to `Commands/SlashCommands.svelte` and its selection handling in `CommandSuggestionList.svelte`, as minimal upstream diffs. The group lists the user's enabled set (design.md Decision 6) whenever `features.enable_ocu_workspace` is true, whatever the sandbox state or model filters. Selecting an entry inserts a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`); the existing editor serializes only the id, `/` written as `$`, so the sent text carries `<$ocu--{name}|{name}>` (`RichTextInput.svelte:117-125`; no `RichTextInput.svelte` change). Built-in OCU skills never appear, and nothing is requested when the workspace is disabled. Add the fallback backend pytest: a message carrying `<$ocu--invoice-builder|invoice-builder>` passed through `strip_skill_mentions` comes out as `invoice-builder` (`SKILL_MENTION_STRIP_RE`, `middleware.py:2293`, matches the `$` form; the unknown id is skipped at `:2775-2780`). Verify with `make test-frontend`, that pytest module, and a Playwright case in `e2e/ocu-skills.e2e.ts`: a disabled skill is absent; the outgoing request body for a selected skill contains `<$ocu--invoice-builder|invoice-builder>`; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no group and zero `/api/v1/ocu/skills` requests.
+- [ ] 7.1 Add the 「工作区 Skills」 group to `Commands/SlashCommands.svelte` and its selection handling in `CommandSuggestionList.svelte`, as minimal upstream diffs. The group lists the user's enabled set (design.md Decision 6) whenever `features.enable_ocu_workspace` is true, whatever the sandbox state or model filters. Selecting an entry inserts a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`), plus `mentionSuggestionChar: '/'`. The chat input's `/` command inserts the given attrs without a trigger char (`MessageInput.svelte:1418-1426`), so the branch passes `mentionSuggestionChar: '/'`; without it the editor falls back to `@` and writes `<@…>`. The editor then serializes only the id, `/` written as `$`, so the sent text carries `<$ocu--{name}|{name}>` (`RichTextInput.svelte:117-125`; no `RichTextInput.svelte` change). Built-in OCU skills never appear, and nothing is requested when the workspace is disabled. Add the fallback backend pytest: a message carrying `<$ocu--invoice-builder|invoice-builder>` passed through `strip_skill_mentions` comes out as `invoice-builder` (`SKILL_MENTION_STRIP_RE`, `middleware.py:2293`, matches the `$` form; the unknown id is skipped at `:2775-2780`). Verify with `make test-frontend`, that pytest module, and a Playwright case in `e2e/ocu-skills.e2e.ts`: a disabled skill is absent; the outgoing request body for a selected skill contains `<$ocu--invoice-builder|invoice-builder>`; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no group and zero `/api/v1/ocu/skills` requests.
       Task 7.1 required evidence (issue #751; each item is input → expected output):
   - **Fixture level and risk packs for this task.**
     - Level: expanded. The change touches the shared chat-input command menu, which sits next to the upstream spine.
@@ -761,7 +761,7 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
         - With the OCU filter installed, its inlet rewrites the marker first (`:2635`), before extraction runs.
       - With `features.enable_ocu_workspace` not `true`, the menu makes zero `/api/v1/ocu/skills` requests.
     - Sibling surfaces:
-      - the native `Skills` group and its `type === 'skill'` branch, unchanged. Its slash `onSelect` in `MessageInput.svelte:1448-1456` handles only `model` and then focus, so native ids reach `skill_ids` through the backend extraction above;
+      - the native `Skills` group and its `type === 'skill'` branch, unchanged. Its slash `onSelect` in `MessageInput.svelte:1448-1456` handles only `model` and then focus. Native mentions from the chat input serialize as `<@id|name>` (no trigger char), which the backend `$`/`/` patterns do not match; that upstream behaviour is out of scope here (#751 PR #770);
       - prompts and commands: their order and indices are unchanged;
       - the `src/lib/components/common/RichTextInput.svelte` serializer (`mentions` rule, 117-125), unchanged;
       - `middleware.py`, unchanged;
@@ -777,7 +777,7 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
       - Each row has `data-cy="ocu-skills-slash-{name}"` and mirrors the native skill rows: the name, the tooltip through the existing `getSkillTooltipContent`, and selection on mousemove.
       - The group renders only when the list is non-empty.
   - **`CommandSuggestionList.svelte` (minimal upstream diff).**
-    - Add one branch: `else if (type === 'ocu_skill') { command({ id: \`ocu--${data.name}|${data.name}\`, label: data.name }); }`.
+    - Add one branch (an `else` calling a helper that checks `type === 'ocu_skill'`, to stay under the complexity limit): `command({ id: \`ocu--${data.name}|${data.name}\`, label: data.name, mentionSuggestionChar: '/' })`.
     - The branch calls no `onSelect`.
   - **Component test `Commands/SlashCommands.test.ts` (new, red first).**
     - Use svelte `mount`, as `OcuSkills.test.ts` does. Mock `getPrompts`, `getSkillItems` and `getUserSkills`, and set the `config` store.
@@ -808,11 +808,11 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
         - the 「工作区 Skills」 group is visible;
         - inside `ocu-skills-slash-group`, the `[data-cy^="ocu-skills-slash-"]` rows are exactly one, `ocu-skills-slash-invoice-builder`. The disabled skill and every built-in OCU skill are therefore absent.
       - Type `inv`. `ocu-skills-slash-invoice-builder` is visible and `data-selected="true"` before Enter is pressed.
-      - Press Enter, type ` 做发票`, and send. Set up `page.waitForRequest` on `/api/chat/completions` before sending. Then check:
+      - Press Enter, type ` 做发票`, and send. Set up `page.waitForResponse` on `/api/chat/completions` before sending and read the body from its `.request().postDataJSON()`. Then check:
         - `request.postDataJSON().user_message.content` contains `<$ocu--invoice-builder|invoice-builder>`;
         - `skill_ids` is `undefined`.
         - A saved chat sends no history `messages`; the user text is in `user_message`.
-        - Capture the chat id from the `/api/v1/chats/new` response, as `ocu-controls.e2e.ts:32` does.
+        - Capture the chat id from the `chat_id` of the `/api/chat/completions` response: the backend creates the chat inline (`main.py:1276-1277`), so this path never calls `/api/v1/chats/new`.
       - Wait for the stub reply `Stub reply. Saw: no OCU system prompt.` to be visible before cleanup.
       - Cleanup in `finally`:
         - `DELETE /api/v1/chats/{id}`;
