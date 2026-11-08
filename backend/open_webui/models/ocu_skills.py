@@ -7,9 +7,10 @@ import time
 import uuid
 
 from open_webui.internal.db import Base, get_async_db_context
-from open_webui.models.access_grants import AccessGrant
+from open_webui.models.access_grants import AccessGrant, AccessGrants
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, LargeBinary, Text, delete, select, update
+from sqlalchemy import BigInteger, Column, LargeBinary, Text, delete, insert, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import deferred, undefer
 
@@ -53,6 +54,13 @@ class OcuSkillDataModel(OcuSkillModel):
     data: bytes
 
 
+class OcuSkillReadableModel(BaseModel):
+    name: str
+    description: str
+    zip_sha256: str
+    enabled: bool
+
+
 async def _purge_grants_and_disables(db: AsyncSession, name: str) -> None:
     await db.execute(
         delete(AccessGrant).where(AccessGrant.resource_type == OCU_SKILL_RESOURCE_TYPE, AccessGrant.resource_id == name)
@@ -65,6 +73,54 @@ class OcuSkillTable:
         async with get_async_db_context(db) as db:
             row = await db.get(OcuSkill, name, options=[undefer(OcuSkill.data)])
             return OcuSkillDataModel.model_validate(row) if row else None
+
+    async def get_metadata(self, name: str, db: AsyncSession | None = None) -> OcuSkillModel | None:
+        async with get_async_db_context(db) as db:
+            row = await db.get(OcuSkill, name)
+            return OcuSkillModel.model_validate(row) if row else None
+
+    async def readable_skills(
+        self, user_id: str, bypass: bool, names: list[str] | None = None, db: AsyncSession | None = None
+    ) -> list[OcuSkillReadableModel]:
+        """The one readable/enabled-set definition (design Decision 6), ordered by name.
+
+        A skill is readable when it exists and either bypass is set or the existing access-grant
+        filter (wildcard, direct user, group membership) grants read; it is enabled when the user
+        has no disable row for it. `names` narrows the set to those names.
+        """
+        query = select(OcuSkill.name, OcuSkill.description, OcuSkill.zip_sha256).order_by(OcuSkill.name)
+        if names is not None:
+            query = query.where(OcuSkill.name.in_(names))
+        async with get_async_db_context(db) as db:
+            rows = (await db.execute(query)).all()
+            if not bypass:
+                granted = await AccessGrants.get_accessible_resource_ids(
+                    user_id, OCU_SKILL_RESOURCE_TYPE, [row.name for row in rows], 'read', db=db
+                )
+                rows = [row for row in rows if row.name in granted]
+            disable = OcuSkillUserDisable
+            readable = [row.name for row in rows]
+            query = select(disable.skill_name).where(disable.user_id == user_id, disable.skill_name.in_(readable))
+            disabled = set(await db.scalars(query))
+            return [OcuSkillReadableModel(**row._mapping, enabled=row.name not in disabled) for row in rows]
+
+    async def set_enabled(self, user_id: str, name: str, enabled: bool, db: AsyncSession | None = None) -> None:
+        """Delete (enable) or insert (disable) the user's disable row; both are idempotent.
+
+        The disable INSERTs without reading first, so a concurrent double toggle is safe on any database.
+        """
+        async with get_async_db_context(db) as db:
+            if enabled:
+                disable = OcuSkillUserDisable
+                await db.execute(delete(disable).where(disable.user_id == user_id, disable.skill_name == name))
+                await db.commit()
+                return
+            try:
+                await db.execute(insert(OcuSkillUserDisable).values(user_id=user_id, skill_name=name))
+                await db.commit()
+            except IntegrityError:
+                # Only the (user_id, skill_name) primary key can conflict: the row is already there.
+                await db.rollback()
 
     async def get_all(self, db: AsyncSession | None = None) -> list[OcuSkillModel]:
         async with get_async_db_context(db) as db:

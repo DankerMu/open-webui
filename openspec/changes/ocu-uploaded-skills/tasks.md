@@ -320,6 +320,84 @@ Minimal mergeable slice: task 2.1 first (the validator, the reserved-name check 
 ## 3. [webui] Per-user list and toggle
 
 - [ ] 3.1 Add the enabled-set query of design.md Decision 6 to `models/ocu_skills.py`, without loading `data`. Add the user routes `GET /` (readable skills with `enabled`) and `POST /{name}/toggle` (404 without read access or for an unknown name). Verify with router pytest: a group-narrowed skill is hidden from a non-member; an administrator outside the group sees it exactly when `BYPASS_ADMIN_ACCESS_CONTROL` is on; the default-open skill is listed as enabled; a disable affects only the caller; an ungranted toggle gets 404 and stores nothing; no session gets 401; the workspace disabled gets 404.
+      Task 3.1 required evidence (issue #747; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded (authorization, persisted per-user state).
+    - Selected packs:
+      - authz: wildcard, direct-user and group grants, admin bypass on and off, the pending role;
+      - information disclosure: 404 parity, the listing contents;
+      - persisted state: idempotent toggles, per-user isolation of disable rows;
+      - concurrency: a double toggle from a UI switch;
+      - API contract.
+    - Not selected: schema, migration, resource limits.
+    - Governing invariant (design.md Decision 6):
+      - every user-facing consumer works only on the readable set computed by the one method from (user_id, bypass): `GET /`, the toggle, and later the #748 `user-config` and the #751 menu;
+      - a toggle writes only the caller's own disable row;
+      - no path loads `data`.
+    - Sibling surfaces:
+      - `GET /` and the toggle;
+      - #748 `user-config` and `download`;
+      - #751 menu;
+      - #750 personal settings;
+      - admin `DELETE`, which purges disable rows (task 1.2);
+      - first upload, which purges orphan disable rows (task 2.1);
+      - `POST /{name}/access`, which keeps disable rows when it narrows grants. A user who loses access keeps the row, which is harmless because the row only matters while the skill is readable. This is intended.
+  - **One query (design Decision 6).**
+    - `models/ocu_skills.py` gains exactly one readable-set method, `readable_skills(user_id, bypass: bool, names: list[str] | None = None)`. It returns, for each readable skill, its metadata (name, description, `zip_sha256`) and `enabled`, ordered by name. It never loads `data`.
+    - A skill is readable when it exists and either `bypass` is true, or `AccessGrants.get_accessible_resource_ids(user_id, 'ocu_skill', ..., 'read')` returns it. That call is the existing filter (wildcard, direct user and group membership), reused rather than re-implemented.
+    - `enabled` means no `ocu_skill_user_disable` row exists for (`user_id`, name).
+    - `bypass` is computed by one module-level helper in `routers/ocu_skills.py`: `_admin_bypass(user) -> bool`, which returns `user.role == 'admin' and BYPASS_ADMIN_ACCESS_CONTROL`.
+      - `BYPASS_ADMIN_ACCESS_CONTROL` is imported from `open_webui.config`, as `routers/skills.py:46` does.
+      - `GET /`, the toggle and the #748 `user-config` route all call this helper, which has the `UserModel` with `role` available.
+      - Tests switch the flag with `monkeypatch.setattr(ocu_skills, 'BYPASS_ADMIN_ACCESS_CONTROL', ...)`.
+    - `GET /`, the toggle, and later the #748 `user-config` and #751 menu all call this one method. No second readable or enabled computation exists.
+    - Model test: a `before_cursor_execute` recorder shows no SELECT naming `ocu_skill.data`. This is the same technique as `test_list_all_returns_every_row_without_selecting_data`.
+  - **Data-free metadata read (the #760 review follow-up, comment on #747).**
+    - `models/ocu_skills.py` gains `get_metadata(name) -> OcuSkillModel | None`, which never loads `data`.
+    - `POST /{name}/access` checks existence with it instead of `get_by_name`.
+    - `get_by_name` keeps loading `data` for the download route (task 4.1) and the tests. It stays a separate method, not a parameter of `get_metadata`, because the return types differ (`OcuSkillModel` versus `OcuSkillDataModel`). A flag would need typing overloads for one caller each.
+    - Test: during an admin `POST /a/access`, the recorder sees no SELECT naming `ocu_skill.data`. Run it red on main first.
+  - **`GET /api/v1/ocu/skills/`.**
+    - It uses `get_verified_user`, which admits only `VERIFIED_USER_ROLES = {'user', 'admin'}` (`utils/auth.py:519`).
+    - No session gets 401, and a `pending` session gets 401 on both routes with state unchanged; a test proves the pending case.
+    - Each item is exactly `{name, description, enabled}`.
+    - Seed:
+      - skill `open`: `user` / `*` / `read`;
+      - skill `team`: group A read only;
+      - skill `hidden`: no grant;
+      - user M is in group A;
+      - user N is not in group A;
+      - admin X is outside group A.
+    - As M: `[open (enabled), team (enabled)]`.
+    - As N: `[open]` only. `team` and `hidden` are absent.
+    - As X with bypass on: all three. As X with bypass off: `[open]`.
+    - No item and no response body contains ZIP bytes.
+  - **`POST /api/v1/ocu/skills/{name}/toggle`.**
+    - Body: `{"enabled": <bool>}`, using Pydantic `StrictBool`. Any other type gets 422 and stores nothing.
+    - `enabled: false` INSERTs the caller's disable row without checking first.
+      - A primary-key `IntegrityError` means the row already exists: roll back and return 200 as already disabled. This makes concurrent double toggles from a UI switch safe on any database.
+      - Test: write the (M, `open`) disable row through the model first. M's `enabled: false` then gets 200, and exactly one row exists. A `before_cursor_execute` recorder sees an `INSERT INTO ocu_skill_user_disable` during the request, so the conflict branch really ran. A check-then-insert implementation fails this test.
+      - A sequential second call also leaves one row.
+    - `enabled: true` deletes it. It is idempotent too.
+    - Response 200 is the caller's `{name, description, enabled}` item.
+    - Readability goes through `readable_skills(..., names=[name])`.
+    - Cases:
+      - M disables `open` → M's `GET /` shows `open` with `enabled: false`; N's still shows it enabled. Exactly one disable row exists, for (M, `open`).
+      - M re-enables → no row.
+      - N toggles `team` (ungranted) → 404 and no row.
+      - Anyone toggles unknown `ghost` → 404 and no row.
+      - The two 404 bodies are byte-identical, so the toggle does not reveal whether an ungranted skill exists.
+      - X with bypass off toggles `team` → 404. With bypass on → 200.
+      - No session → 401 for both routes, with state unchanged.
+  - **Workspace disabled.**
+    - The shared fresh-process helper with `--workspace false` returns 404 for `GET /` and `POST /a/toggle`.
+    - Positive control: `--workspace true` with `skills_role='user'` gives 200 for `GET /` and 422 for the bodiless `POST /a/toggle`. FastAPI resolves `Depends` before body validation, so a mounted toggle with a user session returns 422.
+    - Both entries are added to the parametrized table of `test_fresh_process_admin_routes_follow_workspace_mount`.
+    - Router-level recorder: during one `GET /` request and one toggle request, no SELECT names `ocu_skill.data`.
+  - **Seam and gates.**
+    - No migration, `main.py` or frontend change.
+    - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass, and the `ocu_skills` files stay at 80% or more. The local runs need `OCU_CHECKOUT`, per AGENTS.md.
+    - `make smoke` passes.
 
 Suggested fixture level: expanded - authorization and persisted per-user state.
 Minimal mergeable slice: atomic - one query and the two routes that are its only callers; depends on 1.1.

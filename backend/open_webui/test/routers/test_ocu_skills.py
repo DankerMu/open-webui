@@ -10,7 +10,14 @@ import uuid
 from unittest.mock import patch
 
 import pytest
-from open_webui.test.ocu_harness import _delete_user, _insert_user, _session_headers, get_client, skill_zip
+from open_webui.test.ocu_harness import (
+    _delete_user,
+    _insert_user,
+    _SelectRecorder,
+    _session_headers,
+    get_client,
+    skill_zip,
+)
 
 SKILLS_PATH = '/api/v1/ocu/skills'
 ADMIN_PATH = f'{SKILLS_PATH}/admin'
@@ -186,12 +193,16 @@ def test_admin_listing_refuses_user_role_and_no_session(member, seeded_grants):
     assert client.get(ADMIN_PATH).status_code == 401
 
 
+ADMIN_ROUTES = ['/admin', 'POST /a/access', 'DELETE /a', 'POST /upload']
+
+
 @pytest.mark.parametrize(
     'workspace,role,expected',
     [
-        ('false', 'admin', {'/admin': 404, 'POST /a/access': 404, 'DELETE /a': 404, 'POST /upload': 404}),
+        ('false', 'admin', dict.fromkeys([*ADMIN_ROUTES, '/', 'POST /a/toggle'], 404)),
         ('true', 'admin', {'/admin': 200}),
-        ('true', 'user', {'/admin': 401, 'POST /a/access': 401, 'DELETE /a': 401, 'POST /upload': 401}),
+        # A mounted toggle resolves the session before the body: a user session without a body is 422.
+        ('true', 'user', {**dict.fromkeys(ADMIN_ROUTES, 401), '/': 200, 'POST /a/toggle': 422}),
     ],
     ids=['workspace-off-404', 'workspace-on-positive-control', 'workspace-on-user-401'],
 )
@@ -361,12 +372,12 @@ def _upload(user, body: bytes):
     return get_client().post(UPLOAD_PATH, content=body, headers=headers)
 
 
-async def _seed_disable(name: str) -> None:
+async def _seed_disable(name: str, user_id: str = USER_U) -> None:
     from open_webui.internal.db import get_async_db
     from open_webui.models.ocu_skills import OcuSkillUserDisable
 
     async with get_async_db() as db:
-        db.add(OcuSkillUserDisable(user_id=USER_U, skill_name=name))
+        db.add(OcuSkillUserDisable(user_id=user_id, skill_name=name))
         await db.commit()
 
 
@@ -659,3 +670,13 @@ def test_skills_router_does_not_import_the_workspaces_router():
     import open_webui.routers.ocu_skills as ocu_skills
 
     assert 'ocu_workspaces' not in Path(ocu_skills.__file__).read_text()
+
+
+def test_access_update_does_not_select_skill_data(admin, seeded_grants):
+    with _SelectRecorder() as recorder:
+        response = get_client().post(
+            f'{SKILLS_PATH}/a/access', json={'access_grants': [EVERYONE_READ]}, headers=_session_headers(admin.id)
+        )
+
+    assert response.status_code == 200, response.text
+    recorder.assert_no_skill_data_select()
