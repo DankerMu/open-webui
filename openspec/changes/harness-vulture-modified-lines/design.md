@@ -73,6 +73,9 @@ Required evidence (task 1.1). Each case is an `expect_reject` or `expect_accept_
   - (i) Exit 3, stdout the (a) finding, stderr `backend/open_webui/main.py:3: invalid syntax at "x"`. Expect reject with `vulture failed (input error)`.
   - (j) Exit 3, stdout the (a) finding plus `backend/conftest.py:1: unused import 'os' (90% confidence)`. Expect reject. The A finding appears under the blocking header; the M finding carries `advisory (upstream)`. Assert both strings.
   - (k) Exit 0, empty stdout, stderr `backend/open_webui/main.py:1: SyntaxWarning: invalid escape sequence '\d'`. Expect accept with `--- dead code (vulture`. On `main` this accepts too; it is red against an over-broad stderr rule.
+  - Added during implementation, both red against the stated mutant:
+    - (l) exit 3, stdout the (a) finding, stderr `backend/open_webui/main.py:None: source code string cannot contain null bytes`. Expect reject with `vulture failed (input error)`; red against a `\d+`-only rule.
+    - (m) exit 0 with a finding line on stdout. Expect reject with `vulture output unreadable`; red against the red tree, which accepts it.
 - **Reject before and after:**
   - (e) Append the real line `import json as fork_probe_json` to the M file. The stand-in reports `unused import 'fork_probe_json'` at that appended line number. Expect reject with that finding text.
   - (f) A finding in the A file. Expect reject.
@@ -85,7 +88,7 @@ Required evidence (task 1.1). Each case is an `expect_reject` or `expect_accept_
 
 Non-goals: removing upstream's unused imports; vulture whitelists or the confidence threshold; jscpd; changing knip's findings or verdicts.
 
-Blind spot, to be stated in `docs/agents/enforcement-baseline.md`: a fork change that deletes the last use of an upstream name leaves a finding on an upstream line, so it stays advisory. knip has the same limitation.
+Blind spot, to be stated in `docs/agents/enforcement-baseline.md`: a fork change can make upstream code dead without touching the reported line, so the finding stays advisory. Examples: deleting the last use of an upstream name, or adding an early `return` whose unreachable code vulture reports at the next statement, an upstream line (`vulture/reachability.py:59-63`). knip has the same limitation.
 
 Review focus:
 
