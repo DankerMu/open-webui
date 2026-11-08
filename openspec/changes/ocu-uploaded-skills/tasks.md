@@ -410,6 +410,100 @@ Minimal mergeable slice: atomic - one query and the two routes that are its only
   - download reads `ocu_skill.data` and returns `application/zip`, or 404 for an unknown name.
 
   Verify with router pytest: no key, wrong key, cookie only and an empty configured token each get 401; with the workspace disabled both routes get 404 even with the correct key; the enabled set excludes the user's disabled skill; an administrator's user-config contains a group-narrowed skill exactly when that administrator's `GET /` does; the download SHA-256 equals the advertised `zip_sha256`; after an injected replace commit failure the download still returns the previous bytes; a deleted skill gets 404. Change `scripts/smoke.sh` to source `scripts/dev-env.sh` (it now sources only `scripts/seed.sh`; `scripts/dev-bg.sh:13` already does `source scripts/dev-env.sh || exit 2`, and the default `DATA_DIR`/`FRONTEND_BUILD_DIR` pass its path checks) and write the `OCU_INTERNAL_TOKEN` that `scripts/dev-env.sh:73` exports (default `harness-no-ocu`) into its hurl secrets file next to `seed_email`/`seed_password`, never a hardcoded copy, so a `make dev-bg` override stays consistent with the running server. Add `smoke/` hurl cases for an internal call with and without the key. Add an AGENTS.md Verification Matrix row for these endpoints.
+  Task 4.1 required evidence (issue #748; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. This is a server-to-server secret and a public contract consumed by OCU.
+    - Selected packs:
+      - auth/secrets: the internal key matrix; sessions ignored; the token kept out of argv, output and repository files (the routes add no logging call; logs are review-only);
+      - public API contract: the OCU `skill_manager.py` caller;
+      - information disclosure: no existence oracle before the key check;
+      - config: request-time read of `OCU_INTERNAL_TOKEN`;
+      - error handling: a non-ASCII key header.
+    - Not selected:
+      - schema and migration: no table change;
+      - concurrency: read-only routes. The #765 hand-over on #748 still applies: the routes pass no `db` to `Users.get_user_by_email` or `OcuSkills.readable_skills`, so under `DATABASE_ENABLE_SESSION_SHARING` no caller session with uncommitted writes reaches them (review-checked invariant);
+      - resource limits: `data` is capped at 50 MB by task 2.1.
+    - Governing invariants:
+      - only a request whose `X-Internal-Api-Key` equals a non-empty `OCU_INTERNAL_TOKEN` reaches either route body;
+      - `user-config` is exactly the enabled set of design Decision 6, computed by `readable_skills` with `_admin_bypass` (task 3.1);
+      - only `download` loads `data`.
+    - Sibling surfaces:
+      - `GET /` (same query);
+      - `scripts/smoke.sh` and its harness test `backend/open_webui/test/test_harness_seed.py`;
+      - the shared fresh-process helper `ocu_office_flag_process.py`;
+      - the OCU caller `computer-use-server/skill_manager.py` `_fetch_user_config` and `_download_skill_zip`. These are fixed and not changed:
+        - they send `X-Internal-Api-Key` and the raw email in the path;
+        - they read `enabled_skills` from a 200 JSON response, and anything else counts as a miss;
+        - `download` needs 200, and a JSON content type is treated as "native, skip".
+  - **Internal key check (design Decision 2).**
+    - It is one module-level helper in `routers/ocu_skills.py`. The helper reads `os.environ.get('OCU_INTERNAL_TOKEN', '')` on every request; nothing is read at import. `ocu_skills.py` still imports nothing from `ocu_workspaces`.
+    - It compares UTF-8 bytes with `hmac.compare_digest`, so a non-ASCII header value is a mismatch, not a `TypeError` and a 500.
+    - An empty or unset configured token rejects every request, including one whose header is also empty.
+    - Every rejection is 401 with a zero-length body.
+    - The check runs before any DB access, so a wrong key on `download` of an unknown name is 401, not 404. A bad key cannot learn whether a skill exists.
+    - The routes declare no session dependency. `Authorization: Bearer <valid admin token>` and a `token=<valid admin token>` cookie, each without the key, get 401.
+    - Tests:
+      - Set the token with `monkeypatch.setenv('OCU_INTERNAL_TOKEN', ...)` after the app is imported; this proves the request-time read.
+      - Each of the following gets 401 with `response.content == b''` on both routes:
+        - no header;
+        - a wrong value;
+        - a value that differs only in case;
+        - the non-ASCII header value `'é'.encode('latin-1')`;
+        - an admin Bearer only;
+        - an admin cookie only;
+        - token `''` with header `''`;
+        - token unset with no header.
+      - The wrong-key `download` of an existing skill and of `ghost` give the same 401.
+  - **`GET /api/v1/ocu/skills/api/internal/user-config/{email}`.**
+    - Lookup uses `Users.get_user_by_email`, which is case-insensitive through the normalized index.
+    - The response is 200 `{"email": <path value verbatim>, "enabled_skills": [{"name", "description", "category": "user", "zip_sha256"}, ...]}`. Items are ordered by name and have exactly these four keys.
+    - The items are the `enabled: true` entries of `readable_skills(user.id, _admin_bypass(user))`. No second filter exists.
+    - There is no role filter. A `pending` user's email returns that user's enabled set by Decision 6: the wildcard grant applies, and bypass applies only to admins. Pending users cannot open a chat or a workspace (every OCU route uses `get_verified_user`), so OCU never asks for them, and adding a role rule here would go beyond the spec.
+    - An email matching no user gets 200 with `"enabled_skills": []`.
+    - Seed with the task 3.1 `user_matrix`: skills `open`/`team`/`hidden`, users M/N/X/P.
+    - Cases with the correct key:
+      - M → `open`, `team`, each with `category` `user` and the stored `zip_sha256`.
+      - After M disables `open` through `POST /open/toggle`, M → `team` only. M's `GET /` still lists `open` with `enabled: false`.
+      - N → `open` only.
+      - X with bypass on → all three; with bypass off → `open`. For each of M, N and X under both bypass settings, the `user-config` names equal the `enabled: true` names of that user's `GET /`.
+      - The upper-cased form of M's email returns M's set, and the response `email` echoes the upper-cased value.
+      - P (pending) → `open`.
+      - `nobody@harness.local` → 200 with an empty list.
+      - The response body never contains `PK\x03\x04`.
+    - A `_SelectRecorder` sees no SELECT naming `ocu_skill.data` during a `user-config` request.
+  - **`GET /api/v1/ocu/skills/api/internal/skills/{name}/download`.**
+    - It reads `OcuSkills.get_by_name` (the one data-loading getter) and returns 200 `application/zip` with the stored bytes. `sha256(body)` equals the `zip_sha256` that `user-config` advertised.
+    - An unknown name gets 404, the existing `_skill_not_found()`. There is no per-user check; the key is the authority (Decision 7).
+    - Cases:
+      - An uploaded skill downloads with matching SHA-256 and `content-type` starting with `application/zip`.
+      - Replace with a second ZIP and an injected commit failure (the task 2.2 commit-spy pattern, `pytest.raises(RuntimeError, match='injected commit failure')`). Then `download` returns the previous bytes, and its SHA-256 equals the previous `zip_sha256` from `user-config`.
+      - After admin `DELETE /{name}`, `download` gets 404 and the name is absent from every `user-config`.
+  - **Workspace disabled.**
+    - Extend the shared helper `run_office_flag_process` with a keyword `skills_key: str | None = None`. When it is set, the parent passes it only through the `env` copy at `ocu_office_flag_process.py:47` as `OCU_INTERNAL_TOKEN`, never through argv. The subprocess reads it from `os.environ` and sends `X-Internal-Api-Key: <value>` on every `/api/v1/ocu/skills` request alongside the session header. The existing callers in `test_ocu_workspaces.py`, `test_harness_environment.py` and `test_ocu_skills.py` pass nothing new.
+    - Default `None` leaves the current behaviour and stdout byte-identical. The existing `test_fresh_process_without_skills_paths_keeps_the_office_payload` stays green unchanged.
+    - New table cases, using the correct key:
+      - `--workspace false`: `/api/internal/user-config/nobody@harness.local` and `/api/internal/skills/a/download` get 404.
+      - Positive control `--workspace true`: the same `user-config` path gets 200.
+  - **Smoke harness.**
+    - `scripts/smoke.sh` sources `scripts/dev-env.sh` after its `cd` to the repository root, with `|| exit $?`. It writes `ocu_internal_token=$OCU_INTERNAL_TOKEN` into the same private secrets file as `seed_email`/`seed_password`.
+    - The token never appears in hurl argv, in a repository file, or in output. `git grep -n harness-no-ocu -- smoke scripts/smoke.sh` prints nothing. The default is defined only in `scripts/dev-env.sh`, and the harness test derives the expected default by parsing that file, not from a literal.
+    - `test_harness_seed.py`:
+      - Its `harness` fixture copies `scripts/dev-env.sh` and makes the workspace a git repository, because `dev-env.sh` runs `git rev-parse --show-toplevel`. `git` joins the `names` tuple (`:204`) so the receiver `execv`s it by absolute path. The narrowed-PATH case `test_failed_transport_retires_owned_child_before_private_files[missing-hurl]` still exits 127.
+      - Every existing `smoke` case stays green.
+      - The receiver gains an `OBS_TOKEN` variable. In the hurl branch it records the boolean "the secrets file's `ocu_internal_token` equals `OBS_TOKEN`", never the value. `exposed` and the `launch()` stdout/stderr disclosure check cover `OBS_TOKEN` as well as `OBS_PASSWORD`.
+      - New assertions: that boolean is true both by default (the value parsed from `dev-env.sh`) and with `OCU_INTERNAL_TOKEN=<uuid>` in the environment, and the token appears in no recorded argv or output.
+      - Red first: the new assertions fail on the current `smoke.sh`.
+    - `smoke/ocu-skills.hurl` gains these cases inside its existing upload/delete round trip; no new hurl file is added.
+      - After the upload:
+        - `user-config` for `{{seed_email}}` with `X-Internal-Api-Key: {{ocu_internal_token}}` gets 200. It lists `harness-smoke-skill` with `category` `user` and the fixture SHA-256 `4cbbaee5…291c`.
+        - `download` with the key gets 200 `application/zip`, asserted with hurl `sha256 == hex,<fixture sha>;`.
+        - `user-config` without the key gets 401 with `bytes count == 0`.
+      - After the delete: `download` with the key gets 404.
+  - **Docs and gates.**
+    - Add an AGENTS.md Verification Matrix row, "Uploaded-skill internal registry (user-config, download) | `make smoke`", and its matching row in `docs/agents/verification-matrix.md`. The second row states what a pass does not prove: OCU's real fetch and its cache.
+    - Run `make doc-gate`, `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` (with `OCU_CHECKOUT`), with the `ocu_skills` files at 80% or more.
+    - `make smoke` exits 0.
+    - No migration, `main.py`, frontend or OCU-repo change.
 
 Suggested fixture level: expanded - a server-to-server secret and a public contract consumed by OCU.
 Minimal mergeable slice: atomic - the two routes form one contract that OCU calls in sequence; neither is useful alone. Depends on 2.2 (the replace path behind the replace-commit-failure download check; 2.2 already depends on 2.1 and on 1.2, whose `DELETE /{name}` the deleted-skill 404 uses) and 3.1 (the enabled-set query).
