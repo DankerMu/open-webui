@@ -32,7 +32,12 @@
 	};
 
 	// bind:state has already flipped the row; the fieldset holds the switch until the server answers.
+	// The fieldset blocks clicks only, so a keyboard toggle in flight is put back here, unsent.
 	const toggle = async (name: string, enabled: boolean) => {
+		if (pending[name]) {
+			setEnabled(name, !enabled);
+			return;
+		}
 		pending = { ...pending, [name]: true };
 		try {
 			setEnabled(name, (await toggleSkill(localStorage.token, name, enabled)).enabled);
@@ -47,7 +52,7 @@
 	onMount(loadSkills);
 </script>
 
-<div class="flex flex-col h-full justify-between text-sm">
+<div data-cy="ocu-skills-pref" class="flex flex-col h-full justify-between text-sm">
 	<h2 class="text-sm font-medium text-gray-900 dark:text-white mb-4">
 		{$i18n.t('Workspace Skills')}
 	</h2>

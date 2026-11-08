@@ -671,6 +671,7 @@ Minimal mergeable slice: atomic - the API client is dead without its first calle
   - **Component `src/lib/components/chat/Settings/OcuSkillPreferences.svelte` with `OcuSkillPreferences.test.ts`.**
     - The name differs from the admin `OcuSkills.svelte` so the two imports in `SettingsModal` cannot collide.
     - `data-cy` hooks all start with `ocu-skills-`, so the existing workspace-off assertion `[data-cy^="ocu-skills-"]` covers them:
+      - `ocu-skills-pref` on the component root, rendered synchronously. If the render guard were removed, the workspace-off DOM check would then fail at once instead of waiting for `getUserSkills` (added in the #768 review);
       - `ocu-skills-pref-row-{name}`;
       - `ocu-skills-pref-switch-{name}` on a wrapper element around the `Switch`, whose `ariaLabel` names the skill. Tests find the switch with `getByRole('switch', { name: <ariaLabel> })` and assert state through `aria-checked`, or `toBeChecked()` in e2e;
       - `ocu-skills-pref-empty`.
@@ -679,6 +680,7 @@ Minimal mergeable slice: atomic - the API client is dead without its first calle
       - An empty list shows `ocu-skills-pref-empty`. A failed load shows an error toast and the empty state.
       - A switch change calls `toggleSkill(token, name, newState)`.
       - That switch sits inside a `<fieldset disabled={pending[name]}>` while its request is in flight, so a second click cannot race the first. A guard only inside the change handler is not enough, because `bind:checked` has already flipped the state by then.
+      - The fieldset blocks clicks only: bits-ui's `onkeydown` checks only its own `disabled` option. So `toggle` also returns early while `pending[name]` is set and puts the row back. A component test sends a Space keydown while a toggle is pending and expects exactly one `toggleSkill` call. In Chromium the fieldset also blurs the switch, so the e2e Space press is recorded but cannot reach it (#768 review).
       - On success, the row takes `enabled` from the response.
       - On failure, the switch reverts to its previous state and an error toast shows the server's message.
     - Component test (svelte `mount`, as in `OcuSkills.test.ts`; client mocked):

@@ -193,6 +193,7 @@ test('personal tab: the switch persists through toggle and reload', async ({ pag
 		await page.goto(PERSONAL_DEEP_LINK);
 		await expect(personalTab(page)).toHaveAttribute('aria-selected', 'true');
 		await expect(adminTab(page)).toHaveAttribute('aria-selected', 'false');
+		await expect(byCy(page, 'ocu-skills-pref')).toBeVisible();
 		const toggle = page.getByRole('switch', { name: SKILL, exact: true });
 		await expect(byCy(page, `ocu-skills-pref-row-${SKILL}`)).toBeVisible();
 		await expect(byCy(page, `ocu-skills-pref-row-${SKILL}`)).toContainText(
@@ -201,13 +202,30 @@ test('personal tab: the switch persists through toggle and reload', async ({ pag
 		await expect(byCy(page, `ocu-skills-pref-switch-${SKILL}`).getByRole('switch')).toBeVisible();
 		await expect(toggle).toBeChecked();
 
+		// Space is pressed while the first toggle is held. Chromium blurs the switch once its fieldset
+		// disables it, so no keydown reaches it here; the component test sends one that does.
+		const TOGGLE_ROUTE = `**${SKILLS_PATH}/${SKILL}/toggle`;
+		let release!: () => void;
+		const released = new Promise<void>((done) => (release = done));
+		let held!: () => void;
+		const holding = new Promise<void>((done) => (held = done));
+		await page.route(TOGGLE_ROUTE, async (route) => {
+			held();
+			await released;
+			await route.continue();
+		});
 		const toggled = page.waitForResponse(
 			(response) =>
 				new URL(response.url()).pathname === `${SKILLS_PATH}/${SKILL}/toggle` &&
 				response.request().method() === 'POST'
 		);
+		await toggle.focus();
 		await toggle.click();
+		await holding;
+		await page.keyboard.press('Space');
+		release();
 		const answer = await toggled;
+		await page.unroute(TOGGLE_ROUTE);
 		expect(answer.request().postDataJSON()).toEqual({ enabled: false });
 		expect(answer.status()).toBe(200);
 		expect(requests.filter((request) => request.startsWith('POST'))).toEqual([

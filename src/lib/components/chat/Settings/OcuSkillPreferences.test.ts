@@ -132,6 +132,32 @@ describe('personal workspace skills tab', () => {
 		expect(toggleSkill).toHaveBeenCalledTimes(1);
 	});
 
+	it('ignores a keyboard toggle while its toggle is in flight', async () => {
+		vi.mocked(getUserSkills).mockResolvedValue([skill('a')]);
+		const reply = deferred<OcuUserSkill>();
+		vi.mocked(toggleSkill).mockReturnValue(reply.promise);
+		await render();
+		switchFor('a').click();
+		await vi.waitFor(() => expect(toggleSkill).toHaveBeenCalledTimes(1));
+		await tick();
+		expect(switchFor('a').matches(':disabled')).toBe(true);
+
+		// The disabled fieldset blocks clicks only: bits-ui still flips a focused switch on Space.
+		switchFor('a').dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+		await tick();
+		await tick();
+		await tick();
+		expect(toggleSkill).toHaveBeenCalledTimes(1);
+		expect(toggleSkill).toHaveBeenCalledWith(TOKEN, 'a', false);
+		expect(switchFor('a').getAttribute('aria-checked')).toBe('false');
+		expect(switchFor('a').matches(':disabled')).toBe(true);
+
+		reply.resolve(skill('a', false));
+		await vi.waitFor(() => expect(switchFor('a').matches(':disabled')).toBe(false));
+		expect(switchFor('a').getAttribute('aria-checked')).toBe('false');
+		expect(toggleSkill).toHaveBeenCalledTimes(1);
+	});
+
 	it('reverts a switch whose toggle is refused and shows the server reason', async () => {
 		vi.mocked(getUserSkills).mockResolvedValue([skill('a')]);
 		vi.mocked(toggleSkill).mockRejectedValue(
