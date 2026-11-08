@@ -997,6 +997,94 @@ Minimal mergeable slice: atomic - two environment entries consumed together by t
 ## 10. [deploy] Proxy deny row and gateway smoke
 
 - [ ] 10.1 [deploy] Add `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` to `deploy/proxy/nginx.conf.in` ahead of the catch-all row. Verify with `deploy/proxy/tests/` render and entrypoint cases: the internal path gets 404 for every method, and other `/api/v1/ocu/skills` paths still reach WebUI.
+      Task 10.1 required evidence (issue #754; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The change is on the browser gateway's auth boundary, in front of a server-to-server secret route.
+    - Selected packs:
+      - auth/secrets: the internal routes must stay out of browser reach, even when a key leaks (design.md Decision 10);
+      - path safety: nginx matches the normalized URI but forwards the raw one, so encoded and dot-segment forms must hit the deny row too;
+      - legacy compatibility: every existing proxy row and the catch-all forwarding stay unchanged;
+      - public API: the gateway's public surface changes, because a prefix that used to be forwarded now gets 404; mapped to the native deny cases and the still-forwarded controls;
+      - documentation: `deploy/proxy/README.md` `:8-9` ("Outside `/ocu`, the gateway listener forwards to WebUI") becomes false and is corrected, plus a changelog entry; mapped to the Docs item.
+    - Not selected:
+      - config: no new variable;
+      - resource limits: one prefix location;
+      - schema, concurrency: none;
+      - release/packaging: the proxy image already ships `nginx.conf.in` (`test_proxy_packaging_copies_only_public_sources` in `tests/deploy/test_overlay_structure.py`); the row takes effect in a rebuilt proxy image, and redeploying is out of scope;
+      - error handling: nginx answers a plain `return 404`, with no partial output;
+      - a decision record: design.md Decision 10 and the WebUI decision record already cover it.
+    - Governing invariant: no browser request whose normalized path lies under `/api/v1/ocu/skills/api/internal/` reaches WebUI, whatever its method, cookies or `X-Internal-Api-Key`.
+    - Sibling surfaces:
+      - the gateway is the only browser path to WebUI: `open-webui` publishes no port (`tests/deploy/test_overlay_structure.py:295`), and only the proxy publishes 8082 and 8083 (`:259-263`);
+      - the gateway server block of `deploy/proxy/nginx.conf.in`, with its catch-all `location /` (`:156`) and the rendered `@@LOCATIONS@@`, which are all `~ ^/ocu/...` regexes and cannot match `/api/`;
+      - the template's other `proxy_pass` targets into WebUI: the `internal` auth subrequests (`nginx.conf.in:86-118`) and the issuer location (`render.py:374-375`). Their URIs are fixed and cannot be steered by the browser, so they need no row;
+      - the Office listener (`:168-205`), which forwards only to DocumentServer. It is not WebUI, so it needs no row;
+      - `deploy/proxy/messages-ingress.conf`, which forwards only `^/api/v1/messages(?:/count_tokens)?$` and answers 404 otherwise. Sandboxes therefore cannot reach the internal routes, and it needs no row;
+      - `routes.json` and its `REVIEWED_TABLE_SHA256` in `render.py:154`, which stay unchanged because the row lives in the template, not the table;
+      - WebUI's `make smoke-proxy`, which pins these files (#755).
+  - **Row.** `location ^~ /api/v1/ocu/skills/api/internal/ { return 404; }` sits in the gateway server block before `location / {`. `^~` stops regex location evaluation. Nothing else in the template changes.
+  - **Render.**
+    - Input: render with the existing `test_render.py` helpers.
+    - Expected:
+      - the rendered config contains the row exactly once;
+      - its offset is smaller than that of the first `location / {`, the one inside the first `server {` block (the Office block has a second one);
+      - native `nginx -t` passes;
+      - the office server block does not contain it.
+    - Red on OCU `main` and green after.
+  - **Native deny.** Add the cases to `deploy/proxy/tests/test_native.py`. It runs against `tests/fixture.py`, whose `auth` role records every request that reaches "WebUI".
+    - Methods `GET`, `HEAD`, `POST`, `PUT` and `DELETE` to `/api/v1/ocu/skills/api/internal/user-config/x@y.z` and `/api/v1/ocu/skills/api/internal/skills/a/download`, each sent:
+      - with no credentials;
+      - with `Cookie: session=owner`;
+      - with `X-Internal-Api-Key: <synthetic>`.
+    - Each gets 404 from nginx, and the recorder sees no new `auth` or `ocu` request: `self.since("auth", before) == []` and `self.since("ocu", before) == []`.
+    - Normalized forms get the same 404 with no contact, each sent raw through `http.client`:
+      - `/api/v1/ocu/skills/api/%69nternal/user-config/x`;
+      - `/api/v1/ocu/skills/api%2Finternal/user-config/x`;
+      - `/api/v1/ocu/skills//api/internal/user-config/x`;
+      - `/api/v1/ocu/skills/api/internal/../internal/user-config/x`;
+      - `/api/v1/ocu/skills/./api/internal/user-config/x`;
+      - `/api/v1/ocu/skills/x/%2e%2e/api/internal/user-config/x` (decode, then dot segment).
+    - The `%69` and `%2F` forms would leak on `main`, because uvicorn decodes them itself. The `//`, `../`, `./` and `%2e%2e` forms do not leak on `main` (Starlette neither merges slashes nor resolves dot segments), but they prove that the row matches the normalized URI.
+    - Every request in these cases and in the controls carries no body: `http.client` with `body=None` sends `Content-Length: 0` (POST, PUT) or none (GET, HEAD, DELETE), both of which `fixture.py:86-98` treats as bodyless. A body would make the fixture answer 400.
+    - Case variants are not tested: Homebrew nginx on macOS matches prefix locations case-insensitively while the Linux image does not, and Starlette routes case-sensitively, so nothing leaks either way.
+    - Every deny case is red on `main` and green after. With the new `do_PUT` in the fixture, the old template forwards each case and the recorder sees it, with `200 webui` instead of 404.
+    - `tests/fixture.py` gains `do_PUT` routed to `_serve`, so a forwarded `PUT` is recorded like the other methods.
+  - **Still forwarded (controls; green before and after).**
+    - With `Cookie: session=owner`, each of these gets the fixture's WebUI answer (`200`, body `webui`), and the recorder sees one `auth` request whose target equals the sent path:
+      - `GET /api/v1/ocu/skills/`;
+      - `GET /api/v1/ocu/skills/admin`;
+      - `POST /api/v1/ocu/skills/a/toggle`;
+      - `GET /api/v1/ocu/skills/api/internalx`, a sibling prefix that is not under the denied directory;
+      - `GET /api/v1/ocu/skills/api/internal`, without the trailing slash (the non-goal below); nginx sends no 301, because the deny row has no `proxy_pass`.
+    - `test_webui_default_location_preserves_http_and_bidirectional_websocket` and every other existing native and render case pass unchanged.
+  - **Entrypoint smoke.**
+    - `deploy/proxy/tests/run-entrypoint-smoke.sh` gains one check through the real entrypoint: `GET /api/v1/ocu/skills/api/internal/user-config/x` with an `X-Internal-Api-Key` header gets 404.
+    - Its existing "webui origin is forwarded" check still passes.
+    - Run: `PATH=/opt/homebrew/bin:$PATH bash deploy/proxy/tests/run-entrypoint-smoke.sh` ends `FAILED=0`.
+  - **Commands and counts.**
+    - `python3 -m unittest discover -s deploy/proxy/tests -p 'test_render.py' -v`;
+    - the native suite per `deploy/proxy/README.md` "Focused native proof": start `tests/fixture.py` and the rendered nginx, then run `OCU_TEST_RECORD=<private path> python3 -m unittest discover -s deploy/proxy/tests -p 'test_native.py' -v`, and stop both;
+    - the entrypoint smoke;
+    - the full OCU unit command from OCU `AGENTS.md`, because `tests/deploy/test_overlay_structure.py` reads `nginx.conf.in`.
+    - The PR states each command's pass and fail counts before and after.
+  - **Docs.**
+    - `deploy/proxy/README.md`, next to "Outside `/ocu`, the gateway listener forwards to WebUI", states the one exception: the internal skill registry prefix answers 404.
+    - `CHANGELOG.md` gains an Unreleased `main` / Added entry.
+    - These two files widen the issue's PR Boundary ("the proxy template and `deploy/proxy/tests/`"), because docs change with code in the same PR and README `:8-9` would otherwise be false (#702 precedent, as in task 8.1).
+  - **File gate.**
+    - The PR changes only:
+      - `deploy/proxy/nginx.conf.in`;
+      - `deploy/proxy/tests/test_render.py`;
+      - `deploy/proxy/tests/test_native.py`;
+      - `deploy/proxy/tests/fixture.py`;
+      - `deploy/proxy/tests/run-entrypoint-smoke.sh`;
+      - `deploy/proxy/README.md`;
+      - `CHANGELOG.md`.
+    - It does not change `routes.json`, `render.py`, `messages-ingress.conf`, any compose file, or WebUI.
+  - **Non-goals.**
+    - No deny for `/api/v1/ocu/skills/api/internal` without the trailing slash: WebUI has no route there.
+    - No change to the Office listener or the messages ingress.
+    - The gateway-level hurl proof in WebUI is #755.
 - [ ] 10.2 [webui] Bump `constraints.yaml ocu_checkout.sha` to the OCU commit containing tasks 8.1, 9.1 and 10.1. Add a `smoke/proxy/` hurl case: `GET /api/v1/ocu/skills/api/internal/user-config/x@y.z` through the gateway with a key header gets a plain 404 (WebUI itself would answer 401 to a wrong key and 200 to an unknown email with the right key, so the 404 proves the gateway answered); `GET /api/v1/ocu/skills/` as a signed-in user gets 200. Add an AGENTS.md Verification Matrix row. Verify with `make smoke-proxy`.
 
 Suggested fixture level: expanded - the browser gateway auth boundary.
