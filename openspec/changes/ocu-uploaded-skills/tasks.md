@@ -848,6 +848,69 @@ Minimal mergeable slice: atomic - one group and its selection branch; splitting 
   - leave marker-free bodies byte-identical.
 
   Verify with OCU pytest for the single, repeated, earlier-message and no-marker cases, and confirm the existing `ocu-filter-auth` tests stay green. This task changes only the OCU repository.
+  Task 8.1 required evidence (issue #752; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task parses and rewrites message text inside the filter inlet, which every OCU chat request passes through.
+    - Selected packs:
+      - public contract: the marker grammar shared with the #751 `/` menu, which produces it, and native `strip_skill_mentions`, which is the fallback consumer;
+      - error handling: every existing early return of `inlet` stays unchanged;
+      - legacy compatibility: `ocu-filter-auth` behaviour and the injected-prompt layout stay byte-identical for marker-free bodies;
+      - prompt integrity: user text must not reach the system message except as a grammar-checked skill name;
+      - documentation: the OCU filter docs and changelog describe the new inlet step (#702 precedent: `CHANGELOG.md` Unreleased entry and `docs/openwebui-filter.md`, commit `c07baae`).
+    - Not selected:
+      - config: no new Valve or environment variable;
+      - auth/secrets: the token path is untouched, and a marker grants nothing (design.md Decision 9);
+      - resource limits: one linear regex pass per text, with no backtracking construct;
+      - schema: no stored data.
+    - Governing invariant: the marker rewrite changes a body only on the path where the filter injected the OCU prompt. On that path, its only changes are label rewrites in user messages and at most one sentence per distinct name of the last user message.
+    - Sibling surfaces:
+      - producer: the #751 `/` menu emits `<$ocu--{name}|{name}>`;
+      - fallback consumer: native `strip_skill_mentions` (`middleware.py:2293`);
+      - the `<available_skills>` block of the OCU prompt, which the sentence points at;
+      - the `inlet` early returns: non-saved chat id, `INJECT_SYSTEM_PROMPT` off, failed or unauthorized fetch, empty `messages`;
+      - all three system-message branches: insert before the template-variable block, plain string append, and non-string content coerced to a string (existing test `tests/test_filter.py:782`); plus the system message the inlet inserts when none exists.
+  - **Where the rewrite runs.**
+    - The rewrite and the sentence run only after the OCU prompt has been injected, that is after the whole existing system-message step at the end of `inlet`. The sentence is appended to the final system-message content, never to `system_prompt` before insertion, so in the template-variable branch it lands after the template block.
+    - Every early return returns `body` exactly as today, raw marker included. Native `strip_skill_mentions` then removes it downstream: it runs unconditionally after the inlet filters (`middleware.py:2635` inlet, `:2807` strip). The sentence names `<available_skills>`, which exists only in an injected prompt.
+  - **Marker grammar.**
+    - One module-level compiled regex: `<\$ocu--([a-z0-9][a-z0-9-]{0,63})\|([^>]*)>`.
+    - The name class equals the WebUI upload name rule `_NAME` (`backend/open_webui/utils/ocu_skill_zip.py:22`). The label class equals native `SKILL_MENTION_STRIP_RE`.
+    - A `<$ocu--` sequence that does not fully match is left verbatim by the filter and adds no sentence (native stripping may still rewrite it downstream, e.g. `<$ocu--a_b|x>` becomes `x`). Examples: `<$ocu--Bad Name|x>`, `<$ocu--a_b|x>`, ``<$ocu--x`y|x>``, and a missing `|`. This is what keeps arbitrary user text out of the system message.
+  - **Rewrite cases.** Each case calls `Filter.inlet()` with a saved `CHAT_ID`, `OCU_INTERNAL_TOKEN` set, and the prompt fetch mocked to return `PROMPT`:
+    - Single: last user message `请用 <$ocu--invoice-builder|invoice-builder> 生成发票` → its content is `请用 invoice-builder 生成发票`, and the system message content ends with `\n\n` followed by the exact sentence of design.md Decision 9 with `{name}` = `invoice-builder` (the test spells the sentence out as a literal).
+    - Repeated: the same marker twice in the last user message → both replaced, and the sentence occurs exactly once (`count == 1`).
+    - Two names: `<$ocu--a|a>` then `<$ocu--b|b>` → two sentences, `a` first, joined by `\n` after one `\n\n` separator.
+    - Label differs from name: `<$ocu--invoice-builder|Invoice Builder>` → the text contains `Invoice Builder`, and the sentence names `invoice-builder`.
+    - Earlier message: a marker for `old` in the first user message, and a marker-free last user message → the earlier text has its label, and the system message content equals the no-marker expectation exactly, with no sentence.
+    - Mixed: `old` only in an earlier message, `new` in the last → only the `new` sentence.
+    - Text parts: the last user message has content `[{"type": "text", "text": "用 <$ocu--a|a>"}, {"type": "image_url", "image_url": {"url": "data:x"}}]` → the text part becomes `用 a`, and the image part is equal and still at index 1. The same holds for a parts list in an earlier message.
+    - System message forms: an existing plain system message, one containing `{{CURRENT_DATE}}` (the prompt still sits before that block), one with non-string (list) content that the inlet coerces to a string, and none (the inlet inserts it at index 0). In each, the content ends with the sentence.
+  - **Controls (green before and after; they guard must-preserve).**
+    - No marker: the output equals what today's inlet produces for the same body: `tool_ids` plus the injected `PROMPT`, the user messages `==` their deep-copied input, and the system message content exactly `PROMPT` or `existing\n\nPROMPT`.
+    - Early returns with a marker: a non-saved chat id, `INJECT_SYSTEM_PROMPT=False`, `OCU_INTERNAL_TOKEN` unset (`monkeypatch.delenv`, because the autouse `_filter_test_token` fixture sets it), and a fetch answering 401 each leave `messages ==` the deep-copied input, raw marker included, and `tool_ids` exactly as today.
+    - Other roles: a marker inside an assistant or system message is left verbatim. Only `role == "user"` messages are rewritten.
+    - Grammar negatives from the grammar item above → the text is unchanged and there is no sentence.
+    - Cache: after a first call whose last user message carries `<$ocu--a|a>`, a second `inlet` call on the same filter for the same chat with a marker-free body has no sentence, so the sentence never enters `_prompt_cache`.
+  - **Red and green.**
+    - Every rewrite case is red on OCU `main` `2fea8f6` (no rewrite, no sentence) and green after.
+    - The controls pass on both.
+    - Tests go in `tests/test_filter.py`, reusing `_make_filter`, `_urlopen_mock`, `_system_content` and `CHAT_ID`. Add no new production file.
+  - **Docs in the same change.**
+    - The module docstring FUNCTIONALITY block describes the marker rewrite and the sentence.
+    - The header `version` goes from 5.1.0 to 5.2.0.
+    - `docs/openwebui-filter.md` gains a short section on the marker rewrite, the sentence and the early-return fallback.
+    - `CHANGELOG.md` gains an entry under "Unreleased — `main` branch" / Added.
+  - **Must preserve and gates.**
+    - The existing `tests/test_filter.py` cases (69 today), `tests/test_video_production_filter.py` and `tests/test_org_prompt_filter.py` pass unchanged.
+    - The full OCU unit command from OCU `AGENTS.md` passes. The PR states its passed and skipped counts before and after.
+    - `uvx ruff check` on the changed files adds no finding over `main`.
+    - The PR changes only `openwebui/functions/computer_link_filter.py`, `tests/test_filter.py`, `docs/openwebui-filter.md` and `CHANGELOG.md`. The two docs files widen the issue's PR Boundary, which names only the module and its tests, because docs change with code in the same PR (#702 precedent).
+  - **Non-goals.**
+    - No `computer-use-server/` change.
+    - No authorization check of the named skill.
+    - No rewrite when the filter skips prompt injection; native stripping covers that path.
+    - No persistence: the rewrite applies to the request body only.
+    - Issue acceptance wording: "a body with no marker equals the input byte for byte" cannot hold literally for a saved chat, because the inlet already adds `tool_ids` and the prompt; the control above uses the spec delta's wording, "equals the body produced before this change".
 
 Suggested fixture level: expanded - a parser/writer of message text inside the shared request entrypoint (filter inlet) that every OCU chat request passes through.
 Minimal mergeable slice: atomic - one transform plus its tests.
