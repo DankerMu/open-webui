@@ -31,7 +31,7 @@ Evidence floor: backend pytest (router + validation + drift), make db-verify, ma
 - A new upload is visible to everyone through a `user:*:read` access grant. Administrators narrow it with the existing access-control UI.
 - UI:
   - an Admin Settings tab and a personal Settings tab, both named 「工作区 Skills」;
-  - a 「工作区 Skills」 group in the `/` menu that inserts a mention the existing editor serializes as `<$ocu--{name}|{name}>` (no `RichTextInput.svelte` change).
+  - a 「工作区 Skills」 group in the `/` menu that inserts a mention with `mentionSuggestionChar: '/'`, which the existing editor serializes as `<$ocu--{name}|{name}>` (no `RichTextInput.svelte` change).
 - OCU repository (no `computer-use-server/` change):
   - the `computer_link_filter` inlet rewrites the marker and appends a named-skill instruction;
   - the deploy overlay sets `MCP_TOKENS_URL` and `MCP_TOKENS_API_KEY`;

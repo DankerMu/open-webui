@@ -48,7 +48,7 @@ When OCU workspace is enabled, personal Settings SHALL show a 「工作区 Skill
 
 ### Requirement: Slash menu group
 
-When OCU workspace is enabled, typing `/` in the chat input SHALL show a 「工作区 Skills」 group listing the user's enabled set of uploaded skills (design.md Decision 6), whether or not the chat has a sandbox and whatever filters the selected model has. Built-in OCU skills SHALL NOT appear in the group. Selecting an entry SHALL insert a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`). The existing editor serializes only the id, with `/` written as `$` (`RichTextInput.svelte:117-125`, unchanged), so the sent message carries `<$ocu--{name}|{name}>`.
+When OCU workspace is enabled, typing `/` in the chat input SHALL show a 「工作区 Skills」 group listing the user's enabled set of uploaded skills (design.md Decision 6), whether or not the chat has a sandbox and whatever filters the selected model has. Built-in OCU skills SHALL NOT appear in the group. Selecting an entry SHALL insert a mention with id `ocu--{name}|{name}` and label `{name}`, as the native skill branch does (`CommandSuggestionList.svelte:136-139`), with `mentionSuggestionChar: '/'` because the chat input's `/` command sets no trigger char. The existing editor serializes only the id, with `/` written as `$` (`RichTextInput.svelte:117-125`, unchanged), so the sent message carries `<$ocu--{name}|{name}>`.
 
 #### Scenario: Disabled skill absent
 
