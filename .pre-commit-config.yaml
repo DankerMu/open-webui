@@ -31,7 +31,8 @@ repos:
       # and never a repo-wide path — the fork must not rewrite untouched upstream files.
       - id: ruff
         files: ^backend/
-        args: [--select=F, --ignore=F401,F403,F405,F541,F811,F841]
+        # Quoted: in a YAML flow sequence the commas would split the ignore list into file paths.
+        args: [--select=F, '--ignore=F401,F403,F405,F541,F811,F841']
       - id: ruff-format
         files: ^backend/
 
