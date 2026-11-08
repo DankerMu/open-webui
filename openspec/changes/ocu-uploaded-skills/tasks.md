@@ -1086,6 +1086,45 @@ Minimal mergeable slice: atomic - two environment entries consumed together by t
     - No change to the Office listener or the messages ingress.
     - The gateway-level hurl proof in WebUI is #755.
 - [ ] 10.2 [webui] Bump `constraints.yaml ocu_checkout.sha` to the OCU commit containing tasks 8.1, 9.1 and 10.1. Add a `smoke/proxy/` hurl case: `GET /api/v1/ocu/skills/api/internal/user-config/x@y.z` through the gateway with a key header gets a plain 404 (WebUI itself would answer 401 to a wrong key and 200 to an unknown email with the right key, so the 404 proves the gateway answered); `GET /api/v1/ocu/skills/` as a signed-in user gets 200. Add an AGENTS.md Verification Matrix row. Verify with `make smoke-proxy`.
+      Task 10.2 required evidence (issue #755; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The task pins the gateway auth boundary that hides the internal registry from browsers, and it moves the pinned OCU revision every OCU-dependent check uses.
+    - Selected packs:
+      - auth/secrets: the gateway, not the internal key, is what keeps browsers off the internal prefix (design.md Decision 10);
+      - config: `constraints.yaml ocu_checkout.sha`, consumed by `make smoke-proxy` (`scripts/smoke-proxy.py:148-152`), the reserved-name drift test (task 2.3) and the CI jobs that export `OCU_CHECKOUT` (`.github/workflows/ci.yml:112,154,187`);
+      - legacy compatibility: every existing `smoke/proxy/` case keeps passing against the new pin;
+      - documentation: the AGENTS.md Verification Matrix row and its detail row.
+    - Not selected:
+      - schema, migration, resource limits, concurrency: none;
+      - release/packaging: no image or dependency change in this repository.
+    - Governing invariant: through the gateway, every request under `/api/v1/ocu/skills/api/internal/` gets nginx's 404 and never reaches WebUI, while the user route `/api/v1/ocu/skills/` still reaches WebUI.
+    - Sibling surfaces:
+      - the OCU-side proof in `deploy/proxy/tests/` (task 10.1, #754), which this smoke repeats against the real WebUI;
+      - `smoke/proxy/deny.hurl` and its "denied request contacted OCU" check (`scripts/smoke_proxy_support.py:668-672`);
+      - `scripts/smoke-proxy.py` `PINNED_FILES` and `HURL_GLOBS` (`:43-62`), which stay unchanged;
+      - `smoke/ocu-skills.hurl` (task 4.1), which proves the same internal routes directly against WebUI;
+      - the reserved-name drift test, which reads the pinned OCU `skills/public/` and `NATIVE_PROMPT_DESCRIPTIONS`.
+  - **Pin.**
+    - `constraints.yaml ocu_checkout.sha` becomes the full SHA of an OCU `main` commit that contains the merged PRs for #752, #753 and #754. The PR proves it with `git -C <ocu> merge-base --is-ancestor <merge-commit> <pin>` for each of the three merge commits, and `git -C <ocu> branch -r --contains <pin>` lists `origin/main`.
+    - Nothing else in `constraints.yaml` changes.
+  - **Hurl case (red on the old pin, green on the new).** Added to the end of `smoke/proxy/deny.hurl` under a comment naming the uploaded-skill registry, so `HURL_GLOBS` and `smoke-proxy.py` stay unchanged:
+    - Positive control first: `GET {{webui_url}}/api/v1/ocu/skills/api/internal/user-config/x@y.z` with `X-Internal-Api-Key: smoke-wrong-key`, sent directly to WebUI, gets `HTTP 401`. This proves the internal route is mounted in the running WebUI, so a 404 through the gateway cannot come from a missing route or the SPA fallback.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/api/internal/user-config/x@y.z` with the same header gets `HTTP 404`, and the body contains `<center>nginx</center>`, nginx's own error page; WebUI would have answered 401.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/api/internal/skills/a/download` with the same header gets the same nginx 404.
+    - `GET {{proxy_url}}/api/v1/ocu/skills/` with `Cookie: {{owner_cookie}}` (a `user`-role session) gets `HTTP 200` with a JSON array body (`jsonpath "$" isCollection`).
+    - The wrong key is a fixed literal, not the harness `OCU_INTERNAL_TOKEN`, so no secret enters the hurl file or its report.
+    - Red evidence: with the hurl case added and the pin unchanged, `make smoke-proxy` fails on the gateway 404 assertion (the old template forwards the request and WebUI answers 401). The PR records that run.
+  - **Must preserve.**
+    - Every existing `smoke/proxy/` case passes against the new pin; `make smoke-proxy` exits 0.
+    - The reserved-name drift test passes with `OCU_CHECKOUT` pointing at a checkout of the new pin. If the new pin added a built-in name, that test fails and the reserved list update belongs in this PR. #752, #753 and #754 add no skill directory and no `NATIVE_PROMPT_DESCRIPTIONS` key, so no update is expected; the PR states the drift-test result.
+    - `scripts/smoke-proxy.py`, `scripts/smoke_proxy_support.py`, CI workflow files and backend routes are unchanged.
+  - **Docs.**
+    - AGENTS.md Verification Matrix gains one row: `Uploaded-skill internal path through the gateway` → `make smoke-proxy`. The user approved this row as part of the issue.
+    - `docs/agents/verification-matrix.md` gains the matching detail row: what it exercises (the four requests above), and its evidence (nginx 404 body through the gateway, direct WebUI 401 control, user route 200; not OCU's real registry fetch).
+    - `make doc-gate` exits 0.
+  - **Runtime prerequisites.** `make smoke-proxy` needs `make dev-bg` running (it checks `/health`), `nginx` with the auth-request module on `PATH`, and `OCU_CHECKOUT` pointing at an OCU checkout that has the pin commit. Before `make dev-bg`, check ports 8080 and 5173 with `lsof`, and stop the stack with `make dev-stop` afterwards.
+  - **Fixtures for the OCU issues ride in this PR.** As in the #740 precedent, this PR also carries the WebUI-side fixture commits for #752, #753, #754, #776 and #777: the task 8.1, 9.1 and 10.1 evidence blocks, the `ocu-filter-async` change and the #776 change. The #762 and #775 fixtures already landed in #780. That pushes the PR past 400 diff lines, so it gets the `diff-limit-exempt` label and a reason in the body.
+  - **Non-goals.** No OCU change; no route change; no new `smoke/proxy/` file; no CI change.
 
 Suggested fixture level: expanded - the browser gateway auth boundary.
 Minimal mergeable slice: task 10.1 in the OCU repository first; it keeps OCU green alone. Task 10.2 depends on the merged OCU commit, on task 3.1 (the forwarded user route) and on task 4.1 (the internal routes the gateway must hide).
