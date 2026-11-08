@@ -636,6 +636,102 @@ Minimal mergeable slice: atomic - the API client is dead without its first calle
 ## 6. [webui] Personal Settings tab
 
 - [ ] 6.1 Add the personal Settings 「工作区 Skills」 tab as a new component, with one switch per readable skill backed by `GET /` and `POST /{name}/toggle`; extend `src/lib/apis/ocu/skills.ts` and `skills.test.ts` with those two user routes. In `SettingsModal.svelte` add only the tab registration and its render branch, shown only when `features.enable_ocu_workspace`, within the `bounded_overrides` ceiling added in task 5.1. Verify with `make test-frontend`, `make lint-scoped` and a Playwright case in `e2e/ocu-skills.e2e.ts`: turn a switch off, reload, and see it still off; with `/api/config` intercepted to set `features.enable_ocu_workspace=false`, no personal tab and zero `/api/v1/ocu/skills` requests; zero console errors.
+      Task 6.1 required evidence (issue #750; each item is input → expected output):
+  - **Fixture level and risk packs for this task.**
+    - Level: expanded. The change touches the shared `SettingsModal.svelte` entry point and persisted per-user state.
+    - Selected packs:
+      - UI flow: list, switch, reload, and the empty state;
+      - persisted state: the switch survives a reload; a failed write is reverted;
+      - feature gating: zero requests when the workspace flag is off, deep link included;
+      - API client contract with the merged user routes (#747);
+      - concurrency: rapid double-clicks on one switch;
+      - upstream spine: minimal `SettingsModal.svelte` diff within the 1365 ceiling;
+      - i18n: generated, never hand-patched.
+    - Not selected:
+      - backend, schema: none;
+      - auth: the routes use `get_verified_user`, and readability is enforced server-side (#747).
+    - Governing invariants:
+      - The switch shows the server's `enabled` for the caller, and the only writer is `POST /{name}/toggle`. There is no client-side store and nothing in `user.settings` (Decision 3).
+      - With `features.enable_ocu_workspace` not `true`, no personal 「工作区 Skills」 entry renders, and zero `/api/v1/ocu/skills` requests are sent, deep link `/?settings=ocu_skills` included.
+    - Sibling surfaces:
+      - the admin tab `admin:ocu-skills` (#749), which has the same title and shares the e2e spec;
+      - `SettingsModal.svelte`: personal tab list, `personalSettingGroups`, hand-written sidebar buttons, search, deep link and render chain;
+      - `Switch.svelte`, unchanged: it has no `disabled` prop and no `$$restProps`, so the in-flight guard and the `data-cy` hook go on wrappers in the new component;
+      - the #751 slash menu, which will reuse `getUserSkills`.
+  - **API client additions in `src/lib/apis/ocu/skills.ts` and `skills.test.ts` (red first).**
+    - Add `getUserSkills(token)`, which sends `GET {WEBUI_API_BASE_URL}/ocu/skills/` with the trailing slash and returns `[{name, description, enabled}]`.
+    - Add `toggleSkill(token, name, enabled: boolean)`, which sends `POST …/ocu/skills/{encodeURIComponent(name)}/toggle` with JSON `{"enabled": <bool>}` and returns the item.
+    - Both reuse the existing private `requestSkills`, with the same Bearer header and error mapping. Do not add a second helper.
+    - Export the type `OcuUserSkill`.
+    - Unit tests, using the existing `skills.test.ts` patterns:
+      - URL with the trailing slash, method, headers, and the exact JSON body for both `true` and `false`;
+      - a name that needs encoding;
+      - the parsed result;
+      - error mapping for a 404 string `detail`, a 422 list, and a non-JSON body.
+  - **Component `src/lib/components/chat/Settings/OcuSkillPreferences.svelte` with `OcuSkillPreferences.test.ts`.**
+    - The name differs from the admin `OcuSkills.svelte` so the two imports in `SettingsModal` cannot collide.
+    - `data-cy` hooks all start with `ocu-skills-`, so the existing workspace-off assertion `[data-cy^="ocu-skills-"]` covers them:
+      - `ocu-skills-pref-row-{name}`;
+      - `ocu-skills-pref-switch-{name}` on a wrapper element around the `Switch`, whose `ariaLabel` names the skill. Tests find the switch with `getByRole('switch', { name: <ariaLabel> })` and assert state through `aria-checked`, or `toBeChecked()` in e2e;
+      - `ocu-skills-pref-empty`.
+    - Behaviour:
+      - On mount, call `getUserSkills` once and list each skill's name and description with a switch set to `enabled`.
+      - An empty list shows `ocu-skills-pref-empty`. A failed load shows an error toast and the empty state.
+      - A switch change calls `toggleSkill(token, name, newState)`.
+      - That switch sits inside a `<fieldset disabled={pending[name]}>` while its request is in flight, so a second click cannot race the first. A guard only inside the change handler is not enough, because `bind:checked` has already flipped the state by then.
+      - On success, the row takes `enabled` from the response.
+      - On failure, the switch reverts to its previous state and an error toast shows the server's message.
+    - Component test (svelte `mount`, as in `OcuSkills.test.ts`; client mocked):
+      - rows render from `getUserSkills`;
+      - turning a switch off calls `toggleSkill` exactly once, `toHaveBeenCalledWith(expect.any(String), 'a', false)`;
+      - while that request is pending, a second click leaves `toggleSkill` called once and the switch disabled; after it settles the switch is enabled again;
+      - a rejected toggle reverts the switch and toasts;
+      - the empty state renders;
+      - a failed load toasts.
+    - Fork-added files stay at 80% or more under `make coverage-gate`.
+  - **`SettingsModal.svelte` (minimal upstream diff; record its line count).**
+    - Only these additions are allowed:
+      - one import of `OcuSkillPreferences`;
+      - one `allSettings` entry `{id: 'ocu_skills', title: 'Workspace Skills', keywords: ['workspace skills', 'skills', 'ocu', 'sandbox']}`, inserted right after the `audio` entry (the last `Preferences` item). Group headings appear only when the group changes and nothing sorts the list, so appending it at the end would draw a second 「偏好」 heading;
+      - its `personalSettingGroups` row (`'Preferences'`);
+      - a branch in `getAvailableSettings` that keeps `ocu_skills` only when `workspaceFilesEnabled($config)`. It may call the helper inline or move the existing `const ocuSkills` line above the personal filter;
+      - one hand-written sidebar button branch `{:else if tabId === 'ocu_skills'}` in the same shape as its neighbours, with `aria-controls="tab-ocu_skills"`, reusing an icon the file already imports (for example `WrenchAlt`); no new icon import;
+      - one render branch `{:else if selectedTab === 'ocu_skills' && workspaceFilesEnabled($config)}<OcuSkillPreferences />`.
+    - The render guard is the only gate for a deep link, the same as #749, and must not be removed.
+    - The file stays at or below the ceiling of 1365, and `make lint-scoped` passes. The diff adds 28 lines or fewer (estimate: 26–27). The PR records the final line count.
+    - `constraints.yaml` is not changed.
+  - **i18n.**
+    - Same procedure as task 5.1:
+      - English keys;
+      - `npm run i18n:parse`;
+      - fill only the `zh-CN` values;
+      - a second parse leaves `git diff --exit-code src/lib/i18n` empty.
+    - `Workspace Skills` already exists, so new keys cover only the new strings, such as the empty state.
+  - **Playwright, in the existing `e2e/ocu-skills.e2e.ts`.**
+    - Fix the existing assertions first. With two `role=tab` elements named 「工作区 Skills」, `tabNamed(page, TAB)` would hit strict mode. Identify the tabs as `[aria-controls="tab-admin-ocu-skills"]` (admin) and `[aria-controls="tab-ocu_skills"]` (personal). Each deep link asserts its own tab is `aria-selected="true"` and the other is `"false"`. After searching `skills`, both `settingsTabs` and `tabNamed(page, TAB)` have count 2, one personal and one admin.
+    - New case "personal tab":
+      - Setup: as admin through the API, call `removeQuietly(api, …/harness-smoke-skill)` first, then upload `smoke/fixtures/ocu-smoke-skill.zip` with `api.request.post(UPLOAD_PATH, { data: <raw bytes>, headers: { ...api.headers, 'Content-Type': 'application/zip' } })` and expect 200. The `post` helper sends JSON, so it is not used here. Delete removes per-user disable rows, so no disabled leftover can exist.
+      - Open `/?settings=ocu_skills` in zh-CN, with the same locale order as task 5.1.
+      - The row and switch for `harness-smoke-skill` are visible and on.
+      - Turn the switch off and wait for the toggle response through `page.waitForResponse`. `response.request().postDataJSON()` equals `{ enabled: false }`, and the status is 200. The POST entries recorded for `/api/v1/ocu/skills` are exactly `['POST /api/v1/ocu/skills/harness-smoke-skill/toggle']`. Only then reload.
+      - Reload, then open the deep link again. The switch is still off.
+      - `GET /api/v1/ocu/skills/` through the API also reports `enabled: false`.
+      - Cleanup in `finally`: `removeQuietly` (200 or 404), safe to run twice.
+      - Zero console errors and page errors. Screenshot `.run/ui-evidence/ocu-skills-personal.png`.
+    - Extend the existing "workspace off" case. After the admin checks:
+      - open `/?settings=ocu_skills`. Positive control first: `settingsSearch(page)` and the 「数据库」 tab are visible, which proves the modal opened;
+      - no `ocu-skills-*` element renders;
+      - `getByRole('tab', { name: '工作区 Skills' })` has count 0;
+      - the existing zero-request assertion still covers the whole case.
+  - **Gates.**
+    - `make test-frontend`;
+    - `make typecheck`, with the ratchet not rising;
+    - `make lint-scoped` with SettingsModal at or below 1365;
+    - `make fmt-check`;
+    - `make anti-drift`;
+    - `make coverage-gate`;
+    - `make verify-ui-ocu-repeat SPEC=ocu-skills.e2e.ts REPEAT=1`, then the full `make verify-ui-ocu`;
+    - no backend, `constraints.yaml`, or OCU change.
 
 Suggested fixture level: expanded - touches the shared `SettingsModal.svelte` entrypoint and persisted per-user state; the line-ceiling override is already in place from task 5.1.
 Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3.1 and 5.1.
