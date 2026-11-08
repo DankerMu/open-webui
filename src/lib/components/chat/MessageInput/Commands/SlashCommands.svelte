@@ -1,7 +1,12 @@
 <script lang="ts">
-	import { getContext, onDestroy } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
+	import { config } from '$lib/stores';
 	import { getPrompts } from '$lib/apis/prompts';
 	import { getSkillItems } from '$lib/apis/skills';
+	import { workspaceFilesEnabled } from '$lib/apis/ocu';
+	import { getUserSkills, type OcuUserSkill } from '$lib/apis/ocu/skills';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ChatBubbleDotted from '$lib/components/icons/ChatBubbleDotted.svelte';
 	import ChatBubbleDottedChecked from '$lib/components/icons/ChatBubbleDottedChecked.svelte';
@@ -9,7 +14,7 @@
 	import Knobs from '$lib/components/icons/Knobs.svelte';
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	export let query = '';
 	export let onSelect = (e) => {};
@@ -28,6 +33,7 @@
 
 	let prompts = [];
 	let skills = [];
+	let userSkills: OcuUserSkill[] = [];
 	let searchDebounceTimer: ReturnType<typeof setTimeout>;
 
 	$: contextCirclePercent = contextHasThreshold
@@ -60,10 +66,15 @@
 		.filter((p) => p.command.toLowerCase().includes(query.toLowerCase()))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
+	$: ocuSkills = userSkills
+		.filter((s) => s.enabled && s.name.toLowerCase().includes(query.toLowerCase()))
+		.sort((a, b) => a.name.localeCompare(b.name));
+
 	$: filteredItems = [
 		...commandItems,
 		...filteredPrompts.map((data) => ({ type: 'prompt', data })),
-		...skills.map((data) => ({ type: 'skill', data }))
+		...skills.map((data) => ({ type: 'skill', data })),
+		...ocuSkills.map((data) => ({ type: 'ocu_skill', data }))
 	];
 
 	$: if (query) {
@@ -78,6 +89,13 @@
 			getItems();
 		}, 200);
 	}
+
+	// The suggestion renderer mounts this list once per `/` and then only updates `query`.
+	onMount(async () => {
+		if (workspaceFilesEnabled($config)) {
+			userSkills = await getUserSkills(localStorage.token).catch(() => []);
+		}
+	});
 
 	onDestroy(() => {
 		clearTimeout(searchDebounceTimer);
@@ -445,4 +463,36 @@
 			</button>
 		</Tooltip>
 	{/each}
+{/if}
+
+{#if ocuSkills.length > 0}
+	<div data-cy="ocu-skills-slash-group">
+		<div class="px-2 py-1 text-[0.6875rem] text-gray-500 dark:text-gray-400">
+			{$i18n.t('Workspace Skills')}
+		</div>
+
+		{#each ocuSkills as skill, ocuIdx}
+			{@const itemIdx = commandItems.length + filteredPrompts.length + skills.length + ocuIdx}
+			<Tooltip
+				content={getSkillTooltipContent(skill)}
+				placement="top-start"
+				tippyOptions={{ maxWidth: '20rem' }}
+			>
+				<button
+					data-cy="ocu-skills-slash-{skill.name}"
+					class="flex h-[1.6875rem] w-full items-center gap-2 rounded-xl px-2 text-left text-[0.8125rem] text-black hover:bg-gray-50/40 dark:text-gray-100 dark:hover:bg-gray-800/40 {itemIdx ===
+					selectedIdx
+						? 'bg-gray-50/40 dark:bg-gray-800/40 selected-command-option-button'
+						: ''}"
+					type="button"
+					on:click={() => onSelect({ type: 'ocu_skill', data: skill })}
+					on:mousemove={() => (selectedIdx = itemIdx)}
+					data-selected={itemIdx === selectedIdx}
+				>
+					<Cube className="size-3.5 shrink-0" />
+					<span class="truncate">{skill.name}</span>
+				</button>
+			</Tooltip>
+		{/each}
+	</div>
 {/if}

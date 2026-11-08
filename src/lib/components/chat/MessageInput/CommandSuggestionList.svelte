@@ -13,6 +13,7 @@
 		label: string;
 		content?: string;
 		type?: string;
+		mentionSuggestionChar?: string;
 	}) => void;
 
 	export let onSelect: (e: any) => void = () => {};
@@ -47,6 +48,14 @@
 	$: contextPercent = contextHasThreshold
 		? Math.max(0, Math.round(resolvedContextUsage?.percent ?? 0))
 		: null;
+
+	// An uploaded workspace skill only inserts its mention: no onSelect, so no `skill_ids` (#751).
+	// The chat input's `/` command inserts these attrs as given; without the trigger char the mention
+	// would serialize as `<@…>` instead of `<$…>`. Kept out of the slash handler (complexity limit).
+	const selectOcuSkill = ({ type, data }: { type: string; data: { name: string } }) => {
+		if (type !== 'ocu_skill') return;
+		command({ id: `ocu--${data.name}|${data.name}`, label: data.name, mentionSuggestionChar: '/' });
+	};
 
 	let suggestionElement: any = null;
 	let filteredItems: any[] = [];
@@ -142,6 +151,8 @@
 								type: 'skill',
 								data: data
 							});
+						} else {
+							selectOcuSkill(e);
 						}
 					}}
 				/>
