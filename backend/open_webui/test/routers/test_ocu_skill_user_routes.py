@@ -104,11 +104,13 @@ def test_disable_affects_only_the_caller_and_enable_removes_the_row(user_matrix)
     assert _disables('open') == [m.id]
     assert (_toggle(m, 'open', False).status_code, _disables('open')) == (200, [m.id])
 
+    asyncio.run(_seed_disable('open', user_id=n.id))
     for _ in range(2):
         response = _toggle(m, 'open', True)
         assert (response.status_code, response.json()) == (200, _user_item('open'))
-        assert _disables('open') == []
+        assert _disables('open') == [n.id]
     assert _user_listing(m) == [_user_item('open'), _user_item('team')]
+    assert _user_listing(n) == [_user_item('open', False)]
 
 
 def test_disable_of_an_existing_row_inserts_and_returns_200(user_matrix):
