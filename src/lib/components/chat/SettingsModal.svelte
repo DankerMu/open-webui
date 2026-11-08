@@ -21,6 +21,7 @@
 	import Usage from './Settings/Usage.svelte';
 	import ArchivedChats from './Settings/ArchivedChats.svelte';
 	import Personalization from './Settings/Personalization.svelte';
+	import OcuSkillPreferences from './Settings/OcuSkillPreferences.svelte';
 	import Search from '../icons/Search.svelte';
 	import Connections from './Settings/Connections.svelte';
 	import Integrations from './Settings/Integrations.svelte';
@@ -145,6 +146,7 @@
 		tools: 'Services',
 		personalization: 'Preferences',
 		audio: 'Preferences',
+		ocu_skills: 'Preferences',
 		data_controls: 'Data',
 		usage: 'Data',
 		archived_chats: 'Data',
@@ -508,6 +510,11 @@
 			]
 		},
 		{
+			id: 'ocu_skills',
+			title: 'Workspace Skills',
+			keywords: ['workspace skills', 'skills', 'ocu', 'sandbox']
+		},
+		{
 			id: 'data_controls',
 			title: 'Data Controls',
 			keywords: [
@@ -827,6 +834,10 @@
 				);
 			}
 
+			if (tab.id === 'ocu_skills') {
+				return workspaceFilesEnabled($config);
+			}
+
 			return true;
 		});
 
@@ -1099,6 +1110,19 @@
 							<SoundHigh className="size-3.5" strokeWidth="2" />
 							<span>{$i18n.t('Audio')}</span>
 						</button>
+					{:else if tabId === 'ocu_skills'}
+						<button
+							role="tab"
+							aria-controls="tab-ocu_skills"
+							aria-selected={selectedTab === 'ocu_skills'}
+							class={tabButtonClass(selectedTab === 'ocu_skills')}
+							on:click={() => {
+								selectedTab = 'ocu_skills';
+							}}
+						>
+							<WrenchAlt className="size-3.5" strokeWidth="2" />
+							<span>{$i18n.t('Workspace Skills')}</span>
+						</button>
 					{:else if tabId === 'data_controls'}
 						<button
 							role="tab"
@@ -1259,6 +1283,8 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
+			{:else if selectedTab === 'ocu_skills' && workspaceFilesEnabled($config)}
+				<OcuSkillPreferences />
 			{:else if selectedTab === 'data_controls'}
 				<DataControls {saveSettings} />
 			{:else if selectedTab === 'usage'}

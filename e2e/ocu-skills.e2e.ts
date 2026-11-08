@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { admin, openAuthenticatedPage, post, test, type Admin } from './ocu-auth';
@@ -7,6 +8,7 @@ import { evidence } from './ocu-fixtures';
 const FIXTURE = path.resolve('smoke/fixtures/ocu-smoke-skill.zip');
 const SKILL = 'harness-smoke-skill';
 const DEEP_LINK = '/?settings=admin%3Aocu-skills';
+const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 const TAB = '工作区 Skills';
 const SKILLS_PATH = '/api/v1/ocu/skills';
 const UPLOAD_PATH = `${SKILLS_PATH}/upload`;
@@ -18,6 +20,9 @@ const settingsTabs = (page: Page) => page.locator('#settings-tabs-container').ge
 const tabNamed = (page: Page, name: string) =>
 	page.locator('#settings-tabs-container').getByRole('tab', { name, exact: true });
 const settingsSearch = (page: Page) => page.locator('#search-input-settings-modal');
+// Both tabs carry the title TAB; their panel ids tell them apart.
+const adminTab = (page: Page) => page.locator('[aria-controls="tab-admin-ocu-skills"]');
+const personalTab = (page: Page) => page.locator('[aria-controls="tab-ocu_skills"]');
 
 /** Browser requests to the skill routes; page.request API calls never pass through the page. */
 function skillRequests(page: Page) {
@@ -76,14 +81,17 @@ test('admin tab: upload, reason, stored access, cancelled and confirmed delete',
 	let groupId: string | null = null;
 	try {
 		await page.goto(DEEP_LINK);
-		await expect(tabNamed(page, TAB)).toHaveAttribute('aria-selected', 'true');
+		await expect(adminTab(page)).toHaveAttribute('aria-selected', 'true');
+		await expect(personalTab(page)).toHaveAttribute('aria-selected', 'false');
 		await expect(byCy(page, 'ocu-skills-notice-revocation')).toBeVisible();
 		await expect(byCy(page, 'ocu-skills-notice-replacement')).toBeVisible();
 
-		// Positive control for the workspace-off search: with the flag on, `skills` finds this one tab.
+		// Positive control for the workspace-off search: with the flag on, `skills` finds both tabs.
 		await search(page, 'skills');
-		await expect(settingsTabs(page)).toHaveCount(1);
-		await expect(tabNamed(page, TAB)).toHaveCount(1);
+		await expect(settingsTabs(page)).toHaveCount(2);
+		await expect(tabNamed(page, TAB)).toHaveCount(2);
+		await expect(personalTab(page)).toHaveCount(1);
+		await expect(adminTab(page)).toHaveCount(1);
 		await search(page, '');
 		await expect(tabNamed(page, '数据库')).toBeVisible();
 
@@ -129,7 +137,8 @@ test('admin tab: upload, reason, stored access, cancelled and confirmed delete',
 			{ principal_type: 'group', principal_id: groupId, permission: 'read' }
 		]);
 		await page.goto(DEEP_LINK);
-		await expect(tabNamed(page, TAB)).toHaveAttribute('aria-selected', 'true');
+		await expect(adminTab(page)).toHaveAttribute('aria-selected', 'true');
+		await expect(personalTab(page)).toHaveAttribute('aria-selected', 'false');
 		const before = requests.length;
 		await byCy(page, `ocu-skills-access-${SKILL}`).click();
 		const editor = page.locator('.modal').filter({ hasText: groupName });
@@ -167,7 +176,70 @@ test('admin tab: upload, reason, stored access, cancelled and confirmed delete',
 	checkErrors(1);
 });
 
-test('workspace off: no admin tab and no skill request, even on the deep link', async ({
+test('personal tab: the switch persists through toggle and reload', async ({ page }) => {
+	const requests = skillRequests(page);
+	const checkErrors = collectErrors(page);
+	await openInChinese(page);
+	const api = await admin(page);
+	await removeQuietly(api, `${SKILLS_PATH}/${SKILL}`);
+	try {
+		// Raw ZIP bytes: the `post` helper sends JSON.
+		const uploaded = await api.request.post(UPLOAD_PATH, {
+			data: readFileSync(FIXTURE),
+			headers: { ...api.headers, 'Content-Type': 'application/zip' }
+		});
+		expect(uploaded.status()).toBe(200);
+
+		await page.goto(PERSONAL_DEEP_LINK);
+		await expect(personalTab(page)).toHaveAttribute('aria-selected', 'true');
+		await expect(adminTab(page)).toHaveAttribute('aria-selected', 'false');
+		const toggle = page.getByRole('switch', { name: SKILL, exact: true });
+		await expect(byCy(page, `ocu-skills-pref-row-${SKILL}`)).toBeVisible();
+		await expect(byCy(page, `ocu-skills-pref-row-${SKILL}`)).toContainText(
+			'Harness smoke skill, uploaded and deleted by make smoke.'
+		);
+		await expect(byCy(page, `ocu-skills-pref-switch-${SKILL}`).getByRole('switch')).toBeVisible();
+		await expect(toggle).toBeChecked();
+
+		const toggled = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === `${SKILLS_PATH}/${SKILL}/toggle` &&
+				response.request().method() === 'POST'
+		);
+		await toggle.click();
+		const answer = await toggled;
+		expect(answer.request().postDataJSON()).toEqual({ enabled: false });
+		expect(answer.status()).toBe(200);
+		expect(requests.filter((request) => request.startsWith('POST'))).toEqual([
+			`POST ${SKILLS_PATH}/${SKILL}/toggle`
+		]);
+		await expect(toggle).not.toBeChecked();
+
+		await page.reload();
+		await expect(page.locator('#chat-input')).toBeVisible();
+		await page.goto(PERSONAL_DEEP_LINK);
+		await expect(personalTab(page)).toHaveAttribute('aria-selected', 'true');
+		await expect(byCy(page, `ocu-skills-pref-row-${SKILL}`)).toBeVisible();
+		await expect(toggle).not.toBeChecked();
+		// After the reload, with the modal fade and switch transition finished: the stored state.
+		await page.screenshot({
+			path: `${evidence}/ocu-skills-personal.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+
+		const listed = await api.request.get(`${SKILLS_PATH}/`, { headers: api.headers });
+		expect(listed.status()).toBe(200);
+		expect((await listed.json()).find((skill: { name: string }) => skill.name === SKILL)).toEqual(
+			expect.objectContaining({ name: SKILL, enabled: false })
+		);
+	} finally {
+		await removeQuietly(api, `${SKILLS_PATH}/${SKILL}`);
+	}
+	checkErrors(0);
+});
+
+test('workspace off: no skills tab and no skill request, even on the deep links', async ({
 	page
 }) => {
 	// Installed before the first navigation, so no page of this case ever sees the flag on.
@@ -200,6 +272,13 @@ test('workspace off: no admin tab and no skill request, even on the deep link', 
 		path: `${evidence}/ocu-skills-workspace-off-deep-link.png`,
 		fullPage: true
 	});
+
+	// The personal deep link: the modal opens (positive control), without the tab or its content.
+	await page.goto(PERSONAL_DEEP_LINK);
+	await expect(settingsSearch(page)).toBeVisible();
+	await expect(tabNamed(page, '数据库')).toBeVisible();
+	await expect(page.locator('[data-cy^="ocu-skills-"]')).toHaveCount(0);
+	await expect(page.getByRole('tab', { name: TAB })).toHaveCount(0);
 
 	expect(requests).toEqual([]);
 	checkErrors(0);
