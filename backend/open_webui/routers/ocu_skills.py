@@ -7,14 +7,16 @@ router decides whether this router is mounted at all.
 from __future__ import annotations
 
 import asyncio
+import hmac
+import os
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from open_webui.config import BYPASS_ADMIN_ACCESS_CONTROL
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.models.access_grants import AccessGrantModel, AccessGrants
 from open_webui.models.ocu_skills import OCU_SKILL_RESOURCE_TYPE, OcuSkillModel, OcuSkillReadableModel, OcuSkills
-from open_webui.models.users import UserModel
+from open_webui.models.users import UserModel, Users
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.ocu_skill_zip import SkillZipError, validate_skill_zip
 from pydantic import BaseModel, Field, StrictBool
@@ -107,6 +109,18 @@ class OcuSkillToggleForm(BaseModel):
     enabled: StrictBool
 
 
+class OcuInternalSkill(BaseModel):
+    name: str
+    description: str
+    category: Literal['user']
+    zip_sha256: str
+
+
+class OcuInternalUserConfig(BaseModel):
+    email: str
+    enabled_skills: list[OcuInternalSkill]
+
+
 def _admin_item(skill: OcuSkillModel, grants: list[AccessGrantModel]) -> OcuSkillAdminItem:
     return OcuSkillAdminItem(
         **skill.model_dump(include=set(OcuSkillAdminItem.model_fields) - {'access_grants'}),
@@ -143,6 +157,46 @@ async def toggle_skill(name: str, form_data: OcuSkillToggleForm, user=Depends(ge
         raise _skill_not_found()
     await OcuSkills.set_enabled(user.id, name, form_data.enabled)
     return _user_item(readable[0].model_copy(update={'enabled': form_data.enabled}))
+
+
+def _internal_key_accepted(request: Request) -> bool:
+    """X-Internal-Api-Key equals a non-empty OCU_INTERNAL_TOKEN, read per request (design Decision 2).
+
+    UTF-8 bytes on both sides: Starlette decodes header bytes as latin-1, and compare_digest
+    raises TypeError on a non-ASCII str instead of returning False.
+    """
+    token = os.environ.get('OCU_INTERNAL_TOKEN', '').encode()
+    supplied = request.headers.get('X-Internal-Api-Key', '').encode()
+    return bool(token) and hmac.compare_digest(supplied, token)
+
+
+# The internal routes take no session dependency: the key is the only authority, and every
+# refusal is an empty 401 sent before any DB access, so a bad key learns nothing about skills.
+@router.get('/api/internal/user-config/{email}', response_model=OcuInternalUserConfig)
+async def internal_user_config(email: str, request: Request):
+    if not _internal_key_accepted(request):
+        return Response(status_code=status.HTTP_401_UNAUTHORIZED)
+    # No db argument: under session sharing a caller session with uncommitted writes must not reach these.
+    user = await Users.get_user_by_email(email)
+    skills = [] if user is None else await OcuSkills.readable_skills(user.id, _admin_bypass(user))
+    return OcuInternalUserConfig(
+        email=email,
+        enabled_skills=[
+            OcuInternalSkill(name=s.name, description=s.description, category='user', zip_sha256=s.zip_sha256)
+            for s in skills
+            if s.enabled
+        ],
+    )
+
+
+@router.get('/api/internal/skills/{name}/download')
+async def internal_download_skill(name: str, request: Request):
+    if not _internal_key_accepted(request):
+        return Response(status_code=status.HTTP_401_UNAUTHORIZED)
+    skill = await OcuSkills.get_by_name(name)
+    if skill is None:
+        raise _skill_not_found()
+    return Response(content=skill.data, media_type='application/zip')
 
 
 @router.get('/admin', response_model=list[OcuSkillAdminItem], dependencies=[Depends(get_admin_user)])

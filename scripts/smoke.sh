@@ -9,10 +9,13 @@
 # directory (and echo the result).
 case "${BASH_SOURCE[0]}" in */*) smoke_dir="${BASH_SOURCE[0]%/*}" ;; *) smoke_dir=. ;; esac
 CDPATH='' cd -- "$smoke_dir/.." || exit $?
+# The internal registry key is the running server's: dev-env.sh exports the same
+# OCU_INTERNAL_TOKEN default or override that make dev-bg started it with.
+source scripts/dev-env.sh || exit $?
 source scripts/seed.sh || exit $?
 seed_begin || exit $?
 seed_account || exit $?
-printf 'seed_email=%s\nseed_password=%s\n' "$SEED_EMAIL" "$SEED_PASSWORD" \
-  > "$seed_scratch/secrets" || exit $?
+printf 'seed_email=%s\nseed_password=%s\nocu_internal_token=%s\n' \
+  "$SEED_EMAIL" "$SEED_PASSWORD" "$OCU_INTERNAL_TOKEN" > "$seed_scratch/secrets" || exit $?
 seed_transport hurl --test smoke/*.hurl --variable base_url=http://localhost:8080 \
   --secrets-file "$seed_scratch/secrets"
