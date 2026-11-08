@@ -85,6 +85,8 @@
 	<Photo {className} {strokeWidth} />
 {:else if id === 'pipelines'}
 	<QueueList {className} {strokeWidth} />
+{:else if id === 'ocu-skills'}
+	<WrenchAlt {className} {strokeWidth} />
 {:else if id === 'db'}
 	<Database {className} {strokeWidth} />
 {/if}

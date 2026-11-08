@@ -6,7 +6,7 @@ export default defineConfig({
 	// diagnostic ones excluded from the default list; unset keeps the explicit required list.
 	testMatch: process.env.OCU_UI_SPEC
 		? [`**/${process.env.OCU_UI_SPEC}`]
-		: '**/ocu-{workspace,resources,controls,reconciliation,drawio,tree,office,video-switch,image-placeholder}.e2e.ts',
+		: '**/ocu-{workspace,resources,controls,reconciliation,drawio,tree,office,video-switch,image-placeholder,skills}.e2e.ts',
 	timeout: 60_000,
 	workers: 1,
 	expect: { timeout: 20_000 },

@@ -93,6 +93,7 @@ REQUIRED_SPECS = (
     'ocu-office.e2e.ts',
     'ocu-video-switch.e2e.ts',
     'ocu-image-placeholder.e2e.ts',
+    'ocu-skills.e2e.ts',
 )
 # Pinned Open WebUI functions the video-switch spec installs; read from the stage, never copied.
 FILTER_SOURCES = {
