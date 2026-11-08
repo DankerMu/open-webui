@@ -34,6 +34,16 @@ cd "$wt" || exit 1
 pass=0
 fail=0
 
+# names_all OUTPUT REQUIRED — true when OUTPUT contains every line of REQUIRED (one string per line).
+names_all() {
+  local r
+  while IFS= read -r r; do
+    printf '%s\n' "$1" | grep -qF -- "$r" || return 1
+  done <<EOF
+$2
+EOF
+}
+
 expect_reject() {
   name="$1"; reason="$2"; shift 2
   out=$("$@" 2>&1); rc=$?
@@ -41,7 +51,7 @@ expect_reject() {
     echo "FAIL  $name — guard ACCEPTED the violation (phantom enforcement)"; fail=$((fail + 1))
   elif [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
     echo "FAIL  $name — guard not runnable (exit $rc): missing tool or non-executable hook"; fail=$((fail + 1))
-  elif ! printf '%s\n' "$out" | grep -qF -- "$reason"; then
+  elif ! names_all "$out" "$reason"; then
     echo "FAIL  $name — exited $rc without naming \"$reason\" — crash, not rejection:"
     printf '%s\n' "$out" | sed 's/^/        /'; fail=$((fail + 1))
   else
@@ -57,6 +67,19 @@ expect_accept() {
     echo "PASS  $name — guard accepts the clean tree"; pass=$((pass + 1))
   else
     echo "FAIL  $name — guard REJECTED the clean tree (always-failing guard or broken setup)"; fail=$((fail + 1))
+  fi
+}
+
+# expect_accept_with NAME REQUIRED_TEXT CMD... — passes only on exit 0 with every line of REQUIRED_TEXT
+# in the combined output, so an accept proves the step ran rather than that it was skipped.
+expect_accept_with() {
+  name="$1"; required="$2"; shift 2
+  out=$("$@" 2>&1); rc=$?
+  if [ "$rc" -eq 0 ] && names_all "$out" "$required"; then
+    echo "PASS  $name — guard accepted and printed the required text"; pass=$((pass + 1))
+  else
+    echo "FAIL  $name — exited $rc; required exit 0 and \"$required\":"
+    printf '%s\n' "$out" | sed 's/^/        /'; fail=$((fail + 1))
   fi
 }
 
@@ -614,6 +637,72 @@ for payload in "empty:" "non-JSON:knip crashed" "no issues list:{}"; do
   expect_reject "knip gate (stand-in knip prints ${payload%%:*})" "knip report unreadable" \
     env PATH="$fake_npx:$PATH" knip_standin_out="${payload#*:}" bash scripts/anti-drift.sh --only knip
 done
+
+# 13. Scoped vulture step (#773): findings on upstream lines of a modified (M) file are advisory;
+# A-file findings, fork-touched M lines and every unreadable vulture outcome block. A stand-in uv
+# replaces `uv run`, which would sync a fresh .venv in $wt.
+fake_uv="$tmp/fake-uv-bin"; mkdir -p "$fake_uv"
+cat > "$fake_uv/uv" <<'SH'
+#!/bin/sh
+case "$*" in
+  "run --quiet vulture "*" --min-confidence 80")
+    [ -n "${vulture_standin_out:-}" ] && printf '%s\n' "$vulture_standin_out"
+    [ -n "${vulture_standin_err:-}" ] && printf '%s\n' "$vulture_standin_err" >&2
+    exit "${vulture_standin_rc:?}" ;;
+esac
+echo "fake uv: only 'uv run --quiet vulture … --min-confidence 80' is stubbed, got: $*" >&2; exit 99
+SH
+chmod +x "$fake_uv/uv"
+vulture_gate() { # vulture_gate STDOUT STDERR EXIT — the stand-in vulture prints these and exits so
+  env PATH="$fake_uv:$PATH" vulture_standin_out="$1" vulture_standin_err="$2" vulture_standin_rc="$3" \
+    bash scripts/anti-drift.sh --only vulture
+}
+vm=backend/open_webui/main.py; va=backend/conftest.py
+vulture_fixture=""
+py_scope="$(bash scripts/change-scope.sh --status --ext py)"
+printf '%s\n' "$py_scope" | grep -qxF "$(printf 'M\t%s' "$vm")" || vulture_fixture="$vulture_fixture $vm is not an M file in the change scope;"
+printf '%s\n' "$py_scope" | grep -qxF "$(printf 'A\t%s' "$va")" || vulture_fixture="$vulture_fixture $va is not an A file in the change scope;"
+[ "$(sed -n 17p "$vm")" = "from fastapi import (" ] || vulture_fixture="$vulture_fixture $vm:17 is not 'from fastapi import (';"
+[ "$(sed -n 18p "$vm")" = "    Depends," ] || vulture_fixture="$vulture_fixture $vm:18 is not '    Depends,';"
+# Independent oracle for the fork line set: lines 17 and 18 must lie outside every +start[,count] hunk.
+git diff --no-color --no-ext-diff -U0 "$(bash scripts/change-scope.sh --base)" -- "$vm" \
+  | awk '/^@@ /{ split($3, h, ","); s = substr(h[1], 2) + 0; n = (2 in h) ? h[2] + 0 : 1
+                  if ((17 >= s && 17 < s + n) || (18 >= s && 18 < s + n)) bad = 1 } END { exit bad }' \
+  || vulture_fixture="$vulture_fixture $vm:17 or :18 is a fork line;"
+if [ -n "$vulture_fixture" ]; then
+  echo "FAIL  vulture gate fixture —$vulture_fixture"; fail=$((fail + 1))
+else
+  finding_a="$vm:17: unused import 'Depends' (90% confidence)"
+  finding_af="$va:1: unused import 'os' (90% confidence)"
+  expect_accept_with "vulture gate (g) exit 0, no output" "--- dead code (vulture" vulture_gate "" "" 0
+  expect_accept_with "vulture gate (a) upstream import in an M file is advisory" "$finding_a  advisory (upstream)" \
+    vulture_gate "$finding_a" "" 3
+  expect_reject "vulture gate (b) vulture exits 2" "vulture failed (exit 2)" vulture_gate "" "usage error" 2
+  expect_reject "vulture gate (c) unparsable finding line" "vulture output unreadable: garbage" vulture_gate "garbage" "" 3
+  expect_reject "vulture gate (d) exit 3 without output" "vulture output unreadable" vulture_gate "" "" 3
+  expect_reject "vulture gate (i) input error beside a finding" "vulture failed (input error)" \
+    vulture_gate "$finding_a" "$vm:3: invalid syntax at \"x\"" 3
+  expect_reject "vulture gate (i) line-less syntax error beside a finding" "vulture failed (input error)" \
+    vulture_gate "$finding_a" "$vm:None: source code string cannot contain null bytes" 3
+  expect_reject "vulture gate exit 0 with a finding line" "vulture output unreadable" vulture_gate "$finding_a" "" 0
+  expect_reject "vulture gate (j) A finding blocks, M upstream finding advisory, one run" \
+    "$(printf '%s\n%s\n%s' "anti-drift: vulture reports unused code in scoped Python files" "$finding_af" "$finding_a  advisory (upstream)")" \
+    vulture_gate "$(printf '%s\n%s' "$finding_a" "$finding_af")" "" 3
+  expect_accept_with "vulture gate (k) a Python warning on stderr does not block" "--- dead code (vulture" \
+    vulture_gate "" "$vm:1: SyntaxWarning: invalid escape sequence '\d'" 0
+  printf 'import json as fork_probe_json\n' >> "$vm"
+  finding_e="$vm:$(wc -l < "$vm" | tr -d ' '): unused import 'fork_probe_json' (90% confidence)"
+  expect_reject "vulture gate (e) fork-added import in an M file" "$finding_e" vulture_gate "$finding_e" "" 3
+  git checkout --quiet -- "$vm"
+  expect_reject "vulture gate (f) finding in an A file" "$finding_af" vulture_gate "$finding_af" "" 3
+  awk '{ print } NR == 18 { print "    sep," }' "$vm" > "$tmp/main.py" && cat "$tmp/main.py" > "$vm"
+  finding_h="$vm:17: unused import 'sep' (90% confidence)"
+  expect_reject "vulture gate (h) fork-added name in an upstream multi-line import" "$finding_h" \
+    vulture_gate "$finding_h" "" 3
+  git checkout --quiet -- "$vm"
+  expect_reject "vulture gate (unknown --only value)" "--only accepts 'knip' or 'vulture'" \
+    bash scripts/anti-drift.sh --only jscpd
+fi
 
 echo
 echo "guardrail self-test: $pass passed, $fail failed"

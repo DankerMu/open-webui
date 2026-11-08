@@ -26,6 +26,7 @@ Must change:
   - The knip block is gated on `$only` too, so `--only vulture` skips it.
   - The usage text (`:7-12`) names both values.
 - **One shared preamble.**
+  - The scoped file lists are read from the `--status` scope files, and a failing `change-scope.sh` exits 2 instead of reading as an empty scope.
   - Before either step, compute once:
     - a single temp dir with one `trap … EXIT`;
     - `base` (`change-scope.sh --base`);
@@ -33,11 +34,11 @@ Must change:
   - The `fork_lines(file)` logic (`git diff --no-color --no-ext-diff -U0 <base> -- <file>`, the `+start[,count]` hunk ranges) lives in one bash variable holding the Python preamble. The knip filter and the vulture filter both run it through `python3 -c "$preamble…"`.
   - There is no second copy. jscpd does not scan `.sh`, so review enforces this.
 - **vulture outcome.** stdout and stderr are captured separately.
-  - Exit 0 with empty stdout passes the step.
+  - Exit 0 with empty stdout passes the step. Exit 0 with any stdout blocks with `vulture output unreadable`.
   - Exit 3 means findings; every other code blocks with `anti-drift: vulture failed (exit N)` plus both streams.
   - With exit 3, every stdout line must match `^(?P<path>[^:]+):(?P<line>\d+): (?P<msg>.+) \((?P<conf>\d+)% confidence(?:, \d+ lines?)?\)$`. A non-matching line blocks with `anti-drift: vulture output unreadable: <line>`. Exit 3 with no stdout line also blocks with that message.
   - vulture overwrites an InvalidInput exit with 3 whenever it also prints a finding (`vulture/core.py:349-365`). So stderr blocks, under either exit code, when any of its lines:
-    - matches `^<scoped path>:\d+: ` (vulture's syntax-error form, `vulture/core.py:233-239`), unless it matches `^<path>:\d+: \w*Warning: ` (a Python warning such as `SyntaxWarning` from `ast.parse`);
+    - matches `^<scoped path>:(?:\d+|None): ` (`None` occurs for null bytes on Python 3.12) (vulture's syntax-error form, `vulture/core.py:233-239`), unless it matches `^<path>:\d+: \w*Warning: ` (a Python warning such as `SyntaxWarning` from `ast.parse`);
     - contains `: invalid source code "` (`core.py:249-254`) or starts with `Error: Could not read file ` (`core.py:288-294`).
 
     Then the message is `anti-drift: vulture failed (input error)` plus stderr. Every other stderr line, including Python warnings, is printed and does not block.
