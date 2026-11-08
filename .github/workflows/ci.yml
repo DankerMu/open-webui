@@ -105,7 +105,11 @@ jobs:
         with:
           node: 'false'
           python: full
+          # The reserved skill-name drift test reads the pinned OCU checkout (#746).
+          ocu: 'true'
       - run: make coverage-gate PART=backend
+        env:
+          OCU_CHECKOUT: ${{ github.workspace }}/.run/open-computer-use
 
   layer2-frontend-tests:
     name: Frontend tests + coverage gate
