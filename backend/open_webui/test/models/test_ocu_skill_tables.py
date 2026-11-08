@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
-from open_webui.test.ocu_harness import configure_ocu_test_env
-from sqlalchemy import create_engine, event, inspect, text
+from open_webui.test.ocu_harness import _SelectRecorder, configure_ocu_test_env
+from sqlalchemy import create_engine, inspect, text
 
 configure_ocu_test_env()
 
@@ -42,11 +42,15 @@ def _migrate(engine, *steps: str) -> None:
 @pytest.fixture(scope='module', autouse=True)
 def _registry_tables():
     from open_webui.models.access_grants import AccessGrant
+    from open_webui.models.groups import Group, GroupMember
 
     engine = _engine()
     # _empty_registry and OcuSkills.delete touch access_grant, which only the full alembic chain
     # (app import) creates; in the default full-suite order this module runs before any app import.
     AccessGrant.__table__.create(engine, checkfirst=True)
+    # Likewise for readable_skills, which resolves group membership through group and group_member.
+    Group.__table__.create(engine, checkfirst=True)
+    GroupMember.__table__.create(engine, checkfirst=True)
     if not set(_TABLES) <= set(inspect(engine).get_table_names()):
         _migrate(engine, 'upgrade')
     yield
@@ -111,27 +115,6 @@ async def _grants_and_disables(name: str) -> tuple[list[tuple[str, str, str]], l
     return [(g.principal_type, g.principal_id, g.permission) for g in grants], disables
 
 
-class _SelectRecorder:
-    """Records every statement the application engine sends while active."""
-
-    def __init__(self):
-        from open_webui.internal.db import async_engine
-
-        self._engine = async_engine.sync_engine
-        self.statements: list[str] = []
-
-    def _record(self, _conn, _cursor, statement, _params, _context, _many):
-        self.statements.append(statement)
-
-    def __enter__(self):
-        event.listen(self._engine, 'before_cursor_execute', self._record)
-        return self
-
-    def __exit__(self, *_exc):
-        event.remove(self._engine, 'before_cursor_execute', self._record)
-        return False
-
-
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('_empty_registry')
 async def test_list_all_returns_every_row_without_selecting_data():
@@ -147,10 +130,61 @@ async def test_list_all_returns_every_row_without_selecting_data():
         ('list-a description', 'sha-list-a', 4, 'admin-id'),
         ('list-b description', 'sha-list-b', 4, 'admin-id'),
     ]
-    selects = [s for s in recorder.statements if s.lstrip().upper().startswith('SELECT') and 'ocu_skill' in s]
-    assert selects, recorder.statements
-    assert all('ocu_skill.data' not in s for s in selects), selects
+    recorder.assert_no_skill_data_select()
     assert all('data' not in row.model_dump() for row in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_readable_skills_filters_by_read_grant_and_reports_enabled_without_selecting_data():
+    from open_webui.internal.db import get_async_db
+    from open_webui.models.access_grants import AccessGrants
+    from open_webui.models.ocu_skills import OcuSkills, OcuSkillUserDisable
+
+    await _seed('rd-c', 'rd-b', 'rd-a')
+    await AccessGrants.grant_access('ocu_skill', 'rd-a', 'user', '*', 'read')
+    await AccessGrants.grant_access('ocu_skill', 'rd-b', 'user', 'user-u', 'read')
+    # A write grant is not read access, and a native skill grant is another resource type.
+    await AccessGrants.grant_access('ocu_skill', 'rd-c', 'user', 'user-u', 'write')
+    await AccessGrants.grant_access('skill', 'rd-c', 'user', '*', 'read')
+    async with get_async_db() as db:
+        for user_id, name in (('user-u', 'rd-b'), ('user-v', 'rd-a')):
+            db.add(OcuSkillUserDisable(user_id=user_id, skill_name=name))
+        await db.commit()
+
+    def item(name: str, enabled: bool) -> dict:
+        return {'name': name, 'description': f'{name} description', 'zip_sha256': f'sha-{name}', 'enabled': enabled}
+
+    try:
+        with _SelectRecorder() as recorder:
+            granted = await OcuSkills.readable_skills('user-u', False)
+            bypassed = await OcuSkills.readable_skills('user-u', True)
+            named = await OcuSkills.readable_skills('user-u', False, names=['rd-b', 'rd-c', 'ghost'])
+            other = await OcuSkills.readable_skills('user-v', False)
+    finally:
+        await AccessGrants.revoke_access('skill', 'rd-c', 'user', '*', 'read')
+
+    assert [s.model_dump() for s in granted] == [item('rd-a', True), item('rd-b', False)]
+    assert [s.model_dump() for s in bypassed] == [item('rd-a', True), item('rd-b', False), item('rd-c', True)]
+    assert [s.model_dump() for s in named] == [item('rd-b', False)]
+    assert [s.model_dump() for s in other] == [item('rd-a', False)]
+    recorder.assert_no_skill_data_select()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('_empty_registry')
+async def test_get_metadata_skips_data_and_returns_none_for_unknown():
+    from open_webui.models.ocu_skills import OcuSkills
+
+    await _seed('meta-a', now=1234)
+
+    with _SelectRecorder() as recorder:
+        row = await OcuSkills.get_metadata('meta-a')
+
+    assert row is not None and (row.name, row.zip_sha256, row.size, row.created_at) == ('meta-a', 'sha-meta-a', 4, 1234)
+    assert row.model_dump() == (await OcuSkills.get_by_name('meta-a')).model_dump(exclude={'data'})
+    recorder.assert_no_skill_data_select()
+    assert await OcuSkills.get_metadata('meta-missing') is None
 
 
 @pytest.mark.asyncio

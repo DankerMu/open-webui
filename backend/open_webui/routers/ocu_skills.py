@@ -10,12 +10,14 @@ import asyncio
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from open_webui.config import BYPASS_ADMIN_ACCESS_CONTROL
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.models.access_grants import AccessGrantModel, AccessGrants
-from open_webui.models.ocu_skills import OCU_SKILL_RESOURCE_TYPE, OcuSkillModel, OcuSkills
-from open_webui.utils.auth import get_admin_user
+from open_webui.models.ocu_skills import OCU_SKILL_RESOURCE_TYPE, OcuSkillModel, OcuSkillReadableModel, OcuSkills
+from open_webui.models.users import UserModel
+from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.ocu_skill_zip import SkillZipError, validate_skill_zip
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter()
@@ -94,6 +96,17 @@ class OcuSkillAccessForm(BaseModel):
     access_grants: list[OcuSkillAccessGrant]
 
 
+class OcuSkillUserItem(BaseModel):
+    name: str
+    description: str
+    enabled: bool
+
+
+class OcuSkillToggleForm(BaseModel):
+    # StrictBool: a JSON "false" string or 0 is a client bug, not a disable.
+    enabled: StrictBool
+
+
 def _admin_item(skill: OcuSkillModel, grants: list[AccessGrantModel]) -> OcuSkillAdminItem:
     return OcuSkillAdminItem(
         **skill.model_dump(include=set(OcuSkillAdminItem.model_fields) - {'access_grants'}),
@@ -109,6 +122,29 @@ def _skill_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
 
 
+def _admin_bypass(user: UserModel) -> bool:
+    return user.role == 'admin' and BYPASS_ADMIN_ACCESS_CONTROL
+
+
+def _user_item(skill: OcuSkillReadableModel) -> OcuSkillUserItem:
+    return OcuSkillUserItem(name=skill.name, description=skill.description, enabled=skill.enabled)
+
+
+@router.get('/', response_model=list[OcuSkillUserItem])
+async def list_skills(user=Depends(get_verified_user)):
+    return [_user_item(skill) for skill in await OcuSkills.readable_skills(user.id, _admin_bypass(user))]
+
+
+@router.post('/{name}/toggle', response_model=OcuSkillUserItem)
+async def toggle_skill(name: str, form_data: OcuSkillToggleForm, user=Depends(get_verified_user)):
+    # Unknown and unreadable share this one 404: the response never reveals an ungranted skill.
+    readable = await OcuSkills.readable_skills(user.id, _admin_bypass(user), names=[name])
+    if not readable:
+        raise _skill_not_found()
+    await OcuSkills.set_enabled(user.id, name, form_data.enabled)
+    return _user_item(readable[0].model_copy(update={'enabled': form_data.enabled}))
+
+
 @router.get('/admin', response_model=list[OcuSkillAdminItem], dependencies=[Depends(get_admin_user)])
 async def list_admin_skills():
     skills = await OcuSkills.get_all()
@@ -118,7 +154,7 @@ async def list_admin_skills():
 
 @router.post('/{name}/access', response_model=OcuSkillAdminItem, dependencies=[Depends(get_admin_user)])
 async def update_skill_access(name: str, form_data: OcuSkillAccessForm):
-    skill = await OcuSkills.get_by_name(name)
+    skill = await OcuSkills.get_metadata(name)
     if skill is None:
         raise _skill_not_found()
     grants = await AccessGrants.set_access_grants(OCU_SKILL_RESOURCE_TYPE, name, form_data.access_grants)

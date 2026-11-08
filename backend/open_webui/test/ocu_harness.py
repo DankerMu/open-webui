@@ -17,6 +17,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
+from sqlalchemy import event
+
 _CLIENT = None
 
 
@@ -135,6 +137,33 @@ def _session_headers(user_id: str) -> dict[str, str]:
     from open_webui.utils.auth import create_token
 
     return {'Authorization': f'Bearer {create_token({"id": user_id})}'}
+
+
+class _SelectRecorder:
+    """Records every statement the application engine sends while active."""
+
+    def __init__(self):
+        from open_webui.internal.db import async_engine
+
+        self._engine = async_engine.sync_engine
+        self.statements: list[str] = []
+
+    def _record(self, _conn, _cursor, statement, _params, _context, _many):
+        self.statements.append(statement)
+
+    def __enter__(self):
+        event.listen(self._engine, 'before_cursor_execute', self._record)
+        return self
+
+    def __exit__(self, *_exc):
+        event.remove(self._engine, 'before_cursor_execute', self._record)
+        return False
+
+    def assert_no_skill_data_select(self) -> None:
+        """At least one SELECT read ocu_skill, and none of them named the deferred data column."""
+        selects = [s for s in self.statements if s.lstrip().upper().startswith('SELECT') and 'ocu_skill' in s]
+        assert selects, self.statements
+        assert all('ocu_skill.data' not in s for s in selects), selects
 
 
 class _StubResponse:
