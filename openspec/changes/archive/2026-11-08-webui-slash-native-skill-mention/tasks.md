@@ -1,11 +1,11 @@
 ## 1. Native skill mention from the `/` menu
 
-- [ ] 1.1 Add the stub pytest cases and the Playwright case from design.md. Run them on `main` @ `e5da5be3b` first: the skill-block stub case and the browser case must fail.
-- [ ] 1.2 Extend `scripts/ocu_stub_model.py` `chat_completion` with the ` Skills: …` suffix.
-- [ ] 1.3 Backport upstream `c402acb404` at `src/lib/components/chat/MessageInput.svelte:1424`.
-- [ ] 1.4 Replace the native-mention sentence in `openspec/changes/ocu-uploaded-skills/tasks.md` task 7.1 (`:764`). It should say that native mentions from the chat `/` menu serialize as `<${id}|{name}>` since #771.
-- [ ] 1.5 Run the verification list in design.md. Every command passes.
-- [ ] 1.6 PR body: state that the browser case replaces the component test that #771's first acceptance item names, and why (design.md Seams under test).
+- [x] 1.1 Add the stub pytest cases and the Playwright case from design.md. Run them on `main` @ `e5da5be3b` first: the skill-block stub case and the browser case must fail.
+- [x] 1.2 Extend `scripts/ocu_stub_model.py` `chat_completion` with the ` Skills: …` suffix.
+- [x] 1.3 Backport upstream `c402acb404` at `src/lib/components/chat/MessageInput.svelte:1424`.
+- [x] 1.4 Replace the native-mention sentence in `openspec/changes/ocu-uploaded-skills/tasks.md` task 7.1 (`:764`). It should say that native mentions from the chat `/` menu serialize as `<${id}|{name}>` since #771.
+- [x] 1.5 Run the verification list in design.md. Every command passes.
+- [x] 1.6 PR body: state that the browser case replaces the component test that #771's first acceptance item names, and why (design.md Seams under test).
 
 Archive note: `webui-skill-mention-linear` (#769) also ADDs capability `chat-skill-mention-parsing`. Whichever PR merges second rebases onto main and re-runs the archive against the spec that now exists. Never hand-merge the two spec files.
 
