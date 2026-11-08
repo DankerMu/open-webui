@@ -2,7 +2,9 @@
 
 Optionally reports the status of /api/v1/ocu/skills{path} requests sent by a session
 of the given role, for gates decided at import time by the workspace flag. A path is
-sent as GET unless it carries a method prefix, as in 'DELETE /name'.
+sent as GET unless it carries a method prefix, as in 'DELETE /name'. A `skills_key` reaches
+the child only as its OCU_INTERNAL_TOKEN environment value, never argv; the child then sends
+it as X-Internal-Api-Key on every skills request.
 """
 
 from __future__ import annotations
@@ -23,7 +25,12 @@ _REPO = Path(__file__).resolve().parents[3]
 
 
 def run_office_flag_process(
-    *, office: str | None, workspace: str, skills_paths: Sequence[str] = (), skills_role: str = 'admin'
+    *,
+    office: str | None,
+    workspace: str,
+    skills_paths: Sequence[str] = (),
+    skills_role: str = 'admin',
+    skills_key: str | None = None,
 ) -> dict:
     data_dir = _REPO / '.run' / 'data' / f'office-flag-{uuid.uuid4()}'
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -45,6 +52,8 @@ def run_office_flag_process(
     if skills_paths:
         command.extend(['--skills-role', skills_role])
     env = os.environ.copy()
+    if skills_key is not None:
+        env['OCU_INTERNAL_TOKEN'] = skills_key
     pythonpath = env.get('PYTHONPATH', '')
     env['PYTHONPATH'] = str(_BACKEND) if not pythonpath else os.pathsep.join([str(_BACKEND), pythonpath])
     try:
@@ -112,6 +121,9 @@ def _skills_statuses(client, ocu_harness, role: str, paths: list[str]) -> dict[s
     user = asyncio.run(ocu_harness._insert_user(role=role, prefix='skills-flag'))
     try:
         headers = ocu_harness._session_headers(user.id)
+        key = os.environ.get('OCU_INTERNAL_TOKEN')
+        if key is not None:
+            headers['X-Internal-Api-Key'] = key
         statuses = {}
         for spec in paths:
             method, _, path = spec.rpartition(' ')

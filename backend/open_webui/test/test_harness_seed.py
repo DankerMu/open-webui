@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -33,7 +34,8 @@ from pathlib import Path
 command = Path(sys.argv[0]).name
 args = sys.argv[1:]
 password = os.environ['OBS_PASSWORD']
-record = {'command': command, 'cwd': os.getcwd(), 'exposed': any(password in arg for arg in args)}
+token = os.environ['OBS_TOKEN']
+record = {'command': command, 'cwd': os.getcwd(), 'exposed': any(password in arg or token in arg for arg in args)}
 
 
 def save():
@@ -133,6 +135,8 @@ try:
             'email': values.get('seed_email'), 'password': values.get('seed_password'),
         })
         record['authenticated'] = status == 200
+        # Only the comparison is recorded, never the value.
+        record['token_matches'] = values.get('ocu_internal_token') == token
         save()
         sys.exit(0 if status == 200 else 94)
     else:
@@ -173,6 +177,14 @@ def require(condition, message):
         raise AssertionError(message)
 
 
+def dev_env_default_token():
+    # Parsed, never a literal copy: scripts/dev-env.sh is the only place the default is defined.
+    text = (ROOT / 'scripts' / 'dev-env.sh').read_text(encoding='utf-8')
+    match = re.search(r'^export OCU_INTERNAL_TOKEN="\$\{OCU_INTERNAL_TOKEN:-([^}]+)\}"$', text, re.MULTILINE)
+    require(match is not None, 'scripts/dev-env.sh no longer exports a defaulted OCU_INTERNAL_TOKEN')
+    return match.group(1)
+
+
 class PrivateInvocation:
     def __init__(self, argv, environment):
         self.argv = argv
@@ -187,11 +199,13 @@ def harness(tmp_path):
     workspace = tmp_path / 'workspace'
     (workspace / 'scripts').mkdir(parents=True)
     shutil.copy2(ROOT / 'Makefile', workspace / 'Makefile')
-    for name in ('seed.sh', 'smoke.sh'):
+    for name in ('dev-env.sh', 'seed.sh', 'smoke.sh'):
         source = ROOT / 'scripts' / name
         if source.exists():
             shutil.copy2(source, workspace / 'scripts' / name)
     shutil.copytree(ROOT / 'smoke', workspace / 'smoke')
+    # scripts/dev-env.sh resolves its root with `git rev-parse --show-toplevel`.
+    subprocess.run(['git', 'init', '-q', str(workspace)], check=True, env={**os.environ, 'HOME': str(tmp_path)})
     scratch = tmp_path / 'transport'
     scratch.mkdir(mode=0o700)
     sentinel = scratch / 'unrelated'
@@ -201,7 +215,7 @@ def harness(tmp_path):
     receiver = binaries / 'receiver'
     receiver.write_text(f'#!{sys.executable}\n' + _RECEIVER, encoding='utf-8')
     receiver.chmod(0o700)
-    names = ('bash', 'mktemp', 'mkdir', 'chmod', 'rm', 'cat', 'sed', 'python', 'python3', 'env', 'sleep')
+    names = ('bash', 'mktemp', 'mkdir', 'chmod', 'rm', 'cat', 'sed', 'python', 'python3', 'env', 'sleep', 'git')
     executables = {name: path for name in names if (path := shutil.which(name))}
     for name in (*executables, 'curl', 'hurl'):
         (binaries / name).symlink_to(receiver)
@@ -212,6 +226,7 @@ def harness(tmp_path):
         'TMPDIR': str(scratch),
         'OBS_RECORD': str(record),
         'OBS_EXECUTABLES': json.dumps(executables),
+        'OBS_TOKEN': dev_env_default_token(),
         'NO_PROXY': '*',
     }
     state = {'account': False, 'requests': [], 'matches': lambda _credentials: False}
@@ -286,8 +301,9 @@ def launch(harness, invocation, interrupt=None, cwd=None):
                 process.wait(timeout=5)
             except (OSError, subprocess.SubprocessError):
                 raise AssertionError('Harness invocation could not retire its owned processes') from None
-    password = invocation.environment['OBS_PASSWORD'].encode()
-    return process.returncode, b'SOURCE_RETURNED\n' in stdout, password in stdout + stderr
+    output = stdout + stderr
+    secrets = (invocation.environment['OBS_PASSWORD'].encode(), invocation.environment['OBS_TOKEN'].encode())
+    return process.returncode, b'SOURCE_RETURNED\n' in stdout, any(secret in output for secret in secrets)
 
 
 def observations(record):
@@ -531,4 +547,33 @@ def test_smoke_runs_only_its_repository_fixtures(harness, tmp_path, invocation):
         'Smoke resolved credentials or ran Hurl outside its repository root',
     )
     require_completed_private_transports(transports)
+    require_clean_scratch(harness)
+
+
+@pytest.mark.parametrize('surface', ['make', 'script'])
+@pytest.mark.parametrize('configuration', ['default', 'environment'])
+def test_smoke_passes_the_dev_env_internal_token_as_a_secret(harness, surface, configuration):
+    _, _, _, record, base_env, state = harness
+    email, password = f'token-{uuid4().hex}@harness.local', uuid4().hex
+    env = dict(base_env, SEED_EMAIL=email, SEED_PASSWORD=password, OBS_PASSWORD=password)
+    if configuration == 'environment':
+        env.update(OCU_INTERNAL_TOKEN=uuid4().hex)
+        env['OBS_TOKEN'] = env['OCU_INTERNAL_TOKEN']
+    state['matches'] = lambda credentials: credentials == (email, password)
+    command = ['make', '-s', '--no-print-directory', 'smoke'] if surface == 'make' else ['bash', 'scripts/smoke.sh']
+
+    status, _, disclosed = launch(harness, PrivateInvocation(command, env))
+
+    rows = observations(record)
+    require(
+        not any(row.get('receiver_failure') for row in rows), 'Transport receiver could not interpret executed argv'
+    )
+    require(not disclosed, 'Smoke diagnostics disclosed the seed password or the internal token')
+    require(not any(row['exposed'] for row in rows), 'Executed child argv disclosed the seed password or token')
+    require(status == 0, 'Smoke failed')
+    hurl = [row for row in rows if row['command'] == 'hurl']
+    require(len(hurl) == 1, 'Smoke did not run Hurl exactly once')
+    require(hurl[0].get('secret_file'), 'Smoke did not pass its values through the secrets file')
+    require(hurl[0].get('token_matches') is True, "Hurl's ocu_internal_token is not the effective dev-env token")
+    require_completed_private_transports([row for row in rows if row['command'] in ('curl', 'hurl')])
     require_clean_scratch(harness)
