@@ -18,6 +18,9 @@ export type OcuAdminSkill = {
 	access_grants: OcuSkillGrant[];
 };
 
+// The shape GET / and POST /{name}/toggle return: a readable skill and the caller's switch.
+export type OcuUserSkill = Pick<OcuAdminSkill, 'name' | 'description'> & { enabled: boolean };
+
 type OcuUploadedSkill = Pick<OcuAdminSkill, 'name' | 'description' | 'zip_sha256' | 'size'>;
 
 const requestSkills = async (
@@ -72,3 +75,13 @@ export const updateSkillAccess = (
 
 export const deleteSkill = (token: string, name: string): Promise<boolean> =>
 	requestSkills(token, 'DELETE', `/${encodeURIComponent(name)}`);
+
+// The listing route is `/` itself, so the URL keeps its trailing slash.
+export const getUserSkills = (token: string): Promise<OcuUserSkill[]> =>
+	requestSkills(token, 'GET', '/');
+
+export const toggleSkill = (token: string, name: string, enabled: boolean): Promise<OcuUserSkill> =>
+	requestSkills(token, 'POST', `/${encodeURIComponent(name)}/toggle`, {
+		type: 'application/json',
+		data: JSON.stringify({ enabled })
+	});

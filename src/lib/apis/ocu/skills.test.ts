@@ -3,9 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	deleteSkill,
 	getAdminSkills,
+	getUserSkills,
+	toggleSkill,
 	updateSkillAccess,
 	uploadSkill,
-	type OcuSkillGrant
+	type OcuSkillGrant,
+	type OcuUserSkill
 } from './skills';
 
 const TOKEN = 'session-token';
@@ -20,6 +23,11 @@ const adminListing = [
 		updated_at: 1700000000,
 		access_grants: [{ principal_type: 'user', principal_id: '*', permission: 'read' }]
 	}
+];
+
+const userListing: OcuUserSkill[] = [
+	{ name: 'invoice-builder', description: 'Builds invoices.', enabled: true },
+	{ name: 'pdf-tools', description: 'Splits PDFs.', enabled: false }
 ];
 
 const uploaded = {
@@ -45,15 +53,17 @@ const stubFetch = (response: () => Response) => {
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
-// Every admin route, called once, so each error case runs against all four.
+// Every route, called once, so each error case runs against all six.
 const routes: [string, () => Promise<unknown>][] = [
 	['getAdminSkills', () => getAdminSkills(TOKEN)],
 	['uploadSkill', () => uploadSkill(TOKEN, new Blob(['zip']))],
 	['updateSkillAccess', () => updateSkillAccess(TOKEN, 'invoice-builder', [])],
-	['deleteSkill', () => deleteSkill(TOKEN, 'invoice-builder')]
+	['deleteSkill', () => deleteSkill(TOKEN, 'invoice-builder')],
+	['getUserSkills', () => getUserSkills(TOKEN)],
+	['toggleSkill', () => toggleSkill(TOKEN, 'invoice-builder', false)]
 ];
 
-describe('ocu skills admin client', () => {
+describe('ocu skills client', () => {
 	afterEach(() => {
 		vi.unstubAllGlobals();
 	});
@@ -110,6 +120,39 @@ describe('ocu skills admin client', () => {
 		expect(calls[0].init.method).toBe('DELETE');
 		expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
 		expect(calls[0].init.body).toBeUndefined();
+	});
+
+	it('lists the readable skills with their enabled state from the trailing-slash route', async () => {
+		const calls = stubFetch(() => json(userListing));
+		await expect(getUserSkills(TOKEN)).resolves.toEqual(userListing);
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe('/api/v1/ocu/skills/');
+		expect(calls[0].init.method).toBe('GET');
+		expect(new Headers(calls[0].init.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+		expect(calls[0].init.body).toBeUndefined();
+	});
+
+	it.each([true, false])(
+		'toggles an encoded name with the exact body enabled=%s',
+		async (enabled) => {
+			const item = { name: 'a b/c', description: 'Encoded.', enabled };
+			const calls = stubFetch(() => json(item));
+			await expect(toggleSkill(TOKEN, 'a b/c', enabled)).resolves.toEqual(item);
+			expect(calls).toHaveLength(1);
+			expect(calls[0].url).toBe('/api/v1/ocu/skills/a%20b%2Fc/toggle');
+			expect(calls[0].init.method).toBe('POST');
+			const headers = new Headers(calls[0].init.headers);
+			expect(headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+			expect(headers.get('Content-Type')).toBe('application/json');
+			expect(calls[0].init.body).toBe(`{"enabled":${enabled}}`);
+		}
+	);
+
+	it('keeps the not-found reason of an unreadable toggle verbatim', async () => {
+		stubFetch(() => json({ detail: "We could not find what you're looking for :/" }, 404));
+		await expect(toggleSkill(TOKEN, 'hidden-skill', true)).rejects.toThrow(
+			new Error("We could not find what you're looking for :/")
+		);
 	});
 
 	it.each(routes)('%s surfaces the server reason of a string detail', async (_name, call) => {
