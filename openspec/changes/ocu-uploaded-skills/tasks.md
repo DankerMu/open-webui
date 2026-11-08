@@ -197,6 +197,51 @@ Minimal mergeable slice: task 1.1 first (tables, migration, the router mount and
     - The diff is at most 400 lines, or carries `diff-limit-exempt` with the task's slice reason.
 
 - [ ] 2.2 Add the replace path of `POST /upload`: an existing name replaces `data`, SHA-256, size and description in one DB transaction and keeps grants and disables. Verify with router pytest: replace keeps narrowed grants and disables; an injected commit failure (patch the session commit to raise) on a replace leaves the previous row, its `data` and its SHA-256 unchanged (read back through the table get method), and a success-path spy on the session commit sees exactly one call. Add a `smoke/` hurl case for an admin upload, then delete it.
+      Task 2.2 required evidence (issue #745; each item is input → expected output):
+  - **Table method.**
+    - The first-upload insert from task 2.1 becomes one upsert method in `models/ocu_skills.py`. There are no two parallel write methods.
+    - In one session with one `commit`, the method first runs a Core `UPDATE ocu_skill SET data, zip_sha256, size, description, updated_at WHERE name = :name`. It never loads the old `data`.
+    - If the update matched a row, that is the replace: `created_by` and `created_at` stay, and grants and disables are not touched.
+    - If it matched nothing, the method runs the task 2.1 first-upload path: purge orphans, insert the row, add the single `user` / `*` / `read` grant.
+    - It returns the stored metadata. The route response stays `{name, description, zip_sha256, size}` for both paths.
+    - A primary-key `IntegrityError` can still happen if a concurrent first upload inserts between the `UPDATE` and the `INSERT`. It rolls back and the route maps it to 409. The route mapping is tested by having the table method raise `IntegrityError`, which mocks a dependency of the route. Last-writer-wins on concurrent replaces is accepted and not tested (issue Out of Scope).
+  - **Replace keeps grants and disables.**
+    - Setup: first-upload `invoice-builder` (ZIP A), narrow its grants through `POST /invoice-builder/access` to exactly group A read, and seed a disable row for user U.
+    - Action: upload a different valid ZIP B with the same name and a different description.
+    - Expected:
+      - 200, with the SHA-256 and size of B;
+      - `get_by_name` returns B's bytes and description, and the same `created_by` and `created_at` as A;
+      - `updated_at` is at least the earlier value;
+      - `AccessGrants.get_grants_by_resource` returns exactly group A read, not `user:*`;
+      - U's disable row is still present;
+      - `GET /admin` shows B's SHA-256 with exactly the group A read grant.
+  - **One commit.**
+    - In the model test, a commit spy wraps only the direct call of the table method.
+    - The replace path sees exactly one `AsyncSession.commit`.
+    - The first-upload path still sees exactly one.
+  - **Replace commit failure.**
+    - With ZIP A stored and narrowed grants and a disable row seeded, `AsyncSession.commit` is patched at class level to raise `RuntimeError('injected commit failure')`.
+    - Both the model test and the router test assert `pytest.raises(RuntimeError, match='injected commit failure')`.
+    - After the patch is removed, `get_by_name` returns A's `data`, SHA-256, size and description. The grants and disables are unchanged and `GET /admin` lists A's SHA-256.
+  - **Validation still precedes any write.** A replace with an invalid ZIP (path traversal) → 400. A replace with a reserved name cannot occur, because reserved names never exist as rows. A 51 MB body → 413. In each case the stored row (A's bytes), grants and disables are unchanged.
+  - **The interim 409 is gone.** The task 2.1 test "an existing name → 409" is replaced by the replace test above. No test asserts 409 for a sequential re-upload.
+    - The model test `test_insert_of_existing_name_raises_integrity_error_and_rolls_back_the_purge` is deleted. Under the upsert, a sequential second call takes the replace path, so that test's premise no longer exists.
+    - The concurrent-first-upload `IntegrityError` is only possible on Postgres. On the SQLite harness DB, the UPDATE's implicit `BEGIN` takes the write lock, so two sessions are serialized and cannot reproduce it.
+    - The rollback of the purge on an exception before commit is the same mechanism the commit-failure tests prove. The route's 409 mapping is tested with the table method raising a real `IntegrityError(stmt, params, orig)` instance.
+  - **Smoke.** `smoke/ocu-skills.hurl` runs as the seeded harness admin, using the same signin capture as `smoke/api.hurl`:
+    - `POST /api/v1/ocu/skills/upload` with `Content-Type: application/zip` and the body `file,fixtures/ocu-smoke-skill.zip;` → 200, `name == "harness-smoke-skill"`, and `zip_sha256` matching the committed fixture's SHA-256;
+    - `GET /api/v1/ocu/skills/admin` → contains that name with exactly one `user` / `*` / `read` grant;
+    - `DELETE /api/v1/ocu/skills/harness-smoke-skill` → 200 `true`;
+    - `GET /admin` again → that name is absent.
+    - The fixture `smoke/fixtures/ocu-smoke-skill.zip` is committed. It is a few hundred bytes: a root `SKILL.md` with `name: harness-smoke-skill` and a description. The hurl file's header comment states how it was built (`python -c` with `zipfile`, deterministic `date_time`).
+    - A rerun after an interrupted run is idempotent, because an existing name now replaces in place.
+    - No `scripts/smoke.sh` change.
+  - **Docs.** The AGENTS.md Verification Matrix row for `make smoke` and the matching rows in `docs/agents/verification-matrix.md` name the uploaded-skill upload/delete round trip. `make doc-gate` exits 0.
+  - **Gates.**
+    - `make smoke` exits 0 with the new hurl file counted.
+    - `make lint-scoped`, `make fmt-check`, `make anti-drift` and `make coverage-gate` pass; the `ocu_skills` files stay at 80% or more.
+    - The seam check prints nothing: `git diff --name-only $(git merge-base HEAD origin/main) -- backend/open_webui/main.py backend/open_webui/migrations src .github scripts`.
+
 - [ ] 2.3 Add the reserved-list drift test: it asserts the list covers every directory under `$OCU_CHECKOUT/skills/public/`, `remotion`, and the `NATIVE_PROMPT_DESCRIPTIONS` keys parsed from the pinned `$OCU_CHECKOUT/computer-use-server/skill_manager.py`. `OCU_CHECKOUT` defaults to `<repo root>/../open-computer-use`, resolved from the repository root (as `scripts/proxy-dev.sh:10` does), not from the pytest working directory (`Makefile:91` runs pytest from `backend/`). A missing checkout fails with a message instead of skipping. Add the pinned OCU checkout steps (as in `layer3-integration-tests`, `.github/workflows/ci.yml:111-121`) to `layer2-unit-tests` and export `OCU_CHECKOUT`; the PR must flag this CI change. Verify locally that the drift test fails after removing one `skills/public/` name and, separately, one `NATIVE_PROMPT_DESCRIPTIONS` key from the list, fails with the message when `OCU_CHECKOUT` points at a missing directory, and passes with the full list.
 
 Suggested fixture level: expanded - path safety, resource limits and persisted bytes.
