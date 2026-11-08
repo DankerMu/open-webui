@@ -1,15 +1,15 @@
 ## 1. Separate GitLab token fetch configuration
 
-- [ ] 1.1 Write `tests/orchestrator/test_gitlab_token_config.py` with cases (a)-(f) below. Run it on OCU `main` @ `b9d4118` before any source change: (a)-(e) and (g) fail, because the old code reads only `MCP_TOKENS_*` and mixes a header URL with an env key; (f) passes before and after.
-- [ ] 1.2 In `computer-use-server/docker_manager.py`, replace `MCP_TOKENS_URL`/`MCP_TOKENS_API_KEY` (`:437-438`) with `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY`. Pair the selection in `_ensure_gitlab_token` (design Decision 2), and switch `_server_gitlab_token` to the new pair. Drop the two names from the `mcp_tools.py:176` import. Switch `tests/orchestrator/test_lifecycle.py:532-533` and `:2381-2382` to the new names.
-- [ ] 1.3 Docs:
+- [x] 1.1 Write `tests/orchestrator/test_gitlab_token_config.py` with cases (a)-(f) below. Run it on OCU `main` @ `b9d4118` before any source change: (a)-(e) and (g) fail, because the old code reads only `MCP_TOKENS_*` and mixes a header URL with an env key; (f) passes before and after.
+- [x] 1.2 In `computer-use-server/docker_manager.py`, replace `MCP_TOKENS_URL`/`MCP_TOKENS_API_KEY` (`:437-438`) with `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY`. Pair the selection in `_ensure_gitlab_token` (design Decision 2), and switch `_server_gitlab_token` to the new pair. Drop the two names from the `mcp_tools.py:176` import. Switch `tests/orchestrator/test_lifecycle.py:532-533` and `:2381-2382` to the new names.
+- [x] 1.3 Docs:
   - `computer-use-server/README.md:606-607`: `MCP_TOKENS_URL`/`MCP_TOKENS_API_KEY` describe the skill registry and `/api/skill-stats`, and two new rows describe `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY`.
   - `mcp_tools.py:35-43`: the header table names the new env fallback and states the pairing rule.
   - `deploy/production-like-test/NETWORK-HARDENING.md`: the sentence "The GitLab-token fetch checks the URL and is skipped" becomes "The GitLab-token fetch reads only `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY`, which this overlay does not set, so it sends no request".
   - `.env.example:129-132`: the `MCP_TOKENS_*` block describes the skill registry only, and a new commented block lists `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY` for an external MCP Tokens Wrapper.
   - Root `README.md:261-262`: the two `MCP_TOKENS_*` rows describe the skill registry. `:268`, the PAT paragraph, names `GITLAB_TOKENS_URL`/`GITLAB_TOKENS_API_KEY` as the switch for the GitLab fetch.
   - `CHANGELOG.md` Unreleased: a Fixed entry with the upgrade note (design Risks).
-- [ ] 1.4 Run the verification commands below and record before/after counts in the PR.
+- [x] 1.4 Run the verification commands below and record before/after counts in the PR.
 
 Required evidence (each item is input → expected output):
 

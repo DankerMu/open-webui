@@ -1,6 +1,6 @@
 ## 1. Async Computer Use filter
 
-- [ ] 1.1 Write the tests first, in `tests/test_filter.py`, reusing `_live_asgi`, `_prompt_app`, `_make_filter`, `_system_content` and `CHAT_ID`.
+- [x] 1.1 Write the tests first, in `tests/test_filter.py`, reusing `_live_asgi`, `_prompt_app`, `_make_filter`, `_system_content` and `CHAT_ID`.
       Task 1.1 required evidence (issue #777; each item is input → expected output):
   - **Same-loop callback, inlet.**
     - Setup:
@@ -61,14 +61,14 @@
     - The existing cases still all pass: at `d81be4e`, `tests/test_filter.py` has 104 passed and 16 subtests passed, `tests/test_org_prompt_filter.py` 28 and `tests/test_video_production_filter.py` 5. The new tests add to these counts.
     - The full OCU unit command passes, and the PR states its counts before and after.
 
-- [ ] 1.2 Implement per design.md: `async def inlet`, `async def outlet`, `async def _fetch_system_prompt`, one synchronous request helper run through `asyncio.to_thread`, one private cache-clear method that advances `_cache_generation`, and the cache generation guard. Change nothing else in the request logic.
-- [ ] 1.3 Docs:
+- [x] 1.2 Implement per design.md: `async def inlet`, `async def outlet`, `async def _fetch_system_prompt`, one synchronous request helper run through `asyncio.to_thread`, one private cache-clear method that advances `_cache_generation`, and the cache generation guard. Change nothing else in the request logic.
+- [x] 1.3 Docs:
   - The module docstring FUNCTIONALITY block states that `inlet` and `outlet` are coroutines and the prompt fetch runs off the event loop.
   - The header `version` goes from 5.2.0 to 5.3.0.
   - `docs/openwebui-filter.md` "Prompt retrieval and cache" says the same.
   - `docs/openwebui-filter.md` also states the executor residual risk from design.md.
   - `CHANGELOG.md` gains an Unreleased `main` / Fixed entry.
-- [ ] 1.4 Run:
+- [x] 1.4 Run:
   - the three filter test files;
   - the OCU unit command from OCU `AGENTS.md`;
   - `uvx ruff@0.17.2 check` on the changed Python files, which must add no finding over `main`.
