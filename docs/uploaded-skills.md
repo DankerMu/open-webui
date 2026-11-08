@@ -91,13 +91,13 @@ ZIP 超过 50 MB 时返回 413。其他所有拒绝都返回 400。被拒绝的�
 
 ## 撤销与回滚
 
-**撤销某个 skill**：在 WebUI 里删除它，并且此时 OCU 必须能访问 WebUI。只在 OCU 上取消 `MCP_TOKENS_URL` **不会**让 OCU 退回只用内置 skill：OCU 会继续使用磁盘上缓存的用户 skill 列表和已解压的旧目录。OCU 访问不到 WebUI 期间同样沿用缓存，撤销要等下一次成功访问后才生效。
+**撤销某个 skill**：在 WebUI 里删除它，并且此时 OCU 必须能访问 WebUI。只在 OCU 上停用 skill registry（做法见下面回滚第 2 步）**不会**让 OCU 退回只用内置 skill：OCU 会继续使用磁盘上缓存的用户 skill 列表和已解压的旧目录。OCU 访问不到 WebUI 期间同样沿用缓存，撤销要等下一次成功访问后才生效。
 
 **回滚整个功能**，按顺序执行：
 
 1. 趁 OCU 仍能访问 WebUI，在 WebUI 里删除所有上传的 skill。
-2. 在 OCU 上取消 `MCP_TOKENS_URL` 和 `MCP_TOKENS_API_KEY`。
-3. 清空 OCU 的 `SKILLS_CACHE_DIR`，包括其中的 `_user_configs/`。
+2. 在 OCU 上停用 skill registry。OCU 仓库的 production-like overlay 的做法是：在 `runtime.env` 里写一行空值 `MCP_TOKENS_URL=`，然后重跑 `deploy/up.sh`；密钥由 `OCU_INTERNAL_TOKEN` 生成，不需要单独取消。其它部署取消 `MCP_TOKENS_URL` 和 `MCP_TOKENS_API_KEY`。
+3. 清空 OCU 的 `SKILLS_CACHE_DIR`（overlay 上是 `OCU_SKILLS_CACHE_DIR`），包括其中的 `_user_configs/`。
 4. 回滚 WebUI。数据库迁移的降级会删除上传 skill 的两张表和它们的授权记录。
 
 ## 部署配置
@@ -107,4 +107,6 @@ WebUI 不新增环境变量，上传的 skill 保存在 WebUI 数据库中，随
 - `MCP_TOKENS_URL`：指向 WebUI 私网地址下的 `/api/v1/ocu/skills`。
 - `MCP_TOKENS_API_KEY`：与 `OCU_INTERNAL_TOKEN` 取自同一来源，不写入仓库文件、命令行或日志。WebUI 的 `OCU_INTERNAL_TOKEN` 为空时，拒绝 OCU 的所有 skill 请求。
 
-部署顺序为先 WebUI、后 OCU。OCU 先启动时取不到 WebUI 的 skill 列表，只使用内置 skill，与未部署本功能时一致。部署记录中有一行显示 skill registry 是否已配置（yes 或 no），不显示密钥。
+部署顺序为先 WebUI、后 OCU。OCU 先启动时取不到 WebUI 的 skill 列表，只使用内置 skill，与未部署本功能时一致。部署记录中的 `Uploaded-skill registry` 一行显示 skill registry 是否已配置（yes 或 no），不显示地址和密钥。
+
+已有部署升级后，必须在 `deploy/up.sh` 之后重跑一次初始化（OCU 仓库 `NETWORK-HARDENING.md` 中 #590 一节的第 2 步），把数据库里保存的 Computer Use filter 更新到 5.3.0。旧的同步 filter 取提示词时会占住 WebUI 的事件循环，OCU 回头请求 skill 列表会在 5 秒后超时，其间所有 WebUI 用户都要跟着等待，OCU 则退回缓存的列表和内置 skill。
