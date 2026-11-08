@@ -10,6 +10,8 @@ import zlib
 
 STUB_MODEL = 'ocu-stub-model'
 PROMPT_RE = re.compile(r'OCU stub system prompt \(features: [a-z,]+\)\.')
+# A full-content skill block (middleware.py), not the manifest form `<skill>\n<id>…</id>…`.
+SKILL_RE = re.compile(r'<skill name="([^"]*)">')
 
 
 def system_prompt(header: str | None, prefix: str) -> tuple[int, bytes, str, dict[str, str]]:
@@ -74,7 +76,7 @@ def model_list() -> dict:
 
 
 def chat_completion(payload: bytes) -> tuple[bytes, str]:
-    """Reply with the stub prompt the system message carries, so the UI shows what the filter injected."""
+    """Reply with the stub prompt and skill names the system message carries, so the UI shows what was injected."""
     request = json.loads(payload or b'{}')
     system = ' '.join(
         message['content']
@@ -83,6 +85,9 @@ def chat_completion(payload: bytes) -> tuple[bytes, str]:
     )
     seen = PROMPT_RE.search(system)
     reply = f'Stub reply. Saw: {seen.group(0) if seen else "no OCU system prompt."}'
+    skills = SKILL_RE.findall(system)
+    if skills:
+        reply += f' Skills: {", ".join(skills)}.'
     message, finish = {'role': 'assistant', 'content': reply}, 'stop'
     if _calls_image_tool(request):
         message, finish = {'role': 'assistant', 'content': None, 'tool_calls': [IMAGE_CALL]}, 'tool_calls'

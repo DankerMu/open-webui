@@ -761,7 +761,7 @@ Minimal mergeable slice: atomic - one component plus its tab entry. Depends on 3
         - With the OCU filter installed, its inlet rewrites the marker first (`:2635`), before extraction runs.
       - With `features.enable_ocu_workspace` not `true`, the menu makes zero `/api/v1/ocu/skills` requests.
     - Sibling surfaces:
-      - the native `Skills` group and its `type === 'skill'` branch, unchanged. Its slash `onSelect` in `MessageInput.svelte:1448-1456` handles only `model` and then focus. Native mentions from the chat input serialize as `<@id|name>` (no trigger char), which the backend `$`/`/` patterns do not match; that upstream behaviour is out of scope here (#751 PR #770);
+      - the native `Skills` group and its `type === 'skill'` branch, unchanged. Its slash `onSelect` in `MessageInput.svelte:1448-1456` handles only `model` and then focus. Native mentions from the chat `/` menu serialize as `<${id}|{name}>` since #771;
       - prompts and commands: their order and indices are unchanged;
       - the `src/lib/components/common/RichTextInput.svelte` serializer (`mentions` rule, 117-125), unchanged;
       - `middleware.py`, unchanged;

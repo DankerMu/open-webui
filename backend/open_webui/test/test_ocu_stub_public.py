@@ -528,3 +528,27 @@ def test_image_generation_returns_one_png_in_the_openai_shape():
     # IHDR: width and height as big-endian 32-bit integers right after the chunk type.
     assert png[12:16] == b'IHDR'
     assert (int.from_bytes(png[16:20], 'big'), int.from_bytes(png[20:24], 'big')) == (320, 180)
+
+
+@pytest.mark.parametrize(
+    'system,reply',
+    [
+        pytest.param(
+            '<skill name="Harness native skill">\nbody\n</skill>',
+            'Stub reply. Saw: no OCU system prompt. Skills: Harness native skill.',
+            id='skill block',
+        ),
+        pytest.param(None, 'Stub reply. Saw: no OCU system prompt.', id='no skill block'),
+        pytest.param(
+            '<skill>\n<id>x</id>\n<name>X</name>\n<description></description>\n</skill>',
+            'Stub reply. Saw: no OCU system prompt.',
+            id='manifest only',
+        ),
+    ],
+)
+def test_openai_model_names_the_full_content_skills_it_was_given(system, reply):
+    model = runpy.run_path(str(ROOT / 'scripts/ocu_stub_model.py'))
+    messages = [{'role': 'system', 'content': system}] if system is not None else []
+    payload = {'model': 'ocu-stub-model', 'stream': False, 'messages': [*messages, {'role': 'user', 'content': 'hi'}]}
+    body, _content_type = model['chat_completion'](json.dumps(payload).encode())
+    assert json.loads(body)['choices'][0]['message']['content'] == reply
