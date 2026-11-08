@@ -9,7 +9,7 @@ Two routes in OCU's `computer-use-server/app.py` compare service keys with Pytho
 
 ## What Changes
 
-- Both comparisons call `auth_guard._credential_matches`, so there is one comparison implementation. It handles latin-1 encoding and returns `False` for non-latin-1 input.
+- Both comparisons call `auth_guard._credential_matches`, so there is one comparison implementation. Every result stays the same; only the timing changes.
 - What happens when no key is configured is unchanged, out of scope per #775:
   - `/api/skill-stats` with an empty `MCP_TOKENS_API_KEY` still allows the request;
   - `verify_mcp_auth` with an empty `MCP_API_KEY` still returns `None`.

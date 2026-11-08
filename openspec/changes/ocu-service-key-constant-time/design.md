@@ -21,34 +21,55 @@ Must preserve:
 
 Must change:
 
+- `app.py:34` gains `_credential_matches` in its existing `from auth_guard import …` line. There is no separate `import auth_guard`.
 - `verify_mcp_auth` rejects when `not _credential_matches(credentials.credentials, MCP_API_KEY)`.
 - `/api/skill-stats` rejects when `api_key and not _credential_matches(x_internal_api_key or "", api_key)`.
-- A header value with a non-latin-1 character, such as `X-Internal-Api-Key: ключ` or a bearer `ключ`, is a rejection (403 or 401), never a 500.
 
-Governing invariant: a configured service key is compared only through `_credential_matches`, and the result of every comparison is the same as before the change. Only timing and the non-latin-1 handling differ.
+Also preserved: a header value outside ASCII is rejected the same way before and after. Starlette decodes header bytes as latin-1, so `_credential_matches` can always encode them, and `!=` already rejected them. Only the comparison's timing changes.
+
+Governing invariant: a configured service key is compared only through `_credential_matches`, and every comparison gives the same result as before.
 
 Seams under test:
 
-- the FastAPI app, through `TestClient`, as `tests/test_auth_guard.py` builds it;
-- `auth_guard._credential_matches`, monkeypatched on the module object that `app.py` uses, to count calls.
+- The FastAPI app, through `TestClient`, loaded by the `app_module` and `client` fixtures in `tests/test_auth_guard.py` (`:130-170`, `:215-225`).
+- `AuthGuardMiddleware` lets both routes through untouched:
+  - they are not in `_GUARDED_PREFIXES` or `_IDENTITY_PATHS` (`auth_guard.py:31-41`), nor among the Office prefixes;
+  - the `testclient` peer is not denied (`_peer_host` returns None, `auth_guard.py:145`).
+
+  So no extra headers are needed, and the middleware itself never calls `_credential_matches`.
+
+- Key values:
+  - `MCP_API_KEY` is read once at import (`app.py:242`). Tests set it with `monkeypatch.setattr(app_module, "MCP_API_KEY", …)`, never `setenv`.
+  - `MCP_TOKENS_API_KEY` is read per request (`app.py:1699`). Tests set it with `monkeypatch.setenv`.
+- The comparison is observed by patching the name `app.py` calls: `monkeypatch.setattr(app_module, "_credential_matches", wrapper, raising=False)`.
+  - `raising=False` because on `main` the name does not exist in `app`.
+  - The wrapper records the arguments and delegates to `sys.modules["auth_guard"]._credential_matches`, the module loaded inside the fixture, not a top-level import.
+- `_harvest_and_get_stats` is stubbed with `monkeypatch.setattr(app_module, "_harvest_and_get_stats", lambda: {"stub": True})`.
 
 Required evidence (task 1.1). Run with the OCU unit command (`AGENTS.md:35`).
 
 - **Red before, green after:**
-  - (a) With `MCP_TOKENS_API_KEY=k1`, a GET to `/api/skill-stats` with `X-Internal-Api-Key: k1` calls `_credential_matches` exactly once with `("k1", "k1")`. A wrapper monkeypatched in records the call and delegates to the real function. Stub `_harvest_and_get_stats` so the route returns at once.
-  - (b) With `MCP_API_KEY=k2`, a call to `/mcp-info` with `Authorization: Bearer k2` calls `_credential_matches` exactly once with `("k2", "k2")`.
+  - (a) With `MCP_TOKENS_API_KEY=k1`, a GET to `/api/skill-stats` with `X-Internal-Api-Key: k1` answers 200, and the wrapper records exactly one call, `("k1", "k1")`. On `main` it records none.
+  - (b) With `app_module.MCP_API_KEY = "k2"`, a GET to `/mcp-info` with `Authorization: Bearer k2` answers 200, and the wrapper records exactly one call, `("k2", "k2")`. On `main` it records none.
 - **Pass before and after (status contract):**
-  - (c) `/api/skill-stats` with key `k1`:
-    - missing header → 403;
-    - `X-Internal-Api-Key: wrong` → 403;
-    - `k1` → 200;
-    - empty `MCP_TOKENS_API_KEY` and no header → 200.
-  - (d) `/mcp-info` with key `k2`:
+  - (c) `/api/skill-stats` with `MCP_TOKENS_API_KEY=k1`:
+    - missing header → 403 `Forbidden`;
+    - `wrong` → 403;
+    - `k1` → 200.
+
+    With `MCP_TOKENS_API_KEY` empty and no header → 200.
+
+  - (d) `/mcp-info` with `MCP_API_KEY = "k2"`:
     - no `Authorization` → 401 `Missing Authorization header`;
     - `Bearer wrong` → 401 `Invalid API key`;
+    - both 401s carry `WWW-Authenticate: Bearer`;
     - `Bearer k2` → 200.
-  - (e) Non-latin-1 header values give 403 for `/api/skill-stats` and 401 for `/mcp-info`, never 500. Starlette decodes header bytes as latin-1, so build the value from UTF-8 bytes sent raw.
-  - If `/mcp-info` or `/api/skill-stats` sit behind `auth_guard` middleware in the test app, give the test client a peer address and headers the guard admits, as the existing auth-guard tests do. Assert the route's own status, not the guard's.
+
+    With `MCP_API_KEY = None` and no header → 200.
+
+  - (e) Header values outside ASCII, sent as raw UTF-8 bytes (`"ключ".encode()`; httpx rejects a non-ASCII `str`), give 403 for `/api/skill-stats` and 401 for `/mcp-info`.
+  - (f) With `MCP_TOKENS_API_KEY="ключ"`, a request carrying that key's UTF-8 bytes gives 403. The configured key cannot be latin-1 encoded, which exercises the `UnicodeEncodeError` branch after the fix. `!=` also rejects it on `main`.
+
 - The full OCU unit command passes; report its counts.
 
 Non-goals:
@@ -61,4 +82,4 @@ Non-goals:
 Review focus:
 
 - the red cases fail on `main` for the right reason, because `_credential_matches` is never called there;
-- the monkeypatch targets the binding `app.py` actually calls (`auth_guard._credential_matches` via the module, or a name imported into `app`). The implementation must call it so that the patch is observable.
+- the monkeypatch targets `app._credential_matches`, the name the from-import adds.
