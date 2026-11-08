@@ -1,6 +1,6 @@
 ## 1. Compression-method guard
 
-- [ ] 1.1 Write the tests in `tests/test_skill_manager.py`, reusing `zip_of`-style builders and the `sm`, `serve_zip`, `prior_cache`, `snapshot` and `cache` helpers. Every case uses entries of at most a few KB.
+- [x] 1.1 Write the tests in `tests/test_skill_manager.py`, reusing `zip_of`-style builders and the `sm`, `serve_zip`, `prior_cache`, `snapshot` and `cache` helpers. Every case uses entries of at most a few KB.
       Task 1.1 required evidence (issue #762; each item is input → expected output):
   - **Rejected, red on OCU `main` `2fea8f6` and green after.** Each case returns `None` from `ensure_skill_cached`. The `snapshot(tmp_path)` of the whole temp root (prior `invoice` cache, manifest, no leftover `.invoice-*` temp dir) equals the snapshot before.
     - `bzip2-entry`: `SKILL.md` (deflate) plus `payload.bin` written with `compress_type=zipfile.ZIP_BZIP2`.
@@ -17,9 +17,9 @@
     - A flat ZIP written entirely with `ZIP_STORED` caches with `SKILL.md` at the cache root and the manifest updated.
     - All existing `VALID` cases, all deflate, still pass.
   - **Must preserve.** Every existing case in `tests/test_skill_manager.py` passes unchanged, and so do the other test files that reference `skill_manager`. The module docstring of `tests/test_skill_manager.py` (which says one test wraps `zipfile.ZipFile.open`) is updated to match.
-- [ ] 1.2 In `_check_zip_entries`, reject every entry whose `compress_type` is not `ZIP_STORED` or `ZIP_DEFLATED`. Use one module-level tuple and raise `ValueError` inside the existing per-entry loop. Change nothing else.
-- [ ] 1.3 Run the OCU unit command from OCU `AGENTS.md`. The PR states passed and skipped counts before and after, `uvx ruff@0.17.2 check` adds no finding on the changed files over `main` (OCU has no ruff config, so this is a before/after comparison with default rules), and the PR states the `grep -rn zipfile computer-use-server/` result.
-- [ ] 1.4 Docs: `CHANGELOG.md` gains an Unreleased `main` / Fixed entry. The PR changes only `computer-use-server/skill_manager.py`, `tests/test_skill_manager.py` and `CHANGELOG.md`.
+- [x] 1.2 In `_check_zip_entries`, reject every entry whose `compress_type` is not `ZIP_STORED` or `ZIP_DEFLATED`. Use one module-level tuple and raise `ValueError` inside the existing per-entry loop. Change nothing else.
+- [x] 1.3 Run the OCU unit command from OCU `AGENTS.md`. The PR states passed and skipped counts before and after, `uvx ruff@0.17.2 check` adds no finding on the changed files over `main` (OCU has no ruff config, so this is a before/after comparison with default rules), and the PR states the `grep -rn zipfile computer-use-server/` result.
+- [x] 1.4 Docs: `CHANGELOG.md` gains an Unreleased `main` / Fixed entry. The PR changes only `computer-use-server/skill_manager.py`, `tests/test_skill_manager.py` and `CHANGELOG.md`.
 
 Risk packs:
 

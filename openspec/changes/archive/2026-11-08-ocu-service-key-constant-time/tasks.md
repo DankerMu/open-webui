@@ -1,8 +1,8 @@
 ## 1. Constant-time service key comparison
 
-- [ ] 1.1 Write the cases (a)-(f) from design.md. (a) and (b) must fail on OCU `main` @ `d81be4e`; (c)-(f) pass before and after.
-- [ ] 1.2 Add `_credential_matches` to the `from auth_guard import …` line in `computer-use-server/app.py` (`:34`), and route both comparisons through it.
-- [ ] 1.3 Run the OCU unit command; it passes.
+- [x] 1.1 Write the cases (a)-(f) from design.md. (a) and (b) must fail on OCU `main` @ `d81be4e`; (c)-(f) pass before and after.
+- [x] 1.2 Add `_credential_matches` to the `from auth_guard import …` line in `computer-use-server/app.py` (`:34`), and route both comparisons through it.
+- [x] 1.3 Run the OCU unit command; it passes.
 
 Risk packs:
 
