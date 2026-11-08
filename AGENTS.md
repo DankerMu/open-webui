@@ -111,6 +111,7 @@ All commands route through `Makefile`. Do not invent ad-hoc commands; if a workf
 | Guardrails                                                               | `make test-guardrails`                           |
 | Docs                                                                     | `make doc-gate`                                  |
 | OCU reverse-proxy gateway; Office routes through the gateway             | `make smoke-proxy`                               |
+| Uploaded-skill internal path through the gateway                         | `make smoke-proxy`                               |
 | Workspace sidebar and saved-chat transitions; Office sidebar editor      | `make verify-ui-ocu`                             |
 | Video switch → OCU feature header; Image generation placeholder          | `make verify-ui-ocu`                             |
 | Office stub contract                                                     | `make smoke-stub`                                |
