@@ -14,3 +14,7 @@ The removal trigger and precondition of the baseline stay in `AGENTS.md § Legac
 | svelte-check errors (repo-wide ceiling)    | 7789                                     | never rises; lower the ceiling in the same PR when it drops | fork maintainers |
 | Repo-wide eslint                           | crashes on upstream `AskUserCard.svelte` | eslint runs per file on the change scope only               | fork maintainers |
 | knip dead exports (scoped)                 | advisory list printed by anti-drift      | 0 in fork-added files and on fork-touched lines             | fork maintainers |
+| vulture dead code (scoped)                 | advisory list printed by anti-drift      | 0 in fork-added files and on fork-touched lines             | fork maintainers |
+
+Both dead-code gates read "fork-touched lines" as the lines `git diff -U0` against the change-scope base reports as added or changed; vulture attributes an unused import to the line of the imported name.
+Blind spot: a fork change can make upstream code dead without touching the line the finding is reported on, so the finding stays advisory. Two examples: the fork deletes the last use of an upstream name, or the fork adds an early `return` and vulture reports the now-unreachable code at the next statement, an upstream line. knip has the same limitation for exports; review owns it.
