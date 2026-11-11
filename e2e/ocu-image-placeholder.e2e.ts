@@ -29,7 +29,7 @@ const waveAnimation = (page: Page) =>
 		.evaluate((wave) => getComputedStyle(wave).animationName);
 
 /** Point WebUI's provider and image engine at the stub, run the case in Chinese, restore both. */
-async function withImageStub(page: Page, run: () => Promise<void>) {
+async function withImageStub(page: Page, run: () => Promise<void>, imageOn = true) {
 	// Admin setup, an 8 s image call, the follow-up completion and the restore outlast 60 s on slow runners.
 	test.setTimeout(120_000);
 	const errors: string[] = [];
@@ -61,7 +61,10 @@ async function withImageStub(page: Page, run: () => Promise<void>) {
 		});
 		// A fresh load picks up the provider and image config (it may show the changelog again, in
 		// English); then reload in Chinese, the owner's language. The URL turns the image feature on.
-		await openAuthenticatedPage(page, `/?models=${MODEL}&image-generation=true`);
+		await openAuthenticatedPage(
+			page,
+			`/?models=${MODEL}${imageOn ? '&image-generation=true' : ''}`
+		);
 		await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
 		await page.reload();
 		await expect(page.locator('#chat-input')).toBeVisible();
@@ -170,4 +173,36 @@ test('stopping the generation mid-call removes the placeholder', async ({ page }
 		await expect(placeholderOf(page)).toHaveCount(0);
 		await page.screenshot({ path: `${evidence}/ocu-image-placeholder-stopped.png` });
 	});
+});
+
+test('the image switch turned on after the first reply offers generate_image on the next send', async ({
+	page
+}) => {
+	await withImageStub(
+		page,
+		async () => {
+			const messages = page.locator('#messages-container');
+			await send(page, 'Say hello');
+			await expect(messages.getByText(REPLY)).toBeVisible();
+			await expect(page).toHaveURL(/\/c\/[0-9a-f-]{36}$/);
+			await page.reload();
+			await expect(page.locator('#chat-input')).toBeVisible();
+
+			await page.locator('#integration-menu-button').click();
+			const toggle = page.locator('button[aria-pressed]').filter({ hasText: '图像' });
+			await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+			await toggle.click();
+			await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+			await page.keyboard.press('Escape');
+
+			await send(page, 'Now draw a wide picture');
+			await expect(placeholderOf(page)).toHaveCount(1);
+			await expect(messages.locator('[data-cy="image"]').first()).toBeVisible({ timeout: 30_000 });
+			await expect(placeholderOf(page)).toHaveCount(0);
+			// The first reply and the follow-up after the tool result both carry the stub text.
+			await expect(messages.getByText(REPLY)).toHaveCount(2);
+			await page.screenshot({ path: `${evidence}/ocu-image-switch-late.png`, fullPage: true });
+		},
+		false
+	);
 });
