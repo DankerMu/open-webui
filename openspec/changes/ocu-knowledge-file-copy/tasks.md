@@ -31,6 +31,41 @@ Every production change ships with its test in the same task, and each new test 
 
   Also run the full OCU unit-test command.
 
+  **Task 1.1 required evidence** (authoritative where it is more specific than the bullets above):
+  - Risk packs for this slice:
+    - Public API — selected: header parsing and the 400 cases below.
+    - File IO / path safety — selected: no-follow probe, occupant untouched, `stored_name` lexical guard.
+    - Concurrency / shared state — selected: probe, publication and receipt rewrite stay inside the existing `with _combined_lock(chat_id)` in `store_upload`.
+    - Error handling / partial outputs — selected: the error-path tests below.
+    - Legacy compatibility — selected: Must preserve below.
+    - Auth / secrets — not selected for 1.1: the route keeps its internal-bearer guard and the header grants nothing.
+    - Documentation — not selected for 1.1: README/CHANGELOG move with the tool in 2.1.
+  - Implementation facts:
+    - The new `store_upload` parameter is keyword-only and defaults to off.
+    - The probe opens the root with `_open_outputs_root(chat_id)`; `store_upload` holds no outputs fd at the receipt check.
+    - It probes `_open_regular_relative(root_fd, Path(stored_name).parts)` after `stored_name` passes the `check_upload_name` rule; a failing name raises `CorruptReceiptsError`.
+    - It closes the probe fd and the root fd on every path.
+    - Publication of a re-store goes through `claim_file_no_replace` / `format_collision_name`, as a normal upload does.
+    - Header validation in `upload_file` tests `is None` for absence, so an empty value is present and rejected.
+  - Must preserve:
+    - The headerless path stays byte-for-byte as today, including the generate_speech call `store_upload(chat, filename, audio)` in `mcp_tools.py`.
+    - These tests pass unchanged: `test_reimported_attachment_id_keeps_edited_file_and_reports_original_metadata`, `test_reimported_attachment_id_does_not_resurrect_renamed_or_deleted_file`, `test_headerless_upload_does_not_create_or_mutate_receipts`, `test_corrupt_receipts_fail_explicitly_without_reimport`, `test_failed_receipt_write_leaves_prior_receipts_and_retries_without_overwrite`, and the `test_concurrent_*` tests.
+    - The response shape stays `{status, filename, size, md5[, discovery]}`.
+    - `GET /api/uploads/{chat}/imports` (read by the wrapper's `_imported_attachment_ids`) lists each id exactly once after a rewrite.
+  - Sibling surfaces to check: `_open_outputs_root`, `_open_regular_relative`, `_lexical_parts`, `claim_file_no_replace`, `format_collision_name`, `read_import_receipts`, `write_import_receipts`, `_validate_receipts`, `_list_import_ids`, wrapper `_sync_uploaded_files` / `_imported_attachment_ids`, and generate_speech's `store_upload` call.
+  - New tests in `tests/test_upload_claim.py` and their expected output (header value `1` unless stated):
+    - **First copy, no receipt:** 200; the file is stored, and the receipt holds its name, size and MD5.
+    - **Edited copy kept:** 200; the body carries the receipt's original `filename`, `size` and `md5`, not the edited bytes'; the file keeps its edited bytes; `imports.json` is byte-identical, `imported_at` included.
+    - **Deleted copy:** 200; the body is the original unsuffixed name with `len(body)` and `md5(body)`; the directory holds exactly that one name; the receipt carries those three values and a new `imported_at`.
+    - **Directory occupant, and separately a symlink occupant** (the symlink points at an existing regular file, to prove no-follow): body and receipt name `brief (2).docx`; the occupant's type and the target's bytes are unchanged.
+    - **Every re-store:** other ids' receipts are unchanged and `/imports` lists the id once.
+    - **Concurrent:** two simultaneous header-on uploads of one id whose copy was deleted give one new file, two identical responses and one receipt.
+    - **Header validation:** `yes` and an empty value each get 400 with no file or receipt written; the same two values sent for an id whose copy was deleted also get 400 with no re-store and the receipt unchanged (validation runs before the storage branch); `1` with no `X-OCU-Attachment-Id`, and `1` with a whitespace-only one, each get 400 with no file written.
+    - **Error paths:** corrupt `imports.json` with the header gives 500, no file written, `imports.json` unchanged. A receipt whose `stored_name` is absolute or contains `..` gives 500 with nothing written. A non-missing `OSError` (EIO) injected into the probe gives 500, no file written, the receipt unchanged.
+    - **Receipt write fails once:** set up the deleted-copy case (receipted name absent) and send identical bytes on both attempts. The re-store publishes at the receipted unsuffixed name; `write_import_receipts` fails once, giving 500 with the receipt byte-identical. The retry with the header returns 200 with the prior receipt's `filename`, `size` and `md5`, and the outputs directory holds exactly that one file.
+    - **Outputs root removed:** delete `outputs/` entirely and keep `.ocu/imports.json`. A header-on upload gives 200 with the unsuffixed name, `outputs/` is recreated holding that one file, and the receipt is rewritten. (`_open_outputs_root` also returns `None` for a symlinked chat dir or `outputs`; there the re-store's `ensure_workspace_directories` correctly answers 403. Do not treat `None` as "always re-store".)
+    - Each new test is red against the unchanged source; for the empty-value case, confirm the test client really sends the empty header.
+
 Suggested fixture level: expanded - a public upload-endpoint contract and on-disk receipts shared with attachment sync.
 Minimal mergeable slice: atomic - one header and the single storage branch it switches; without the branch the header does nothing, and without the header the branch is unreachable.
 

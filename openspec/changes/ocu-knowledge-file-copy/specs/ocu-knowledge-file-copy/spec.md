@@ -118,7 +118,7 @@ Each of these SHALL return a result starting with `Error:` that states the reaso
 
 ### Requirement: Deduplicated copies that heal after deletion
 
-Within one chat, copying the same WebUI file again SHALL return the path of the existing copy without writing a second file. When that copy can no longer be opened as a regular file in the workspace, a new copy request SHALL store the bytes again and return the new path. Such a copy may be missing, or replaced by a directory, a symlink or another non-regular file. A copy the user edited SHALL be kept unchanged.
+Within one chat, copying the same WebUI file again SHALL return the path of the existing copy without writing a second file. When that copy is missing from the workspace, or replaced by a directory, a symlink or another non-regular file, a new copy request SHALL store the bytes again and return the new path. Other I/O failures while checking the copy fail the request instead of copying again. A copy the user edited SHALL be kept unchanged.
 
 #### Scenario: Second copy in the same chat
 
@@ -143,7 +143,7 @@ OCU's receipted upload endpoint SHALL accept a request header `X-OCU-Reimport-Mi
 - **Present with any value other than `1`, including an empty value.** The endpoint SHALL return 400 and store nothing.
 - **Value `1` without a non-empty `X-OCU-Attachment-Id`.** The endpoint SHALL return 400 and store nothing.
 - **Value `1` with an attachment id that has no receipt.** The endpoint SHALL store the upload and record a receipt as a normal receipted upload does.
-- **Value `1` with an attachment id that has a receipt.** The endpoint SHALL return the receipted record unchanged when the receipted name opens as a regular file under the chat's workspace, without following symlinks. Otherwise it SHALL store the upload again, with collision naming, and rewrite the receipt to the new name, size and MD5.
+- **Value `1` with an attachment id that has a receipt.** The endpoint SHALL return the receipted record unchanged when the receipted name opens as a regular file under the chat's workspace, without following symlinks. When the receipted name is missing, the chat's outputs directory is missing, or the name is denied as a non-regular or symlinked entry, it SHALL store the upload again, with collision naming, and rewrite the receipt to the new name, size and MD5. A probe failure other than these SHALL return 500 and store nothing.
 
 The receipt check and the write SHALL happen under the same per-chat lock that guards receipted uploads.
 
@@ -166,6 +166,11 @@ The receipt check and the write SHALL happen under the same per-chat lock that g
 
 - **WHEN** a directory now occupies the receipted name and the same id is uploaded with the header
 - **THEN** the bytes are stored under a suffixed name, the receipt records that name, and the directory is untouched
+
+#### Scenario: Probe I/O error
+
+- **WHEN** the probe of the receipted name fails with an I/O error other than not-found or the traversal denial, for an upload with the header
+- **THEN** the response is 500, no file is written and the receipt is unchanged
 
 #### Scenario: Header with an edited copy
 
