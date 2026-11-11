@@ -65,7 +65,8 @@ async function cleanUp(api: Admin, openai: unknown) {
 	if (openai) await post(api, '/openai/config/update', openai);
 }
 
-test('video switch sends X-OCU-Features: video only while it is on', async ({ page }) => {
+/** Run one case against the stub provider and both filters, then leave the stack clean. */
+async function withVideoStub(page: Page, run: (page: Page, api: Admin) => Promise<void>) {
 	// Two real sends plus admin setup and cleanup outlast the 60 s default.
 	test.setTimeout(120_000);
 	const errors: string[] = [];
@@ -79,14 +80,48 @@ test('video switch sends X-OCU-Features: video only while it is on', async ({ pa
 	expect(config.status()).toBe(200);
 	const openai = await config.json();
 	try {
-		await exercise(page, api);
+		await run(page, api);
 	} finally {
 		await cleanUp(api, openai);
 	}
 	expect(errors).toEqual([]);
+}
+
+test('video switch sends X-OCU-Features: video only while it is on', async ({ page }) => {
+	await withVideoStub(page, exercise);
 });
 
-async function exercise(page: Page, api: Admin) {
+test('video switch turned on after the first reply reaches the next send', async ({ page }) => {
+	await withVideoStub(page, async (page, api) => {
+		await prepare(page, api);
+		const off = await send(
+			page,
+			'Just answer in text',
+			'Stub reply. Saw: OCU stub system prompt (features: none).'
+		);
+		expect(off).toHaveLength(1);
+		expect(off[0]).toMatchObject({ token_ok: true, x_ocu_features: null });
+		await expect(page).toHaveURL(/\/c\/[0-9a-f-]{36}$/);
+		const chatId = new URL(page.url()).pathname.split('/').pop();
+		await page.reload();
+		await expect(page.locator('#chat-input')).toBeVisible();
+
+		await setSwitch(page, true);
+		await page.keyboard.press('Escape');
+		const on = await send(
+			page,
+			'Now make a short video',
+			'Stub reply. Saw: OCU stub system prompt (features: video).'
+		);
+		expect(on).toHaveLength(1);
+		expect(on[0]).toMatchObject({ token_ok: true, x_ocu_features: 'video' });
+		expect(new URL(on[0].target, context.stub).searchParams.get('chat_id')).toBe(chatId);
+		await page.screenshot({ path: `${evidence}/ocu-video-switch-late.png`, fullPage: true });
+	});
+});
+
+/** Point WebUI at the stub provider, install both filters and open a new chat on the stub model. */
+async function prepare(page: Page, api: Admin) {
 	await post(api, '/openai/config/update', {
 		ENABLE_OPENAI_API: true,
 		OPENAI_API_BASE_URLS: [`${context.stub}/v1`],
@@ -103,6 +138,10 @@ async function exercise(page: Page, api: Admin) {
 	// A fresh load picks up the provider and filters; it may show the changelog again.
 	await openAuthenticatedPage(page, `/?models=${MODEL}`);
 	await expect(page.locator('#chat-input')).toBeVisible();
+}
+
+async function exercise(page: Page, api: Admin) {
+	await prepare(page, api);
 	const toggle = await setSwitch(page, true);
 	await page.screenshot({ path: `${evidence}/ocu-video-switch-menu.png`, animations: 'disabled' });
 	await page.keyboard.press('Escape');
