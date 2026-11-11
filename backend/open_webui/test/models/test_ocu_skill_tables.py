@@ -1,4 +1,4 @@
-"""Uploaded-skill registry tables, list-all/get/upsert/delete accessors and the add_ocu_skill migration."""
+"""Uploaded-skill registry tables, their accessors and the add_ocu_skill and add_ocu_skill_display_name migrations."""
 
 from __future__ import annotations
 
@@ -15,7 +15,9 @@ from sqlalchemy import create_engine, inspect, text
 
 configure_ocu_test_env()
 
-_MIGRATION_PATH = Path(__file__).resolve().parents[2] / 'migrations' / 'versions' / 'f7a8b9c0d1e2_add_ocu_skill.py'
+_VERSIONS = Path(__file__).resolve().parents[2] / 'migrations' / 'versions'
+_MIGRATION_PATH = _VERSIONS / 'f7a8b9c0d1e2_add_ocu_skill.py'
+_DISPLAY_NAME_MIGRATION_PATH = _VERSIONS / '2a539b1fba23_add_ocu_skill_display_name.py'
 _TABLES = ('ocu_skill', 'ocu_skill_user_disable')
 
 
@@ -23,28 +25,26 @@ def _engine():
     return create_engine(os.environ['DATABASE_URL'])
 
 
-def _load_migration():
-    spec = importlib.util.spec_from_file_location('add_ocu_skill', _MIGRATION_PATH)
+def _load_migration(path: Path):
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _migrate(engine, *steps: str) -> None:
-    module = _load_migration()
+def _migrate(engine, *steps: str, path: Path = _MIGRATION_PATH) -> None:
+    module = _load_migration(path)
     with engine.begin() as conn:
         with Operations.context(MigrationContext.configure(conn)):
             for step in steps:
                 getattr(module, step)()
 
 
-@pytest.fixture(scope='module', autouse=True)
-def _registry_tables():
+def _ensure_registry_schema(engine) -> None:
     from open_webui.models.access_grants import AccessGrant
     from open_webui.models.groups import Group, GroupMember
 
-    engine = _engine()
     # _empty_registry and OcuSkills.delete touch access_grant, which only the full alembic chain
     # (app import) creates; in the default full-suite order this module runs before any app import.
     AccessGrant.__table__.create(engine, checkfirst=True)
@@ -53,6 +53,13 @@ def _registry_tables():
     GroupMember.__table__.create(engine, checkfirst=True)
     if not set(_TABLES) <= set(inspect(engine).get_table_names()):
         _migrate(engine, 'upgrade')
+    # Outside the guard: the persistent harness DB may already hold both tables at f7a8b9c0d1e2.
+    _migrate(engine, 'upgrade', path=_DISPLAY_NAME_MIGRATION_PATH)
+
+
+@pytest.fixture(scope='module', autouse=True)
+def _registry_tables():
+    _ensure_registry_schema(_engine())
     yield
 
 
@@ -153,7 +160,13 @@ async def test_readable_skills_filters_by_read_grant_and_reports_enabled_without
         await db.commit()
 
     def item(name: str, enabled: bool) -> dict:
-        return {'name': name, 'description': f'{name} description', 'zip_sha256': f'sha-{name}', 'enabled': enabled}
+        return {
+            'name': name,
+            'description': f'{name} description',
+            'display_name': None,
+            'zip_sha256': f'sha-{name}',
+            'enabled': enabled,
+        }
 
     try:
         with _SelectRecorder() as recorder:
@@ -402,10 +415,13 @@ async def test_upsert_replace_commit_failure_keeps_the_previous_row_grants_and_d
     )
 
 
+_PARENT_COLUMNS = ('name', 'description', 'zip_sha256', 'size', 'data', 'created_by', 'created_at', 'updated_at')
+
+
 def test_registry_schema_matches_the_data_model():
     inspector = inspect(_engine())
     columns = {c['name'] for c in inspector.get_columns('ocu_skill')}
-    assert columns == {'name', 'description', 'zip_sha256', 'size', 'data', 'created_by', 'created_at', 'updated_at'}
+    assert columns == {*_PARENT_COLUMNS, 'display_name'}
     assert inspector.get_pk_constraint('ocu_skill')['constrained_columns'] == ['name']
     assert {c['name'] for c in inspector.get_columns('ocu_skill_user_disable')} == {'user_id', 'skill_name'}
     assert inspector.get_pk_constraint('ocu_skill_user_disable')['constrained_columns'] == ['user_id', 'skill_name']
@@ -443,3 +459,50 @@ def test_migration_downgrade_drops_tables_and_only_ocu_skill_grants(tmp_path):
 
     _migrate(engine, 'upgrade')
     assert set(_TABLES) <= set(inspect(engine).get_table_names())
+
+
+def _skill_columns(engine) -> list[str]:
+    return [c['name'] for c in inspect(engine).get_columns('ocu_skill')]
+
+
+def test_registry_fixture_adds_display_name_to_a_db_already_at_add_ocu_skill(tmp_path):
+    from open_webui.models.access_grants import AccessGrant
+
+    engine = create_engine(f'sqlite:///{tmp_path / "at_parent.db"}')
+    with engine.begin() as conn:
+        AccessGrant.__table__.create(conn)
+    _migrate(engine, 'upgrade')
+    assert set(_TABLES) <= set(inspect(engine).get_table_names())
+    assert 'display_name' not in _skill_columns(engine)
+
+    _ensure_registry_schema(engine)
+
+    assert 'display_name' in _skill_columns(engine)
+
+
+def test_display_name_migration_is_idempotent_and_downgrade_drops_only_the_column(tmp_path):
+    engine = create_engine(f'sqlite:///{tmp_path / "display_name.db"}')
+    # The second round proves both guards: re-running on an upgraded DB is a no-op.
+    for _ in range(2):
+        _migrate(engine, 'upgrade')
+        _migrate(engine, 'upgrade', path=_DISPLAY_NAME_MIGRATION_PATH)
+    columns = inspect(engine).get_columns('ocu_skill')
+    assert [c['name'] for c in columns] == [*_PARENT_COLUMNS, 'display_name']
+    assert next(c for c in columns if c['name'] == 'display_name')['nullable'] is True
+    row = ('dn-a', 'dn-a description', 'sha-dn-a', 4, b'ZIPdn-a', 'admin-id', 10, 20)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                'INSERT INTO ocu_skill (name, description, zip_sha256, size, data, created_by, created_at, updated_at,'
+                " display_name) VALUES (:n, :d, :z, :s, :data, :c, :ca, :ua, '发票生成')"
+            ),
+            dict(zip(('n', 'd', 'z', 's', 'data', 'c', 'ca', 'ua'), row)),
+        )
+
+    _migrate(engine, 'downgrade', path=_DISPLAY_NAME_MIGRATION_PATH)
+
+    assert set(_TABLES) <= set(inspect(engine).get_table_names())
+    assert _skill_columns(engine) == list(_PARENT_COLUMNS)
+    assert inspect(engine).get_pk_constraint('ocu_skill')['constrained_columns'] == ['name']
+    with engine.connect() as conn:
+        assert [tuple(r) for r in conn.execute(text(f'SELECT {", ".join(_PARENT_COLUMNS)} FROM ocu_skill'))] == [row]

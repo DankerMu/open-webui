@@ -50,7 +50,7 @@ def user_matrix():
 
 
 def _user_item(name: str, enabled: bool = True) -> dict:
-    return {'name': name, 'description': f'{name} description', 'enabled': enabled}
+    return {'name': name, 'description': f'{name} description', 'display_name': None, 'enabled': enabled}
 
 
 def _user_listing(user) -> list[dict]:

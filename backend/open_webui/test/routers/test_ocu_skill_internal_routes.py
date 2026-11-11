@@ -149,8 +149,8 @@ def test_user_config_excludes_the_callers_disabled_skill(user_matrix, internal_k
 
     assert _user_config(m.email, internal_key)['enabled_skills'] == [_item('team')]
     assert _user_listing(m) == [
-        {'name': 'open', 'description': 'open description', 'enabled': False},
-        {'name': 'team', 'description': 'team description', 'enabled': True},
+        {'name': 'open', 'description': 'open description', 'display_name': None, 'enabled': False},
+        {'name': 'team', 'description': 'team description', 'display_name': None, 'enabled': True},
     ]
     assert _config_names(user_matrix['N'].email, internal_key) == ['open']
 

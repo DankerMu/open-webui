@@ -4,7 +4,7 @@ All tasks are in this repository. Each production change ships with its test in 
 
 ## 1. Column, listings and administrator route
 
-- [ ] 1.1 Add the migration and the column, and carry the field through every listing.
+- [x] 1.1 Add the migration and the column, and carry the field through every listing.
   - **Migration.** Add `backend/open_webui/migrations/versions/<rev>_add_ocu_skill_display_name.py` with `down_revision = 'f7a8b9c0d1e2'`. It adds nullable `ocu_skill.display_name` (Text); its downgrade drops the column.
   - **Model.** In `backend/open_webui/models/ocu_skills.py`, add the ORM column `OcuSkill.display_name` (nullable Text), add `display_name: str | None` to `OcuSkillModel` and `OcuSkillReadableModel`, and add the column to the explicit select of `readable_skills` (`:91`).
   - **Router.** Add the field to the administrator and user item models, so that `GET /admin`, `POST /{name}/access`, `GET /` and `POST /{name}/toggle` carry it. Leave the internal user-config model unchanged.
