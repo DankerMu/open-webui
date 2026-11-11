@@ -97,7 +97,7 @@ See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowl
 ## Migration Plan
 
 1. Deploy the rebuilt open-webui image. The migration adds the column at startup, and existing skills get `NULL`, which shows the English name.
-2. Rollback: downgrade drops the column. The previous image ignores the column even if it is not dropped.
+2. Rollback: run the downgrade to `f7a8b9c0d1e2` with the new image before switching to the previous one. The previous image cannot start against a DB stamped `2a539b1fba23`, because its startup `upgrade head` cannot locate that revision.
 
 ## Not yet specified
 

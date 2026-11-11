@@ -72,6 +72,7 @@ class OcuSkillGrant(BaseModel):
 class OcuSkillAdminItem(BaseModel):
     name: str
     description: str
+    display_name: str | None
     zip_sha256: str
     size: int
     created_by: str
@@ -101,6 +102,7 @@ class OcuSkillAccessForm(BaseModel):
 class OcuSkillUserItem(BaseModel):
     name: str
     description: str
+    display_name: str | None
     enabled: bool
 
 
@@ -141,7 +143,9 @@ def _admin_bypass(user: UserModel) -> bool:
 
 
 def _user_item(skill: OcuSkillReadableModel) -> OcuSkillUserItem:
-    return OcuSkillUserItem(name=skill.name, description=skill.description, enabled=skill.enabled)
+    return OcuSkillUserItem(
+        name=skill.name, description=skill.description, display_name=skill.display_name, enabled=skill.enabled
+    )
 
 
 @router.get('/', response_model=list[OcuSkillUserItem])

@@ -22,6 +22,8 @@ class OcuSkill(Base):
 
     name = Column(Text, primary_key=True)
     description = Column(Text, nullable=False)
+    # Administrator-set label for the WebUI only; NULL shows the English name.
+    display_name = Column(Text, nullable=True)
     zip_sha256 = Column(Text, nullable=False)
     size = Column(BigInteger, nullable=False)
     # Deferred: list and enabled-set queries must never pull up to 50 MB of ZIP per row.
@@ -41,6 +43,7 @@ class OcuSkillUserDisable(Base):
 class OcuSkillModel(BaseModel):
     name: str
     description: str
+    display_name: str | None
     zip_sha256: str
     size: int
     created_by: str
@@ -57,6 +60,7 @@ class OcuSkillDataModel(OcuSkillModel):
 class OcuSkillReadableModel(BaseModel):
     name: str
     description: str
+    display_name: str | None
     zip_sha256: str
     enabled: bool
 
@@ -88,7 +92,8 @@ class OcuSkillTable:
         filter (wildcard, direct user, group membership) grants read; it is enabled when the user
         has no disable row for it. `names` narrows the set to those names.
         """
-        query = select(OcuSkill.name, OcuSkill.description, OcuSkill.zip_sha256).order_by(OcuSkill.name)
+        columns = (OcuSkill.name, OcuSkill.description, OcuSkill.display_name, OcuSkill.zip_sha256)
+        query = select(*columns).order_by(OcuSkill.name)
         if names is not None:
             query = query.where(OcuSkill.name.in_(names))
         async with get_async_db_context(db) as db:

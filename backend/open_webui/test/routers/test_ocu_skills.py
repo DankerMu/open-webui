@@ -157,6 +157,7 @@ def test_admin_listing_returns_each_skill_with_its_read_grant_set(admin, seeded_
         {
             'name': 'a',
             'description': 'a description',
+            'display_name': None,
             'zip_sha256': 'sha-a',
             'size': 11,
             'created_by': 'admin-creator',
@@ -166,6 +167,7 @@ def test_admin_listing_returns_each_skill_with_its_read_grant_set(admin, seeded_
         {
             'name': 'b',
             'description': 'b description',
+            'display_name': None,
             'zip_sha256': 'sha-b',
             'size': 11,
             'created_by': 'admin-creator',
@@ -248,6 +250,7 @@ def test_access_update_narrows_to_group_a(admin, seeded_grants):
     assert response.json() == {
         'name': 'a',
         'description': 'a description',
+        'display_name': None,
         'zip_sha256': 'sha-a',
         'size': 11,
         'created_by': 'admin-creator',
