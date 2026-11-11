@@ -6,7 +6,7 @@ All tasks are in this repository. Each production change ships with its test in 
 
 - [ ] 1.1 Add the migration and the column, and carry the field through every listing.
   - **Migration.** Add `backend/open_webui/migrations/versions/<rev>_add_ocu_skill_display_name.py` with `down_revision = 'f7a8b9c0d1e2'`. It adds nullable `ocu_skill.display_name` (Text); its downgrade drops the column.
-  - **Model.** In `backend/open_webui/models/ocu_skills.py`, add `display_name: str | None` to `OcuSkillModel` and `OcuSkillReadableModel`, and add the column to the explicit select of `readable_skills` (`:91`).
+  - **Model.** In `backend/open_webui/models/ocu_skills.py`, add the ORM column `OcuSkill.display_name` (nullable Text), add `display_name: str | None` to `OcuSkillModel` and `OcuSkillReadableModel`, and add the column to the explicit select of `readable_skills` (`:91`).
   - **Router.** Add the field to the administrator and user item models, so that `GET /admin`, `POST /{name}/access`, `GET /` and `POST /{name}/toggle` carry it. Leave the internal user-config model unchanged.
   - **Existing tests.** Update the shape assertions this breaks:
     - the column set in `backend/open_webui/test/models/test_ocu_skill_tables.py` (`:405-409`). Its module fixture also applies the new migration after `f7a8b9c0d1e2`;
@@ -36,6 +36,7 @@ All tasks are in this repository. Each production change ships with its test in 
       - Error handling: no new failure path.
     - Governing invariant: every response that names a skill to a WebUI client carries `display_name` (string or `null`), while the internal user-config body keeps exactly `{email, enabled_skills: [{name, description, category, zip_sha256}]}`.
     - Sibling surfaces:
+      - the ORM column `OcuSkill.display_name = Column(Text, nullable=True)`; without it `OcuSkillModel.model_validate(row)` in `get_all` and `get_metadata` fails;
       - `OcuSkillModel`, `OcuSkillReadableModel` and the explicit select in `readable_skills`;
       - router models `OcuSkillAdminItem` (used by `GET /admin` and `POST /{name}/access` via `_admin_item`) and `OcuSkillUserItem` (`GET /`, `POST /{name}/toggle` via `_user_item`);
       - `OcuInternalUserConfig` / `OcuInternalSkill`, which stay unchanged;
@@ -49,17 +50,19 @@ All tasks are in this repository. Each production change ships with its test in 
     - Model test, red first: on a fresh SQLite file, running `upgrade` of both migrations, then `upgrade` again, leaves `display_name` in the `ocu_skill` columns. `downgrade` of the new one removes it and keeps every other column and row.
     - `make db-verify` passes.
   - **Table test module `backend/open_webui/test/models/test_ocu_skill_tables.py`.**
-    - The module fixture also applies the new migration after `f7a8b9c0d1e2`.
+    - The migration helpers load the new revision file as well. The module fixture runs its guarded upgrade every time, outside the existing "tables missing" guard. The test DB is the persistent `.run/data/webui.db`, which may already hold both tables at `f7a8b9c0d1e2`.
+    - Input → output: on a DB already at `f7a8b9c0d1e2` with both tables, running the fixture leaves `display_name` present.
     - `test_registry_schema_matches_the_data_model` adds `display_name` to the column set.
     - The existing test that list-all never loads `data` stays green.
   - **Router tests in the new module `backend/open_webui/test/routers/test_ocu_skill_display_name.py`, red first.**
     - For a seeded skill `a` without a display name, each of these carries `display_name: null`: `GET /admin` items, the `POST /a/access` response, `GET /` items and the `POST /a/toggle` response.
-    - After `UPDATE ocu_skill SET display_name='发票生成' WHERE name='a'` through the test DB, `GET /` and the toggle response carry `display_name: "发票生成"`.
+    - After `UPDATE ocu_skill SET display_name='发票生成' WHERE name='a'` through the test DB, all four responses carry `display_name: "发票生成"`: `GET /admin`, `POST /a/access`, `GET /` and the toggle response. `_admin_item` copies fields with `model_dump(include=...)`, so a defaulted field would otherwise pass the null-only checks.
     - `GET /api/internal/user-config/{email}` with the key returns items whose key set is exactly `{name, description, category, zip_sha256}`.
-  - **Existing shape assertions updated, not loosened.**
-    - The `POST /{name}/access` comparison in `test_ocu_skills.py` adds `'display_name': None`.
-    - The `_user_item` helper in `test_ocu_skill_user_routes.py` adds `'display_name': None`.
-    - Every other assertion is unchanged.
+  - **Existing shape assertions updated, not loosened.** Each exact-equality check below adds `'display_name': None`, and nothing else changes:
+    - the `POST /{name}/access` comparison and the full `GET /admin` list equality in `test_ocu_skills.py`;
+    - the `_user_item` helper in `test_ocu_skill_user_routes.py`;
+    - the `readable_skills` `item()` helper in `test_ocu_skill_tables.py`;
+    - the `_user_listing` literal in `test_ocu_skill_internal_routes.py`.
   - **Decision record** `docs/decisions/implemented/architecture/2026-11-11-ocu-skill-display-name.md`. It records design Decisions 1-5, links the source plan and this change, and passes `make decisions-verify`.
   - **Commands:**
     - backend pytest for `test_ocu_skill_tables.py`, `test_ocu_skill_display_name.py`, `test_ocu_skills.py`, `test_ocu_skill_user_routes.py` and `test_ocu_skill_internal_routes.py`;
