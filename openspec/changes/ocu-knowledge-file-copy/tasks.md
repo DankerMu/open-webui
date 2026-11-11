@@ -9,7 +9,7 @@ Every production change ships with its test in the same task, and each new test 
 
 ## 1. [ocu] Opt-in re-import on the upload endpoint
 
-- [ ] 1.1 Add the `X-OCU-Reimport-Missing` header to the upload path.
+- [x] 1.1 Add the `X-OCU-Reimport-Missing` header to the upload path.
   - **`computer-use-server/app.py` `upload_file`.** Read the header with the rules of spec requirement "Opt-in re-import on the upload endpoint":
     - absent means off;
     - `1` means on;
@@ -97,6 +97,15 @@ Minimal mergeable slice: atomic - the tool, its access rule and the header it se
 ## 3. [ocu] System prompt sentence
 
 - [ ] 3.1 In `computer-use-server/system_prompt.py` `<notes_on_user_uploaded_files>`, add the sentence of design.md Decision 6, starting with ``If a `copy_knowledge_file` tool is available``. Verify with a case in `tests/orchestrator/test_system_prompt_endpoint.py`: the rendered prompt for a saved chat contains exactly one sentence with that opening, inside the uploaded-files notes. Also run the full OCU unit-test command.
+
+  **Task 3.1 required evidence** (authoritative where it is more specific than the line above):
+  - Exact sentence, added as the last line before `</notes_on_user_uploaded_files>`, not reworded: ``If a `copy_knowledge_file` tool is available, it brings a knowledge-base document's original file into `/mnt/user-data/files/`, where you can process it like an uploaded file.`` (`FULL_SENTENCE` below).
+  - Implementation facts: static text in `SYSTEM_PROMPT_BEFORE_SKILLS`; no `PROMPT_FEATURES` entry; `_RenderKey` and `_render_uncached` unchanged; not gated by video, `user_email` or `chat_id`.
+  - Endpoint test in `tests/orchestrator/test_system_prompt_endpoint.py`: `GET /system-prompt` with only `params={"chat_id": "<uuid>"}` and the existing bearer token (no `user_email`, no `X-OCU-Features`) gives 200, and the body has ``count("If a `copy_knowledge_file` tool is available") == 1``, `count(FULL_SENTENCE) == 1`, the opening and closing `notes_on_user_uploaded_files` tags once each, and the sentence's index between them.
+  - Variants: `SYSTEM_PROMPT_TEMPLATE` and `build_system_prompt(skills_xml=<one user skill>)` each contain `FULL_SENTENCE` exactly once, parametrized as in `test_prompt_view_text_models.py`; this covers the no-params, `user_email` and video renders.
+  - Must preserve: with the new line removed, the notes block equals today's byte for byte; the sentence names neither `/mnt/user-data/uploads` nor `/mnt/user-data/outputs` (`test_rendered_prompt_names_only_workspace_files_path`); `test_system_prompt_endpoint.py`, `test_prompt_features.py` (its `video.replace(block) == plain` equality), `test_prompt_view_text_models.py`, `test_prompt_generated_images.py` and `test_vision_skill_listing.py` pass unchanged.
+  - Risk packs for this slice: Documentation selected — one Unreleased line in OCU `CHANGELOG.md` in this PR (OCU `CLAUDE.md` requires a CHANGELOG entry per PR). Legacy compatibility selected — MCP clients, `sub_agent` and the sandbox `README.md` get the same sentence, and the conditional wording is the compatibility measure; a chat whose container already exists keeps the old `README.md` text until it gets a new container (accepted). Public API not selected — the `text/plain` body only gains text. Release/packaging is covered by 4.1.
+  - Red first: the new tests fail against the unchanged source. Mutation proof: removing the `` `/mnt/user-data/files/` `` clause, and separately moving the sentence outside the closing tag, each make the test fail.
 
 Suggested fixture level: compact - one prompt sentence with one endpoint assertion.
 Minimal mergeable slice: atomic - a single sentence and its test; it does not depend on 2.1 to stay green, because the sentence is conditional.
