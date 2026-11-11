@@ -34,6 +34,6 @@ An uploaded skill's `name` must be an English slug, because it is the primary ke
 ## Consequences
 
 - Task 1.1 (#788) ships the column, its migration and the listing fields; every value is `null` until the write route lands in task 1.2 (#789). The frontend store, matcher and labels follow in later tasks of the change.
-- Rolling back the image without the downgrade is safe: the previous image never selects the column.
+- Rollback needs the downgrade first: run it to `f7a8b9c0d1e2` with this image, then switch images. The previous image refuses to start against a DB stamped `2a539b1fba23`, because its startup `upgrade head` cannot locate that revision.
 - A display name is visible only to viewers who can read the skill; a shared-chat viewer without read access sees the English name.
 - A page opened before an administrator edit shows the old name in tool-call rows until the slash menu reloads the list.
