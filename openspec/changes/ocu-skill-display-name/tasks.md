@@ -6,7 +6,7 @@ All tasks are in this repository. Each production change ships with its test in 
 
 - [x] 1.1 Add the migration and the column, and carry the field through every listing.
   - **Migration.** Add `backend/open_webui/migrations/versions/<rev>_add_ocu_skill_display_name.py` with `down_revision = 'f7a8b9c0d1e2'`. It adds nullable `ocu_skill.display_name` (Text); its downgrade drops the column.
-  - **Model.** In `backend/open_webui/models/ocu_skills.py`, add the ORM column `OcuSkill.display_name` (nullable Text), add `display_name: str | None` to `OcuSkillModel` and `OcuSkillReadableModel`, and add the column to the explicit select of `readable_skills` (`:91`).
+  - **Model.** In `backend/open_webui/models/ocu_skills.py`, add the ORM column `OcuSkill.display_name` (nullable Text), add `display_name: str | None` to `OcuSkillModel` and `OcuSkillReadableModel`, and add the column to the explicit select of `readable_skills`.
   - **Router.** Add the field to the administrator and user item models, so that `GET /admin`, `POST /{name}/access`, `GET /` and `POST /{name}/toggle` carry it. Leave the internal user-config model unchanged.
   - **Existing tests.** Update the shape assertions this breaks:
     - the column set in `backend/open_webui/test/models/test_ocu_skill_tables.py` (`:405-409`). Its module fixture also applies the new migration after `f7a8b9c0d1e2`;
@@ -41,7 +41,7 @@ All tasks are in this repository. Each production change ships with its test in 
       - router models `OcuSkillAdminItem` (used by `GET /admin` and `POST /{name}/access` via `_admin_item`) and `OcuSkillUserItem` (`GET /`, `POST /{name}/toggle` via `_user_item`);
       - `OcuInternalUserConfig` / `OcuInternalSkill`, which stay unchanged;
       - `OcuSkillUploaded`, the upload response, which is out of this task;
-      - `upsert` replace columns at `models/ocu_skills.py:173`, which must not list `display_name`;
+      - `upsert` replace columns in `models/ocu_skills.py`, which must not list `display_name`;
       - frontend types, which are out of this task (#790).
   - **Migration `<rev>_add_ocu_skill_display_name.py`.**
     - `revision` is a fresh 12-hex id, and `down_revision = 'f7a8b9c0d1e2'`.
@@ -81,6 +81,28 @@ All tasks are in this repository. Each production change ships with its test in 
   - delete, then re-upload of the same name, shows `null`.
 
   Add a `smoke/ocu-skills.hurl` case that sets and clears a display name. Verify with `make smoke`, `make lint-scoped` and `make coverage-gate`.
+
+  **Task 1.2 required evidence** (authoritative where it is more specific than the bullets above):
+  - Fixture level expanded (admin write route on the Critical Path `routers/ocu_skills.py`). Risk packs selected: Auth (the 401/404 matrix below); Public API (new route, response is the admin item); Error handling (400/422/404 ordering); Security / input validation (`<`, `>`, Cc rejected, `|` allowed); Legacy compatibility (existing exact-equality tests and the internal user-config unchanged); Documentation (verification-matrix row). Not selected: Schema (no migration), File IO / resource limits (short JSON string), Concurrency (one UPDATE), Audit/log (the router has none and none is added).
+  - Setter: `OcuSkills.set_display_name(name, value: str | None) -> OcuSkillModel | None` runs one `UPDATE ocu_skill SET display_name` and returns `None` when no row matches; the route maps `None` to `_skill_not_found()`. It writes only `display_name`: `description`, `zip_sha256`, `size`, `created_by`, `created_at`, `updated_at`, grants and disables stay equal (assert the response's `updated_at` equals the seeded value). It never selects `data` (assert with `_SelectRecorder().assert_no_skill_data_select()` around a successful POST, as `test_access_update_does_not_select_skill_data` does).
+  - Order of checks: `get_admin_user` (401), then body validation (422), then trim and rule (400), then the setter (404). So a user-role caller with `{}` gets 401; an unknown name with `{}` gets 422; an unknown name with `"<x>"` gets 400; an unknown name with `"发票生成"` gets 404 and no row is created.
+  - Exact 400 details, asserted by equality, each input breaking one rule: `display name must be at most 32 characters`; `display name must not contain < or >`; `display name must not contain control characters`. They match the router's existing English details; #790 shows them as given.
+  - "Unchanged" starts non-null: every 400, 422 and 401 case first seeds `a` with `发票生成` through `_store_display_name`, then re-reads `GET /admin` as admin and asserts `display_name == "发票生成"`.
+  - Trim: bare `str.strip()` before every rule. `{"display_name": "\u3000 发票生成\t\n"}` → 200, `"发票生成"`; `" 发票生成"` → 200, `"发票生成"`.
+  - Length: `len()` (code points) of the trimmed value, tested with CJK so byte counting fails. `"发"*32` → 200 stored as given; `"  " + "发"*32 + "  "` → 200 storing `"发"*32`; `"发"*33` → 400 with the length detail.
+  - Allowed: `"发票|生成"` → 200 stored as given; `"发票生成"` on both `a` and `b` → 200 each (names are not unique).
+  - Rule violations sit inside the string (strip removes edge `\n`/`\t`), each → 400 with its detail and `发票生成` unchanged: `"发<票"`, `"发>票"` (angle-bracket detail); `"发\n票"`, `"发\t票"`, `"发\x00票"` (control detail). The `\x00` case proves the rule is Unicode category `Cc`, not a `\n`/`\t` blacklist. Cf characters (U+200B, U+200D) inside a name pass, as Decision 3 designs.
+  - Clear: `""`, `"   "`, `"\t"` and `null`, each from seeded `发票生成` → 200 with `display_name is None`, and `GET /admin` shows `None` (stored NULL, not `''`).
+  - Malformed body: `{}`, `{"display_name": 123}`, `{"display_name": true}` and a JSON array `[]` → 422 each, `发票生成` unchanged; the 422 body is not asserted.
+  - Response: a successful POST's JSON equals exactly the `GET /admin` item for `a`, including `access_grants == [EVERYONE_READ]` (the seeded group write grant filtered out).
+  - Auth: the `member` session and no session, each with `{"display_name": "新名"}` and with `{}` → 401, and `a` keeps `发票生成` (tested in the new module, because `ADMIN_WRITES` / `_registry_state` cannot see `display_name`).
+  - Mount gate: add `'POST /a/display-name'` to `ADMIN_ROUTES` in `test_ocu_skills.py` (404 with the workspace off, 401 for a user with it on), and `'POST /a/display-name': 422` to the `workspace-on-positive-control` row (fresh DB, no body: 422 proves the route is mounted and the off-404 comes from the gate).
+  - Replace: with the `registry` fixture, upload `_skill_zip_for(INVOICE)`, set `发票生成` through the route, upload `_skill_zip_for(INVOICE, description=DESCRIPTION_B)` through the upload route; `GET /admin` shows `display_name == "发票生成"` with a changed `zip_sha256` and description.
+  - Delete: after setting through the route, `DELETE /invoice-builder` (expect `true`), re-upload the same name; `GET /admin` shows `display_name is None`.
+  - Hurl, between the existing upload and `DELETE`: `POST .../harness-smoke-skill/display-name` `{"display_name": " 冒烟技能 "}` → 200 with `$.name == "harness-smoke-skill"`, `$.display_name == "冒烟技能"`, `$.access_grants count == 1`; `GET /admin` asserts the filtered `display_name == "冒烟技能"`; `POST` `{"display_name": null}` → 200 with `$.display_name == null` asserted on the POST response. No `display_name` assertion before the set step (a rerun after an interrupted run replaces the skill, which keeps the name). Only this file uses `harness-smoke-skill`, and the existing delete removes the row.
+  - Docs: update the "Uploaded-skill upload/delete round trip" row in `docs/agents/verification-matrix.md` with the set/clear step and its asserts; run `make doc-gate`. The decision record already covers Decisions 2-3 and is not touched.
+  - Must preserve: the existing exact-equality tests in `test_ocu_skills.py`, `test_ocu_skill_user_routes.py`, `test_ocu_skill_internal_routes.py` and `test_ocu_skill_tables.py` pass unmodified apart from the two mount-gate entries; the `upsert` `replace` tuple does not list `display_name`; `OcuSkillUploaded` is unchanged.
+  - Commands: backend pytest for `test_ocu_skill_display_name.py` and `test_ocu_skills.py` (plus the other three skill modules); `make smoke`; `make lint-scoped`; `make coverage-gate` (`routers/ocu_skills.py`, `models/ocu_skills.py`); `make doc-gate`. Each new test is red against the unchanged source, except those that only pin unchanged behavior, which the PR names.
 
 Suggested fixture level: expanded - schema migration plus a new administrator route on a Critical Path (`routers/ocu_skills.py`).
 Minimal mergeable slice: task 1.1 - the column and the listing field are green alone (every value is `null`), and the slice carries the decision record. Task 1.2 depends on 1.1.
