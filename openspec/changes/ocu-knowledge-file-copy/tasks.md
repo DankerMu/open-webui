@@ -91,12 +91,77 @@ Minimal mergeable slice: atomic - one header and the single storage branch it sw
 
   Assert in `test_public_tools_sync_new_attachment_before_command` that attachment-sync uploads carry no `X-OCU-Reimport-Missing` header. Run the full OCU unit-test command.
 
+  **Task 2.1 required evidence** (authoritative where it is more specific than the bullets above):
+  - Risk packs for this slice:
+    - Auth / permissions — selected: the access table below.
+    - File IO / path safety — selected: the collision, heal and edited-copy cases (the server-side no-follow probe is proven in 1.1).
+    - Public API (model-facing tool signature, result strings, docstring) — selected: exact-string asserts and the docstring test.
+    - Error handling / partial outputs — selected: the error texts and failure injection below.
+    - Legacy compatibility — selected: Must preserve below.
+    - Documentation — selected: one row in the `openwebui/tools/README.md` "Tools Provided" table, one CHANGELOG Unreleased "Added" entry, and `version: 4.2.0` → `4.3.0` in the module docstring.
+    - Concurrency — not selected: the server serializes under the per-chat lock (1.1); the wrapper adds no shared state.
+    - Auth / secrets — not selected: no new credential; the internal bearer is reused.
+  - Upload shim: `_GuardedOCU.upload` in `tests/test_tools.py` (about lines 373-396) passes `x_ocu_reimport_missing=request.headers.get("x-ocu-reimport-missing")` as a keyword to `ocu_app.upload_file`, and adds a `reimport_missing` key to a `self.uploads` record only when the header is present. The existing exact `ocu.uploads == [{"filename": ..., "attachment_id": ...}]` asserts therefore stay unchanged and prove attachment sync sends no header.
+  - The tool does not call `_imported_attachment_ids`, does not take `__files__`, does not run `_sync_files_if_needed`, and makes no `/mcp` call; every case asserts zero `/api/uploads/{chat}/imports` and zero `/mcp` requests.
+  - Check order and exact texts (tests assert full-string equality):
+    1. `_prepare_tool_call` — its `[TOOL ERROR]` / `[CONFIG ERROR]` result is returned unchanged.
+    2. `Chats.get_chat_by_id(<chat_id>)` (positional; the real first parameter is `id`) returns None or raises → `Error: chat not found`.
+    3. No file row → `Error: file <id> not found`.
+    4. Access rule fails → `Error: file <id> is not in a knowledge base the chat owner can read`. Checked before the stored-path check, so an unreadable file never reveals whether it has stored bytes. (The real `get_knowledges_by_file_id` swallows its errors and returns `[]`, so a DB error there also gives this text.)
+    5. Empty `row.path` → `Error: file <id> has no stored bytes`.
+    6. `synced == 0` → `Error: upload of <display name> failed`.
+  - Success is exactly `Copied <display name> to /mnt/user-data/files/<stored name>`, with `<stored name>` from `sync_result["stored"]` (the server's `filename`), not the requested name. With a discovery failure, the `[DISCOVERY WARNING] ...` line from `sync_result["warnings"]` follows after `\n\n`. Collision case: an unrelated `报告.docx` is pre-seeded, the result names `报告 (2).docx`, and the seeded file's bytes are unchanged.
+  - Status events: `description` (or a fixed fallback when empty) is the in-progress text; the final event is `complete` with a fixed text on success (discovery-warning case included) or `error` with a fixed text on any `Error:` result, and has `done: True`. Tests pin the texts. The workspace hint is emitted exactly once on success and in the discovery-warning case; on every refusal (chat-id and config errors included) and on upload failure, `_workspace_hints(events) == []`.
+  - Fakes (async, real keyword names), registered as `open_webui.models.knowledge`, `open_webui.models.access_grants` and `open_webui.models.groups`:
+    - `Knowledges.get_knowledges_by_file_id(file_id, db=None)` returning objects with `.id` and `.user_id`;
+    - `AccessGrants.has_access(user_id, resource_type, resource_id, permission='read', user_group_ids=None, db=None)`: matches `user:*`, `user:<id>` and `group:<gid>` rows, requires an exact permission match, has no admin clause, and looks up groups itself when `user_group_ids` is None; it asserts `resource_type == 'knowledge'` and `permission == 'read'`;
+    - `Groups.get_groups_by_member_id(user_id, db=None)`.
+      KB grants get their own kwarg, separate from the existing `grants` (file_id, user_id) pairs; `_row` gains `path` and `collection_name` knobs. Every copy case asserts `webui.access_checks == []`, proving `has_access_to_file` is never called.
+  - Access cases, each with chat C owned by OWNER and file F:
+
+    | Case                         | `__user__` | Rows and grants                                                  | Expected                    |
+    | ---------------------------- | ---------- | ---------------------------------------------------------------- | --------------------------- |
+    | Owner-owned KB               | OWNER      | K owned by OWNER contains F                                      | copied                      |
+    | Direct grant                 | OWNER      | K owned by OTHER; `knowledge/K/user/OWNER/read`                  | copied                      |
+    | Group grant                  | OWNER      | OWNER in group G; `knowledge/K/group/G/read`                     | copied                      |
+    | Open to everyone             | OWNER      | `knowledge/K/user/*/read`                                        | copied                      |
+    | Several KBs                  | OWNER      | K1 owned by OTHER, ungranted; K2 owned by OWNER                  | copied                      |
+    | Ungranted                    | OWNER      | K owned by OTHER, no grants                                      | refused                     |
+    | Write-only grant             | OWNER      | K owned by OTHER; `knowledge/K/user/OWNER/write`                 | refused                     |
+    | Admin in another user's chat | ADMIN      | C owned by OWNER; K owned by ADMIN                               | refused                     |
+    | Other caller, owner may read | OTHER      | K owned by OWNER                                                 | copied into OWNER's chat    |
+    | Admin owner without grant    | ADMIN      | C owned by ADMIN; K owned by OTHER, no grant                     | refused                     |
+    | Legacy name only             | OWNER      | F's meta `collection_name` = K owned by OWNER; F not linked to K | refused                     |
+    | Own upload outside any KB    | OWNER      | F owned by OWNER, in no KB                                       | refused                     |
+    | Unknown id                   | OWNER      | no row                                                           | refused (`not found`)       |
+    | No stored bytes              | OWNER      | readable F with `path=None`                                      | refused (`no stored bytes`) |
+
+    Every refusal asserts zero upload requests.
+
+  - Heal cases end to end through the forwarding shim and the real `upload_file` / `store_upload`:
+    - **Second copy:** two upload POSTs, both with `X-OCU-Reimport-Missing: 1`, one stored file, two identical results.
+    - **Copy deleted, then copied again:** delete the stored copy and copy again; two POSTs with header `1`; the workspace holds F's bytes again under the unsuffixed name, and the result names that path.
+    - **Edited copy kept:** edit the stored copy and copy again; the edited bytes are unchanged and the result names the receipted path.
+    - Mutation proof: removing the shim forward makes the deleted-copy case red (the second-copy case alone cannot prove forwarding, because the headerless path also answers from the receipt).
+  - Failure injection, each asserting the exact `Error: upload of <display name> failed` (or the storage text below) and that nothing is raised:
+    - storage error, run against `_with_guard`: no `webui.contents` entry for the key, so the fake `get_file` raises `FileNotFoundError`; zero upload POSTs, `ocu.stored_files(chat) == {}`, and an empty `GET /imports` id list afterwards;
+    - HTTP 500: a `_local_origin` responder answers the upload with 500; `origin.requests` holds exactly one POST to `/api/uploads/<chat>/<name>` carrying `X-OCU-Attachment-Id: <file id>` and `X-OCU-Reimport-Missing: 1`, with no retry and no other request;
+    - unreachable: `ORCHESTRATOR_URL` points at a closed port (call `_disable_proxy_env`); assert only the exact result and that nothing is raised.
+    - The server-side "no receipt on a failed upload" is already proven by the task 1.1 error-path tests; the zero `/imports` / `/mcp` counts apply to the cases that run against the guarded OCU server.
+  - Any exception from `Files.get_file_by_id`, `has_access` or `get_groups_by_member_id` yields a result starting with `Error:` with nothing raised and zero uploads; the implementer picks the text and the PR names it.
+  - Test plumbing: the `Chats` fake and the new knowledge fake record their calls (for the "no chat or knowledge lookups" asserts), and `_FakeWebUI` honours the new `path` knob for the storage-error and `path=None` rows.
+  - Config and empty chat: add the copy tool to a `[CONFIG ERROR]` case like `test_unusable_credentials_reject_before_upload_or_probe`; the empty-chat and config-error cases also assert `webui.lookups == []` and no chat or knowledge lookups.
+  - Shared resolver: factor row loading and naming (`os.path.basename(meta.get("name") or row.filename or file_id)`) out of `_readable_files` into one helper both resolvers call. `_readable_files` keeps its caller-based rule (owner, or `has_access_to_file` read, no admin clause), its log lines and its return value byte for byte.
+  - Must preserve: `_sync_uploaded_files(orchestrator_url, chat_id, entries, internal_token, debug=False, *, extra_headers=None)` — keyword-only, default None, applied after the attachment-id header; the call in `_sync_files_if_needed` unchanged; attachment and chat-image sync POSTs carry no `X-OCU-Reimport-Missing`; `PUBLIC_TOOLS` and `_call_with_empty_chat` unchanged; `tests/orchestrator/test_tool_descriptions.py::test_tool_set_is_the_five_tools_plus_generate_speech` stays green unchanged (the tool is wrapper-only).
+  - Docstring test: the tokens `search_knowledge_files` or `query_knowledge_files`, `docx`, `pdf`, `/mnt/user-data/files/` and `![` appear in the description part of the docstring — the text before the first line matching `:param` or `:return`, mirroring Open WebUI `parse_description` (`backend/open_webui/utils/tools.py:805-828`), which becomes the tool description; a match elsewhere in `__doc__` does not count. `:param file_id:` and `:param description:` are matched with the same `:param (\w+):` regex (`tools.py:844`), since OCU tests cannot import `open_webui`.
+  - Each new test is red against the unchanged source, except tests that only pin unchanged behavior, which the PR names.
+
 Suggested fixture level: expanded - a model-callable path that moves stored files across the WebUI/sandbox boundary under an access rule.
 Minimal mergeable slice: atomic - the tool, its access rule and the header it sends are one behavior with one test seam, and the shared helper's new argument has no other caller. Depends on 1.1.
 
 ## 3. [ocu] System prompt sentence
 
-- [ ] 3.1 In `computer-use-server/system_prompt.py` `<notes_on_user_uploaded_files>`, add the sentence of design.md Decision 6, starting with ``If a `copy_knowledge_file` tool is available``. Verify with a case in `tests/orchestrator/test_system_prompt_endpoint.py`: the rendered prompt for a saved chat contains exactly one sentence with that opening, inside the uploaded-files notes. Also run the full OCU unit-test command.
+- [x] 3.1 In `computer-use-server/system_prompt.py` `<notes_on_user_uploaded_files>`, add the sentence of design.md Decision 6, starting with ``If a `copy_knowledge_file` tool is available``. Verify with a case in `tests/orchestrator/test_system_prompt_endpoint.py`: the rendered prompt for a saved chat contains exactly one sentence with that opening, inside the uploaded-files notes. Also run the full OCU unit-test command.
 
   **Task 3.1 required evidence** (authoritative where it is more specific than the line above):
   - Exact sentence, added as the last line before `</notes_on_user_uploaded_files>`, not reworded: ``If a `copy_knowledge_file` tool is available, it brings a knowledge-base document's original file into `/mnt/user-data/files/`, where you can process it like an uploaded file.`` (`FULL_SENTENCE` below).
