@@ -83,6 +83,27 @@ class OcuSkillTable:
             row = await db.get(OcuSkill, name)
             return OcuSkillModel.model_validate(row) if row else None
 
+    async def set_display_name(
+        self, name: str, display_name: str | None, db: AsyncSession | None = None
+    ) -> OcuSkillModel | None:
+        """Write only display_name (NULL clears it) and return the row; None when no skill has that name.
+
+        One UPDATE, then a metadata read that leaves the deferred data unloaded; updated_at stays,
+        because the label is not part of the skill's content.
+        """
+        async with get_async_db_context(db) as db:
+            # synchronize_session=False: the 'auto' default may add a SELECT or RETURNING to the UPDATE.
+            result = await db.execute(
+                update(OcuSkill)
+                .where(OcuSkill.name == name)
+                .values(display_name=display_name)
+                .execution_options(synchronize_session=False)
+            )
+            if not result.rowcount:
+                return None
+            await db.commit()
+            return await self.get_metadata(name, db=db)
+
     async def readable_skills(
         self, user_id: str, bypass: bool, names: list[str] | None = None, db: AsyncSession | None = None
     ) -> list[OcuSkillReadableModel]:

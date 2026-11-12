@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import os
+import unicodedata
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -19,12 +20,13 @@ from open_webui.models.ocu_skills import OCU_SKILL_RESOURCE_TYPE, OcuSkillModel,
 from open_webui.models.users import UserModel, Users
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.ocu_skill_zip import SkillZipError, validate_skill_zip
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, StrictStr
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter()
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+MAX_DISPLAY_NAME_LENGTH = 32
 # OCU built-ins at the pinned revision 4dab0cf30be033ec95818c2108487a61b7213029 (design Decision 4):
 # every skills/public/ directory, remotion, and every NATIVE_PROMPT_DESCRIPTIONS key, whose description
 # OCU would force onto an upload of the same name.
@@ -97,6 +99,11 @@ class OcuSkillAccessGrant(BaseModel):
 
 class OcuSkillAccessForm(BaseModel):
     access_grants: list[OcuSkillAccessGrant]
+
+
+class OcuSkillDisplayNameForm(BaseModel):
+    # Required StrictStr | None: {}, a number or a boolean is a client bug (422), never a silent clear.
+    display_name: StrictStr | None
 
 
 class OcuSkillUserItem(BaseModel):
@@ -217,6 +224,31 @@ async def update_skill_access(name: str, form_data: OcuSkillAccessForm):
         raise _skill_not_found()
     grants = await AccessGrants.set_access_grants(OCU_SKILL_RESOURCE_TYPE, name, form_data.access_grants)
     return _admin_item(skill, grants)
+
+
+def _checked_display_name(display_name: str | None) -> str | None:
+    """The trimmed name, or None to clear it; 400 with the broken rule as the detail (design Decision 3)."""
+    trimmed = (display_name or '').strip()
+    if not trimmed:
+        return None
+    if len(trimmed) > MAX_DISPLAY_NAME_LENGTH:
+        detail = f'display name must be at most {MAX_DISPLAY_NAME_LENGTH} characters'
+    elif '<' in trimmed or '>' in trimmed:
+        # The OCU filter's mention label class is [^<>]*: an angle bracket would end the marker.
+        detail = 'display name must not contain < or >'
+    elif any(unicodedata.category(char) == 'Cc' for char in trimmed):
+        detail = 'display name must not contain control characters'
+    else:
+        return trimmed
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+@router.post('/{name}/display-name', response_model=OcuSkillAdminItem, dependencies=[Depends(get_admin_user)])
+async def update_skill_display_name(name: str, form_data: OcuSkillDisplayNameForm):
+    skill = await OcuSkills.set_display_name(name, _checked_display_name(form_data.display_name))
+    if skill is None:
+        raise _skill_not_found()
+    return _admin_item(skill, await AccessGrants.get_grants_by_resource(OCU_SKILL_RESOURCE_TYPE, name))
 
 
 @router.delete('/{name}', response_model=bool, dependencies=[Depends(get_admin_user)])

@@ -4,7 +4,7 @@
 
 See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowledge-copy-and-skill-display-names.md`, part B) for the code survey. Constraints that shape the approach:
 
-- `ocu_skill` is the single row per uploaded skill (`backend/open_webui/models/ocu_skills.py:20-31`). Replace updates only `data`, `zip_sha256`, `size`, `description` and `updated_at` (`:173`), and delete removes the row with its grants and disables.
+- `ocu_skill` is the single row per uploaded skill (`OcuSkill` in `backend/open_webui/models/ocu_skills.py`). Replace updates only `data`, `zip_sha256`, `size`, `description` and `updated_at` (the `upsert` `replace` tuple), and delete removes the row with its grants and disables.
 - The latest migration is `f7a8b9c0d1e2_add_ocu_skill.py`; AGENTS.md allows a migration only when a plan names it, and the source plan names `add_ocu_skill_display_name`.
 - The OCU filter rewrites `<$ocu--{name}|{label}>` to `{label}`, with label class `[^<>]*`, and names `{name}` in its system sentence. A Chinese label therefore needs no OCU change.
 - The tool-call row is upstream `src/lib/components/common/ToolCallDisplay.svelte`. Its arguments are decoded only while the row is open (`:148-151`). The fork already adds one label-time helper there (`runningImageCall`) as a minimal branch.
@@ -44,7 +44,7 @@ See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowl
    - The rule is enforced only on write. The listings return the stored value as is.
 4. **Listings carry `display_name`.**
    - `GET /admin`, `POST /{name}/access`, `GET /` and `POST /{name}/toggle` add the field. `POST /{name}/access` shares `OcuSkillAdminItem`.
-   - `readable_skills` selects explicit columns (`models/ocu_skills.py:91`), so it gains `display_name` there.
+   - `readable_skills` selects explicit columns (`models/ocu_skills.py`), so it gains `display_name` there.
    - The internal `user-config` response does not change, because OCU is out of scope. It builds its own model from `readable_skills`, so a test pins its keys.
 5. **One display-name source on the frontend: the user list `GET /`, held in one page-scoped store.**
    - A fork module, `src/lib/components/chat/ocu-skill-call.ts`, owns two things.
