@@ -5,7 +5,7 @@ kind: architecture
 status: implemented
 date: 2026-10-02
 supersedes: none
-references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, issue 200, issue 201, issue 202, 2026-10-03-ocu-office-editor-selection
+references: Plan 2 B0, ocu-office-editing D2 and D3, issue 113, issue 199, issue 200, issue 201, issue 202, 2026-10-03-ocu-office-editor-selection, 2026-11-11-ocu-knowledge-file-copy
 ---
 
 # One writable workspace files directory per chat
@@ -19,6 +19,8 @@ Separate upload and output directories split the user's files from the Agent's e
 Use `{BASE_DATA_DIR}/{chat_id}/outputs` as the single workspace files directory, mounted read-write at `/mnt/user-data/files`. Keep `/home/assistant` on its per-chat named volume as private working storage, outside listings and file serving. The sandbox image contains neither legacy user-data directory nor compatibility symlink; root owns `/mnt/user-data` and the sandbox user cannot create a legacy path there.
 
 Uploads publish into the shared directory using the existing per-chat lock and no-replace hard-link claim. Attachment receipts prevent repeated synchronization from overwriting edits or resurrecting renamed/deleted files. The outputs broker assigns file identity through its existing reconciliation path. MCP retains its `file://uploads/{chat_id}/...` URI shape while sourcing visible workspace files and excluding hidden paths.
+
+An upload that opts in with `X-OCU-Reimport-Missing: 1` is the one exception to that receipt rule: a receipted file that no longer opens as a regular file is stored again ([knowledge-file copy decision](2026-11-11-ocu-knowledge-file-copy.md)).
 
 Uploads and Office copies share the numbered-name policy: query `PC_NAME_MAX` on the pinned destination directory, reserve filesystem-encoded bytes for the complete last suffix and current ` (N)`, and retain the longest whole-character stem prefix. Use `_` only when no original stem character fits. A legal free upload name is attempted unchanged. Insufficient capacity fails explicitly (upload HTTP400); an unavailable limit remains an IO failure, never a guessed255-byte limit. Atomic claims still choose the winner, and Office recovery recognizes owned copies by identity rather than spelling.
 

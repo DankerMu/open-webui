@@ -29,9 +29,9 @@ See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowl
 ## Decisions
 
 1. **The tool lives in the OCU tool wrapper, not in a WebUI builtin or an MCP tool.**
-   - Only the wrapper has both the WebUI file store and the OCU upload path.
+   - The wrapper is where the OCU tools already run, in the WebUI process, and it already holds the attachment-sync upload helper.
    - An MCP tool would run in the orchestrator, which cannot read WebUI storage.
-   - A WebUI builtin would duplicate the wrapper's upload code in the upstream spine.
+   - A WebUI builtin would put a new tool and its access resolver into the upstream builtin-tool spine, beside the existing `OcuClient.upload_file` seam.
 2. **Access rule: knowledge-base membership plus the chat owner's read access to that knowledge base.**
    - The subject is the chat's owner, loaded with `Chats.get_chat_by_id(chat_id).user_id`, not the caller. Open WebUI lets an administrator run a completion in another user's chat (`backend/open_webui/main.py:1472`), and the owner chose to judge by the chat owner's rights (ledger #18). An administrator's own grants therefore never put a document into another user's sandbox, and a document the owner may read can be copied whoever triggers the call.
    - The rule is evaluated in the wrapper with `Knowledges.get_knowledges_by_file_id(file_id)`, then knowledge-base ownership by the owner or `AccessGrants.has_access(user_id=<owner>, resource_type='knowledge', resource_id=<kb>, permission='read', user_group_ids=<the owner's groups from Groups.get_groups_by_member_id>)`. That call already honours `user:*` grants (`backend/open_webui/models/access_grants.py:574-592`), so a knowledge base open to everyone is readable.
