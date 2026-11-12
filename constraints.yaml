@@ -233,7 +233,7 @@ verification:
   enforced_by: "Stage 4 matrix-to-target check + PR Runtime evidence section"
 
 ocu_checkout:
-  sha: "77b201189938b841c3636ef1db3e833a9f74c158"
+  sha: "01b7ef7a64a582f23513bb8c179b55a6d461b073"
   repository: "DankerMu/open-computer-use"
   path: ".run/open-computer-use"
 
