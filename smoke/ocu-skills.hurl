@@ -41,6 +41,39 @@ jsonpath "$[?(@.name == 'harness-smoke-skill')].access_grants[0].principal_type"
 jsonpath "$[?(@.name == 'harness-smoke-skill')].access_grants[0].principal_id" == "*"
 jsonpath "$[?(@.name == 'harness-smoke-skill')].access_grants[0].permission" == "read"
 
+# Display name set and clear. No display_name assertion before the set: a rerun after an
+# interrupted run replaces the skill, and a replace keeps the name.
+POST {{base_url}}/api/v1/ocu/skills/harness-smoke-skill/display-name
+Authorization: Bearer {{token}}
+Content-Type: application/json
+{
+  "display_name": " 冒烟技能 "
+}
+
+HTTP 200
+[Asserts]
+jsonpath "$.name" == "harness-smoke-skill"
+jsonpath "$.display_name" == "冒烟技能"
+jsonpath "$.access_grants" count == 1
+
+GET {{base_url}}/api/v1/ocu/skills/admin
+Authorization: Bearer {{token}}
+
+HTTP 200
+[Asserts]
+jsonpath "$[?(@.name == 'harness-smoke-skill')].display_name" == "冒烟技能"
+
+POST {{base_url}}/api/v1/ocu/skills/harness-smoke-skill/display-name
+Authorization: Bearer {{token}}
+Content-Type: application/json
+{
+  "display_name": null
+}
+
+HTTP 200
+[Asserts]
+jsonpath "$.display_name" == null
+
 GET {{base_url}}/api/v1/ocu/skills/api/internal/user-config/{{seed_email}}
 X-Internal-Api-Key: {{ocu_internal_token}}
 

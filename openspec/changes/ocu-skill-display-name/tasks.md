@@ -68,7 +68,7 @@ All tasks are in this repository. Each production change ships with its test in 
     - backend pytest for `test_ocu_skill_tables.py`, `test_ocu_skill_display_name.py`, `test_ocu_skills.py`, `test_ocu_skill_user_routes.py` and `test_ocu_skill_internal_routes.py`;
     - `make db-verify`, `make smoke`, `make lint-scoped`, `make coverage-gate`, `make decisions-verify`, `make doc-gate`.
 
-- [ ] 1.2 Add the table method that sets `display_name`, and the administrator route `POST /{name}/display-name` with the body model and validation of design.md Decisions 2-3. In `test_ocu_skill_display_name.py`, cover one case per scenario of spec requirement "Administrator display name" in `ocu-uploaded-skills`:
+- [x] 1.2 Add the table method that sets `display_name`, and the administrator route `POST /{name}/display-name` with the body model and validation of design.md Decisions 2-3. In `test_ocu_skill_display_name.py`, cover one case per scenario of spec requirement "Administrator display name" in `ocu-uploaded-skills`:
   - trimmed set;
   - 32 characters and `|` accepted;
   - clear with `""`, `"   "` and `null`;

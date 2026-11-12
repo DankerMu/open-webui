@@ -195,14 +195,14 @@ def test_admin_listing_refuses_user_role_and_no_session(member, seeded_grants):
     assert client.get(ADMIN_PATH).status_code == 401
 
 
-ADMIN_ROUTES = ['/admin', 'POST /a/access', 'DELETE /a', 'POST /upload']
+ADMIN_ROUTES = ['/admin', 'POST /a/access', 'POST /a/display-name', 'DELETE /a', 'POST /upload']
 
 
 @pytest.mark.parametrize(
     'workspace,role,expected',
     [
         ('false', 'admin', dict.fromkeys([*ADMIN_ROUTES, '/', 'POST /a/toggle'], 404)),
-        ('true', 'admin', {'/admin': 200}),
+        ('true', 'admin', {'/admin': 200, 'POST /a/display-name': 422}),
         # A mounted toggle resolves the session before the body: a user session without a body is 422.
         ('true', 'user', {**dict.fromkeys(ADMIN_ROUTES, 401), '/': 200, 'POST /a/toggle': 422}),
     ],
