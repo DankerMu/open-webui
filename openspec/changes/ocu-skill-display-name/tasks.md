@@ -321,16 +321,16 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
     - **Setup.** The store is pre-written with `invoice-builder → 发票生成` unless a case says otherwise. Each case asserts the full-label span and the short-label span; the implementer names the selectors (the class contains `@`, so it must be escaped, for example `.\@md\:inline`). Arguments use the matching raw JSON.
     - **Label table.** Input: `done`, `status`, `resolvable` and the result.
 
-      | Input | Full label | Short label |
-      | --- | --- | --- |
-      | `done:'false', status:''` (preparing) | `Reading skill: 发票生成...` | `发票生成` |
-      | `done:'false', status:'pending', resolvable:false` (pending, not resolvable: upstream treats it as preparing) | `Reading skill: 发票生成...` | `发票生成` |
-      | `done:'false', status:'completed'` (executing) | `Reading skill: 发票生成...` | `发票生成` |
-      | `done:'true', status:'completed'`, result `'# SKILL'` | `Used skill: 发票生成` | `发票生成` |
-      | `done:'false', status:'failed'` | `Skill read failed: 发票生成` | `发票生成` |
-      | `done:'true'`, result `'Error: not found'` | `Skill read failed: 发票生成` | `发票生成` |
-      | `status:'rejected'` | upstream `Denied view` | `发票生成` |
-      | `done:'false', status:'pending', resolvable:true` (awaiting approval) | upstream `Allow view?`; the Allow and Deny buttons are present | `发票生成` |
+      | Input                                                                                                         | Full label                                                     | Short label |
+      | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------- |
+      | `done:'false', status:''` (preparing)                                                                         | `Reading skill: 发票生成...`                                   | `发票生成`  |
+      | `done:'false', status:'pending', resolvable:false` (pending, not resolvable: upstream treats it as preparing) | `Reading skill: 发票生成...`                                   | `发票生成`  |
+      | `done:'false', status:'completed'` (executing)                                                                | `Reading skill: 发票生成...`                                   | `发票生成`  |
+      | `done:'true', status:'completed'`, result `'# SKILL'`                                                         | `Used skill: 发票生成`                                         | `发票生成`  |
+      | `done:'false', status:'failed'`                                                                               | `Skill read failed: 发票生成`                                  | `发票生成`  |
+      | `done:'true'`, result `'Error: not found'`                                                                    | `Skill read failed: 发票生成`                                  | `发票生成`  |
+      | `status:'rejected'`                                                                                           | upstream `Denied view`                                         | `发票生成`  |
+      | `done:'false', status:'pending', resolvable:true` (awaiting approval)                                         | upstream `Allow view?`; the Allow and Deny buttons are present | `发票生成`  |
 
     - **Awaiting input** cannot match, because `needsInput` requires the name `ask_user`. The case is pinned as: an `ask_user` pending row keeps `Input needed` and short label `ask_user`.
     - **Built-in row:** `view` on `/mnt/skills/public/docx/SKILL.md`, done. Full label `View Result from view`, short label `view`.
@@ -343,6 +343,7 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
     - **Failed icons:** the `status:'failed'` row and the `Error: not found` row both show the upstream error icon container `text-red-500`, not the rejected one (`text-red-400`). The rejected row shows `text-red-400`.
     - **Text, not markup:** with the display name `A&amp;B "x"`, the done row's full-label `textContent` is exactly `Used skill: A&amp;B "x"`. No entity is decoded and nothing is double-escaped.
     - **Red first:** every matching row in the table starts red. The built-in, `ask_user` and rejected/approval full-label cases pass before and after.
+
   - **Group summary cases**, added to the existing `ConsecutiveDetailsGroup.test.ts` (new `describe`; existing cases unchanged; red first):
     - Tokens: a done matching `view` token (entity-encoded arguments, `text` `'# SKILL'`), then a done `bash_tool` token.
       - The summary span reads exactly `Used skill: 发票生成, bash_tool`.
@@ -361,6 +362,7 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
     - `读取技能失败：{{NAME}}`
 
     The `: ` in a key is safe because `src/lib/i18n/index.ts` sets `nsSeparator: false` and `keySeparator: false`. One Vitest assertion reads `src/lib/i18n/locales/zh-CN/translation.json` and checks the three strings exactly. It can live in `ocu-skill-call.test.ts` or the row test. It is the only proof of the reading and failed strings, because the browser case shows only the done one.
+
   - **Browser case**, added to `e2e/ocu-skill-display-name.e2e.ts` as a separate `test(...)`:
     - **Setup.** `collectErrors(page, DISPLAY_NAME_PATH)`, then `openInChinese`. Then, through the API: delete `invoice-builder` quietly, upload it (the first upload grants every user read), and set the display name `发票生成`.
     - **Seed** one chat through `POST /api/v1/chats/new`, with `history.messages` holding two assistant messages in one chain. Each has `done: true`, `content: ''` and an `output` array of Responses-style items, as `structuredOutput.ts` `buildOutputDisplayItems` reads them.
