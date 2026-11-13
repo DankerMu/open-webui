@@ -504,7 +504,7 @@
 							const display = (label || slashSkillLabel)?.length
 								? label || slashSkillLabel
 								: mentionId;
-							return `<span class="mention" data-type="mention" data-id="${mentionId}" data-label="${display}" data-mention-suggestion-char="${mentionChar}">${mentionChar}${display}</span>`;
+							return `<span class="mention" data-type="mention" data-id="${((label || slashSkillLabel)?.length ? `${mentionId}|${display}` : mentionId).replace(/"/g, '&quot;')}" data-label="${display.replace(/"/g, '&quot;')}" data-mention-suggestion-char="${mentionChar}">${mentionChar}${display}</span>`;
 						}
 					);
 					return `<p>${withMentions}</p>`;

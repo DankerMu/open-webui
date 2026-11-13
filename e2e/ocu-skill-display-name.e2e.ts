@@ -103,37 +103,21 @@ test('personal tab: a display name set through the API shows first, the English 
 	checkErrors(0);
 });
 
-test('slash menu: the display name is offered, inserted, sent in the marker and shown in the bubble', async ({
-	page
-}) => {
-	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
-	test.setTimeout(120_000);
+const MARKER = `<$ocu--${INVOICE}|${DISPLAY_NAME}>`;
+
+/**
+ * The stub provider and the uploaded skill named DISPLAY_NAME around `run`, which starts on a new
+ * chat with the stub model; `send` returns the sent user message text. Restores the provider and
+ * deletes the skill and the sent chat after.
+ */
+async function withNamedSkill(page: Page, run: (send: () => Promise<string>) => Promise<void>) {
 	const checkErrors = collectErrors(page, DISPLAY_NAME_PATH);
 	await openInChinese(page);
 	const api = await admin(page);
 	const openai = await enableStubProvider(api);
 	let chatId: string | null = null;
 	let restore: PromiseSettledResult<unknown>[] = [];
-	try {
-		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
-		await uploadRaw(api, INVOICE_FIXTURE);
-		await post(api, DISPLAY_NAME_PATH, { display_name: DISPLAY_NAME });
-		// A fresh load picks up the provider; the locale stays Chinese from openInChinese.
-		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);
-		const input = page.locator('#chat-input');
-		await expect(input).toBeVisible();
-
-		await input.click();
-		await page.keyboard.type('/发票');
-		const row = byCy(page, `ocu-skills-slash-${INVOICE}`);
-		await expect(row).toBeVisible();
-		await expect(row).toHaveAttribute('data-selected', 'true');
-		await expect(row).toContainText(DISPLAY_NAME);
-		await expect(row).toContainText(INVOICE);
-		await page.keyboard.press('Enter');
-		await expect(input.locator('[data-type="mention"]')).toHaveText(`$${DISPLAY_NAME}`);
-		await page.keyboard.type(' 做发票');
-
+	const send = async (): Promise<string> => {
 		const completion = page.waitForResponse(
 			(response) =>
 				new URL(response.url()).pathname === '/api/chat/completions' &&
@@ -143,18 +127,16 @@ test('slash menu: the display name is offered, inserted, sent in the marker and 
 		const answer = await completion;
 		chatId = (await answer.json()).chat_id;
 		expect(typeof chatId).toBe('string');
-		const body = answer.request().postDataJSON();
-		expect(body.user_message.content).toContain(`<$ocu--${INVOICE}|${DISPLAY_NAME}>`);
-		const messages = page.locator('#messages-container');
-		await expect(messages.getByText(STUB_REPLY)).toBeVisible();
-
-		await expect(messages.locator('.mention', { hasText: `$${DISPLAY_NAME}` })).toBeVisible();
-		await expect(messages.getByText(`$ocu--${INVOICE}`)).toHaveCount(0);
-		await page.screenshot({
-			path: `${evidence}/ocu-skill-display-name-slash.png`,
-			fullPage: true,
-			animations: 'disabled'
-		});
+		return answer.request().postDataJSON().user_message.content;
+	};
+	try {
+		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
+		await uploadRaw(api, INVOICE_FIXTURE);
+		await post(api, DISPLAY_NAME_PATH, { display_name: DISPLAY_NAME });
+		// A fresh load picks up the provider; the locale stays Chinese from openInChinese.
+		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);
+		await expect(page.locator('#chat-input')).toBeVisible();
+		await run(send);
 	} finally {
 		// Restore everything even when one step fails; a failure of the case itself still wins.
 		restore = await Promise.allSettled([
@@ -166,6 +148,70 @@ test('slash menu: the display name is offered, inserted, sent in the marker and 
 	const failed = restore.find((result) => result.status === 'rejected');
 	if (failed) throw failed.reason;
 	checkErrors(0);
+}
+
+/** Pick the skill from the `/` menu by its display name and type a request after the chip. */
+async function pickSkill(page: Page) {
+	const input = page.locator('#chat-input');
+	await input.click();
+	await page.keyboard.type('/发票');
+	const row = byCy(page, `ocu-skills-slash-${INVOICE}`);
+	await expect(row).toBeVisible();
+	await expect(row).toHaveAttribute('data-selected', 'true');
+	await expect(row).toContainText(DISPLAY_NAME);
+	await expect(row).toContainText(INVOICE);
+	await page.keyboard.press('Enter');
+	await expect(input.locator('[data-type="mention"]')).toHaveText(`$${DISPLAY_NAME}`);
+	await page.keyboard.type(' 做发票');
+}
+
+test('slash menu: the display name is offered, inserted, sent in the marker and shown in the bubble', async ({
+	page
+}) => {
+	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
+	test.setTimeout(120_000);
+	await withNamedSkill(page, async (send) => {
+		await pickSkill(page);
+		expect(await send()).toContain(MARKER);
+		const messages = page.locator('#messages-container');
+		await expect(messages.getByText(STUB_REPLY)).toBeVisible();
+
+		await expect(messages.locator('.mention', { hasText: `$${DISPLAY_NAME}` })).toBeVisible();
+		await expect(messages.getByText(`$ocu--${INVOICE}`)).toHaveCount(0);
+		await page.screenshot({
+			path: `${evidence}/ocu-skill-display-name-slash.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+	});
+});
+
+test('draft restore: a reloaded draft still sends the skill marker with its display name', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	await withNamedSkill(page, async (send) => {
+		await pickSkill(page);
+		// The draft write is debounced (500 ms); reloading before it lands would restore nothing.
+		await expect
+			.poll(() =>
+				page.evaluate(() => JSON.parse(sessionStorage.getItem('chat-input') ?? '{}').prompt ?? '')
+			)
+			.toContain(MARKER);
+
+		await page.reload();
+		const input = page.locator('#chat-input');
+		await expect(input.locator('[data-type="mention"]')).toHaveText(`$${DISPLAY_NAME}`);
+		await expect(input).toContainText('做发票');
+		await page.screenshot({
+			path: `${evidence}/ocu-skill-draft-label.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+		// The chip reads the label even when the marker lost it; only the sent text proves the fix.
+		expect(await send()).toContain(MARKER);
+		await expect(page.locator('#messages-container').getByText(STUB_REPLY)).toBeVisible();
+	});
 });
 
 // A Responses-style call and its output, as the backend stores them in message.output.

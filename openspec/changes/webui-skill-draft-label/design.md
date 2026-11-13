@@ -4,7 +4,7 @@
 
 ## Decisions
 
-1. **Backport upstream `14956af03f` as is.** In the `setText` replacement callback, `data-id` becomes `` `${mentionId}|${display}` `` when the marker had a label and `mentionId` otherwise. This is the upstream line (upstream `RichTextInput.svelte` around `:578`), so a later rebase onto upstream resolves to the same text. Alternative rejected: making `|label` optional in the OCU filter. That changes the cross-repo marker contract, loses the display name (the model would see the English name), and leaves native labels stripped to empty.
+1. **Backport upstream `14956af03f` as is.** In the `setText` replacement callback, `data-id` becomes `` `${mentionId}|${display}` `` when the marker had a label and `mentionId` otherwise. Upstream introduces a `dataId` const (upstream `RichTextInput.svelte` around `:578`); here the same expression is written inline in the existing `return` template line, because the file is already over the 800-line limit and `make lint-scoped` refuses any growth (1384 → 1387 with the const). A later rebase onto upstream conflicts on that one line and resolves to upstream's `dataId` form plus the escaping. Alternative rejected: making `|label` optional in the OCU filter. That changes the cross-repo marker contract, loses the display name (the model would see the English name), and leaves native labels stripped to empty.
 2. **Escape the two attribute values `setText` writes.** The line is HTML-escaped for `&`, `<` and `>` before the mention regex runs (`:497`), but not for `"`. The label character class `[^&]*?` admits `"`, so `data-label="发票"生成"` ends the attribute early, and after Decision 1 `data-id` would end early too. Replace `"` with `&quot;` in the values written to `data-id` and `data-label`. The visible chip text needs no change: `"` is valid in element content.
 3. **Leave `&` labels as they are.** A label containing `&` does not match the reader's regex (the escaped `&amp;` stops `[^&]`), so it stays literal text in the paragraph. Turndown copies that text through, the marker is sent unchanged, and the filter still matches it. The only cost is a missing chip after restore. Widening the regex would touch more upstream text for a display problem; it is a non-goal.
 
@@ -60,6 +60,6 @@ For every text `t` made of plain text and recognised mention markers, setting `t
 
 ## Review focus
 
-- The diff in `RichTextInput.svelte` matches upstream `14956af03f` plus the escaping, and nothing else.
+- The diff in `RichTextInput.svelte` is upstream `14956af03f`'s expression, inlined in the `return` line, plus the escaping, and nothing else.
 - Escaping applies to both attribute values and not to the chip text.
 - The round-trip test asserts the reported `md`, not the HTML passed to `setContent`.

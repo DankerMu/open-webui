@@ -2,7 +2,7 @@
 
 Issue (#808). When the chat input's text is put back into the editor (draft restore from sessionStorage, editing a queued message, and the other `setText` callers), a skill mention loses its `|label`. `<$ocu--invoice-builder|发票生成>` comes back as `<$ocu--invoice-builder>`. The OCU filter requires the `|label` (`computer_link_filter.py` `_SKILL_MARKER_RE`), so it does not add the "read this skill" sentence. The native fallback then strips the marker to an empty string. The user still sees the `$发票生成` chip, gets no error, and the model never learns which skill was picked.
 
-The defect is inherited from upstream v0.11.3 (`RichTextInput.svelte` `setText`). Upstream fixed it in `open-webui/open-webui` commit `14956af03f2ba50a154b13ff77166139fdcc0315` (upstream PR 32690): `setText` writes `{id}|{label}` back into `data-id` when the marker has a label. This change backports that one edit and adds attribute escaping, because a display name may contain `"` (`routers/ocu_skills.py` display-name rules allow it), which would cut both attributes short.
+The defect is inherited from upstream v0.11.3 (`RichTextInput.svelte` `setText`). Upstream fixed it in `open-webui/open-webui` commit `14956af03f2ba50a154b13ff77166139fdcc0315` (upstream PR 32690): `setText` writes `{id}|{label}` back into `data-id` when the marker has a label. This change backports that edit, written inline in the existing `return` line because the file may not grow (design.md Decision 1), and adds attribute escaping, because a display name may contain `"` (`routers/ocu_skills.py` display-name rules allow it), which would cut both attributes short.
 
 Triage:
 
