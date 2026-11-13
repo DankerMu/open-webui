@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { admin, openAuthenticatedPage, post, test } from './ocu-auth';
 import { evidence } from './ocu-fixtures';
 import {
@@ -164,6 +164,125 @@ test('slash menu: the display name is offered, inserted, sent in the marker and 
 		]);
 	}
 	const failed = restore.find((result) => result.status === 'rejected');
+	if (failed) throw failed.reason;
+	checkErrors(0);
+});
+
+// A Responses-style call and its output, as the backend stores them in message.output.
+const toolCall = (id: string, name: string, args: object, text: string) => [
+	{
+		type: 'function_call',
+		id: `fc-${id}`,
+		call_id: `call-${id}`,
+		name,
+		arguments: JSON.stringify(args),
+		status: 'completed'
+	},
+	{
+		type: 'function_call_output',
+		call_id: `call-${id}`,
+		output: [{ type: 'input_text', text }],
+		status: 'completed'
+	}
+];
+
+test('tool calls: a skill read is labelled with the display name, collapsed and expanded', async ({
+	page
+}) => {
+	const checkErrors = collectErrors(page, DISPLAY_NAME_PATH);
+	await openInChinese(page);
+	const api = await admin(page);
+	let chatId: string | null = null;
+	let cleanup: PromiseSettledResult<unknown>[] = [];
+	try {
+		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
+		// The first upload grants every user read, so the admin's list carries the display name.
+		await uploadRaw(api, INVOICE_FIXTURE);
+		await post(api, DISPLAY_NAME_PATH, { display_name: DISPLAY_NAME });
+
+		const now = Math.floor(Date.now() / 1000);
+		const skillMessage = {
+			id: 'skill-read-a',
+			parentId: null,
+			childrenIds: ['skill-read-b'],
+			role: 'assistant',
+			content: '',
+			timestamp: now,
+			done: true,
+			output: [
+				...toolCall(
+					'skill',
+					'view',
+					{ description: '读取技能说明', path: `/mnt/skills/user/${INVOICE}/SKILL.md` },
+					`# ${INVOICE}`
+				),
+				...toolCall('bash', 'bash_tool', { command: 'ls' }, 'ok'),
+				{
+					type: 'message',
+					role: 'assistant',
+					content: [{ type: 'output_text', text: '技能已读取' }]
+				}
+			]
+		};
+		const builtinMessage = {
+			id: 'skill-read-b',
+			parentId: skillMessage.id,
+			childrenIds: [],
+			role: 'assistant',
+			content: '',
+			timestamp: now + 1,
+			done: true,
+			output: toolCall(
+				'docx',
+				'view',
+				{ description: '读取内置技能', path: '/mnt/skills/public/docx/SKILL.md' },
+				'# docx'
+			)
+		};
+		const created = await post(api, '/api/v1/chats/new', {
+			chat: {
+				title: 'Skill display name tool calls',
+				history: {
+					messages: { [skillMessage.id]: skillMessage, [builtinMessage.id]: builtinMessage },
+					currentId: builtinMessage.id
+				}
+			}
+		});
+		chatId = created.id;
+		expect(typeof chatId).toBe('string');
+
+		await page.goto(`/c/${chatId}`);
+		const skillTurn = page.locator(`#message-${skillMessage.id}`);
+		const visibleLabel = (row: Locator) => row.locator('[class~="@md:inline"]');
+		const toggle = skillTurn.locator('[aria-label="展开/收起详情"]');
+		await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+		await expect(toggle).toContainText('已分析');
+		await expect(toggle).toContainText(`使用技能：${DISPLAY_NAME}, bash_tool`);
+		await expect(skillTurn.locator('[id$="-tool-call"]')).toHaveCount(0);
+
+		await toggle.click();
+		await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+		await expect(visibleLabel(skillTurn.locator('[id$="-0-tool-call"]'))).toHaveText(
+			`使用技能：${DISPLAY_NAME}`
+		);
+		await expect(visibleLabel(skillTurn.locator('[id$="-1-tool-call"]'))).toHaveText(
+			'查看来自 bash_tool 的结果'
+		);
+		await expect(
+			visibleLabel(page.locator(`#message-${builtinMessage.id} [id$="-tool-call"]`))
+		).toHaveText('查看来自 view 的结果');
+		await page.screenshot({
+			path: `${evidence}/ocu-skill-display-name-tool-call.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+	} finally {
+		cleanup = await Promise.allSettled([
+			...(chatId ? [removeQuietly(api, `/api/v1/chats/${chatId}`)] : []),
+			removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`)
+		]);
+	}
+	const failed = cleanup.find((result) => result.status === 'rejected');
 	if (failed) throw failed.reason;
 	checkErrors(0);
 });

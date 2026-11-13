@@ -7,6 +7,12 @@ import { getPrompts } from '$lib/apis/prompts';
 import { getSkillItems } from '$lib/apis/skills';
 import { getUserSkills, type OcuUserSkill } from '$lib/apis/ocu/skills';
 import { config } from '$lib/stores';
+import { get } from 'svelte/store';
+import {
+	ocuSkillDisplayNames,
+	rememberOcuSkills,
+	shownSkillName
+} from '$lib/components/chat/ocu-skill-call';
 import SlashCommands from './SlashCommands.svelte';
 import CommandSuggestionList from '../CommandSuggestionList.svelte';
 
@@ -281,6 +287,20 @@ describe('slash menu workspace skills group', () => {
 			expect(command).toHaveBeenCalledTimes(3);
 			expect(command).toHaveBeenLastCalledWith(invoiceMention);
 			expect(onSelect).not.toHaveBeenCalled();
+		});
+
+		it('hands the loaded list to the tool-call rows', async () => {
+			rememberOcuSkills([named('invoice-builder', null)]);
+			await render();
+			expect(shownSkillName(get(ocuSkillDisplayNames), 'invoice-builder')).toBe('发票生成');
+		});
+
+		it('keeps the rows on their earlier names when the list request fails', async () => {
+			rememberOcuSkills([named('invoice-builder', '旧名')]);
+			vi.mocked(getUserSkills).mockRejectedValue(new Error('HTTP 500'));
+			await render();
+			expect(getUserSkills).toHaveBeenCalledTimes(1);
+			expect(shownSkillName(get(ocuSkillDisplayNames), 'invoice-builder')).toBe('旧名');
 		});
 	});
 });

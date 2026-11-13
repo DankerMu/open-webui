@@ -248,7 +248,7 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
 
 ## 5. Tool-call row and group summary
 
-- [ ] 5.1 Add the helper module and the two row branches.
+- [x] 5.1 Add the helper module and the two row branches.
   - **Helper.** Add `src/lib/components/chat/ocu-skill-call.ts` and its paired `ocu-skill-call.test.ts`, implementing design.md Decision 5: the matcher, and the store with its load-once fallback. Make the slash menu write into the store.
   - **Branches.** Add the minimal branches of Decision 6 to `src/lib/components/common/ToolCallDisplay.svelte` and of Decision 9 to `src/lib/components/chat/Messages/Markdown/ConsecutiveDetailsGroup.svelte`.
   - **i18n.** Run `npm run i18n:parse` and add the zh-CN strings `使用技能：{{NAME}}`, `正在读取技能：{{NAME}}…` and `读取技能失败：{{NAME}}`.
@@ -279,7 +279,7 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
     - **Review-only:** the OCU `view` signature and mount path have no cross-repo drift test; the PR says so.
   - **Helper** `src/lib/components/chat/ocu-skill-call.ts`, with the paired `ocu-skill-call.test.ts`:
     - **Matcher.** Input: a tool name and the raw `attributes.arguments` string. It must read the attribute, not the row's `args`, because `args` is `''` while a row is closed.
-      - It decodes with `html-entities` `decode`, then `JSON.parse`, and needs a plain object whose `path` is a string.
+      - It decodes with `html-entities` `decode`, then unwraps nested JSON strings with `JSON.parse` until a non-string remains, as the row's own `parseJSONString` does: legacy `<details>` content stores entity-encoded JSON inside a JSON string (`serialize_output`, `git show 0443ab3a6^:backend/open_webui/utils/middleware.py`). It needs a plain object whose `path` is a string.
       - It returns `{name}` only when the tool name is `view` and the path is exactly `/mnt/skills/user/{name}/SKILL.md`, with `{name}` matching `^[a-z0-9][a-z0-9-]{0,63}$`. Otherwise it returns `null`.
       - It never throws.
     - **Store.** One page-scoped writable map from `name` to `display_name` (a string or `null`), built from the `GET /api/v1/ocu/skills/` list. Disabled entries are included.
