@@ -35,7 +35,8 @@ Stored value:
 - The server SHALL trim surrounding whitespace.
 - An empty string after trimming, or `null`, SHALL clear the name.
 - A stored name SHALL be at most 32 characters.
-- A stored name SHALL contain no `<`, no `>` and no control character. `|` is allowed.
+- A stored name SHALL contain no `<`, no `>`, no control character (Unicode `Cc`), no surrogate (`Cs`) and no format character (`Cf`, which includes bidi controls and zero-width characters). `|` is allowed.
+- A stored name SHALL contain at least one letter, digit, punctuation mark or symbol (Unicode category class `L`, `N`, `P` or `S`).
 - Display names need not be unique.
 
 Lifecycle:
@@ -65,7 +66,7 @@ Unchanged:
 
 #### Scenario: Rule violations
 
-- **WHEN** an administrator submits a 33-character name, a name containing `<`, a name containing `>`, a name containing a line break, or a name containing a tab
+- **WHEN** an administrator submits a 33-character name, a name containing `<`, a name containing `>`, a name containing a line break, a name containing a tab, a name containing a lone surrogate, a name containing a bidi control such as `U+202E`, a name containing a zero-width space, or a name made only of combining marks
 - **THEN** each response is 400 with the reason as its detail string, and the stored name is unchanged
 
 #### Scenario: Malformed body

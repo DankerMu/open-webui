@@ -39,9 +39,15 @@ See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowl
    - Responses: the updated administrator item on success; 404 for an unknown name; 400 for a rule violation, with the reason as the detail string; 401 for a non-administrator or no session; 404 for every route when the workspace is disabled (the existing mount gate).
 3. **Validation in the router, on the trimmed value.**
    - Strip surrounding whitespace. An empty result or `null` stores `NULL`.
-   - Otherwise require at most 32 characters (Python string length), no `<`, no `>`, and no character in Unicode category `Cc` (this covers line breaks and tabs).
+   - Otherwise require, checked in this order:
+     1. at most 32 characters (Python string length);
+     2. no `<` and no `>`;
+     3. no character in Unicode category `Cc` (this covers line breaks and tabs);
+     4. no character in category `Cs`. A lone surrogate cannot be encoded as UTF-8, so without this rule the database write raises and the client gets 500 (#804);
+     5. no character in category `Cf`. This covers the bidi controls (`U+202A`–`U+202E`, `U+2066`–`U+2069`), which would flip the text after the name, and zero-width characters such as `U+200B`. It also rejects the zero-width joiner of composed emoji, which a skill label does not need;
+     6. at least one character in a category of class `L`, `N`, `P` or `S`, so a name made only of combining marks cannot show as an empty menu entry. Characters that are letters or symbols yet render blank, such as `U+3164` or `U+2800`, stay allowed: no Unicode category singles them out, and only administrators write names.
    - `|` is allowed, because the filter takes everything after the first `|` as the label.
-   - The rule is enforced only on write. The listings return the stored value as is.
+   - The rule is enforced only on write. The listings return the stored value as is, so a name stored before rules 4-6 existed may still carry a `Cf` character. Every frontend sink therefore stays a Svelte text binding (never `{@html}` or `marked.parse`), and the marker label class stays `[^<>]*` on the frontend and the OCU side.
 4. **Listings carry `display_name`.**
    - `GET /admin`, `POST /{name}/access`, `GET /` and `POST /{name}/toggle` add the field. `POST /{name}/access` shares `OcuSkillAdminItem`.
    - `readable_skills` selects explicit columns (`models/ocu_skills.py`), so it gains `display_name` there.
