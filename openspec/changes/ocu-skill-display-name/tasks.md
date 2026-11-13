@@ -170,6 +170,26 @@ Minimal mergeable slice: atomic - the client function's only caller is this tab,
 
 - [ ] 3.1 In `src/lib/components/chat/Settings/OcuSkillPreferences.svelte`, show the shown name first and the English name as secondary text (spec requirement "Display name in the personal tab"), with cases in the existing `OcuSkillPreferences.test.ts` for both scenarios. Add a Playwright case to `e2e/ocu-skill-display-name.e2e.ts`: a skill whose display name was set through the API shows both names. Take a screenshot; expect zero console errors. Verify with `make test-frontend`, `make typecheck`, `make lint-scoped` and `make verify-ui-ocu`.
 
+  **Task 3.1 required evidence** (issue #791; input → expected output):
+  - Fixture level compact. Risk packs selected: UI rendering (label and secondary text); Accessibility (the switch keeps its accessible name); Security (the display name is a Svelte text binding only, design.md Decision 3 last bullet). Not selected: Public API (types already carry `display_name` since task 2.1), Auth, Schema, Backend, State (no new state).
+  - **Label** in `OcuSkillPreferences.svelte`, through `UserSettingRow`'s existing `label` slot (`UserSettingRow.svelte` is not changed):
+    - Both spans sit in one `<div slot="label">`. `<span data-cy="ocu-skills-pref-name-{name}">` holds the shown name: `display_name ?? name`.
+    - Only when `display_name` is non-null, a following `<span data-cy="ocu-skills-pref-slug-{name}">` holds `name`, styled as secondary text (a lighter gray than the label, as `UserSettingRow`'s description uses).
+    - The description line, the switch, its `fieldset` and the switch's `ariaLabel={skill.name}` are unchanged, and row order stays the server's order.
+  - **Component cases** in the existing `OcuSkillPreferences.test.ts`, red first:
+    - `invoice-builder` with `display_name: '发票生成'`: `ocu-skills-pref-name-invoice-builder` text is exactly `发票生成`, `ocu-skills-pref-slug-invoice-builder` text is exactly `invoice-builder`;
+    - `pdf-tools` with `display_name: null`: the name span text is exactly `pdf-tools`, `ocu-skills-pref-slug-pdf-tools` does not exist, and the trimmed text of the name span's parent element (the label container, which excludes the description) is exactly `pdf-tools`;
+    - the switch of the display-named row is still found by `aria-label="invoice-builder"` (the existing `switchFor` helper).
+  - **Browser case** added to `e2e/ocu-skill-display-name.e2e.ts`, a separate `test(...)` (own setup and teardown):
+    - `collectErrors(page, DISPLAY_NAME_PATH)` is registered before `openInChinese`; `checkErrors(0)` runs after `finally`.
+    - `openInChinese`, then through the API: delete `invoice-builder` quietly, upload the invoice fixture (first upload grants every user read, so the admin's personal tab lists it), `post(api, DISPLAY_NAME_PATH, { display_name: '发票生成' })` (asserts 200).
+    - `page.goto(PERSONAL_DEEP_LINK)`: `ocu-skills-pref-name-invoice-builder` has text `发票生成` and `ocu-skills-pref-slug-invoice-builder` has text `invoice-builder`. Screenshot `.run/ui-evidence/ocu-skill-display-name-personal.png` with `animations: 'disabled'`.
+    - Console: no console or page errors.
+    - Teardown in `finally`: delete `invoice-builder` quietly.
+    - Move `PERSONAL_DEEP_LINK = '/?settings=ocu_skills'` from `ocu-skills.e2e.ts` to `e2e/ocu-skill-fixtures.ts` next to `DEEP_LINK`, and import it in both specs; in `ocu-skills.e2e.ts` only the const line and the import list change.
+  - Must preserve: every existing case in `OcuSkillPreferences.test.ts`, `ocu-skills.e2e.ts` and the admin case of `ocu-skill-display-name.e2e.ts` passes unmodified (allowed: a new optional `display_name` parameter on the test's `skill()` helper, and the `PERSONAL_DEEP_LINK` import in `ocu-skills.e2e.ts`).
+  - Commands: `make test-frontend`, `make typecheck` (no new errors), `make lint-scoped`, `make anti-drift`, `make verify-ui-ocu` (screenshot; console as above), `make verify-ui-ocu-repeat SPEC=ocu-skill-display-name.e2e.ts REPEAT=3`.
+
 Suggested fixture level: compact - a display-only change in one fork component.
 Minimal mergeable slice: atomic - one component's label. Depends on 2.1 (the API type and the e2e spec).
 
