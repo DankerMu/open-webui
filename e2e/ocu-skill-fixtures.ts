@@ -9,6 +9,7 @@ import { openAuthenticatedPage, type Admin } from './ocu-auth';
 export const INVOICE_FIXTURE = path.resolve('smoke/fixtures/ocu-invoice-builder.zip');
 export const INVOICE = 'invoice-builder';
 export const DEEP_LINK = '/?settings=admin%3Aocu-skills';
+export const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 export const SKILLS_PATH = '/api/v1/ocu/skills';
 export const UPLOAD_PATH = `${SKILLS_PATH}/upload`;
 

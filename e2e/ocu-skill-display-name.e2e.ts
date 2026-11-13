@@ -1,10 +1,11 @@
 import { expect, type Page } from '@playwright/test';
-import { admin, test } from './ocu-auth';
+import { admin, post, test } from './ocu-auth';
 import { evidence } from './ocu-fixtures';
 import {
 	DEEP_LINK,
 	INVOICE,
 	INVOICE_FIXTURE,
+	PERSONAL_DEEP_LINK,
 	SKILLS_PATH,
 	byCy,
 	collectErrors,
@@ -71,4 +72,30 @@ test('admin tab: a saved display name survives a reload; a rejected one keeps th
 		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
 	}
 	checkErrors(1);
+});
+
+test('personal tab: a display name set through the API shows first, the English name second', async ({
+	page
+}) => {
+	const checkErrors = collectErrors(page, DISPLAY_NAME_PATH);
+	await openInChinese(page);
+	const api = await admin(page);
+	await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
+	try {
+		// The first upload grants every user read, so the admin's personal tab lists the skill.
+		await uploadRaw(api, INVOICE_FIXTURE);
+		await post(api, DISPLAY_NAME_PATH, { display_name: DISPLAY_NAME });
+
+		await page.goto(PERSONAL_DEEP_LINK);
+		await expect(byCy(page, `ocu-skills-pref-name-${INVOICE}`)).toHaveText(DISPLAY_NAME);
+		await expect(byCy(page, `ocu-skills-pref-slug-${INVOICE}`)).toHaveText(INVOICE);
+		await page.screenshot({
+			path: `${evidence}/ocu-skill-display-name-personal.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+	} finally {
+		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
+	}
+	checkErrors(0);
 });
