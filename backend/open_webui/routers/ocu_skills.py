@@ -238,6 +238,15 @@ def _checked_display_name(display_name: str | None) -> str | None:
         detail = 'display name must not contain < or >'
     elif any(unicodedata.category(char) == 'Cc' for char in trimmed):
         detail = 'display name must not contain control characters'
+    elif any(unicodedata.category(char) == 'Cs' for char in trimmed):
+        # A lone surrogate cannot be encoded as UTF-8: the database write would fail (#804).
+        detail = 'display name must not contain surrogate characters'
+    elif any(unicodedata.category(char) == 'Cf' for char in trimmed):
+        # Bidi controls flip the text after the name; zero-width characters hide in it (#804).
+        detail = 'display name must not contain invisible format characters'
+    elif not any(unicodedata.category(char)[0] in 'LNPS' for char in trimmed):
+        # Combining marks alone would show as an empty menu entry.
+        detail = 'display name must contain a visible character'
     else:
         return trimmed
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

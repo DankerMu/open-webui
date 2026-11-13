@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from open_webui.test.ocu_harness import _SelectRecorder, _session_headers, get_client
@@ -100,11 +101,21 @@ def test_internal_user_config_keeps_its_keys_when_a_skill_has_a_display_name(mem
 LENGTH_DETAIL = 'display name must be at most 32 characters'
 ANGLE_DETAIL = 'display name must not contain < or >'
 CONTROL_DETAIL = 'display name must not contain control characters'
+SURROGATE_DETAIL = 'display name must not contain surrogate characters'
+FORMAT_DETAIL = 'display name must not contain invisible format characters'
+VISIBLE_DETAIL = 'display name must contain a visible character'
 
 
 def _set(user, name: str, body):
     headers = {} if user is None else _session_headers(user.id)
     return get_client().post(f'{SKILLS_PATH}/{name}/display-name', json=body, headers=headers)
+
+
+def _set_raw(admin, name: str, body: dict):
+    # httpx's json= cannot encode a lone surrogate; json.dumps escapes it as \ud800.
+    headers = {**_session_headers(admin.id), 'Content-Type': 'application/json'}
+    content = json.dumps(body).encode('ascii')
+    return get_client().post(f'{SKILLS_PATH}/{name}/display-name', content=content, headers=headers)
 
 
 def _admin_display_name(admin, name: str = 'a') -> str | None:
@@ -140,11 +151,11 @@ def test_set_trims_and_writes_only_the_display_name(admin, seeded_grants, submit
         ('发' * 32, '发' * 32),
         ('  ' + '发' * 32 + '  ', '发' * 32),
         ('发票|生成', '发票|生成'),
-        # Cf (format) characters are not Cc: zero-width space and joiner pass (design Decision 3).
-        ('发\u200b票', '发\u200b票'),
-        ('发\u200d票', '发\u200d票'),
+        ('发票 生成', '发票 生成'),
+        ('e\u0301', 'e\u0301'),
+        ('📄发票', '📄发票'),
     ],
-    ids=['32-cjk', '32-cjk-padded', 'pipe', 'zwsp', 'zwj'],
+    ids=['32-cjk', '32-cjk-padded', 'pipe', 'inner-space', 'letter-and-combining-mark', 'symbol'],
 )
 def test_accepted_names_are_stored_as_trimmed(admin, seeded_grants, submitted, stored):
     response = _set(admin, 'a', {'display_name': submitted})
@@ -172,8 +183,44 @@ def test_display_names_need_not_be_unique(admin, seeded_grants):
         ('发\t票', CONTROL_DETAIL),
         # NUL is neither a line break nor a tab: the rule is Unicode category Cc, not a blacklist.
         ('发\x00票', CONTROL_DETAIL),
+        ('发\u202e票', FORMAT_DETAIL),
+        ('发\u2066票', FORMAT_DETAIL),
+        ('发\u200b票', FORMAT_DETAIL),
+        ('发\u200d票', FORMAT_DETAIL),
+        # str.strip() keeps edge format characters.
+        ('\ufeff发票', FORMAT_DETAIL),
+        ('发票\u200b', FORMAT_DETAIL),
+        # Also lacks a visible character: Cf is checked first (#804 item 3).
+        ('\u200b', FORMAT_DETAIL),
+        ('\u0301', VISIBLE_DETAIL),
+        ('\u0301\u0302', VISIBLE_DETAIL),
+        # Each breaks two rules; the first in design Decision 3 order wins.
+        ('<\u200b', ANGLE_DETAIL),
+        ('发\n\u200b票', CONTROL_DETAIL),
+        ('\u200b\u0301', FORMAT_DETAIL),
+        ('发' * 32 + '\u200b', LENGTH_DETAIL),
     ],
-    ids=['33-cjk', 'lt', 'gt', 'newline', 'tab', 'nul'],
+    ids=[
+        '33-cjk',
+        'lt',
+        'gt',
+        'newline',
+        'tab',
+        'nul',
+        'rlo',
+        'lri',
+        'zwsp',
+        'zwj',
+        'leading-bom',
+        'trailing-zwsp',
+        'zwsp-alone',
+        'combining-mark',
+        'combining-marks',
+        'angle-before-format',
+        'control-before-format',
+        'format-before-visible',
+        'length-before-format',
+    ],
 )
 def test_rule_violation_is_400_with_its_reason_and_keeps_the_name(admin, seeded_grants, submitted, detail):
     _store_display_name('a', INVOICE_DISPLAY_NAME)
@@ -182,6 +229,35 @@ def test_rule_violation_is_400_with_its_reason_and_keeps_the_name(admin, seeded_
 
     assert (response.status_code, response.json()) == (400, {'detail': detail})
     assert _admin_display_name(admin) == INVOICE_DISPLAY_NAME
+
+
+@pytest.mark.parametrize(
+    'submitted,detail',
+    [
+        ('发\ud800票', SURROGATE_DETAIL),
+        ('\udc00发', SURROGATE_DETAIL),
+        # Each breaks two rules; the first in design Decision 3 order wins.
+        ('发\n\ud800', CONTROL_DETAIL),
+        ('\ud800\u200b', SURROGATE_DETAIL),
+        ('\ud800', SURROGATE_DETAIL),
+    ],
+    ids=['inside', 'leading', 'control-before-surrogate', 'surrogate-before-format', 'surrogate-before-visible'],
+)
+def test_lone_surrogate_is_400_not_a_failed_write_and_keeps_the_name(admin, seeded_grants, submitted, detail):
+    _store_display_name('a', INVOICE_DISPLAY_NAME)
+
+    response = _set_raw(admin, 'a', {'display_name': submitted})
+
+    assert (response.status_code, response.json()) == (400, {'detail': detail})
+    assert _admin_display_name(admin) == INVOICE_DISPLAY_NAME
+
+
+def test_a_name_stored_before_the_rule_is_listed_as_is(admin, member, seeded_grants):
+    # The rule is write-only: listings do not re-check a stored name (design Decision 3).
+    _store_display_name('a', '发\u200b票')
+
+    assert _admin_display_name(admin) == '发\u200b票'
+    assert _display_names(_user_listing(member)) == {'a': '发\u200b票'}
 
 
 @pytest.mark.parametrize('submitted', ['', '   ', '\t', None], ids=['empty', 'spaces', 'tab', 'null'])
