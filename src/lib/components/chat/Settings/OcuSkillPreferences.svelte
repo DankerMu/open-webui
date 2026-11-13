@@ -61,7 +61,18 @@
 		<UserSettingSection first>
 			{#each skills as skill (skill.name)}
 				<div data-cy="ocu-skills-pref-row-{skill.name}" class="flex flex-col gap-2.5">
-					<UserSettingRow label={skill.name} description={skill.description}>
+					<UserSettingRow description={skill.description}>
+						<div slot="label">
+							<span data-cy="ocu-skills-pref-name-{skill.name}"
+								>{skill.display_name ?? skill.name}</span
+							>
+							{#if skill.display_name !== null}
+								<span
+									data-cy="ocu-skills-pref-slug-{skill.name}"
+									class="ml-1 text-gray-400 dark:text-gray-600">{skill.name}</span
+								>
+							{/if}
+						</div>
 						<fieldset data-cy="ocu-skills-pref-switch-{skill.name}" disabled={pending[skill.name]}>
 							<Switch
 								bind:state={skill.enabled}

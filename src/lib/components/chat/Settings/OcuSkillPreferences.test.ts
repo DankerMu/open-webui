@@ -14,10 +14,10 @@ vi.mock('$lib/apis/ocu/skills', () => ({
 
 const TOKEN = 'user-session';
 
-const skill = (name: string, enabled = true): OcuUserSkill => ({
+const skill = (name: string, enabled = true, display_name: string | null = null): OcuUserSkill => ({
 	name,
 	description: `${name} description`,
-	display_name: null,
+	display_name,
 	enabled
 });
 
@@ -175,6 +175,29 @@ describe('personal workspace skills tab', () => {
 		// The revert is not a user change and sends nothing more.
 		await tick();
 		expect(toggleSkill).toHaveBeenCalledTimes(1);
+	});
+
+	it('shows a set display name first and the English name as secondary text', async () => {
+		vi.mocked(getUserSkills).mockResolvedValue([skill('invoice-builder', true, '发票生成')]);
+		await render();
+		expect(byCy('ocu-skills-pref-name-invoice-builder')?.textContent).toBe('发票生成');
+		expect(byCy('ocu-skills-pref-slug-invoice-builder')?.textContent).toBe('invoice-builder');
+	});
+
+	it('shows the English name once when no display name is set', async () => {
+		vi.mocked(getUserSkills).mockResolvedValue([skill('pdf-tools')]);
+		await render();
+		const shown = byCy('ocu-skills-pref-name-pdf-tools');
+		expect(shown?.textContent).toBe('pdf-tools');
+		expect(byCy('ocu-skills-pref-slug-pdf-tools')).toBeNull();
+		// The label container holds the names only; the description is a sibling line.
+		expect(shown?.parentElement?.textContent?.trim()).toBe('pdf-tools');
+	});
+
+	it('keeps the English name as the accessible name of a display-named switch', async () => {
+		vi.mocked(getUserSkills).mockResolvedValue([skill('invoice-builder', true, '发票生成')]);
+		await render();
+		expect(switchFor('invoice-builder').getAttribute('aria-checked')).toBe('true');
 	});
 
 	it('shows the empty state when no skill is readable', async () => {

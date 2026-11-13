@@ -6,6 +6,7 @@ import {
 	DEEP_LINK,
 	INVOICE,
 	INVOICE_FIXTURE,
+	PERSONAL_DEEP_LINK,
 	SKILLS_PATH,
 	UPLOAD_PATH,
 	byCy,
@@ -25,7 +26,6 @@ const STUB_REPLY = 'Stub reply. Saw: no OCU system prompt.';
 // A native skill (/api/v1/skills), created and deleted by the native slash menu case.
 const NATIVE_ID = 'harness-native-skill';
 const NATIVE_NAME = 'Harness native skill';
-const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 const TAB = '工作区 Skills';
 // The first upload's grant (design Decision 4): every user may read the skill.
 const PUBLIC_GRANTS = [{ principal_type: 'user', principal_id: '*', permission: 'read' }];

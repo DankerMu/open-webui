@@ -168,7 +168,7 @@ Minimal mergeable slice: atomic - the client function's only caller is this tab,
 
 ## 3. Personal tab
 
-- [ ] 3.1 In `src/lib/components/chat/Settings/OcuSkillPreferences.svelte`, show the shown name first and the English name as secondary text (spec requirement "Display name in the personal tab"), with cases in the existing `OcuSkillPreferences.test.ts` for both scenarios. Add a Playwright case to `e2e/ocu-skill-display-name.e2e.ts`: a skill whose display name was set through the API shows both names. Take a screenshot; expect zero console errors. Verify with `make test-frontend`, `make typecheck`, `make lint-scoped` and `make verify-ui-ocu`.
+- [x] 3.1 In `src/lib/components/chat/Settings/OcuSkillPreferences.svelte`, show the shown name first and the English name as secondary text (spec requirement "Display name in the personal tab"), with cases in the existing `OcuSkillPreferences.test.ts` for both scenarios. Add a Playwright case to `e2e/ocu-skill-display-name.e2e.ts`: a skill whose display name was set through the API shows both names. Take a screenshot; expect zero console errors. Verify with `make test-frontend`, `make typecheck`, `make lint-scoped` and `make verify-ui-ocu`.
 
   **Task 3.1 required evidence** (issue #791; input → expected output):
   - Fixture level compact. Risk packs selected: UI rendering (label and secondary text); Accessibility (the switch keeps its accessible name); Security (the display name is a Svelte text binding only, design.md Decision 3 last bullet). Not selected: Public API (types already carry `display_name` since task 2.1), Auth, Schema, Backend, State (no new state).
