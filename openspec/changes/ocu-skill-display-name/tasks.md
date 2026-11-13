@@ -91,7 +91,7 @@ All tasks are in this repository. Each production change ships with its test in 
   - Trim: bare `str.strip()` before every rule. `{"display_name": "\u3000 发票生成\t\n"}` → 200, `"发票生成"`; `" 发票生成"` → 200, `"发票生成"`.
   - Length: `len()` (code points) of the trimmed value, tested with CJK so byte counting fails. `"发"*32` → 200 stored as given; `"  " + "发"*32 + "  "` → 200 storing `"发"*32`; `"发"*33` → 400 with the length detail.
   - Allowed: `"发票|生成"` → 200 stored as given; `"发票生成"` on both `a` and `b` → 200 each (names are not unique).
-  - Rule violations sit inside the string (strip removes edge `\n`/`\t`), each → 400 with its detail and `发票生成` unchanged: `"发<票"`, `"发>票"` (angle-bracket detail); `"发\n票"`, `"发\t票"`, `"发\x00票"` (control detail). The `\x00` case proves the rule is Unicode category `Cc`, not a `\n`/`\t` blacklist. Cf characters (U+200B, U+200D) inside a name pass, as Decision 3 designs.
+  - Rule violations sit inside the string (strip removes edge `\n`/`\t`), each → 400 with its detail and `发票生成` unchanged: `"发<票"`, `"发>票"` (angle-bracket detail); `"发\n票"`, `"发\t票"`, `"发\x00票"` (control detail). The `\x00` case proves the rule is Unicode category `Cc`, not a `\n`/`\t` blacklist. Cf characters (U+200B, U+200D) inside a name pass, as Decision 3 then designed (task 1.3 rejects them).
   - Clear: `""`, `"   "`, `"\t"` and `null`, each from seeded `发票生成` → 200 with `display_name is None`, and `GET /admin` shows `None` (stored NULL, not `''`).
   - Malformed body: `{}`, `{"display_name": 123}`, `{"display_name": true}` and a JSON array `[]` → 422 each, `发票生成` unchanged; the 422 body is not asserted.
   - Response: a successful POST's JSON equals exactly the `GET /admin` item for `a`, including `access_grants == [EVERYONE_READ]` (the seeded group write grant filtered out).
@@ -104,8 +104,26 @@ All tasks are in this repository. Each production change ships with its test in 
   - Must preserve: the existing exact-equality tests in `test_ocu_skills.py`, `test_ocu_skill_user_routes.py`, `test_ocu_skill_internal_routes.py` and `test_ocu_skill_tables.py` pass unmodified apart from the two mount-gate entries; the `upsert` `replace` tuple does not list `display_name`; `OcuSkillUploaded` is unchanged.
   - Commands: backend pytest for `test_ocu_skill_display_name.py` and `test_ocu_skills.py` (plus the other three skill modules); `make smoke`; `make lint-scoped`; `make coverage-gate` (`routers/ocu_skills.py`, `models/ocu_skills.py`); `make doc-gate`. Each new test is red against the unchanged source, except those that only pin unchanged behavior, which the PR names.
 
+- [ ] 1.3 Tighten the display-name rule (issue #804, owner chose option A on 2026-11-12). In `_checked_display_name` (`backend/open_webui/routers/ocu_skills.py`), add design.md Decision 3 rules 4-6 after the existing three, and cover them in `test_ocu_skill_display_name.py`. Update the Rule bullet of the decision record `docs/decisions/implemented/architecture/2026-11-11-ocu-skill-display-name.md` in place, naming #804. Verify with the router pytest, `make smoke`, `make lint-scoped`, `make coverage-gate` and `make decisions-verify`.
+
+  **Task 1.3 required evidence** (input → expected output):
+  - Fixture level compact (one validation function on the Critical Path `routers/ocu_skills.py`). Risk packs selected: Security / input validation (Cs, Cf, no visible character); Error handling (the lone-surrogate 500 becomes 400); Legacy compatibility (the rule stays write-only; a name stored before this change is listed as is); Documentation (decision record Rule bullet). Not selected: Auth, Schema, Public API shape, File IO, Concurrency.
+  - Exact 400 details, asserted by equality, in addition to the three of task 1.2: `display name must not contain surrogate characters`; `display name must not contain invisible format characters`; `display name must contain a visible character`.
+  - Rule order is Decision 3 order, after `str.strip()`: length, angle brackets, `Cc`, `Cs`, `Cf`, visible character. Each case below breaks exactly one rule unless it names the order it proves.
+  - Surrogate, each → 400 with the surrogate detail and the seeded `发票生成` unchanged: `"发\ud800票"` (inside) and `"\udc00发"` (leading). Send `content=json.dumps(body).encode('ascii')` with `Content-Type: application/json` and the admin session headers; `json.dumps` with the default `ensure_ascii` writes the `\ud800` escape that httpx's `json=` cannot encode. Red first: against the unchanged source the shared client raises `UnicodeEncodeError` from the database write (the default `TestClient` re-raises; production returns 500). That is the red state, and no second client is added.
+  - Format characters, each → 400 with the format detail and `发票生成` unchanged: `"发\u202e票"` (RLO), `"发\u2066票"` (LRI), `"发\u200b票"` (zero-width space), `"发\u200d票"` (zero-width joiner), `"\ufeff发票"` and `"发票\u200b"` (edge characters `str.strip()` keeps), and `"\u200b"` alone (the #804 item 3 input; it also lacks a visible character, so it proves Cf before the visible rule). The two existing accepted cases `zwsp` and `zwj` move here; no other accepted case changes.
+  - No visible character, each → 400 with the visible detail: `"\u0301"` and `"\u0301\u0302"` (combining marks only).
+  - Order: `"<\u200b"` → angle detail; `"发\n\u200b票"` → control detail; `"\u200b\u0301"` → format detail; `"发" * 32 + "\u200b"` → length detail. Surrogate order, sent as raw bodies like the surrogate cases: `"发\n\ud800"` → control detail (Cc before Cs); `"\ud800\u200b"` → surrogate detail (Cs before Cf); `"\ud800"` alone → surrogate detail (Cs before the visible rule).
+  - Still accepted and stored as given: `"发票 生成"` (inner space), `"e\u0301"` (letter plus combining mark), `"📄发票"` (symbol), `"发票|生成"` and `"发" * 32`.
+  - Must preserve: every other case in `test_ocu_skill_display_name.py` and the 401 → 422 → 400 → 404 order of task 1.2 pass unchanged; `GET /admin` and `GET /` return a stored name without re-checking it (assert one row written through `_store_display_name` with `"发\u200b票"` is listed as is); `smoke/ocu-skills.hurl` is unchanged and passes.
+  - Docs:
+    - Decision record: rewrite the Rule bullet as the six rules of Decision 3, naming #804. Add the Alternatives bullet "**Keep the rule and isolate bidi on render (`<bdi>` / `unicode-bidi: isolate`)** — every consumer in #790–#794 would have to remember it, and it leaves zero-width-only names; rejecting all `Cf` on write closes both (#804)." Add `DankerMu/open-webui#804` to `references:`.
+    - Source plan `docs/plans/2026-11-11-knowledge-copy-and-skill-display-names.md`: append row 19 to the decision table: 「显示名规则收紧（#804，2026-11-12）| 另拒 surrogate、`Cf` 格式字符（含 bidi 控制与零宽字符），且须含至少一个可见字符」.
+  - Pin-only cases: the still-accepted names and the listed-as-is row pass against the unchanged source; the PR names them.
+  - Commands: backend pytest for `test_ocu_skill_display_name.py` and `test_ocu_skills.py`; `make smoke`; `make lint-scoped`; `make coverage-gate` (`routers/ocu_skills.py`); `make decisions-verify`; `make doc-gate`.
+
 Suggested fixture level: expanded - schema migration plus a new administrator route on a Critical Path (`routers/ocu_skills.py`).
-Minimal mergeable slice: task 1.1 - the column and the listing field are green alone (every value is `null`), and the slice carries the decision record. Task 1.2 depends on 1.1.
+Minimal mergeable slice: task 1.1 - the column and the listing field are green alone (every value is `null`), and the slice carries the decision record. Task 1.2 depends on 1.1. Task 1.3 depends on 1.2 and must merge before 2.1.
 
 ## 2. Administrator tab editing
 
@@ -118,7 +136,7 @@ Minimal mergeable slice: task 1.1 - the column and the listing field are green a
   Verify with `make test-frontend`, `make typecheck`, `make lint-scoped`, `make test-verify-ui-ocu-repeat` and `make verify-ui-ocu`.
 
 Suggested fixture level: compact - one component and one client function over a route already proven by task 1.2.
-Minimal mergeable slice: atomic - the client function's only caller is this tab, and the e2e spec is created with its first case. Depends on 1.2.
+Minimal mergeable slice: atomic - the client function's only caller is this tab, and the e2e spec is created with its first case. Depends on 1.3.
 
 ## 3. Personal tab
 
@@ -171,7 +189,7 @@ Minimal mergeable slice: atomic - the matcher and store have no other callers, a
 
 - [ ] 6.1 Update `docs/uploaded-skills.md`.
   - Administrators set the display name in the 「工作区 Skills」 tab.
-  - The rules: optional, at most 32 characters, no `<`, `>` or line breaks, not unique, kept on replace.
+  - The rules: optional, at most 32 characters, no `<`, `>`, line breaks or invisible characters, not unique, kept on replace.
   - Where users see it: the slash menu, the chip, the sent message, the personal tab, the tool-call rows and the collapsed tool group summary.
   - The English name stays what the model and the sandbox use.
   - Replace the now-stale line (`:76`) that says the sent message shows `$ocu--invoice-builder`.

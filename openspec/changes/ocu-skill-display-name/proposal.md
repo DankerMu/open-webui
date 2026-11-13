@@ -16,7 +16,7 @@ Evidence floor: backend pytest (router + model), make db-verify, make smoke, mak
 ## What Changes
 
 - **Data.** `ocu_skill` gains a nullable `display_name` column, added by one additive Alembic migration named in the source plan.
-- **Rules.** The display name is optional, at most 32 characters after trimming, and contains no `<`, `>` or control character. It need not be unique. An empty value clears it. It survives a ZIP replace and is removed with the skill.
+- **Rules.** The display name is optional, at most 32 characters after trimming, and contains no `<`, `>`, control, surrogate or invisible format character, and at least one visible character. It need not be unique. An empty value clears it. It survives a ZIP replace and is removed with the skill.
 - **Administrator route.** `POST /api/v1/ocu/skills/{name}/display-name` sets or clears the name. A malformed body gets 422; a rule violation gets 400. The administrator listing, the access response, the user listing and the toggle response carry `display_name`.
 - **Administrator tab.** Each listed skill gets a display-name field with a save button.
 - **Personal tab.** Each listed skill shows its display name first and its English name second.
