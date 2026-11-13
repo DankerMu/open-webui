@@ -8,6 +8,7 @@
 		deleteSkill,
 		getAdminSkills,
 		updateSkillAccess,
+		updateSkillDisplayName,
 		uploadSkill,
 		type OcuAdminSkill,
 		type OcuSkillGrant
@@ -22,8 +23,12 @@
 	const actionButtonClass =
 		'text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-500 dark:hover:text-white';
 	const noticeClass = 'text-[0.6875rem] text-gray-500 dark:text-gray-400';
+	const inputClass =
+		'w-40 rounded-lg border border-gray-100/50 bg-gray-50/40 px-2 py-1.5 text-xs text-gray-700 outline-hidden transition-colors focus:border-blue-400 dark:border-white/[0.04] dark:bg-white/[0.03] dark:text-gray-300 dark:focus:border-blue-500';
 
 	let skills: OcuAdminSkill[] = [];
+	// Display-name field text per skill name; only a listing or a saved answer overwrites it.
+	let drafts: Record<string, string> = {};
 	let uploadInput: HTMLInputElement;
 	let uploadError = '';
 
@@ -39,6 +44,7 @@
 	const loadSkills = async () => {
 		try {
 			skills = await getAdminSkills(localStorage.token);
+			drafts = Object.fromEntries(skills.map((skill) => [skill.name, skill.display_name ?? '']));
 		} catch (error) {
 			toast.error(reason(error));
 		}
@@ -79,6 +85,17 @@
 			if (accessName === name) {
 				accessGrants = skills.find((skill) => skill.name === name)?.access_grants ?? [];
 			}
+		}
+	};
+
+	// Sent as typed: the server trims it and stores '' as no display name.
+	const saveDisplayName = async (name: string) => {
+		try {
+			const updated = await updateSkillDisplayName(localStorage.token, name, drafts[name]);
+			skills = skills.map((skill) => (skill.name === name ? updated : skill));
+			drafts = { ...drafts, [name]: updated.display_name ?? '' };
+		} catch (error) {
+			toast.error(reason(error));
 		}
 	};
 
@@ -154,7 +171,23 @@
 			{#each skills as skill (skill.name)}
 				<div data-cy="ocu-skills-row-{skill.name}">
 					<AdminSettingRow label={skill.name} description={skill.description}>
-						<div class="flex gap-3">
+						<div class="flex items-center gap-3">
+							<input
+								data-cy="ocu-skills-display-name-input-{skill.name}"
+								class={inputClass}
+								type="text"
+								aria-label={$i18n.t('Display name')}
+								placeholder={skill.name}
+								bind:value={drafts[skill.name]}
+							/>
+							<button
+								data-cy="ocu-skills-display-name-save-{skill.name}"
+								class={actionButtonClass}
+								type="button"
+								on:click={() => saveDisplayName(skill.name)}
+							>
+								{$i18n.t('Save')}
+							</button>
 							<button
 								data-cy="ocu-skills-access-{skill.name}"
 								class={actionButtonClass}

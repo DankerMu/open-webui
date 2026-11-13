@@ -6,6 +6,7 @@ import {
 	getUserSkills,
 	toggleSkill,
 	updateSkillAccess,
+	updateSkillDisplayName,
 	uploadSkill,
 	type OcuSkillGrant,
 	type OcuUserSkill
@@ -26,8 +27,8 @@ const adminListing = [
 ];
 
 const userListing: OcuUserSkill[] = [
-	{ name: 'invoice-builder', description: 'Builds invoices.', enabled: true },
-	{ name: 'pdf-tools', description: 'Splits PDFs.', enabled: false }
+	{ name: 'invoice-builder', description: 'Builds invoices.', display_name: null, enabled: true },
+	{ name: 'pdf-tools', description: 'Splits PDFs.', display_name: null, enabled: false }
 ];
 
 const uploaded = {
@@ -53,11 +54,12 @@ const stubFetch = (response: () => Response) => {
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
-// Every route, called once, so each error case runs against all six.
+// Every route, called once, so each error case runs against all seven.
 const routes: [string, () => Promise<unknown>][] = [
 	['getAdminSkills', () => getAdminSkills(TOKEN)],
 	['uploadSkill', () => uploadSkill(TOKEN, new Blob(['zip']))],
 	['updateSkillAccess', () => updateSkillAccess(TOKEN, 'invoice-builder', [])],
+	['updateSkillDisplayName', () => updateSkillDisplayName(TOKEN, 'invoice-builder', '发票生成')],
 	['deleteSkill', () => deleteSkill(TOKEN, 'invoice-builder')],
 	['getUserSkills', () => getUserSkills(TOKEN)],
 	['toggleSkill', () => toggleSkill(TOKEN, 'invoice-builder', false)]
@@ -109,6 +111,42 @@ describe('ocu skills client', () => {
 			'{"access_grants":[' +
 				'{"principal_type":"group","principal_id":"team-a","permission":"read"},' +
 				'{"principal_type":"user","principal_id":"user-7","permission":"read"}]}'
+		);
+	});
+
+	it('sets a display name with an authorized JSON POST of the exact body', async () => {
+		const updated = { ...adminListing[0], display_name: '发票生成' };
+		const calls = stubFetch(() => json(updated));
+		await expect(updateSkillDisplayName('t', 'invoice-builder', '发票生成')).resolves.toEqual(
+			updated
+		);
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe('/api/v1/ocu/skills/invoice-builder/display-name');
+		expect(calls[0].init.method).toBe('POST');
+		const headers = new Headers(calls[0].init.headers);
+		expect(headers.get('Authorization')).toBe('Bearer t');
+		expect(headers.get('Content-Type')).toBe('application/json');
+		expect(calls[0].init.body).toBe('{"display_name":"发票生成"}');
+	});
+
+	it('encodes the skill name in the display-name route', async () => {
+		const calls = stubFetch(() => json(adminListing[0]));
+		await updateSkillDisplayName(TOKEN, 'a b/c', '发票生成');
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe('/api/v1/ocu/skills/a%20b%2Fc/display-name');
+	});
+
+	it('sends a cleared display name as null', async () => {
+		const calls = stubFetch(() => json({ ...adminListing[0], display_name: null }));
+		await updateSkillDisplayName(TOKEN, 'invoice-builder', null);
+		expect(calls).toHaveLength(1);
+		expect(calls[0].init.body).toBe('{"display_name":null}');
+	});
+
+	it('keeps the display-name length reason verbatim', async () => {
+		stubFetch(() => json({ detail: 'display name must be at most 32 characters' }, 400));
+		await expect(updateSkillDisplayName(TOKEN, 'invoice-builder', '发'.repeat(33))).rejects.toThrow(
+			new Error('display name must be at most 32 characters')
 		);
 	});
 

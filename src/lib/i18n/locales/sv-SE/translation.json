@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Visa chattrubrik i flik",
 	"Display Emoji in Call": "Visa Emoji under samtal",
 	"Display Multi-model Responses in Tabs": "Visa simultana modellsvar i flikar",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Visa ditt användarnamn istället för \"Du\" i chatten",

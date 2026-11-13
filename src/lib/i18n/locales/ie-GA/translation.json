@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Taispeáin teideal an chomhrá sa chluaisín",
 	"Display Emoji in Call": "Taispeáin Emoji i nGlao",
 	"Display Multi-model Responses in Tabs": "Taispeáin Freagraí Ilsamhlacha i gCluaisíní",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Ainm taispeána don nasc LDAP seo.",
 	"Display name shown for the OAuth provider.": "Ainm taispeána a thaispeántar don soláthraí OAuth.",
 	"Display the Username Instead of You in the Chat": "Taispeáin an t-ainm úsáideora in ionad Tú sa Comhrá",

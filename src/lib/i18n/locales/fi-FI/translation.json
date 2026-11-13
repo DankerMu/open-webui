@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Näytä keskustelu otiskko välilehdessä",
 	"Display Emoji in Call": "Näytä hymiöitä puhelussa",
 	"Display Multi-model Responses in Tabs": "Näytä usean mallin vastaukset välilehdissä",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Tämän LDAP-yhteyden näyttönimi.",
 	"Display name shown for the OAuth provider.": "OAuth-palveluntarjoajan näyttönimi.",
 	"Display the Username Instead of You in the Chat": "Näytä käyttäjänimi keskustelussa \"Sinä\" -tekstin sijaan",

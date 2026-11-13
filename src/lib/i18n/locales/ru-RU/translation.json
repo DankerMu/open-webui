@@ -876,6 +876,7 @@
 	"Display Chat Title in Tab": "Показывать заголовок чата во вкладке",
 	"Display Emoji in Call": "Отображать эмодзи в вызовах",
 	"Display Multi-model Responses in Tabs": "Отображать ответы нескольких моделей во вкладках",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Отображать имя пользователя вместо 'Вы' в чате",

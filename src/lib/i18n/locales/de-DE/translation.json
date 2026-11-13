@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Chat-Titel im Tab anzeigen",
 	"Display Emoji in Call": "Emojis im Anruf anzeigen",
 	"Display Multi-model Responses in Tabs": "Antworten mehrerer Modelle in Tabs anzeigen",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Anzeigename für diese LDAP-Verbindung.",
 	"Display name shown for the OAuth provider.": "Anzeigename, der für den OAuth-Anbieter angezeigt wird.",
 	"Display the Username Instead of You in the Chat": "Benutzernamen statt \"Du\" im Chat anzeigen",

@@ -19,11 +19,13 @@ const NATIVE = { id: 'native-skill', name: 'Native skill', description: '' };
 const invoice: OcuUserSkill = {
 	name: 'invoice-builder',
 	description: 'Builds invoices',
+	display_name: null,
 	enabled: true
 };
 const disabled: OcuUserSkill = {
 	name: 'harness-smoke-skill',
 	description: 'Harness smoke skill',
+	display_name: null,
 	enabled: false
 };
 
@@ -121,7 +123,7 @@ describe('slash menu workspace skills group', () => {
 		vi.mocked(getUserSkills).mockResolvedValue([
 			invoice,
 			disabled,
-			{ name: 'budget-planner', description: '', enabled: true }
+			{ name: 'budget-planner', description: '', display_name: null, enabled: true }
 		]);
 		await render();
 		expect(rows()).toEqual(['ocu-skills-slash-budget-planner', 'ocu-skills-slash-invoice-builder']);

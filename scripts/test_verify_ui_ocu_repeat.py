@@ -68,6 +68,15 @@ def test_skills_spec_is_required_and_repeatable(selection):
     assert selection('ocu-skills.e2e.ts', '2') == ('ocu-skills.e2e.ts', 2, None)
 
 
+def test_skill_display_name_spec_is_required_and_repeatable(selection):
+    assert 'ocu-skill-display-name.e2e.ts' in HARNESS.REQUIRED_SPECS
+    assert selection('ocu-skill-display-name.e2e.ts', '2') == (
+        'ocu-skill-display-name.e2e.ts',
+        2,
+        None,
+    )
+
+
 def test_grep_with_the_pair_is_accepted_and_forwarded_as_a_list(selection):
     assert selection('ocu-workspace.e2e.ts', '3', 'A-T01') == ('ocu-workspace.e2e.ts', 3, 'A-T01')
     harness = HARNESS.BrowserHarness(('ocu-workspace.e2e.ts', 3, 'A-T01'))

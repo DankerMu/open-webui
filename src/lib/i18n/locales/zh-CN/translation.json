@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "在浏览器标签页中显示对话标题",
 	"Display Emoji in Call": "在通话中显示 Emoji",
 	"Display Multi-model Responses in Tabs": "以标签页的形式展示多个模型的回答",
+	"Display name": "显示名",
 	"Display name for this LDAP connection.": "此 LDAP 连接的显示名称。",
 	"Display name shown for the OAuth provider.": "OAuth 提供商的显示名称。",
 	"Display the Username Instead of You in the Chat": "在对话中显示用户名而不是“你”",

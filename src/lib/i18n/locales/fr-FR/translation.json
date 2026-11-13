@@ -868,6 +868,7 @@
 	"Display Chat Title in Tab": "Afficher le nom de la conversation dans l'onglet",
 	"Display Emoji in Call": "Afficher les emojis pendant l'appel",
 	"Display Multi-model Responses in Tabs": "Afficher les réponses multi-modèles dans des onglets",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Afficher le nom d'utilisateur à la place de \"Vous\" dans la conversation",

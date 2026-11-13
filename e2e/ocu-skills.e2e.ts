@@ -1,17 +1,23 @@
-import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { expect, type Page } from '@playwright/test';
-import { admin, openAuthenticatedPage, post, test, type Admin } from './ocu-auth';
+import { admin, openAuthenticatedPage, post, test } from './ocu-auth';
 import { context, evidence } from './ocu-fixtures';
+import {
+	DEEP_LINK,
+	INVOICE,
+	INVOICE_FIXTURE,
+	SKILLS_PATH,
+	UPLOAD_PATH,
+	byCy,
+	collectErrors,
+	openInChinese,
+	removeQuietly,
+	uploadRaw
+} from './ocu-skill-fixtures';
 
 // smoke/fixtures/ocu-smoke-skill.zip holds one SKILL.md named harness-smoke-skill (smoke/ocu-skills.hurl).
 const FIXTURE = path.resolve('smoke/fixtures/ocu-smoke-skill.zip');
 const SKILL = 'harness-smoke-skill';
-// smoke/fixtures/ocu-invoice-builder.zip (sha256 d421e2f8c090b3cf6b43784077603066e39462964a6ef193b92fec7a2333080c)
-// holds one SKILL.md named invoice-builder; it was built from the repo root with:
-//   python3 -c "import zipfile; i = zipfile.ZipInfo('SKILL.md', date_time=(1980, 1, 1, 0, 0, 0)); i.compress_type = zipfile.ZIP_DEFLATED; i.external_attr = 0o100644 << 16; z = zipfile.ZipFile('smoke/fixtures/ocu-invoice-builder.zip', 'w'); z.writestr(i, '---\nname: invoice-builder\ndescription: Invoice builder, uploaded and deleted by the slash menu e2e case.\n---\nNo instructions.\n'); z.close()"
-const INVOICE_FIXTURE = path.resolve('smoke/fixtures/ocu-invoice-builder.zip');
-const INVOICE = 'invoice-builder';
 const MARKER = `<$ocu--${INVOICE}|${INVOICE}>`;
 // The OCU stub provider answers every completion with this reply (scripts/ocu_stub_model.py).
 const STUB_MODEL = 'ocu-stub-model';
@@ -19,15 +25,11 @@ const STUB_REPLY = 'Stub reply. Saw: no OCU system prompt.';
 // A native skill (/api/v1/skills), created and deleted by the native slash menu case.
 const NATIVE_ID = 'harness-native-skill';
 const NATIVE_NAME = 'Harness native skill';
-const DEEP_LINK = '/?settings=admin%3Aocu-skills';
 const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 const TAB = '工作区 Skills';
-const SKILLS_PATH = '/api/v1/ocu/skills';
-const UPLOAD_PATH = `${SKILLS_PATH}/upload`;
 // The first upload's grant (design Decision 4): every user may read the skill.
 const PUBLIC_GRANTS = [{ principal_type: 'user', principal_id: '*', permission: 'read' }];
 
-const byCy = (page: Page, cy: string) => page.locator(`[data-cy="${cy}"]`);
 const settingsTabs = (page: Page) => page.locator('#settings-tabs-container').getByRole('tab');
 const tabNamed = (page: Page, name: string) =>
 	page.locator('#settings-tabs-container').getByRole('tab', { name, exact: true });
@@ -46,47 +48,6 @@ function skillRequests(page: Page) {
 	return seen;
 }
 
-/** Page errors and console errors; the one rejected upload's own 400 resource line is expected. */
-function collectErrors(page: Page) {
-	const errors: { text: string; url: string }[] = [];
-	page.on('pageerror', (error) => errors.push({ text: String(error), url: '' }));
-	page.on('console', (message) => {
-		if (message.type() === 'error')
-			errors.push({ text: message.text(), url: message.location().url });
-	});
-	return (expectedRejections: number) => {
-		const rejected = (error: { text: string; url: string }) =>
-			new URL(error.url || 'about:blank').pathname === UPLOAD_PATH &&
-			/^Failed to load resource: the server responded with a status of 400(?:\b|\s|\()/.test(
-				error.text
-			);
-		expect(errors.filter(rejected)).toHaveLength(expectedRejections);
-		expect(errors.filter((error) => !rejected(error))).toEqual([]);
-	};
-}
-
-/** Sign in, switch to Chinese on `/` and reload; a deep link must come after the reload. */
-async function openInChinese(page: Page) {
-	await openAuthenticatedPage(page);
-	await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
-	await page.reload();
-	await expect(page.locator('#chat-input')).toBeVisible();
-}
-
-async function removeQuietly(api: Admin, url: string) {
-	const response = await api.request.delete(url, { headers: api.headers });
-	expect([200, 404], url).toContain(response.status());
-}
-
-async function uploadRaw(api: Admin, fixture: string) {
-	// Raw ZIP bytes: the `post` helper sends JSON.
-	const uploaded = await api.request.post(UPLOAD_PATH, {
-		data: readFileSync(fixture),
-		headers: { ...api.headers, 'Content-Type': 'application/zip' }
-	});
-	expect(uploaded.status()).toBe(200);
-}
-
 async function search(page: Page, query: string) {
 	await settingsSearch(page).fill(query);
 }
@@ -95,7 +56,7 @@ test('admin tab: upload, reason, stored access, cancelled and confirmed delete',
 	page
 }) => {
 	const requests = skillRequests(page);
-	const checkErrors = collectErrors(page);
+	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openInChinese(page);
 	const api = await admin(page);
 	await removeQuietly(api, `${SKILLS_PATH}/${SKILL}`);
@@ -199,7 +160,7 @@ test('admin tab: upload, reason, stored access, cancelled and confirmed delete',
 
 test('personal tab: the switch persists through toggle and reload', async ({ page }) => {
 	const requests = skillRequests(page);
-	const checkErrors = collectErrors(page);
+	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openInChinese(page);
 	const api = await admin(page);
 	await removeQuietly(api, `${SKILLS_PATH}/${SKILL}`);
@@ -278,7 +239,7 @@ test('slash menu: the enabled uploaded skill is offered and sent as a mention ma
 }) => {
 	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
 	test.setTimeout(120_000);
-	const checkErrors = collectErrors(page);
+	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openAuthenticatedPage(page);
 	const api = await admin(page);
 	const openaiResponse = await api.request.get('/openai/config', { headers: api.headers });
@@ -357,7 +318,7 @@ test('slash menu: the enabled uploaded skill is offered and sent as a mention ma
 test('slash menu: a native skill is sent as a $ mention and injected', async ({ page }) => {
 	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
 	test.setTimeout(120_000);
-	const checkErrors = collectErrors(page);
+	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openAuthenticatedPage(page);
 	const api = await admin(page);
 	const openaiResponse = await api.request.get('/openai/config', { headers: api.headers });
@@ -441,7 +402,7 @@ test('workspace off: no skills tab and no skill request, even on the deep links'
 		await route.fulfill({ response, json: body });
 	});
 	const requests = skillRequests(page);
-	const checkErrors = collectErrors(page);
+	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openInChinese(page);
 
 	await page.goto('/?settings=general');

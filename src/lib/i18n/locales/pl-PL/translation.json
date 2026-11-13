@@ -876,6 +876,7 @@
 	"Display Chat Title in Tab": "Pokaż tytuł czatu w karcie",
 	"Display Emoji in Call": "Pokaż emoji w wywołaniu",
 	"Display Multi-model Responses in Tabs": "Pokaż odpowiedzi multimodalne w kartach",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Nazwa wyświetlana tego połączenia LDAP.",
 	"Display name shown for the OAuth provider.": "Nazwa wyświetlana dla dostawcy OAuth.",
 	"Display the Username Instead of You in the Chat": "Pokaż nazwę użytkownika zamiast 'Ty' w czacie",

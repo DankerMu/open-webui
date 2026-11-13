@@ -7,6 +7,7 @@ import {
 	deleteSkill,
 	getAdminSkills,
 	updateSkillAccess,
+	updateSkillDisplayName,
 	uploadSkill,
 	type OcuSkillGrant
 } from '$lib/apis/ocu/skills';
@@ -17,6 +18,7 @@ vi.mock('$lib/apis/ocu/skills', () => ({
 	getAdminSkills: vi.fn(),
 	uploadSkill: vi.fn(),
 	updateSkillAccess: vi.fn(),
+	updateSkillDisplayName: vi.fn(),
 	deleteSkill: vi.fn()
 }));
 // The dialogs' real trap throws in jsdom: tabbable sees no client rects, so nothing is focusable.
@@ -49,9 +51,14 @@ const publicGrant: OcuSkillGrant = {
 	permission: 'read'
 };
 
-const skill = (name: string, access_grants: OcuSkillGrant[] = [publicGrant]) => ({
+const skill = (
+	name: string,
+	access_grants: OcuSkillGrant[] = [publicGrant],
+	display_name: string | null = null
+) => ({
 	name,
 	description: `${name} description`,
+	display_name,
 	zip_sha256: 'abc',
 	size: 12,
 	created_by: 'admin-1',
@@ -94,6 +101,16 @@ const dialogButton = (label: string) =>
 	[...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
 		(button) => button.textContent?.trim() === label
 	);
+
+const displayNameInput = (name: string) =>
+	byCy(`ocu-skills-display-name-input-${name}`) as HTMLInputElement;
+
+async function typeDisplayName(name: string, text: string) {
+	const input = displayNameInput(name);
+	input.value = text;
+	input.dispatchEvent(new Event('input', { bubbles: true }));
+	await tick();
+}
 
 async function choose(file: File) {
 	const input = byCy('ocu-skills-upload') as HTMLInputElement;
@@ -280,6 +297,69 @@ describe('admin workspace skills tab', () => {
 		await vi.waitFor(() => expect(getAdminSkills).toHaveBeenCalledTimes(2));
 		// The editor falls back to what the server still holds.
 		await vi.waitFor(() => expect(visibility.value).toBe('private'));
+	});
+
+	it('fills each display-name field from the listing, with the name as placeholder', async () => {
+		vi.mocked(getAdminSkills).mockResolvedValue([
+			skill('invoice-builder', [publicGrant], '发票生成'),
+			skill('pdf-tools')
+		]);
+		await render();
+		const named = displayNameInput('invoice-builder');
+		expect(named.value).toBe('发票生成');
+		expect(named.getAttribute('aria-label')).toBe('Display name');
+		expect(named.hasAttribute('maxlength')).toBe(false);
+		const unnamed = displayNameInput('pdf-tools');
+		expect(unnamed.value).toBe('');
+		expect(unnamed.placeholder).toBe('pdf-tools');
+		expect(byCy('ocu-skills-display-name-save-invoice-builder')?.textContent?.trim()).toBe('Save');
+	});
+
+	it('saves the typed display name once and shows the stored one', async () => {
+		vi.mocked(getAdminSkills).mockResolvedValue([skill('invoice-builder')]);
+		vi.mocked(updateSkillDisplayName).mockResolvedValue(
+			skill('invoice-builder', [publicGrant], '发票生成')
+		);
+		await render();
+		expect(displayNameInput('invoice-builder').placeholder).toBe('invoice-builder');
+		await typeDisplayName('invoice-builder', '  发票生成 ');
+		byCy('ocu-skills-display-name-save-invoice-builder')!.click();
+		await vi.waitFor(() => expect(displayNameInput('invoice-builder').value).toBe('发票生成'));
+		expect(updateSkillDisplayName).toHaveBeenCalledTimes(1);
+		expect(updateSkillDisplayName).toHaveBeenCalledWith(TOKEN, 'invoice-builder', '  发票生成 ');
+		expect(getAdminSkills).toHaveBeenCalledTimes(1);
+	});
+
+	it('shows the rejection reason and keeps the typed display name', async () => {
+		vi.mocked(getAdminSkills).mockResolvedValue([
+			skill('invoice-builder', [publicGrant], '发票生成')
+		]);
+		vi.mocked(updateSkillDisplayName).mockRejectedValue(
+			new Error('display name must be at most 32 characters')
+		);
+		await render();
+		const typed = '发'.repeat(33);
+		await typeDisplayName('invoice-builder', typed);
+		byCy('ocu-skills-display-name-save-invoice-builder')!.click();
+		await vi.waitFor(() =>
+			expect(toast.error).toHaveBeenCalledWith('display name must be at most 32 characters')
+		);
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(displayNameInput('invoice-builder').value).toBe(typed);
+		expect(getAdminSkills).toHaveBeenCalledTimes(1);
+	});
+
+	it('sends a cleared display-name field as an empty string', async () => {
+		vi.mocked(getAdminSkills).mockResolvedValue([
+			skill('invoice-builder', [publicGrant], '发票生成')
+		]);
+		vi.mocked(updateSkillDisplayName).mockResolvedValue(skill('invoice-builder'));
+		await render();
+		await typeDisplayName('invoice-builder', '');
+		byCy('ocu-skills-display-name-save-invoice-builder')!.click();
+		await vi.waitFor(() => expect(updateSkillDisplayName).toHaveBeenCalledTimes(1));
+		expect(updateSkillDisplayName).toHaveBeenCalledWith(TOKEN, 'invoice-builder', '');
+		await vi.waitFor(() => expect(displayNameInput('invoice-builder').value).toBe(''));
 	});
 
 	it('reports a failed listing', async () => {
