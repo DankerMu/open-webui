@@ -7,6 +7,7 @@
 	import { getSkillItems } from '$lib/apis/skills';
 	import { workspaceFilesEnabled } from '$lib/apis/ocu';
 	import { getUserSkills, type OcuUserSkill } from '$lib/apis/ocu/skills';
+	import { rememberOcuSkills } from '$lib/components/chat/ocu-skill-call';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ChatBubbleDotted from '$lib/components/icons/ChatBubbleDotted.svelte';
 	import ChatBubbleDottedChecked from '$lib/components/icons/ChatBubbleDottedChecked.svelte';
@@ -97,7 +98,10 @@
 	// The suggestion renderer mounts this list once per `/` and then only updates `query`.
 	onMount(async () => {
 		if (workspaceFilesEnabled($config)) {
-			userSkills = await getUserSkills(localStorage.token).catch(() => []);
+			// The tool-call rows read display names from this list too; a failed load writes nothing.
+			userSkills = await getUserSkills(localStorage.token)
+				.then(rememberOcuSkills)
+				.catch(() => []);
 		}
 	});
 

@@ -21,7 +21,13 @@
 	import ImageGenerationPlaceholder, {
 		runningImageCall
 	} from '../chat/Messages/ImageGenerationPlaceholder.svelte';
-	import { settings } from '$lib/stores';
+	import {
+		loadOcuSkillDisplayNames,
+		ocuSkillDisplayNames,
+		shownSkillName,
+		uploadedSkillName
+	} from '../chat/ocu-skill-call';
+	import { config, settings } from '$lib/stores';
 
 	export let id: string = '';
 	export let attributes: {
@@ -160,6 +166,10 @@
 	$: isError = attributes?.status === 'failed' || (isDone && isToolResultError(result));
 	// In a details group the group shows the card, so it survives the group opening and closing.
 	$: imageCall = grouped ? null : runningImageCall(attributes, resolvable, messageDone);
+	// An uploaded skill's SKILL.md read is labelled with the skill's display name.
+	$: skillName = uploadedSkillName(attributes?.name, attributes?.arguments);
+	$: if (skillName) loadOcuSkillDisplayNames($config);
+	$: shownName = skillName ? shownSkillName($ocuSkillDisplayNames, skillName) : attributes.name;
 
 	$: parsedArgs = parseArguments(args);
 	$: parsedResult = parseJSONString(result);
@@ -238,17 +248,23 @@
 				<!-- Label -->
 				<div class="flex-1 min-w-0 line-clamp-1">
 					<!-- Short label (below md) -->
-					<span class="@md:hidden text-black dark:text-white">{attributes.name}</span>
+					<span class="@md:hidden text-black dark:text-white">{shownName}</span>
 					<!-- Full label (md and above) -->
 					<span class="hidden @md:inline font-normal">
 						{#if isRejected}
 							{$i18n.t('Denied {{NAME}}', { NAME: attributes.name })}
+						{:else if skillName && isError}
+							{$i18n.t('Skill read failed: {{NAME}}', { NAME: shownName })}
+						{:else if skillName && isDone}
+							{$i18n.t('Used skill: {{NAME}}', { NAME: shownName })}
 						{:else if isDone}
 							{$i18n.t('View Result from {{NAME}}', { NAME: attributes.name })}
 						{:else if needsInput}
 							{$i18n.t('Input needed')}
 						{:else if needsApproval}
 							{$i18n.t('Allow {{NAME}}?', { NAME: attributes.name })}
+						{:else if skillName}
+							{$i18n.t('Reading skill: {{NAME}}...', { NAME: shownName })}
 						{:else if isPreparing}
 							{$i18n.t('Preparing {{NAME}}...', { NAME: attributes.name })}
 						{:else}

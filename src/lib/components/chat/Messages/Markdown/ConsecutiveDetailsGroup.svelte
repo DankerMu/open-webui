@@ -16,8 +16,14 @@
 	import ImageGenerationPlaceholder, {
 		runningImageCall
 	} from '../ImageGenerationPlaceholder.svelte';
+	import {
+		loadOcuSkillDisplayNames,
+		ocuSkillDisplayNames,
+		shownSkillName,
+		uploadedSkillName
+	} from '$lib/components/chat/ocu-skill-call';
 
-	import { settings } from '$lib/stores';
+	import { config, settings } from '$lib/stores';
 
 	const i18n = getContext<Writable<i18nType>>('i18n');
 
@@ -125,6 +131,11 @@
 		return imageCall ? [{ key: t?.attributes?.id || `${index}`, ...imageCall }] : [];
 	});
 
+	// An uploaded skill's SKILL.md read is counted under the skill's display name.
+	const skillOf = (t: (typeof tokens)[number]) =>
+		uploadedSkillName(t?.attributes?.name, t?.attributes?.arguments);
+	$: if (tokens.some(skillOf)) loadOcuSkillDisplayNames($config);
+
 	$: codeInterpreterCount = tokens.filter((t) => t?.attributes?.type === 'code_interpreter').length;
 
 	// Collect all embeds from tool_calls tokens
@@ -160,7 +171,12 @@
 			tokens
 				.filter((t) => t?.attributes?.type === 'tool_calls')
 				.forEach((t) => {
-					const name = t?.attributes?.name ?? 'tool';
+					const skill = skillOf(t);
+					const name = skill
+						? $i18n.t('Used skill: {{NAME}}', {
+								NAME: shownSkillName($ocuSkillDisplayNames, skill)
+							})
+						: (t?.attributes?.name ?? 'tool');
 					nameCounts[name] = (nameCounts[name] || 0) + 1;
 				});
 
