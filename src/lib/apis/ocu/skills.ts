@@ -11,6 +11,8 @@ export type OcuSkillGrant = {
 export type OcuAdminSkill = {
 	name: string;
 	description: string;
+	// The administrator's label; null shows the English name.
+	display_name: string | null;
 	zip_sha256: string;
 	size: number;
 	created_by: string;
@@ -19,7 +21,9 @@ export type OcuAdminSkill = {
 };
 
 // The shape GET / and POST /{name}/toggle return: a readable skill and the caller's switch.
-export type OcuUserSkill = Pick<OcuAdminSkill, 'name' | 'description'> & { enabled: boolean };
+export type OcuUserSkill = Pick<OcuAdminSkill, 'name' | 'description' | 'display_name'> & {
+	enabled: boolean;
+};
 
 type OcuUploadedSkill = Pick<OcuAdminSkill, 'name' | 'description' | 'zip_sha256' | 'size'>;
 
@@ -71,6 +75,17 @@ export const updateSkillAccess = (
 				permission
 			}))
 		})
+	});
+
+// The server trims the value; an empty string or null clears the display name.
+export const updateSkillDisplayName = (
+	token: string,
+	name: string,
+	displayName: string | null
+): Promise<OcuAdminSkill> =>
+	requestSkills(token, 'POST', `/${encodeURIComponent(name)}/display-name`, {
+		type: 'application/json',
+		data: JSON.stringify({ display_name: displayName })
 	});
 
 export const deleteSkill = (token: string, name: string): Promise<boolean> =>

@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Kuva vestluse pealkiri vahekaardil",
 	"Display Emoji in Call": "Kuva kõnes emoji",
 	"Display Multi-model Responses in Tabs": "Kuva mitme mudeli vastused vahekaartidel",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Kuva vestluses 'Sina' asemel kasutajanimi",

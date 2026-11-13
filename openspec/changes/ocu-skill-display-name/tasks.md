@@ -127,7 +127,7 @@ Minimal mergeable slice: task 1.1 - the column and the listing field are green a
 
 ## 2. Administrator tab editing
 
-- [ ] 2.1 Add the client function and the per-row editor.
+- [x] 2.1 Add the client function and the per-row editor.
   - **Client.** In `src/lib/apis/ocu/skills.ts`, add `display_name` to the types and add `updateSkillDisplayName(token, name, displayName)`, with cases in `skills.test.ts`.
   - **Tab.** In `src/lib/components/admin/Settings/OcuSkills.svelte`, add the per-row field and save action of design.md Decision 8, with cases in the existing `OcuSkills.test.ts`: save updates the row from the response; a rejection shows the server's reason and keeps the typed text.
   - **i18n.** Run `npm run i18n:parse` and add the zh-CN strings.

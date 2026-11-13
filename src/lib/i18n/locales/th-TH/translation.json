@@ -852,6 +852,7 @@
 	"Display Chat Title in Tab": "แสดงชื่อแชทในแท็บ",
 	"Display Emoji in Call": "แสดงอิโมจิระหว่างการโทร",
 	"Display Multi-model Responses in Tabs": "แสดงคำตอบหลายโมเดลแบบแท็บ",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "แสดงชื่อผู้ใช้แทนคำว่า \"คุณ\" ในการแชท",

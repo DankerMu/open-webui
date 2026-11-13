@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Beszélgetés címének megjelenítése a lapon",
 	"Display Emoji in Call": "Emoji megjelenítése hívásban",
 	"Display Multi-model Responses in Tabs": "Többmodell-válaszok megjelenítése lapokon",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Az LDAP-kapcsolat megjelenítési neve.",
 	"Display name shown for the OAuth provider.": "Az OAuth-szolgáltatónál megjelenő név.",
 	"Display the Username Instead of You in the Chat": "Felhasználónév megjelenítése a 'Te' helyett a beszélgetésben",

@@ -852,6 +852,7 @@
 	"Display Chat Title in Tab": "在瀏覽器分頁標籤上顯示對話標題",
 	"Display Emoji in Call": "在通話中顯示表情符號",
 	"Display Multi-model Responses in Tabs": "以標籤頁的形式展示多個模型的回應",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "在對話中顯示使用者名稱，而非「您」",

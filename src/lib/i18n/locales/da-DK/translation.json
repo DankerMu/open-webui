@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Vis chattitel i fane",
 	"Display Emoji in Call": "Vis emoji i chat",
 	"Display Multi-model Responses in Tabs": "Vis multimodel svar i faner",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Vis brugernavn i stedet for Dig i chatten",

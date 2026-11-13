@@ -876,6 +876,7 @@
 	"Display Chat Title in Tab": "Prikaži naslov pogovora v zavihku",
 	"Display Emoji in Call": "Prikaži emoji v klicu",
 	"Display Multi-model Responses in Tabs": "Prikaži odgovore več modelov v zavihkih",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Prikazno ime za to povezavo LDAP.",
 	"Display name shown for the OAuth provider.": "Prikazno ime, prikazano za ponudnika OAuth.",
 	"Display the Username Instead of You in the Chat": "V pogovoru prikaži uporabniško ime namesto »Vi«",

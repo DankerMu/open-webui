@@ -17,6 +17,7 @@ const TOKEN = 'user-session';
 const skill = (name: string, enabled = true): OcuUserSkill => ({
 	name,
 	description: `${name} description`,
+	display_name: null,
 	enabled
 });
 

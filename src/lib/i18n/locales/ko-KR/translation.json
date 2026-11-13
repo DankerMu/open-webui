@@ -853,6 +853,7 @@
 	"Display Chat Title in Tab": "탭에 채팅 목록 표시",
 	"Display Emoji in Call": "음성기능에서 이모지 표시",
 	"Display Multi-model Responses in Tabs": "탭에 여러 모델 응답 표시",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "OAuth 제공자에 표시할 이름입니다.",
 	"Display the Username Instead of You in the Chat": "채팅에서 '당신' 대신 사용자 이름 표시",

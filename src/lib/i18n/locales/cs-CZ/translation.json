@@ -876,6 +876,7 @@
 	"Display Chat Title in Tab": "",
 	"Display Emoji in Call": "Zobrazit emoji při hovoru",
 	"Display Multi-model Responses in Tabs": "Zobrazit odpovědi více modelů v kartách",
+	"Display name": "",
 	"Display name for this LDAP connection.": "",
 	"Display name shown for the OAuth provider.": "",
 	"Display the Username Instead of You in the Chat": "Zobrazit v konverzaci uživatelské jméno místo „Vy“",

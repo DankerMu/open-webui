@@ -860,6 +860,7 @@
 	"Display Chat Title in Tab": "Vís kjattheiti í fánanum",
 	"Display Emoji in Call": "Vís emoji í uppkalli",
 	"Display Multi-model Responses in Tabs": "Vís svar frá fleiri modellum í fanum",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Vísingarnavn fyri hetta LDAP-sambandið.",
 	"Display name shown for the OAuth provider.": "Vísingarnavn, sum verður víst fyri OAuth-veitaran.",
 	"Display the Username Instead of You in the Chat": "Vís brúkaranavnið í staðin fyri Tú í kjattinum",

@@ -868,6 +868,7 @@
 	"Display Chat Title in Tab": "Mostrar el títol del xat a la pestanya",
 	"Display Emoji in Call": "Mostrar emojis a la trucada",
 	"Display Multi-model Responses in Tabs": "Mostrar respostes multi-model a les pestanyes",
+	"Display name": "",
 	"Display name for this LDAP connection.": "Nom de visualització d'aquesta connexió LDAP.",
 	"Display name shown for the OAuth provider.": "Es mostra el nom de visualització del proveïdor d'OAuth.",
 	"Display the Username Instead of You in the Chat": "Mostrar el nom d'usuari en lloc de 'Tu' al xat",
