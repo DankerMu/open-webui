@@ -264,6 +264,143 @@ Minimal mergeable slice: atomic - the menu's label, the inserted mention and the
 
   Extend the decision record of task 1.1 with design.md Decisions 6 and 9 (the upstream `ToolCallDisplay.svelte` and `ConsecutiveDetailsGroup.svelte` branches). Also run `make test-frontend`, `make typecheck`, `make lint-scoped`, `make decisions-verify` and `make verify-ui-ocu`.
 
+  **Task 5.1 required evidence** (issue #793; input → expected output):
+  - Fixture level expanded. Risk packs selected:
+    - **Upstream spine, minimal diff.** Three upstream files are touched: `ToolCallDisplay.svelte`, `ConsecutiveDetailsGroup.svelte` and `SlashCommands.svelte`.
+      - Every branch only calls into `ocu-skill-call.ts`. The `$i18n.t` calls stay in the `.svelte` templates, because `i18next-parser` does not scan the helper.
+      - No reformatting, and no upstream line is rewritten except the ones the branch needs.
+      - The fixture pins behaviour, not literal lines. `make typecheck` sits at its ceiling (7769) and `make lint-scoped` ratchets per-file complexity, so the implementer chooses the line shape that keeps both green and reports it.
+    - **Public contract.** The matcher reads the OCU wrapper's `view` tool (`open-computer-use/openwebui/tools/computer_use_tools.py:975`, arguments `description`, `path` and others) and the mount path `/mnt/skills/user/{name}/SKILL.md` (`computer-use-server/skill_manager.py:73`). Extra argument keys are allowed; only `path` is read.
+    - **Legacy compatibility.** Every non-matching row and summary renders exactly as upstream: other tools, `/mnt/skills/public/...`, other paths, and `delegate_task`'s token rename. Both the structured `message.output` path and the legacy `<details type="tool_calls">` content path reach the same two components.
+    - **Security.** Every new sink is a Svelte text binding. The display name reaches the DOM only through `{$i18n.t(...)}` or `{...}`, never `{@html}`. i18next has `escapeValue: false`, so the name is not double-escaped.
+    - **Async state.** The store fills after first render, so a row or summary rendered before the list resolves must re-label when it arrives. That is the reason Decision 6 rejected the token rename.
+    - **Test harness.** One new browser case seeds `message.output`. There is no precedent in `e2e/`; the cited `ocu-fixtures.ts` seeds `content` only.
+    - **Not selected:** Auth, Schema, Backend, the OCU repo, built-in skill names (Non-Goal).
+    - **Review-only:** the OCU `view` signature and mount path have no cross-repo drift test; the PR says so.
+  - **Helper** `src/lib/components/chat/ocu-skill-call.ts`, with the paired `ocu-skill-call.test.ts`:
+    - **Matcher.** Input: a tool name and the raw `attributes.arguments` string. It must read the attribute, not the row's `args`, because `args` is `''` while a row is closed.
+      - It decodes with `html-entities` `decode`, then `JSON.parse`, and needs a plain object whose `path` is a string.
+      - It returns `{name}` only when the tool name is `view` and the path is exactly `/mnt/skills/user/{name}/SKILL.md`, with `{name}` matching `^[a-z0-9][a-z0-9-]{0,63}$`. Otherwise it returns `null`.
+      - It never throws.
+    - **Store.** One page-scoped writable map from `name` to `display_name` (a string or `null`), built from the `GET /api/v1/ocu/skills/` list. Disabled entries are included.
+      - **Shown name:** the map value when it is a non-null string, otherwise `{name}`. This covers a skill the viewer cannot read, a deleted skill, an unloaded store and a `null` display name.
+      - **Slash-menu write:** each successful `getUserSkills` result in `SlashCommands.svelte`'s `onMount` replaces the map. A failed slash load must not write: the existing `.catch(() => [])` result must not reach the store, so the write sits before the `catch`, for example `.then(remember)`. A successful slash write also counts as "filled", so no row load follows.
+      - **Row and summary load:** a load-once call takes the app config. When `workspaceFilesEnabled(config)` (`src/lib/apis/ocu/index.ts:38`) is false it requests nothing. Otherwise it calls `getUserSkills` at most once per page, whatever the number of callers and calls.
+      - **Load failure:** a failed load leaves the map unchanged. It logs once with `console.warn`, not `console.error`, because the browser cases fail on console errors. It is not retried for the rest of the page.
+    - **Load trigger:** only a row or summary whose call matches calls the load. A non-matching row or group never requests the list.
+    - **Tests isolate the module state without a reset export,** so `make anti-drift` finds no dead export and every export has a non-test caller.
+      - Preferred: in `beforeEach`, call `vi.resetModules()` and then dynamically import, together, `svelte` (`mount`, `tick`), `$lib/stores` (`config`), the helper, the component and the `i18n` fixture. `vite.config.ts` inlines svelte into the Vitest registry, so a statically imported `mount` would run on a different svelte instance than a re-imported component.
+      - The mocked `$lib/apis/ocu/skills` must be the same instance the re-imported helper calls. Create the mock with `vi.hoisted(() => vi.fn())` and return it from the `vi.mock` factory, or add the module to the joint dynamic import and configure and assert on that handle. A statically imported `getUserSkills` handle would be stale after `vi.resetModules()`, and the 0-call cases would pass vacuously. This applies to the helper's store tests too.
+      - If that does not hold in practice (context or store writes miss), put the cases that need an empty store in their own test file, one isolated state per file.
+      - A feature-off call does not mark the load as attempted. A later call with the feature on still loads once.
+      - The PR reports which approach was used.
+  - **Matcher cases** (Vitest; red first, because the module does not exist):
+    - match `invoice-builder` for:
+      - raw JSON `{"description":"d","path":"/mnt/skills/user/invoice-builder/SKILL.md"}`;
+      - the same JSON entity-encoded (`&quot;`, as the legacy `<details>` path stores it);
+      - the same object with an extra `view_range` key.
+    - `null` for:
+      - path `/mnt/skills/public/docx/SKILL.md`;
+      - path `/mnt/skills/user/invoice-builder/scripts/run.py`;
+      - path `/mnt/skills/user/../SKILL.md`;
+      - path `/mnt/skills/user/Invoice/SKILL.md` (uppercase);
+      - path `/mnt/skills/user/invoice-builder/SKILL.md/` (trailing slash);
+      - tool name `bash_tool` with the matching path;
+      - arguments `''`, `'{"path":'` (partial streaming JSON), `'[]'`, `'"x"'` and `'{"path":5}'`.
+  - **Store cases** (Vitest, mocking `$lib/apis/ocu/skills`'s `getUserSkills`, red first):
+    - Load once. Three load calls (feature on) made before the mocked list resolves, plus two after, produce exactly one `getUserSkills` call. After it resolves with `[{name:'invoice-builder', display_name:'发票生成', enabled:true, …}]`, the shown name of `invoice-builder` is `发票生成`.
+    - A slash write (the same function the menu calls) of a list with `display_name: '新名字'` changes the shown name to `新名字`. A slash write before any load means a later load call makes no request.
+    - Feature off: config `{features:{enable_ocu_workspace:false}}`, and also `{}`, makes no `getUserSkills` call, and the shown name stays `invoice-builder`.
+    - Disabled skill: a list entry with `enabled:false, display_name:'发票生成'` gives the shown name `发票生成`.
+    - Failed load: `getUserSkills` rejects. The shown name stays `invoice-builder`, `console.warn` is called exactly once, and a second load call makes no second request. A previously written map is not cleared.
+    - Fallbacks: an unknown name shows as the name itself, and a `null` display name shows as the name.
+  - **`SlashCommands.test.ts`** (existing file, new cases only):
+    - after the menu mounts with the list mock resolving the `invoice-builder` fixture with `发票生成`, the store's shown name is `发票生成`;
+    - with the list mock rejecting, the store keeps its earlier value.
+  - **`ToolCallDisplay` per-state cases** in a new `src/lib/components/common/ToolCallDisplay.test.ts`, following `ImageGenerationPlaceholder.test.ts` (jsdom, the `i18n` fixture `t` that interpolates the English key):
+    - **Setup.** The store is pre-written with `invoice-builder → 发票生成` unless a case says otherwise. Each case asserts the full-label span and the short-label span; the implementer names the selectors (the class contains `@`, so it must be escaped, for example `.\@md\:inline`). Arguments use the matching raw JSON.
+    - **Label table.** Input: `done`, `status`, `resolvable` and the result.
+
+      | Input | Full label | Short label |
+      | --- | --- | --- |
+      | `done:'false', status:''` (preparing) | `Reading skill: 发票生成...` | `发票生成` |
+      | `done:'false', status:'pending', resolvable:false` (pending, not resolvable: upstream treats it as preparing) | `Reading skill: 发票生成...` | `发票生成` |
+      | `done:'false', status:'completed'` (executing) | `Reading skill: 发票生成...` | `发票生成` |
+      | `done:'true', status:'completed'`, result `'# SKILL'` | `Used skill: 发票生成` | `发票生成` |
+      | `done:'false', status:'failed'` | `Skill read failed: 发票生成` | `发票生成` |
+      | `done:'true'`, result `'Error: not found'` | `Skill read failed: 发票生成` | `发票生成` |
+      | `status:'rejected'` | upstream `Denied view` | `发票生成` |
+      | `done:'false', status:'pending', resolvable:true` (awaiting approval) | upstream `Allow view?`; the Allow and Deny buttons are present | `发票生成` |
+
+    - **Awaiting input** cannot match, because `needsInput` requires the name `ask_user`. The case is pinned as: an `ask_user` pending row keeps `Input needed` and short label `ask_user`.
+    - **Built-in row:** `view` on `/mnt/skills/public/docx/SKILL.md`, done. Full label `View Result from view`, short label `view`.
+    - **Status icons and expanded body:** a matching done row and the same row with `name: 'view'` on a public path have the same icon element (`CheckCircle`) and the same open-body `Input` text.
+    - **Late fill:** with feature on, an empty store and a deferred `getUserSkills`, a done matching row first reads `Used skill: invoice-builder`. After the list resolves and a `tick`, it reads `Used skill: 发票生成`.
+    - **Feature off:** the same render with `features.enable_ocu_workspace:false` makes no request and reads `Used skill: invoice-builder`.
+    - **Only a match loads:** with the feature on (`config.set({features:{enable_ocu_workspace:true}})`) and an empty store, these make 0 `getUserSkills` calls:
+      - a done `bash_tool` row;
+      - a done `view` row on `/mnt/skills/public/docx/SKILL.md`.
+    - **Failed icons:** the `status:'failed'` row and the `Error: not found` row both show the upstream error icon container `text-red-500`, not the rejected one (`text-red-400`). The rejected row shows `text-red-400`.
+    - **Text, not markup:** with the display name `A&amp;B "x"`, the done row's full-label `textContent` is exactly `Used skill: A&amp;B "x"`. No entity is decoded and nothing is double-escaped.
+    - **Red first:** every matching row in the table starts red. The built-in, `ask_user` and rejected/approval full-label cases pass before and after.
+  - **Group summary cases**, added to the existing `ConsecutiveDetailsGroup.test.ts` (new `describe`; existing cases unchanged; red first):
+    - Tokens: a done matching `view` token (entity-encoded arguments, `text` `'# SKILL'`), then a done `bash_tool` token.
+      - The summary span reads exactly `Used skill: 发票生成, bash_tool`.
+      - The prefix is `Explored`, and the group stays closed (`aria-expanded="false"`).
+    - Two done matching tokens on `invoice-builder` plus one `bash_tool` give `2 Used skill: 发票生成, bash_tool`, as upstream counts equal names.
+    - A failed matching token (`status:'failed'`) still contributes `Used skill: 发票生成` (Decision 9), and the summary icon is the upstream error icon.
+    - Late fill, with `config.set({features:{enable_ocu_workspace:true}})`, an empty store and a deferred list:
+      - the summary first reads `Used skill: invoice-builder, bash_tool`;
+      - after the list resolves and a `tick`, it reads `Used skill: 发票生成, bash_tool`;
+      - the closed group renders no rows (its slot is not rendered), and the group alone makes exactly one `getUserSkills` call.
+    - No match: two `bash_tool` tokens read `2 bash_tool`, as before. With the feature on and an empty store, that group makes 0 `getUserSkills` calls.
+    - Text, not markup: with the display name `A&amp;B "x"`, the summary span's `textContent` is exactly `Used skill: A&amp;B "x", bash_tool`.
+  - **i18n.** `npm run i18n:parse` adds `Used skill: {{NAME}}`, `Reading skill: {{NAME}}...` and `Skill read failed: {{NAME}}` to every catalog. zh-CN gets:
+    - `使用技能：{{NAME}}`
+    - `正在读取技能：{{NAME}}…`
+    - `读取技能失败：{{NAME}}`
+
+    The `: ` in a key is safe because `src/lib/i18n/index.ts` sets `nsSeparator: false` and `keySeparator: false`. One Vitest assertion reads `src/lib/i18n/locales/zh-CN/translation.json` and checks the three strings exactly. It can live in `ocu-skill-call.test.ts` or the row test. It is the only proof of the reading and failed strings, because the browser case shows only the done one.
+  - **Browser case**, added to `e2e/ocu-skill-display-name.e2e.ts` as a separate `test(...)`:
+    - **Setup.** `collectErrors(page, DISPLAY_NAME_PATH)`, then `openInChinese`. Then, through the API: delete `invoice-builder` quietly, upload it (the first upload grants every user read), and set the display name `发票生成`.
+    - **Seed** one chat through `POST /api/v1/chats/new`, with `history.messages` holding two assistant messages in one chain. Each has `done: true`, `content: ''` and an `output` array of Responses-style items, as `structuredOutput.ts` `buildOutputDisplayItems` reads them.
+      - **Message A** `output`, in order:
+        1. `{type:'function_call', id:'fc-skill', call_id:'call-skill', name:'view', arguments:'{"description":"读取技能说明","path":"/mnt/skills/user/invoice-builder/SKILL.md"}', status:'completed'}`
+        2. `{type:'function_call_output', call_id:'call-skill', output:[{type:'input_text', text:'# invoice-builder'}], status:'completed'}`
+        3. `{type:'function_call', id:'fc-bash', call_id:'call-bash', name:'bash_tool', arguments:'{"command":"ls"}', status:'completed'}`
+        4. `{type:'function_call_output', call_id:'call-bash', output:[{type:'input_text', text:'ok'}], status:'completed'}`
+        5. `{type:'message', role:'assistant', content:[{type:'output_text', text:'技能已读取'}]}`
+      - **Message B** `output` holds a single `view` call on `/mnt/skills/public/docx/SKILL.md` with its output. A single call renders ungrouped as `detail_single`.
+      - **Tree:** each message carries `id`, `role:'assistant'`, `timestamp`, `done: true` and `content: ''`. A has `parentId: null` and `childrenIds: [B.id]`; B has `parentId: A.id` and `childrenIds: []`; `currentId` is B. A parent without `models` renders an assistant→assistant chain as two response messages (`Message.svelte:88`). If the renderer needs a different item shape to show these rows, the implementer reports it as a deviation instead of changing the components.
+    - **Open** `/c/{chatId}` in Chinese. Within message A:
+      - the collapsed group's toggle (`[aria-label="展开/收起详情"][aria-expanded="false"]`, scoped to `#message-{A.id}`) is visible, and its text contains `已分析` and `使用技能：发票生成, bash_tool`;
+      - the closed group renders no row label `使用技能：发票生成` outside the summary.
+    - **Expand:** click the toggle, then `aria-expanded="true"`.
+      - The skill row is the ToolCallDisplay root whose `id` ends with `-0-tool-call` inside message A. Its visible full label (the `@md:inline` span) has text `使用技能：发票生成`.
+      - The `bash_tool` row's visible label is `查看来自 bash_tool 的结果`.
+    - **Message B:** its row's visible label is `查看来自 view 的结果`.
+    - **Evidence:** screenshot `.run/ui-evidence/ocu-skill-display-name-tool-call.png` (`fullPage: true`, `animations: 'disabled'`), taken with the group expanded.
+    - **Teardown** in `finally`, with `Promise.allSettled`: delete the chat, delete `invoice-builder`. Then `checkErrors(0)`.
+  - **Docs.** Extend the decision record of task 1.1 with Decisions 6 and 9. Add the two upstream branches, the rejected token rename, the load-once/`console.warn` choice and the consequence that the approval row's short label shows only the display name next to Allow/Deny, and add `DankerMu/open-webui#793` to `references:`.
+  - **Must preserve:**
+    - **consumer surfaces**, all unchanged and reaching the new branches only through the two components:
+      - the ToolCallDisplay and ConsecutiveDetailsGroup call sites in `MarkdownTokens.svelte` (legacy `<details>` content path);
+      - `StructuredOutputRenderer.svelte` (group and single);
+      - `src/lib/components/channel/Messages/Message.svelte`, which also uses StructuredOutputRenderer;
+      - the shared view `src/routes/s/[id]/+page.svelte`. Its config may lack `enable_ocu_workspace`, so it requests nothing and shows the English name: the feature-off cases above cover it;
+    - every existing case in `ConsecutiveDetailsGroup.test.ts`, `ImageGenerationPlaceholder.test.ts`, `SlashCommands.test.ts` and `ocu-skill-display-name.e2e.ts` passes unmodified;
+    - the image placeholder branches in both components are untouched.
+  - **Commands:**
+    - `make test-frontend`;
+    - `make typecheck` (no new errors);
+    - `make lint-scoped`. `ConsecutiveDetailsGroup.svelte` is review-only here, because lint-scoped reports "eslint crashed" for it and exits 0. The PR says so;
+    - `make anti-drift`;
+    - `make coverage-gate PART=frontend` (`ocu-skill-call.ts` is fork-added: per-file 80%);
+    - `make decisions-verify`;
+    - `make verify-ui-ocu` (screenshot; zero unexpected console errors);
+    - `make verify-ui-ocu-repeat SPEC=ocu-skill-display-name.e2e.ts REPEAT=3`.
+  - **Diff size.** Expected above 400 lines, mostly tests (helper and row tests are new files). The PR carries label `diff-limit-exempt`. The justification in the PR body: the slice is atomic (task 5.1 slice line), and the tests are most of the diff.
+
 Suggested fixture level: expanded - branches inside two upstream rendering components used by every tool call.
 Minimal mergeable slice: atomic - the matcher and store have no other callers, and both branches must agree; a row reading 「使用技能」 under a summary reading `view` is the defect this task fixes. Depends on 2.1 (API type and e2e spec) and 4.1 (the slash menu that also writes the store).
 
