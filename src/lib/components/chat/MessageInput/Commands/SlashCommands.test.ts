@@ -28,6 +28,14 @@ const disabled: OcuUserSkill = {
 	display_name: null,
 	enabled: false
 };
+const named = (name: string, display_name: string | null): OcuUserSkill => ({
+	name,
+	description: '',
+	display_name,
+	enabled: true
+});
+const invoiceNamed = named('invoice-builder', '发票生成');
+const pdfTools = named('pdf-tools', null);
 
 let component: ReturnType<typeof createClassComponent> | undefined;
 let onSelect: ReturnType<typeof vi.fn>;
@@ -196,5 +204,83 @@ describe('slash menu workspace skills group', () => {
 			label: 'Native skill'
 		});
 		expect(onSelect).toHaveBeenCalledWith({ type: 'skill', data: NATIVE });
+	});
+
+	describe('display names', () => {
+		const slug = (name: string) =>
+			document.body.querySelector(`[data-cy="ocu-slash-skill-slug-${name}"]`);
+		const invoiceMention = {
+			id: 'ocu--invoice-builder|发票生成',
+			label: '发票生成',
+			mentionSuggestionChar: '/'
+		};
+
+		// After the outer set-up: no native skill, so at query 发票 the OCU entry is item 0.
+		beforeEach(() => {
+			vi.mocked(getSkillItems).mockResolvedValue({ items: [], total: 0 });
+			vi.mocked(getUserSkills).mockResolvedValue([invoiceNamed, pdfTools]);
+		});
+
+		it.each([
+			['发票', ['ocu-skills-slash-invoice-builder']],
+			['invoice', ['ocu-skills-slash-invoice-builder']],
+			['INVOICE', ['ocu-skills-slash-invoice-builder']],
+			['pdf', ['ocu-skills-slash-pdf-tools']]
+		])('query %s matches the display name or the English name', async (query, expected) => {
+			await render();
+			await type(query);
+			expect(rows()).toEqual(expected);
+		});
+
+		it('shows the display name first and the English name as secondary text', async () => {
+			await render();
+			const shown = row('invoice-builder')!.querySelector('span')!;
+			expect(shown.textContent?.trim()).toBe('发票生成');
+			expect(slug('invoice-builder')?.textContent?.trim()).toBe('invoice-builder');
+			expect(shown.compareDocumentPosition(slug('invoice-builder')!)).toBe(
+				Node.DOCUMENT_POSITION_FOLLOWING
+			);
+			expect(row('pdf-tools')!.querySelector('span')!.textContent?.trim()).toBe('pdf-tools');
+			expect(slug('pdf-tools')).toBeNull();
+		});
+
+		it('sorts by the shown name, not the English name', async () => {
+			vi.mocked(getUserSkills).mockResolvedValue([
+				named('beta-tool', null),
+				named('zeta-tool', 'Alpha 工具')
+			]);
+			await render();
+			expect(rows()).toEqual(['ocu-skills-slash-zeta-tool', 'ocu-skills-slash-beta-tool']);
+		});
+
+		it('hands the skill to onSelect by click and by Enter on the selected row', async () => {
+			await render();
+			row('invoice-builder')!.click();
+			expect(onSelect).toHaveBeenLastCalledWith({ type: 'ocu_skill', data: invoiceNamed });
+			await type('发票');
+			expect(row('invoice-builder')?.getAttribute('data-selected')).toBe('true');
+			await component!.select();
+			expect(onSelect).toHaveBeenCalledTimes(2);
+			expect(onSelect).toHaveBeenLastCalledWith({ type: 'ocu_skill', data: invoiceNamed });
+		});
+
+		it('inserts ocu--{name}|{shown name} with the shown name as label, by click and Enter', async () => {
+			const command = vi.fn();
+			await renderList(command);
+			row('invoice-builder')!.click();
+			expect(command).toHaveBeenLastCalledWith(invoiceMention);
+			row('pdf-tools')!.click();
+			expect(command).toHaveBeenLastCalledWith({
+				id: 'ocu--pdf-tools|pdf-tools',
+				label: 'pdf-tools',
+				mentionSuggestionChar: '/'
+			});
+			await type('发票');
+			expect(row('invoice-builder')?.getAttribute('data-selected')).toBe('true');
+			component!._onKeyDown(new KeyboardEvent('keydown', { key: 'Enter' }));
+			expect(command).toHaveBeenCalledTimes(3);
+			expect(command).toHaveBeenLastCalledWith(invoiceMention);
+			expect(onSelect).not.toHaveBeenCalled();
+		});
 	});
 });

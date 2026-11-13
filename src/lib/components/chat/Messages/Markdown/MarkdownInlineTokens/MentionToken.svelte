@@ -35,7 +35,7 @@
 				label = _id.substring(pipeIdx + 1);
 			} else {
 				id = _id;
-				label = _id;
+				label = (token as import('marked').Tokens.Generic).label;
 			}
 			idType = null;
 			return;

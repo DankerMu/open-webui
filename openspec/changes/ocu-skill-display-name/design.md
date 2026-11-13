@@ -79,7 +79,7 @@ See proposal.md for motivation and the source plan (`docs/plans/2026-11-11-knowl
    - `ConsecutiveDetailsGroup.svelte`'s `summaryText` maps each tool-call token through the same matcher and store before it counts names. A match contributes 「使用技能：X」 through the same `Used skill: {{NAME}}` key. A failed read still counts as used in the summary: the summary has no per-call state, and the expanded row shows the failure.
    - This is a minimal branch next to the existing image-placeholder branch in that file.
 10. **One-line fix in upstream `MentionToken.svelte`.**
-    - In the `$` branch, when `token.id` holds no `|`, the label is `token.label ?? token.id` instead of the id. The tokenizer already strips the label off the id; the existing `|` branch is left unchanged to keep the diff to one assignment.
+    - In the `$` branch, when `token.id` holds no `|`, the label is `token.label` instead of the id, read through marked's `Tokens.Generic` because `Token` declares no `label`. The tokenizer (`mention-extension.ts`, the only producer of mention tokens) already strips the label off the id and sets it to the id when none is given, so no `?? token.id` fallback is added: it would push `init` over the `make lint-scoped` complexity limit. The existing `|` branch is left unchanged to keep the diff to one assignment.
     - This also makes native skill mentions show their label, which is what the upstream comment intends.
     - Changing what `RichTextInput` serializes was rejected: it is upstream input code, and the marker format is a contract with the OCU filter.
 
