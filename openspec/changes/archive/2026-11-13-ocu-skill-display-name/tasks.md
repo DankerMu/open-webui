@@ -408,7 +408,7 @@ Minimal mergeable slice: atomic - the matcher and store have no other callers, a
 
 ## 6. User guide
 
-- [ ] 6.1 Update `docs/uploaded-skills.md`.
+- [x] 6.1 Update `docs/uploaded-skills.md`.
   - Administrators set the display name in the 「工作区 Skills」 tab.
   - The rules: optional, at most 32 characters, no `<`, `>`, line breaks or invisible characters, not unique, kept on replace.
   - Where users see it: the slash menu, the chip, the sent message, the personal tab, the tool-call rows and the collapsed tool group summary.
