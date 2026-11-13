@@ -195,7 +195,7 @@ Minimal mergeable slice: atomic - one component's label. Depends on 2.1 (the API
 
 ## 4. Slash menu and sent bubble
 
-- [ ] 4.1 Change the menu, the inserted mention and the bubble.
+- [x] 4.1 Change the menu, the inserted mention and the bubble.
   - **Menu.** In `Commands/SlashCommands.svelte`, render the shown name with the English name as secondary text, match the query on both names, and sort by the shown name.
   - **Mention.** In `CommandSuggestionList.svelte` `selectOcuSkill`, insert `ocu--{name}|{shown name}` with label `{shown name}` (design.md Decision 7).
   - **Bubble.** Apply the one-line `MentionToken.svelte` fix of Decision 10.
@@ -223,7 +223,7 @@ Minimal mergeable slice: atomic - one component's label. Depends on 2.1 (the API
     - sort: `shown(a).localeCompare(shown(b))`;
     - each button keeps `data-cy="ocu-skills-slash-{name}"`; its first text span shows the shown name; only when a display name is set, a second span with `data-cy="ocu-slash-skill-slug-{name}"` shows `name` as lighter secondary text. No new `data-cy` may start with `ocu-skills-slash-`, because `ocu-skills.e2e.ts` counts `[data-cy^="ocu-skills-slash-"]` rows.
   - **Selection** (`CommandSuggestionList.svelte` `selectOcuSkill`, one function): `data` is typed `{ name: string; display_name: string | null }`; shown = `data.display_name ?? data.name`; ``command({ id: `ocu--${data.name}|${shown}`, label: shown, mentionSuggestionChar: '/' })``.
-  - **Bubble** (`MentionToken.svelte`, the `$` branch's else arm only): `label = token?.label ?? _id;` replaces `label = _id;`. The `|` arm and every other branch stay as they are.
+  - **Bubble** (`MentionToken.svelte`, the `$` branch's else arm only): `label = (token as import('marked').Tokens.Generic).label;` replaces `label = _id;` (the tokenizer always sets `label`, falling back to the id; `?? _id` would break the `make lint-scoped` complexity limit and `?.` on `Token` the typecheck ceiling). The `|` arm and every other branch stay as they are.
   - **Slash-menu cases** in the existing `SlashCommands.test.ts`, red first (fixtures `invoice-builder` with `display_name: '发票生成'`, `pdf-tools` with `null`):
     - query `发票` lists `ocu-skills-slash-invoice-builder` and not `pdf-tools`; query `invoice` and query `INVOICE` list it; query `pdf` lists `pdf-tools` only;
     - in the `invoice-builder` button, the first `span` has text `发票生成`, `ocu-slash-skill-slug-invoice-builder` has text `invoice-builder`, and the first span precedes the slug span in document order; `ocu-slash-skill-slug-pdf-tools` does not exist;

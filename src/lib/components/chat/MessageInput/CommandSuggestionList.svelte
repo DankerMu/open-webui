@@ -52,9 +52,16 @@
 	// An uploaded workspace skill only inserts its mention: no onSelect, so no `skill_ids` (#751).
 	// The chat input's `/` command inserts these attrs as given; without the trigger char the mention
 	// would serialize as `<@…>` instead of `<$…>`. Kept out of the slash handler (complexity limit).
-	const selectOcuSkill = ({ type, data }: { type: string; data: { name: string } }) => {
+	const selectOcuSkill = ({
+		type,
+		data
+	}: {
+		type: string;
+		data: { name: string; display_name: string | null };
+	}) => {
 		if (type !== 'ocu_skill') return;
-		command({ id: `ocu--${data.name}|${data.name}`, label: data.name, mentionSuggestionChar: '/' });
+		const shown = data.display_name ?? data.name;
+		command({ id: `ocu--${data.name}|${shown}`, label: shown, mentionSuggestionChar: '/' });
 	};
 
 	let suggestionElement: any = null;

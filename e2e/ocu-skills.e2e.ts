@@ -1,16 +1,19 @@
 import * as path from 'node:path';
 import { expect, type Page } from '@playwright/test';
 import { admin, openAuthenticatedPage, post, test } from './ocu-auth';
-import { context, evidence } from './ocu-fixtures';
+import { evidence } from './ocu-fixtures';
 import {
 	DEEP_LINK,
 	INVOICE,
 	INVOICE_FIXTURE,
 	PERSONAL_DEEP_LINK,
 	SKILLS_PATH,
+	STUB_MODEL,
+	STUB_REPLY,
 	UPLOAD_PATH,
 	byCy,
 	collectErrors,
+	enableStubProvider,
 	openInChinese,
 	removeQuietly,
 	uploadRaw
@@ -20,9 +23,6 @@ import {
 const FIXTURE = path.resolve('smoke/fixtures/ocu-smoke-skill.zip');
 const SKILL = 'harness-smoke-skill';
 const MARKER = `<$ocu--${INVOICE}|${INVOICE}>`;
-// The OCU stub provider answers every completion with this reply (scripts/ocu_stub_model.py).
-const STUB_MODEL = 'ocu-stub-model';
-const STUB_REPLY = 'Stub reply. Saw: no OCU system prompt.';
 // A native skill (/api/v1/skills), created and deleted by the native slash menu case.
 const NATIVE_ID = 'harness-native-skill';
 const NATIVE_NAME = 'Harness native skill';
@@ -242,9 +242,7 @@ test('slash menu: the enabled uploaded skill is offered and sent as a mention ma
 	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openAuthenticatedPage(page);
 	const api = await admin(page);
-	const openaiResponse = await api.request.get('/openai/config', { headers: api.headers });
-	expect(openaiResponse.status()).toBe(200);
-	const openai = await openaiResponse.json();
+	const openai = await enableStubProvider(api);
 	let chatId: string | null = null;
 	let restore: PromiseSettledResult<unknown>[] = [];
 	try {
@@ -254,12 +252,6 @@ test('slash menu: the enabled uploaded skill is offered and sent as a mention ma
 		await uploadRaw(api, FIXTURE);
 		const toggled = await post(api, `${SKILLS_PATH}/${SKILL}/toggle`, { enabled: false });
 		expect(toggled).toEqual(expect.objectContaining({ name: SKILL, enabled: false }));
-		await post(api, '/openai/config/update', {
-			ENABLE_OPENAI_API: true,
-			OPENAI_API_BASE_URLS: [`${context.stub}/v1`],
-			OPENAI_API_KEYS: ['ocu-stub'],
-			OPENAI_API_CONFIGS: {}
-		});
 		// A fresh load picks up the provider; then reload in Chinese with the stub model selected.
 		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);
 		await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
@@ -321,9 +313,7 @@ test('slash menu: a native skill is sent as a $ mention and injected', async ({ 
 	const checkErrors = collectErrors(page, UPLOAD_PATH);
 	await openAuthenticatedPage(page);
 	const api = await admin(page);
-	const openaiResponse = await api.request.get('/openai/config', { headers: api.headers });
-	expect(openaiResponse.status()).toBe(200);
-	const openai = await openaiResponse.json();
+	const openai = await enableStubProvider(api);
 	let chatId: string | null = null;
 	let restore: PromiseSettledResult<unknown>[] = [];
 	try {
@@ -332,12 +322,6 @@ test('slash menu: a native skill is sent as a $ mention and injected', async ({ 
 			id: NATIVE_ID,
 			name: NATIVE_NAME,
 			content: 'Harness native skill body.'
-		});
-		await post(api, '/openai/config/update', {
-			ENABLE_OPENAI_API: true,
-			OPENAI_API_BASE_URLS: [`${context.stub}/v1`],
-			OPENAI_API_KEYS: ['ocu-stub'],
-			OPENAI_API_CONFIGS: {}
 		});
 		// A fresh load picks up the provider; then reload in Chinese with the stub model selected.
 		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);

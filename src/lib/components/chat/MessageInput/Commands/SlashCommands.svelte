@@ -66,9 +66,13 @@
 		.filter((p) => p.command.toLowerCase().includes(query.toLowerCase()))
 		.sort((a, b) => a.name.localeCompare(b.name));
 
+	const shown = (s: OcuUserSkill) => s.display_name ?? s.name;
 	$: ocuSkills = userSkills
-		.filter((s) => s.enabled && s.name.toLowerCase().includes(query.toLowerCase()))
-		.sort((a, b) => a.name.localeCompare(b.name));
+		.filter(
+			(s) =>
+				s.enabled && [s.name, shown(s)].some((n) => n.toLowerCase().includes(query.toLowerCase()))
+		)
+		.sort((a, b) => shown(a).localeCompare(shown(b)));
 
 	$: filteredItems = [
 		...commandItems,
@@ -490,7 +494,15 @@
 					data-selected={itemIdx === selectedIdx}
 				>
 					<Cube className="size-3.5 shrink-0" />
-					<span class="truncate">{skill.name}</span>
+					<span class="truncate">{shown(skill)}</span>
+					{#if skill.display_name}
+						<span
+							data-cy="ocu-slash-skill-slug-{skill.name}"
+							class="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400"
+						>
+							{skill.name}
+						</span>
+					{/if}
 				</button>
 			</Tooltip>
 		{/each}

@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { expect, type Page } from '@playwright/test';
-import { openAuthenticatedPage, type Admin } from './ocu-auth';
+import { openAuthenticatedPage, post, type Admin } from './ocu-auth';
+import { context } from './ocu-fixtures';
 
 // smoke/fixtures/ocu-invoice-builder.zip (sha256 d421e2f8c090b3cf6b43784077603066e39462964a6ef193b92fec7a2333080c)
 // holds one SKILL.md named invoice-builder; it was built from the repo root with:
@@ -12,6 +13,9 @@ export const DEEP_LINK = '/?settings=admin%3Aocu-skills';
 export const PERSONAL_DEEP_LINK = '/?settings=ocu_skills';
 export const SKILLS_PATH = '/api/v1/ocu/skills';
 export const UPLOAD_PATH = `${SKILLS_PATH}/upload`;
+// The OCU stub provider answers every completion with this reply (scripts/ocu_stub_model.py).
+export const STUB_MODEL = 'ocu-stub-model';
+export const STUB_REPLY = 'Stub reply. Saw: no OCU system prompt.';
 
 export const byCy = (page: Page, cy: string) => page.locator(`[data-cy="${cy}"]`);
 
@@ -57,4 +61,18 @@ export async function uploadRaw(api: Admin, fixture: string) {
 		headers: { ...api.headers, 'Content-Type': 'application/zip' }
 	});
 	expect(uploaded.status()).toBe(200);
+}
+
+/** Point the OpenAI connection at the OCU stub provider; returns the previous config to restore. */
+export async function enableStubProvider(api: Admin): Promise<unknown> {
+	const response = await api.request.get('/openai/config', { headers: api.headers });
+	expect(response.status()).toBe(200);
+	const previous = await response.json();
+	await post(api, '/openai/config/update', {
+		ENABLE_OPENAI_API: true,
+		OPENAI_API_BASE_URLS: [`${context.stub}/v1`],
+		OPENAI_API_KEYS: ['ocu-stub'],
+		OPENAI_API_CONFIGS: {}
+	});
+	return previous;
 }

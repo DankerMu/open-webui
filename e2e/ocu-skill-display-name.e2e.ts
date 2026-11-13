@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { admin, post, test } from './ocu-auth';
+import { admin, openAuthenticatedPage, post, test } from './ocu-auth';
 import { evidence } from './ocu-fixtures';
 import {
 	DEEP_LINK,
@@ -7,8 +7,11 @@ import {
 	INVOICE_FIXTURE,
 	PERSONAL_DEEP_LINK,
 	SKILLS_PATH,
+	STUB_MODEL,
+	STUB_REPLY,
 	byCy,
 	collectErrors,
+	enableStubProvider,
 	openInChinese,
 	removeQuietly,
 	uploadRaw
@@ -97,5 +100,70 @@ test('personal tab: a display name set through the API shows first, the English 
 	} finally {
 		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
 	}
+	checkErrors(0);
+});
+
+test('slash menu: the display name is offered, inserted, sent in the marker and shown in the bubble', async ({
+	page
+}) => {
+	// Admin set-up, the stub completion and the restore outlast 60 s on slow runners.
+	test.setTimeout(120_000);
+	const checkErrors = collectErrors(page, DISPLAY_NAME_PATH);
+	await openInChinese(page);
+	const api = await admin(page);
+	const openai = await enableStubProvider(api);
+	let chatId: string | null = null;
+	let restore: PromiseSettledResult<unknown>[] = [];
+	try {
+		await removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`);
+		await uploadRaw(api, INVOICE_FIXTURE);
+		await post(api, DISPLAY_NAME_PATH, { display_name: DISPLAY_NAME });
+		// A fresh load picks up the provider; the locale stays Chinese from openInChinese.
+		await openAuthenticatedPage(page, `/?models=${STUB_MODEL}`);
+		const input = page.locator('#chat-input');
+		await expect(input).toBeVisible();
+
+		await input.click();
+		await page.keyboard.type('/发票');
+		const row = byCy(page, `ocu-skills-slash-${INVOICE}`);
+		await expect(row).toBeVisible();
+		await expect(row).toHaveAttribute('data-selected', 'true');
+		await expect(row).toContainText(DISPLAY_NAME);
+		await expect(row).toContainText(INVOICE);
+		await page.keyboard.press('Enter');
+		await expect(input.locator('[data-type="mention"]')).toHaveText(`$${DISPLAY_NAME}`);
+		await page.keyboard.type(' 做发票');
+
+		const completion = page.waitForResponse(
+			(response) =>
+				new URL(response.url()).pathname === '/api/chat/completions' &&
+				response.request().method() === 'POST'
+		);
+		await page.locator('#send-message-button').click();
+		const answer = await completion;
+		chatId = (await answer.json()).chat_id;
+		expect(typeof chatId).toBe('string');
+		const body = answer.request().postDataJSON();
+		expect(body.user_message.content).toContain(`<$ocu--${INVOICE}|${DISPLAY_NAME}>`);
+		const messages = page.locator('#messages-container');
+		await expect(messages.getByText(STUB_REPLY)).toBeVisible();
+
+		await expect(messages.locator('.mention', { hasText: `$${DISPLAY_NAME}` })).toBeVisible();
+		await expect(messages.getByText(`$ocu--${INVOICE}`)).toHaveCount(0);
+		await page.screenshot({
+			path: `${evidence}/ocu-skill-display-name-slash.png`,
+			fullPage: true,
+			animations: 'disabled'
+		});
+	} finally {
+		// Restore everything even when one step fails; a failure of the case itself still wins.
+		restore = await Promise.allSettled([
+			...(chatId ? [removeQuietly(api, `/api/v1/chats/${chatId}`)] : []),
+			removeQuietly(api, `${SKILLS_PATH}/${INVOICE}`),
+			post(api, '/openai/config/update', openai)
+		]);
+	}
+	const failed = restore.find((result) => result.status === 'rejected');
+	if (failed) throw failed.reason;
 	checkErrors(0);
 });
