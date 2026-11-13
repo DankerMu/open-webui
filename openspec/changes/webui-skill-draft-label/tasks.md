@@ -7,7 +7,7 @@
   - **Unit test.** New `src/lib/components/common/RichTextInput.test.ts` (`@vitest-environment jsdom`). Mount the component as design.md § Seams under test requires (`suggestions` with a `$` entry, `i18n` context, editor ready), call `setText`, and assert the `md` of the last `onChange` call for each input in design.md Required evidence, including the closing form. Run it against the unchanged source first and record that it fails.
   - **Browser case.** Add one test to `e2e/ocu-skill-display-name.e2e.ts` per design.md Required evidence (wait for the debounced draft in sessionStorage, reload, chip, then the request body). Save a screenshot `ocu-skill-draft-label.png` under the evidence directory.
 
-  Verify with: `make test-frontend` (or the vitest file directly), `make typecheck`, `make lint-scoped`, `make coverage-gate PART=frontend`, `make verify-ui-ocu-repeat SPEC=e2e/ocu-skill-display-name.e2e.ts REPEAT=1` or `make verify-ui-ocu`.
+  Verify with: `make test-frontend` (or the vitest file directly), `make typecheck`, `make lint-scoped`, `make coverage-gate PART=frontend`, `make verify-ui-ocu-repeat SPEC=ocu-skill-display-name.e2e.ts REPEAT=1` (bare file name) or `make verify-ui-ocu`.
 
   Task 1.1 required evidence (issue #808; input → expected output):
   - **Fixture level and risk packs.**

@@ -55,8 +55,10 @@ For every text `t` made of plain text and recognised mention markers, setting `t
 ## Non-goals
 
 - `&` in a label (Decision 3).
+- Drafts saved before this change. A sessionStorage draft written by the old code already reads `<$ocu--x>`; its label is gone and cannot be recovered, so it still sends a marker the filter ignores. Picking the skill again from `/` writes a correct draft. Queued messages are in memory only and carry insertion-path ids, which already include `|label`.
 - Any change to the OCU filter, backend regexes, marker format or the turndown rule.
 - A browser case for the queued-message edit path: it reaches the same callback, which the jsdom test covers.
+- A browser assertion that the OCU filter adds its skill sentence after a restore. The display-name e2e stack has no `computer_use_filter` installed (its stub replies `no OCU system prompt`), and installing it would widen this fixture. Issue #808 acceptance criterion 3 is closed by composition: the browser case proves the restored send carries `<$ocu--invoice-builder|发票生成>`; OCU `tests/test_filter.py::test_marker_single_is_rewritten_and_names_the_skill` (`:1235`) proves a labelled marker gets the sentence; the test at `:1429` proves the label-less `<$ocu--invoice-builder>` (the pre-fix send) gets none.
 
 ## Review focus
 
