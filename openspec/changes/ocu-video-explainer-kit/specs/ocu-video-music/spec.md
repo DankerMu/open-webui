@@ -9,6 +9,7 @@ A small background-music library, baked into the workspace image, for offline ex
 ### Requirement: Every track has verified CC0 evidence and recorded user approval
 
 The workspace image SHALL carry a music library with a manifest. Every entry SHALL record:
+
 - the track id;
 - the mood: calm-curious, upbeat-corporate, neutral-serious or loop;
 - title and author;
@@ -21,6 +22,7 @@ The workspace image SHALL carry a music library with a manifest. Every entry SHA
 - the approver and the approval date.
 
 A track SHALL be included only if:
+
 - its CC0 or public-domain dedication is shown on the live source page, or in an archived statement whose file digest matches `source_sha256`;
 - the search found it under no other licence;
 - the user approved it after listening, as recorded in a tracked approval file that the manifest's approver fields must match.
@@ -55,6 +57,7 @@ The target is 16 tracks, four per mood. The library ships the approved subset, a
 Every library track SHALL be normalized to -16 LUFS integrated, with a true peak at or below -1.5 dBTP. Non-loop tracks ship as MP3. Loop tracks ship as WAV and loop without a gap.
 
 The narration track is normalized to -16 LUFS. In a rendered explainer with a selected track, the music SHALL:
+
 - sit 15 ± 3 dB below the narration level while narration plays, measured over 400 ms windows;
 - sit 6 ± 2 dB below its own normalized level without narration;
 - ramp between the two levels over 0.5 ± 0.1 s;

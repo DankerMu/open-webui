@@ -11,6 +11,7 @@ A sandbox kit with which a weak chat model makes a narrated Chinese science-expl
 The kit SHALL be invoked as `node /opt/remotion-template/bin/kit.mjs new <name>` to create a project, and as `node bin/kit.mjs <subcommand>` inside the project for every other step.
 
 The new-project command SHALL:
+
 - create `/home/assistant/videos/<name>`, where `<name>` matches `^[a-z0-9][a-z0-9-]{0,39}$`;
 - fill it with the template sources, a symlink to the shared read-only `node_modules` and an example `script.json`;
 - fail without changing anything when the target directory exists and is not empty, including an old Remotion project without a `script.json`.
@@ -35,6 +36,7 @@ The kit SHALL use only packages already installed in the template and SHALL need
 An explainer video SHALL be fully described by `script.json`, validated against a published schema, at 1920×1080 and 30 fps.
 
 The script SHALL hold:
+
 - a title;
 - a music choice: a library track id or `none`;
 - exactly one `hook` scene first;
@@ -46,6 +48,7 @@ Every scene except `end-card` SHALL carry narration as one to four sentences. Ea
 A scene MAY name an image as a plain file name. It is resolved inside the project's `public/images/`, and names with a path separator or `..` are rejected.
 
 The body scene kinds SHALL be the approved subset of this candidate set:
+
 - question;
 - concept card;
 - process steps;
@@ -100,6 +103,7 @@ The timeline command SHALL fail naming the block when a block's audio is missing
 ### Requirement: Narration drives the timeline
 
 The timeline command SHALL build `timeline.json` and one narration track from the imported audio:
+
 - leading and trailing silence trimmed;
 - block durations measured from decoded audio;
 - gaps of 0.06 s between blocks of one sentence, 10 frames between sentences, 20 frames at scene end and 45 frames before a chapter, plus a 40-frame lead-in and a 90-frame tail;
@@ -137,6 +141,7 @@ The model SHALL NOT write frame numbers.
 Every kit scene SHALL use the preset theme's colours, type sizes, spacing and motion constants. It SHALL use no system font stack, remote font or remote asset.
 
 In every probe frame, Chinese text SHALL satisfy these rules. The probe frames are, for each scene, the frame where its entrance ends, its midpoint, and the frame before its exit.
+
 - The rendered text equals the input text.
 - Every text box stays inside the theme's safe area, does not scroll horizontally, and is at or above the theme's minimum type size.
 - No line starts with `，。！？、；：）」』`.
@@ -171,6 +176,7 @@ Captions SHALL show one caption block per page, timed to that block's audio.
 The kit check SHALL run in the background, log its progress, and report its outcome through the kit status command.
 
 It SHALL fail on any of these:
+
 - a schema violation;
 - a probe frame that breaks the text rules;
 - a key reveal followed by less than 1 second of rest, or a batch entrance followed by less than 0.5 seconds;
@@ -229,6 +235,7 @@ Every candidate scene component and both theme candidates (light and dark) SHALL
 The user's decision per component and the theme pick SHALL be recorded in a tracked approvals file. Each entry names the component, the decision (`approve`, `redo` or `drop`), the reviewer and the date, and links the user's own export or message.
 
 These SHALL each equal the approved set in the approvals file:
+
 - the schema's kinds;
 - the component registry;
 - the JSON Schema;
@@ -250,6 +257,7 @@ These SHALL each equal the approved set in the approvals file:
 ### Requirement: The video skill routes explainers to the kit
 
 With the video switch on, the `remotion` skill's entry file SHALL tell the model to make science explainers in this order:
+
 1. new project;
 2. write `script.json`;
 3. generate illustrations with the existing image tool, then import them with the kit;
@@ -273,6 +281,7 @@ This requirement supersedes, for science explainers, the skill rule of the never
 ### Requirement: Third-party sources carry their notices
 
 Every ported component and borrowed format SHALL be listed in the repository's third-party notices with its source, commit and licence. This applies from the change that first brings it in. The sources are:
+
 - MIT: Onda, RenderComp, Remocn, remotion-bits;
 - Apache-2.0: video-shotcraft;
 - PolyForm Noncommercial 1.0.0: video-talkcraft, anything2explainer, with each project's Required Notice line kept verbatim.

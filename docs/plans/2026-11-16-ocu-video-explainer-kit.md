@@ -23,14 +23,14 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 
 调研报告在会话 scratchpad，结论如下。
 
-| 来源 | 许可证 | 用法 |
-| --- | --- | --- |
-| Onda（`degueba/onda`，commit `3c814051`） | MIT | **底座**。组件由 props 驱动，带 zod schema，内联样式；共享 `lib/` 约 1000 行，无外部依赖；`lib/composition.ts` + `lib/composition-renderer.tsx` 是现成的 JSON 时间轴渲染器。要改：`composition.ts:18` 的 zod v3 写法、`picsum.photos` 默认图、`PlacementBox` 居中时只有半幅宽（`lib/canvas.tsx:95-121`）。 |
-| RenderComp（`RenderComp/free-remotion-templates`） | MIT | 整场景参考：ChapterTitle、SplitScreen、KpiCounter、BarChartAnim、LineChartAnim。要换写死的 `FONT`、把帧号改成参数。 |
-| Remocn（`Remocn/remocn`） | MIT | 约 15 个：three-steps、dumbbell-shift、exploded-view、caption-subtitle + caption-core、ink-arrow、drift、focus-pull、push-through 等。785 项里 505 项要联网加载谷歌字体，排除；按空格断行的 said-who、hook-uncurl、answer-first、keep-words 排除；第三方品牌界面类排除。 |
-| remotion-bits | MIT（只在 package.json 声明，无 LICENSE 文件） | 只借原语；依赖未安装的 `culori`。 |
-| video-shotcraft | Apache-2.0 | 《审美准则》27 条（R/Q/S/C/P），已分成"能量的 / 能从源码查的 / 要人看的"三类；宣传片专属条目科普不用。音频不在 Apache 范围内，不拿。 |
-| video-talkcraft、anything2explainer | PolyForm Noncommercial 1.0.0 | 用户已批准使用（本项目不营利）。借：anything2explainer 的解说词格式（章 ≤6 字、`|` 切字幕块 ≤16 字、空行分段）和"逐块合成、累计时长"的配音时间轴；talkcraft workbench 的"参数表 + 轨道/片段"结构和"讲什么 → 画什么"语义词表。拷文件时保留各自 `LICENSE:3` 的 Required Notice。 |
+| 来源                                               | 许可证                                         | 用法                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Onda（`degueba/onda`，commit `3c814051`）          | MIT                                            | **底座**。组件由 props 驱动，带 zod schema，内联样式；共享 `lib/` 约 1000 行，无外部依赖；`lib/composition.ts` + `lib/composition-renderer.tsx` 是现成的 JSON 时间轴渲染器。要改：`composition.ts:18` 的 zod v3 写法、`picsum.photos` 默认图、`PlacementBox` 居中时只有半幅宽（`lib/canvas.tsx:95-121`）。 |
+| RenderComp（`RenderComp/free-remotion-templates`） | MIT                                            | 整场景参考：ChapterTitle、SplitScreen、KpiCounter、BarChartAnim、LineChartAnim。要换写死的 `FONT`、把帧号改成参数。                                                                                                                                                                                        |
+| Remocn（`Remocn/remocn`）                          | MIT                                            | 约 15 个：three-steps、dumbbell-shift、exploded-view、caption-subtitle + caption-core、ink-arrow、drift、focus-pull、push-through 等。785 项里 505 项要联网加载谷歌字体，排除；按空格断行的 said-who、hook-uncurl、answer-first、keep-words 排除；第三方品牌界面类排除。                                   |
+| remotion-bits                                      | MIT（只在 package.json 声明，无 LICENSE 文件） | 只借原语；依赖未安装的 `culori`。                                                                                                                                                                                                                                                                          |
+| video-shotcraft                                    | Apache-2.0                                     | 《审美准则》27 条（R/Q/S/C/P），已分成"能量的 / 能从源码查的 / 要人看的"三类；宣传片专属条目科普不用。音频不在 Apache 范围内，不拿。                                                                                                                                                                       |
+| video-talkcraft、anything2explainer                | PolyForm Noncommercial 1.0.0                   | 用户已批准使用（本项目不营利）。借：anything2explainer 的解说词格式（章 ≤6 字、`\|` 切字幕块 ≤16 字、空行分段）和"逐块合成、累计时长"的配音时间轴；talkcraft workbench 的"参数表 + 轨道/片段"结构和"讲什么 → 画什么"语义词表。拷文件时保留各自 `LICENSE:3` 的 Required Notice。                            |
 
 **中文的硬问题**（读代码确认）：`@remotion/captions` 4.0.537 只在以空格开头的 token 前分页（`create-tiktok-style-captions.ts`），中文整段会成一页，必须自己设 `pageBreakAfter`；多数组件按空格切词、`nowrap`、按 ASCII 估字宽、负字距、行高 1.0–1.1 加遮罩，都会让中文溢出或被裁切；数字格式要用万/亿。
 
@@ -128,19 +128,19 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 
 ## Decision Ledger（2026-11-16，用户拍板）
 
-| 分支 | 结论 |
-| --- | --- |
-| 质量标准 | 官方和社区的好案例；动效库不是标准 |
-| 生产模型 | `qwen3.8-27b`，能看图，没有更强的模型；生产配了语音和生图 |
-| 首刀预设 | 科普讲解，16:9，1–3 分钟，中文配音，配图用生图 |
-| 分工 | 模型只写 `script.json`；科普片最多 1 个 `custom` 场景；其他类型暂走旧流程 |
-| 组件来源 | Onda 为底座，RenderComp、Remocn 补充；PolyForm NC 的两个项目可以用（本项目不营利） |
-| 组件审片 | 样片集用户审过才进工具箱；主题给亮色和深色两版供用户挑 |
-| 背景音乐 | 要；挑一批 CC0，16 首四类；我核验许可，用户试听定稿 |
-| 基础镜像 | 先钉 digest，作为本变更的第一个 issue |
-| 评测地点 | 210.77.77.27，完整 WebUI + OCU 栈；key 长期放 0600 文件 |
-| 评测配音 | 评测栈里加转接服务，生产不改 |
-| 评测规模与验收 | 科普 5×2 + 其他各 1；用户盲评，新版至少赢 8/10 对，加机械指标 |
+| 分支           | 结论                                                                               |
+| -------------- | ---------------------------------------------------------------------------------- |
+| 质量标准       | 官方和社区的好案例；动效库不是标准                                                 |
+| 生产模型       | `qwen3.8-27b`，能看图，没有更强的模型；生产配了语音和生图                          |
+| 首刀预设       | 科普讲解，16:9，1–3 分钟，中文配音，配图用生图                                     |
+| 分工           | 模型只写 `script.json`；科普片最多 1 个 `custom` 场景；其他类型暂走旧流程          |
+| 组件来源       | Onda 为底座，RenderComp、Remocn 补充；PolyForm NC 的两个项目可以用（本项目不营利） |
+| 组件审片       | 样片集用户审过才进工具箱；主题给亮色和深色两版供用户挑                             |
+| 背景音乐       | 要；挑一批 CC0，16 首四类；我核验许可，用户试听定稿                                |
+| 基础镜像       | 先钉 digest，作为本变更的第一个 issue                                              |
+| 评测地点       | 210.77.77.27，完整 WebUI + OCU 栈；key 长期放 0600 文件                            |
+| 评测配音       | 评测栈里加转接服务，生产不改                                                       |
+| 评测规模与验收 | 科普 5×2 + 其他各 1；用户盲评，新版至少赢 8/10 对，加机械指标                      |
 
 ## 开放项
 

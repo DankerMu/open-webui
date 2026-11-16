@@ -7,6 +7,7 @@
   - a cached rebuild of the workspace role yields configuration digest `3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5`.
 
   A no-cache rebuild is not expected to reproduce it.
+
 - [ ] 1.2 Make `deploy/release.py` read the root recipe's `FROM` digest and record the workspace material `{"name": "base", "kind": "base-image", "requested": "ubuntu@sha256:<digest>"}`; a recipe without a digest fails the build before any image is built. Update the release-test fixture root recipes (`tests/deploy/test_offline_release.py`, now `FROM scratch`) to carry a digest. Verify with release tests:
   - a new inventory carries the material and passes `verify`;
   - an undigested root recipe fails the build naming the line, and writes no inventory;
@@ -30,6 +31,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - `docker ps` shows only loopback ports for the project;
   - an inspected sandbox satisfies OCU's disabled-network predicate (`Config.NetworkDisabled` true or `HostConfig.NetworkMode` `none`), publishes no port, and an outbound connection attempt from inside it fails;
   - the start script, the image-load step and the driver's per-run check each refuse when the free-space check is pointed at a fake low value.
+
 - [ ] 2.2 Write the evaluation adapter with two routes:
   - **speech:** accepts OCU's request with `mp3`/`wav`, `voice` and `instructions`, calls dmxapi `chat/completions` with `mimo-v2.5-tts`, and returns 502 without the key on upstream failure;
   - **images:** accepts WebUI's `openai`-engine generation request (JSON `/images/generations`) and edit request (multipart `/images/edits`, files as `image` or `image[]`). It forwards both to dmxapi `/v1/responses` with `prompt` as `input`, edit files as `data:` URLs in `image`, without `n` and with `watermark` false. It rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
@@ -37,6 +39,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   Verify each route with:
   - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json` and `url`), an upstream error, a timeout and a wrong-type response;
   - one live call in the stack (`generate_speech`; one WebUI image generation and one WebUI image edit).
+
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
   - opens an SSH tunnel;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
@@ -47,12 +50,14 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - one explainer request end to end;
   - the container, image, network and volume lists of other projects are identical before and after cleanup;
   - a key search that never prints the key finds nothing under `/home/nwm/ocu-eval/` and in the project's container logs.
+
 - [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine with production's settings, except base URL (the adapter), key and model (`doubao-seedream-5-0-flash-260915`). Production uses default size 2048×2048, an aspect-ratio table (16:9, 9:16, 1:1, 4:3, 3:4 and more) and editing on. The exact table is copied from production's admin page; no code changes. Verify:
   - the stored settings equal production's field by field, apart from those three;
   - every table size lies within 921600–4624220 pixels;
   - the end-to-end smoke shows speech, a generated image and an MP4 output all working with sandbox networking disabled.
 
   If any of them fails, stop and ask the user.
+
 - [ ] 2.5 Commit the request set: five science-explainer requests, plus one course, one promo and one report. Verify the commit precedes the first baseline manifest.
 - [ ] 2.6 Run the baseline on release `01b7ef7a64a5` with WebUI `6b95a4995e91`: each explainer twice, the others once, `infra` failures rerun at most twice. Keep that package under `/home/nwm/ocu-eval/`. Verify that 13 final-outcome manifests, one per request and repetition, plus a manifest for every rerun attempt, record that release identity, the WebUI image digest and an outcome.
 - [ ] 2.7 Record the render success-rate threshold, set from the baseline, and the a-priori kit check pass-rate threshold in this change, and get the user's confirmation. Verify that the change holds both values and a link to the confirmation, dated before any after-run manifest.
@@ -68,6 +73,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - drop `adaptive-player.tsx`, `composition-json-schema.ts` and `registry-summary.ts`.
 
   Verify that `npx --no-install remotion bundle` of the template succeeds and the notice-coverage test passes.
+
 - [ ] 3.3 Add the theme token module and the Chinese text helper:
   - punctuation and character-count segmentation;
   - no closing punctuation at line start;
@@ -75,6 +81,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - 万/亿 formatting.
 
   Probe `Intl.Segmenter('zh')` in the image's headless shell and record the result. Verify with `node --test` cases on long Chinese strings, line-start punctuation, and 9999, 12345 and 123456789.
+
 - [ ] 3.4 Define the `script.json` schema in a `.mjs` module:
   - 1920×1080 at 30 fps;
   - the hook / 3–5 chapters / summary / end-card skeleton;
@@ -85,6 +92,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - a music id or `none`.
 
   Export the JSON Schema. Add the PolyForm NC notice entries (anything2explainer, video-talkcraft) in this task. Verify with `node --test` fixtures that every invalid case in the spec fails with a message naming chapter, scene, field and limit.
+
 - [ ] 3.5 Implement `kit new <name>`, `kit voice`, `kit voice-import` and `kit image`. Verify with `node --test`:
   - `new` refuses a non-empty directory;
   - `voice` stems carry the hash of text, voice and instructions, and change when any of them changes;
@@ -131,6 +139,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
   - refuses to start after an unchecked edit.
 
   Verify the refusal, a successful fixture render, and a killed render that leaves the previous target intact.
+
 - [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.

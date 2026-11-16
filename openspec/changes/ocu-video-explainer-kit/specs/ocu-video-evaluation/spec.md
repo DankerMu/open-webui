@@ -11,6 +11,7 @@ A repeatable evaluation of video quality with the production model on an isolate
 The evaluation stack SHALL run on 210.77.77.27 as one compose project named `ocu-eval`, from the release images under test. It SHALL NOT modify the code in any of them.
 
 The stack SHALL:
+
 - bind every published port to 127.0.0.1;
 - run sandboxes with networking disabled (`ENABLE_NETWORK=false`), so they publish no port and reach no address;
 - keep the orchestrator's data directory, which holds per-chat outputs, under `/home/nwm/ocu-eval/`;
@@ -22,6 +23,7 @@ Packages, run outputs and collected MP4 files SHALL live under `/home/nwm/ocu-ev
 Before loading images and before every run, the tooling SHALL refuse to proceed when Docker's root filesystem has less than 15 GB free.
 
 Cleanup SHALL remove only:
+
 - the images this project loaded;
 - the compose containers and networks;
 - the sandbox containers, `chat-<id>-workspace` volumes and orchestrator data directories of the chat ids recorded in this evaluation's run manifests.
@@ -55,6 +57,7 @@ The model key SHALL be read from a 0600 file by variable name. It SHALL NOT appe
 ### Requirement: The evaluation uses the production model through WebUI
 
 The evaluation driver SHALL send each request through WebUI's chat API, with:
+
 - the chat model `qwen3.8-27b`;
 - the video switch and image generation on;
 - image generation on WebUI's `openai` engine, as in production (where it serves vllm-omni), with production's image settings copied field by field except three: the base URL points at the evaluation-only adapter, the key is the dmxapi key, and the model is `doubao-seedream-5-0-flash-260915`;
@@ -63,6 +66,7 @@ The evaluation driver SHALL send each request through WebUI's chat API, with:
 The adapter SHALL accept OCU's speech request (`model`, `input`, `response_format` of `mp3` or `wav`, and optional `voice` and `instructions`). It SHALL return audio in the requested format, with the content type OCU expects. When the upstream call fails, times out or returns non-audio, it SHALL return HTTP 502 with an error body that holds no key.
 
 The adapter SHALL also accept WebUI's image request: `POST /images/generations` with `model`, `prompt`, `n`, `size`, `response_format` and any configured extra parameters. It SHALL forward it to dmxapi `POST /v1/responses`, the only route that serves `doubao-seedream-5-0-flash-260915`, with these changes:
+
 - `prompt` is sent as `input`;
 - `n` is dropped, and a request with `n` other than 1 fails with HTTP 400;
 - `watermark` is false.
@@ -72,6 +76,7 @@ It SHALL return the OpenAI images response shape (`data[].b64_json` or `data[].u
 The adapter SHALL also accept WebUI's image-edit request: multipart `POST /images/edits` with `model`, `prompt`, `size`, `response_format`, optional `n` and `background`, and one or more files under `image` or `image[]`. It SHALL forward the request to the same `/v1/responses` route, sending the files as `data:` URLs in `image` and applying the same `prompt`, `n` and `watermark` rules, and SHALL return the same response shape.
 
 Production's image settings (user, 2026-11-16) are:
+
 - default size 2048×2048;
 - an aspect-ratio table with at least 16:9, 9:16, 1:1, 4:3 and 3:4;
 - image editing on.
@@ -81,6 +86,7 @@ The edit engine is configured like the generation engine. Every size in the copi
 Both runs SHALL use the same WebUI image digest and the same model, image and speech settings. Only the OCU images differ.
 
 Each run SHALL have a 60-minute limit. The driver SHALL collect the MP4 and the transcript, and record a run manifest:
+
 - release identities and the WebUI image digest;
 - model names;
 - request id and repetition;
@@ -122,6 +128,7 @@ The request set SHALL be committed before the baseline run starts. It holds five
 The baseline SHALL run on release `01b7ef7a64a5` with WebUI `6b95a4995e91`, the production release, before any OCU slice of this change is released. Its package SHALL be kept under `/home/nwm/ocu-eval/` until acceptance ends. The after run SHALL use the release candidate with this change.
 
 Before the after run, the thresholds SHALL be recorded in the change and confirmed by the user:
+
 - the render success rate, set from the baseline;
 - the kit check pass rate, set a priori. It is the share of after-run explainer runs in which a check passed and the final render succeeded.
 
@@ -130,6 +137,7 @@ The user SHALL judge the ten science-explainer pairs blind. A pair is the same r
 A pair missing the new video counts as a loss for the new version. A pair missing only the baseline video counts as a win. A pair missing both is rerun once and is void if both are still missing.
 
 The change SHALL be accepted only when:
+
 - the new version wins at least eight of the ten pairs, with void pairs counted as losses;
 - both thresholds are met.
 
