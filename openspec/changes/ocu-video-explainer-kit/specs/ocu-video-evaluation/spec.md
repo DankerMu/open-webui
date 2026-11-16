@@ -75,13 +75,7 @@ It SHALL return the OpenAI images response shape (`data[].b64_json` or `data[].u
 
 The adapter SHALL also accept WebUI's image-edit request: multipart `POST /images/edits` with `model`, `prompt`, `size`, `response_format`, optional `n` and `background`, and one or more files under `image` or `image[]`. It SHALL forward the request to the same `/v1/responses` route, sending the files as `data:` URLs in `image` and applying the same `prompt`, `n` and `watermark` rules, and SHALL return the same response shape.
 
-Production's image settings (user, 2026-11-16) are:
-
-- default size 2048×2048;
-- an aspect-ratio table with at least 16:9, 9:16, 1:1, 4:3 and 3:4;
-- image editing on.
-
-The edit engine is configured like the generation engine. Every size in the copied table SHALL lie within Seedream's 921600–4624220 pixels, or the configuration step fails, names the entry and asks the user.
+Production's image settings (user, 2026-11-16) are default size 2048×2048, an aspect-ratio table with at least 16:9, 9:16, 1:1, 4:3 and 3:4, and image editing on. The user left the exact pixel sizes open, so the evaluation uses this fixed table, every entry within Seedream's 921600–4624220 pixels: 1:1 2048×2048, 16:9 2560×1440, 9:16 1440×2560, 4:3 2304×1728, 3:4 1728×2304, 3:2 2496×1664, 2:3 1664×2496. The edit engine is configured like the generation engine.
 
 Both runs SHALL use the same WebUI image digest and the same model, image and speech settings. Only the OCU images differ.
 
