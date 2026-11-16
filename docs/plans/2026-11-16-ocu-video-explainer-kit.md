@@ -109,7 +109,7 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 - 磁盘：包、产物、成片放 `/home/nwm/ocu-eval/`；对话工作区是 Docker volume，落在根分区（剩约 28G）。只加载评测要用的镜像（不带 documentserver 和 retention-guard）；根分区空闲低于 15G 就不启动。清理只删本项目加载的镜像、compose 容器和网络，以及运行记录里那些 chat id 的沙箱容器和工作区 volume，不 prune。
 - 模型 `qwen3.8-27b`（dmxapi），生图 `doubao-seedream-5-0-flash-260915`，配音 `mimo-v2.5-tts`。`DMXAPI_KEY` 长期放在 `/home/nwm` 下 0600 文件里，只按变量名引用。
 - 配音转接：评测栈里跑一个小服务，把 `POST /audio/speech` 转成 dmxapi mimo 的 `chat/completions` 音频调用。只用于评测，生产代码不变。
-- 生图转接：生产用 WebUI 的 `openai` 生图引擎接 vllm-omni，评测沿用同一引擎和参数，只换 base URL、key 和模型。WebUI 总会带 `n`，而 dmxapi 的 `doubao-seedream-5-0-flash-260915` 只开放在 `/v1/responses`（提示词字段叫 `input`）。所以同一个转接服务也接 `POST /images/generations`：`prompt` 改名 `input`、去掉 `n`、关水印，再按 OpenAI images 格式返回。2026-11-16 实测这样能出 1920×1080 PNG，每张约 ¥0.12、18 秒。生图代码不动。
+- 生图转接：生产用 WebUI 的 `openai` 生图引擎接 vllm-omni，评测沿用同一引擎和参数，只换 base URL、key 和模型。WebUI 总会带 `n`，而 dmxapi 的 `doubao-seedream-5-0-flash-260915` 只开放在 `/v1/responses`（提示词字段叫 `input`）。所以同一个转接服务也接 `POST /images/generations`：`prompt` 改名 `input`、去掉 `n`、关水印，再按 OpenAI images 格式返回。2026-11-16 实测这样能出 1920×1080 PNG，每张约 ¥0.12、18 秒。图片编辑也开着：WebUI 以 multipart 发 `/images/edits`，转接服务把图片转成 `data:` URL 放进 `image`，同样走 `/v1/responses`，实测 2048×2048 编辑约 21 秒、¥0.12。生图代码不动。
 - 评测脚本从本机发起，经 WebUI 聊天 API 发请求，和生产同一条链路，打开视频开关。
 - 请求集：科普 5 个，每个跑 2 遍；课程、宣传、汇报各 1 个（只留作后续预设的基线）。改造前、后各跑一轮。
 - 验收：科普的 10 对成片（同一请求、同一遍次的前后版本）打乱顺序给用户两两盲评，新版至少赢 8 对；另外渲染成功率和 `check` 通过率要达标（数值在 change 里定）。
@@ -144,6 +144,6 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 
 ## 开放项
 
-- 生产的生图设置：引擎已知是 `openai`（接 vllm-omni，用户 2026-11-16 告知）；还缺默认尺寸、额外参数（含比例→尺寸表）、是否开了图片编辑。用户提供后评测栈照抄，只换 base URL（转接服务）、key 和模型。生产尺寸若低于 Seedream 的最小像素数（921600），冒烟就会失败，到时再问用户。
+- 生产生图比例表的具体像素值：已知引擎 `openai`（vllm-omni）、默认 2048×2048、比例有 16:9、9:16、1:1、4:3、3:4 等，开了图片编辑（用户 2026-11-16 告知）。具体表在任务 2.4 时从生产管理页照抄；任一尺寸超出 Seedream 的像素范围（921600–4624220）就停下问用户。
 - 沙箱 Chrome Headless Shell 是否带中文分词数据（`Intl.Segmenter('zh', {granularity: 'word'})`）：第一个组件任务先验证，没有就按标点和字数切。
 - 渲染成功率、`check` 通过率的验收阈值：先跑基线再定。

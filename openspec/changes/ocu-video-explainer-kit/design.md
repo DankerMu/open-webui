@@ -159,6 +159,8 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
       - `/v1/images/generations` answers 404;
       - `/v1/responses` without `n` works.
     - The adapter renames `prompt` to `input`, drops `n`, sets `watermark` false, and returns the OpenAI images shape. WebUI's image base URL points at it, so the image-generation code stays untouched.
+    - Image editing is on in production. WebUI sends edits as multipart `/images/edits`, and the adapter forwards them to the same `/v1/responses` with the files as `data:` URLs in `image`. Measured 2026-11-16: an edit at 2048×2048 took 21 s and cost about ¥0.12.
+    - Production uses 2048×2048 by default, with an aspect-ratio table of 16:9, 9:16, 1:1, 4:3, 3:4 and more. The table is copied verbatim; every entry must lie within Seedream's pixel range.
     - The driver runs from the Mac through an SSH tunnel:
       - it turns on the video switch and image generation;
       - it posts each request to WebUI's chat completions API;
@@ -193,7 +195,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
 
 ## Open Questions
 
-- The remaining production image settings: the default size, the extra parameters including the aspect-ratio table, and whether image editing is on. The engine is known to be `openai` (vllm-omni). The user supplies the rest, which is copied field by field except base URL, key and model. A production size below Seedream's 921600-pixel minimum fails the smoke run, and the user is then asked.
+- The exact pixel sizes of production's aspect-ratio table. Known so far: engine `openai` (vllm-omni), default 2048×2048, ratios 16:9, 9:16, 1:1, 4:3, 3:4 and more, image editing on. The table is read from production's admin page when task 2.4 runs and copied verbatim. An entry outside Seedream's pixel range fails the configuration step, and the user is asked.
 - The numeric thresholds for render success rate and kit check pass rate. They are recorded and confirmed by the user after the baseline and before the after run (task 2.7).
 
 ## Not yet specified

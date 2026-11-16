@@ -69,6 +69,15 @@ The adapter SHALL also accept WebUI's image request: `POST /images/generations` 
 
 It SHALL return the OpenAI images response shape (`data[].b64_json` or `data[].url`). Upstream failures SHALL return HTTP 502 with no key.
 
+The adapter SHALL also accept WebUI's image-edit request: multipart `POST /images/edits` with `model`, `prompt`, `size`, `response_format`, optional `n` and `background`, and one or more files under `image` or `image[]`. It SHALL forward the request to the same `/v1/responses` route, sending the files as `data:` URLs in `image` and applying the same `prompt`, `n` and `watermark` rules, and SHALL return the same response shape.
+
+Production's image settings (user, 2026-11-16) are:
+- default size 2048×2048;
+- an aspect-ratio table with at least 16:9, 9:16, 1:1, 4:3 and 3:4;
+- image editing on.
+
+The edit engine is configured like the generation engine. Every size in the copied table SHALL lie within Seedream's 921600–4624220 pixels, or the configuration step fails, names the entry and asks the user.
+
 Both runs SHALL use the same WebUI image digest and the same model, image and speech settings. Only the OCU images differ.
 
 Each run SHALL have a 60-minute limit. The driver SHALL collect the MP4 and the transcript, and record a run manifest:
@@ -93,6 +102,12 @@ An `infra` failure MAY be rerun at most twice. Every attempt is recorded.
 - **WHEN** WebUI generates an image in the evaluation stack
 - **THEN** the adapter's upstream request goes to `/v1/responses` with `input` and without `n`
 - **AND** WebUI stores the returned image without any change to its image-generation code
+
+#### Scenario: Image edit through the adapter
+
+- **WHEN** WebUI edits an image in the evaluation stack
+- **THEN** the adapter's upstream request goes to `/v1/responses` with the image as a `data:` URL, `input`, and no `n`
+- **AND** WebUI stores the edited image
 
 #### Scenario: Adapter upstream failure
 

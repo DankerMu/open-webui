@@ -32,11 +32,11 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - the start script, the image-load step and the driver's per-run check each refuse when the free-space check is pointed at a fake low value.
 - [ ] 2.2 Write the evaluation adapter with two routes:
   - **speech:** accepts OCU's request with `mp3`/`wav`, `voice` and `instructions`, calls dmxapi `chat/completions` with `mimo-v2.5-tts`, and returns 502 without the key on upstream failure;
-  - **images:** accepts WebUI's `openai`-engine request, forwards it to dmxapi `/v1/responses` with `prompt` as `input`, without `n` and with `watermark` false, rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
+  - **images:** accepts WebUI's `openai`-engine generation request (JSON `/images/generations`) and edit request (multipart `/images/edits`, files as `image` or `image[]`). It forwards both to dmxapi `/v1/responses` with `prompt` as `input`, edit files as `data:` URLs in `image`, without `n` and with `watermark` false. It rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
 
   Verify each route with:
   - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json` and `url`), an upstream error, a timeout and a wrong-type response;
-  - one live call in the stack (`generate_speech`; one WebUI image generation).
+  - one live call in the stack (`generate_speech`; one WebUI image generation and one WebUI image edit).
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
   - opens an SSH tunnel;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
@@ -47,8 +47,9 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - one explainer request end to end;
   - the container, image, network and volume lists of other projects are identical before and after cleanup;
   - a key search that never prints the key finds nothing under `/home/nwm/ocu-eval/` and in the project's container logs.
-- [ ] 2.4 Configure WebUI image generation in the stack on the `openai` engine with production's settings, except base URL (the adapter), key and model (`doubao-seedream-5-0-flash-260915`). This is blocked until the user supplies the remaining production image settings; no code changes. Verify:
-  - the stored settings equal the supplied ones field by field, apart from those three;
+- [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine with production's settings, except base URL (the adapter), key and model (`doubao-seedream-5-0-flash-260915`). Production uses default size 2048×2048, an aspect-ratio table (16:9, 9:16, 1:1, 4:3, 3:4 and more) and editing on. The exact table is copied from production's admin page; no code changes. Verify:
+  - the stored settings equal production's field by field, apart from those three;
+  - every table size lies within 921600–4624220 pixels;
   - the end-to-end smoke shows speech, a generated image and an MP4 output all working with sandbox networking disabled.
 
   If any of them fails, stop and ask the user.
