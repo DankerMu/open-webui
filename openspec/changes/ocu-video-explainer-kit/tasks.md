@@ -151,7 +151,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
 
 ## 7. Image end-to-end test and skill routing (OCU)
 
-- [ ] 7.1 Extend `tests/test-docker-image.sh` with an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `status` → short `render` inside the built image. Verify that it passes in CI's sandbox-image smoke step on the PR's image.
+- [ ] 7.1 Extend `tests/test-docker-image.sh` with an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `status` → `render` inside the built image, on a fixture script at the timeline's 60-second minimum. Verify that it passes in CI's sandbox-image smoke step on the PR's image.
 - [ ] 7.2 On an integration branch, not merged before acceptance, rewrite `skills/public/remotion/SKILL.md` as a router of at most 80 lines:
   - explainers follow the kit steps in order, including image import and "fix and re-check on any no";
   - other types keep the existing workflow;

@@ -208,5 +208,5 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
   - It is the highest seam the model touches. It covers schema failures, voice binding, the timeline, the check rules and the status reporting.
   - Pure modules run with `node --test` in a new OCU CI job that runs `npm ci` in the template.
   - Bundling and rendering run in the built image.
-- **The built workspace image** (`tests/test-docker-image.sh`): an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → short `render` inside the real image, with the music library and manifest present.
+- **The built workspace image** (`tests/test-docker-image.sh`): an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `render` of a 60-second fixture script inside the real image, with the music library and manifest present.
 - **The evaluation driver against the `ocu-eval` stack**: one request end to end through WebUI's chat API, producing an MP4 in the workspace. It is the only seam that exercises the model.
