@@ -122,19 +122,22 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
 
 12. **Gallery approval.**
     - The gallery renders every candidate in both theme candidates inside the workspace image built from the PR branch. That image is built with the release builder on the Mac, loaded on 210.77.77.27 under the `ocu-eval` label, and removed by the evaluation cleanup. The output is one static page.
-    - The page exports the user's decisions as a JSON file.
-    - The orchestrator commits that export as `remotion-template/gallery/approvals.json`, linking the export. It never writes decisions itself.
+    - The page exports the user's decisions as a JSON file. Components are reviewed in three batches, and the theme is picked last.
+    - Each batch's export is committed into `remotion-template/gallery/approvals.json`, linking the export, in the PR that merges that batch. The orchestrator never writes decisions itself.
     - A static test asserts that the schema kinds, the registry, the JSON Schema, the example script and the skill's kind list all equal the approved set, and that the required kinds are approved.
 
 13. **The music library is image content.**
-    - Tracks live in `/opt/video-music/`: MP3 for non-loop tracks and WAV for loop tracks, normalized to -16 LUFS / -1.5 dBTP. They come with `manifest.json`, which carries both `source_sha256` and `shipped_sha256`.
+    - Audio binaries are not committed: OCU's pre-commit refuses files over 500 KB. This follows the font bundle (`deploy/fonts/fonts.json`, "pinned fonts without committing font binaries").
+    - The repository tracks a source manifest: per track, the source URL, `source_sha256`, licence evidence, mood, loop flag and approval link.
+    - The workspace image build downloads each source, refuses a digest mismatch, normalizes it with the image's ffmpeg (MP3 for non-loop tracks, WAV for loop tracks, -16 LUFS / -1.5 dBTP), and writes `/opt/video-music/manifest.json` with `shipped_sha256` computed from the built files. Normalization need not be bit-reproducible across builds, because the shipped digests are recorded per image.
+    - A source URL that has gone away fails the build loudly. The release builder's cache keeps the layer for rebuilds of the same commit.
     - The renderer copies the selected track into the project at render time.
     - Ducking is relative to the normalized narration: -15 dB under voice and -6 dB without voice, with 0.5 s ramps. Loop tracks repeat. A non-loop track shorter than the video fails the check.
-    - Approval comes from a tracked approval file exported by the listening page, the same way as the gallery.
+    - Approval comes from a tracked approval file exported by the listening page. Gallery approvals work the same way, one export per reviewed batch.
     - Alternative rejected: tracks under `remotion-template/public/`, which every project copy would duplicate.
 
 14. **Base-image pin.**
-    - `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d` is the amd64 image of `noble-20261024.1` that production's workspace image `open-computer-use:3d0ceae2b7d5…` was built on.
+    - `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d` is the linux/amd64 image manifest of `noble-20261024.1` that production's workspace image `open-computer-use:3d0ceae2b7d5…` was built on. OCU CI and releases build linux/amd64 only; an arm64 local build would run this base under emulation.
     - `release.py` reads the digest from the recipe's `FROM` and records `{"name": "base", "kind": "base-image", "requested": "ubuntu@sha256:…"}` for the workspace role. A recipe without a digest fails the build before any image is built.
     - Inventories without the material keep verifying, so rollback still works.
     - A static test rejects an undigested root `FROM`.
@@ -148,6 +151,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
       - no DocumentServer and no retention-guard;
       - no host firewall or network provisioning;
       - a 15 GB free-space floor on Docker's root.
+    - The tooling lives in OCU `deploy/eval/`, beside `deploy/production-like-test/`, and is not part of any release.
     - The speech adapter is a small service in the stack. It accepts OCU's speech request, calls dmxapi `chat/completions` with `mimo-v2.5-tts` audio output, and transcodes to the requested format. It returns 502 without the key on any upstream failure. OCU's `TTS_BASE_URL` points at it.
     - The driver runs from the Mac through an SSH tunnel:
       - it turns on the video switch and image generation;

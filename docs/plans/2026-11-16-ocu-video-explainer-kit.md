@@ -85,7 +85,8 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 
 - 16 首，四类：calm/curious、upbeat/corporate、neutral/serious、loop。
 - 只收能逐首核验许可的：实时页面写着 CC0，或存档声明加哈希能对上（FreePD 已关站，用 Wayback 的原始文件 digest 比对 IA 镜像）。各站点的"CC0 筛选"一律不直接信；Kevin MacLeod 有 CC BY 重复发布并登记 ISRC 的曲目排除。
-- 统一归一到 -16 LUFS / -1.5 dBTP。
+- 统一归一到 -16 LUFS / -1.5 dBTP；非循环曲目用 MP3，循环曲目用 WAV。
+- 音频文件不进仓库（OCU 的 pre-commit 拒收 500 KB 以上的文件），照字体包（`deploy/fonts/fonts.json`）的做法：仓库只放带来源 URL 和 `source_sha256` 的清单，构建镜像时下载、校验、归一化，并在镜像里的 manifest 记下 `shipped_sha256`。
 - 做一个试听页给用户，用户勾选的才打进镜像。`manifest.json` 记录来源 URL、许可 URL、证据快照、sha256、标题、作者、类别和 `approved_by`。
 
 ### 6. skill
@@ -103,6 +104,7 @@ Status: proposed（设计稿，未实现）。2026-11-16 用户经五轮提问�
 
 ### 8. 评测
 
+- 评测工具放在 OCU 的 `deploy/eval/`，和 `deploy/production-like-test/` 并列，不进任何发布包。
 - 在 210.77.77.27 上起一套完整 WebUI + OCU 栈：独立 compose 项目名 `ocu-eval`，端口只绑 127.0.0.1，镜像从发布包 `docker load`，镜像代码不做任何修改，不跑 bootstrap 里设置主机防火墙和网络的步骤。沙箱用 OCU 已支持的 `ENABLE_NETWORK=false` 断网（OCU 会拒绝 internal 网络，`docker_manager.py:821-828`）。
 - 磁盘：包、产物、成片放 `/home/nwm/ocu-eval/`；对话工作区是 Docker volume，落在根分区（剩约 28G）。只加载评测要用的镜像（不带 documentserver 和 retention-guard）；根分区空闲低于 15G 就不启动。清理只删本项目加载的镜像、compose 容器和网络，以及运行记录里那些 chat id 的沙箱容器和工作区 volume，不 prune。
 - 模型 `qwen3.8-27b`（dmxapi），生图 `doubao-seedream-5-0-flash-260915`，配音 `mimo-v2.5-tts`。`DMXAPI_KEY` 长期放在 `/home/nwm` 下 0600 文件里，只按变量名引用。

@@ -2,7 +2,7 @@
 
 ## 1. Pin the workspace base image (OCU)
 
-- [ ] 1.1 Change the root `Dockerfile` line `FROM ubuntu:24.04` to `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d`, the amd64 image of `noble-20261024.1`. Verify on the release host:
+- [ ] 1.1 Change the root `Dockerfile` line `FROM ubuntu:24.04` to `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d`, the linux/amd64 image manifest of `noble-20261024.1`. Verify on the release host:
   - `docker buildx imagetools inspect` of the pinned reference shows root layer `bec87777bc2fb2edcdf9af11df1531469e7df911309c1413082b18fcb8610278`;
   - a cached rebuild of the workspace role yields configuration digest `3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5`.
 
@@ -126,7 +126,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
   - refuses to start after an unchecked edit.
 
   Verify the refusal, a successful fixture render, and a killed render that leaves the previous target intact.
-- [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in this change. Verify that it completes, and that `status` stays responsive throughout.
+- [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.
 Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeline and probe output, and is testable without a final render.
@@ -135,19 +135,18 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
 
 - [ ] 6.1 Collect per-track evidence for the candidates: a live CC0 statement, or an archived statement whose digest matches `source_sha256`, plus a search for other licences. Build the listening page, which exports the user's decisions as JSON. Verify that every candidate on the page links its evidence snapshot and its re-release search note.
 - [ ] 6.2 The user listens and exports decisions. Commit the export as the tracked approval file, linking it. Verify that the file holds one decision per candidate, with the user as approver.
-- [ ] 6.3 Normalize the approved tracks (MP3 for non-loop, WAV for loop, -16 LUFS / -1.5 dBTP) and write `manifest.json` with every field the spec names. Verify with a static test:
-  - files and `shipped_sha256` match;
+- [ ] 6.3 Write the tracked source manifest for the approved tracks (URL, `source_sha256`, evidence, mood, loop flag, approval link; no audio binaries) and the normalization script (MP3 for non-loop, WAV for loop, -16 LUFS / -1.5 dBTP) that writes the shipped manifest with `shipped_sha256`. Verify with a static test and fixture tracks:
   - approvers match the approval file;
   - the per-mood counts are reported against the target of four;
-  - `ffmpeg ebur128` measures every file within 0.5 LU of -16 LUFS and below -1.5 dBTP.
-- [ ] 6.4 Install the library and its manifest into the workspace image at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, and that the manifest is readable by the sandbox user.
+  - on short fixture tracks, the script's outputs measure within 0.5 LU of -16 LUFS and below -1.5 dBTP with `ffmpeg ebur128`, and a fixture with a wrong `source_sha256` fails naming the track.
+- [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
   - narrated windows sit 15 ± 3 dB below the narration, with ramps of 0.5 ± 0.1 s;
   - music `none` gives narration only;
   - a short non-loop track fails the check, naming both lengths;
   - an unknown id fails, listing the valid ids.
 
-Suggested fixture level: expanded - it changes the workspace `Dockerfile` and adds `manifest.json`, a file format read by `kit check` and the renderer.
+Suggested fixture level: expanded - it changes the workspace `Dockerfile`, adds a build-time download, and adds `manifest.json`, a file format read by `kit check` and the renderer.
 Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. It ships nothing into the image.
 
 ## 7. Image end-to-end test and skill routing (OCU)

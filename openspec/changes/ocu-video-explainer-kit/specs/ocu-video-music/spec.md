@@ -15,7 +15,7 @@ The workspace image SHALL carry a music library with a manifest. Every entry SHA
 - source URL and licence URL;
 - an evidence snapshot of the licence statement;
 - the SHA-256 of the source file as obtained (`source_sha256`);
-- the SHA-256 of the shipped file (`shipped_sha256`);
+- the SHA-256 of the shipped file (`shipped_sha256`), computed when the image is built;
 - duration;
 - a note of the search for other licences of the same work;
 - the approver and the approval date.
@@ -24,6 +24,8 @@ A track SHALL be included only if:
 - its CC0 or public-domain dedication is shown on the live source page, or in an archived statement whose file digest matches `source_sha256`;
 - the search found it under no other licence;
 - the user approved it after listening, as recorded in a tracked approval file that the manifest's approver fields must match.
+
+The repository SHALL track the source manifest and SHALL NOT commit audio binaries. The image build SHALL download each source, fail on a `source_sha256` mismatch, and write the shipped manifest.
 
 The target is 16 tracks, four per mood. The library ships the approved subset, and a mood with no approved track is not offered.
 
@@ -36,6 +38,11 @@ The target is 16 tracks, four per mood. The library ships the approved subset, a
 
 - **WHEN** the same work is also published under CC BY with an ISRC
 - **THEN** the track is excluded and the reason is recorded
+
+#### Scenario: Source digest mismatch
+
+- **WHEN** a downloaded source's digest differs from its `source_sha256`
+- **THEN** the image build fails, naming the track
 
 #### Scenario: Manifest matches files and approvals
 

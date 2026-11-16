@@ -24,7 +24,7 @@ The quality bar is the Remotion official and community examples. The approach is
 - **CC0 background music (OCU).** A target of sixteen tracks in four moods is baked into the workspace image, normalized to -16 LUFS (MP3, or WAV for loop tracks). A track ships only when:
   - its licence is verified track by track;
   - the user has approved it by listening;
-  - it has a provenance manifest entry.
+  - it has a provenance manifest entry. Audio binaries are not committed; the image build downloads and verifies them, like the font bundle.
 - **Skill routing (OCU).**
   - `skills/public/remotion/SKILL.md` becomes a short router of at most 80 lines: science explainers use the kit, and other video types keep the current workflow for now.
   - The router merges only after blind acceptance passes. The kit slices before it are inert.
