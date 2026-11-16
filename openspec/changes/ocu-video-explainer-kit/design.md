@@ -153,6 +153,12 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
       - a 15 GB free-space floor on Docker's root.
     - The tooling lives in OCU `deploy/eval/`, beside `deploy/production-like-test/`, and is not part of any release.
     - The speech adapter is a small service in the stack. It accepts OCU's speech request, calls dmxapi `chat/completions` with `mimo-v2.5-tts` audio output, and transcodes to the requested format. It returns 502 without the key on any upstream failure. OCU's `TTS_BASE_URL` points at it.
+    - The same adapter serves image generation. Production runs WebUI's `openai` image engine against vllm-omni. WebUI always sends `n`, while dmxapi serves `doubao-seedream-5-0-flash-260915` only on `/v1/responses`, where the prompt field is `input`.
+    - Measured on 2026-11-16, with a 1920×1080 PNG at about ¥0.12 and 18 s per image:
+      - `/api/v3/images/generations` refuses the flash model ("not allowed on this route");
+      - `/v1/images/generations` answers 404;
+      - `/v1/responses` without `n` works.
+    - The adapter renames `prompt` to `input`, drops `n`, sets `watermark` false, and returns the OpenAI images shape. WebUI's image base URL points at it, so the image-generation code stays untouched.
     - The driver runs from the Mac through an SSH tunnel:
       - it turns on the video switch and image generation;
       - it posts each request to WebUI's chat completions API;
@@ -187,7 +193,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
 
 ## Open Questions
 
-- Production's image-generation settings for the evaluation stack. The user supplies them, and they are copied field by field without code changes. dmxapi serves Seedream at `POST https://www.dmxapi.cn/api/v3/images/generations`; `doubao-seedream-5-0-flash-260915` has its own page.
+- The remaining production image settings: the default size, the extra parameters including the aspect-ratio table, and whether image editing is on. The engine is known to be `openai` (vllm-omni). The user supplies the rest, which is copied field by field except base URL, key and model. A production size below Seedream's 921600-pixel minimum fails the smoke run, and the user is then asked.
 - The numeric thresholds for render success rate and kit check pass rate. They are recorded and confirmed by the user after the baseline and before the after run (task 2.7).
 
 ## Not yet specified

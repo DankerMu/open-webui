@@ -57,10 +57,17 @@ The model key SHALL be read from a 0600 file by variable name. It SHALL NOT appe
 The evaluation driver SHALL send each request through WebUI's chat API, with:
 - the chat model `qwen3.8-27b`;
 - the video switch and image generation on;
-- image generation configured field by field as in production, with `doubao-seedream-5-0-flash-260915`;
-- speech from `mimo-v2.5-tts` through an evaluation-only adapter.
+- image generation on WebUI's `openai` engine, as in production (where it serves vllm-omni), with production's image settings copied field by field except three: the base URL points at the evaluation-only adapter, the key is the dmxapi key, and the model is `doubao-seedream-5-0-flash-260915`;
+- speech from `mimo-v2.5-tts` through the same adapter.
 
 The adapter SHALL accept OCU's speech request (`model`, `input`, `response_format` of `mp3` or `wav`, and optional `voice` and `instructions`). It SHALL return audio in the requested format, with the content type OCU expects. When the upstream call fails, times out or returns non-audio, it SHALL return HTTP 502 with an error body that holds no key.
+
+The adapter SHALL also accept WebUI's image request: `POST /images/generations` with `model`, `prompt`, `n`, `size`, `response_format` and any configured extra parameters. It SHALL forward it to dmxapi `POST /v1/responses`, the only route that serves `doubao-seedream-5-0-flash-260915`, with these changes:
+- `prompt` is sent as `input`;
+- `n` is dropped, and a request with `n` other than 1 fails with HTTP 400;
+- `watermark` is false.
+
+It SHALL return the OpenAI images response shape (`data[].b64_json` or `data[].url`). Upstream failures SHALL return HTTP 502 with no key.
 
 Both runs SHALL use the same WebUI image digest and the same model, image and speech settings. Only the OCU images differ.
 
@@ -80,6 +87,12 @@ An `infra` failure MAY be rerun at most twice. Every attempt is recorded.
 
 - **WHEN** the driver runs one explainer request
 - **THEN** the run directory holds the transcript, the run manifest and the MP4, or a recorded failure with its class
+
+#### Scenario: Image through the adapter
+
+- **WHEN** WebUI generates an image in the evaluation stack
+- **THEN** the adapter's upstream request goes to `/v1/responses` with `input` and without `n`
+- **AND** WebUI stores the returned image without any change to its image-generation code
 
 #### Scenario: Adapter upstream failure
 

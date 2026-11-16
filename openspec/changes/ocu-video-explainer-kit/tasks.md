@@ -30,9 +30,13 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - `docker ps` shows only loopback ports for the project;
   - an inspected sandbox satisfies OCU's disabled-network predicate (`Config.NetworkDisabled` true or `HostConfig.NetworkMode` `none`), publishes no port, and an outbound connection attempt from inside it fails;
   - the start script, the image-load step and the driver's per-run check each refuse when the free-space check is pointed at a fake low value.
-- [ ] 2.2 Write the speech adapter: it accepts OCU's request with `mp3`/`wav`, `voice` and `instructions`, calls dmxapi `chat/completions` with `mimo-v2.5-tts`, and returns 502 without the key on upstream failure. Verify with:
-  - unit tests on recorded responses: success in both formats with the content types `speech.py` accepts, an upstream error, a timeout and a non-audio response;
-  - one live call through `generate_speech` in the stack.
+- [ ] 2.2 Write the evaluation adapter with two routes:
+  - **speech:** accepts OCU's request with `mp3`/`wav`, `voice` and `instructions`, calls dmxapi `chat/completions` with `mimo-v2.5-tts`, and returns 502 without the key on upstream failure;
+  - **images:** accepts WebUI's `openai`-engine request, forwards it to dmxapi `/v1/responses` with `prompt` as `input`, without `n` and with `watermark` false, rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
+
+  Verify each route with:
+  - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json` and `url`), an upstream error, a timeout and a wrong-type response;
+  - one live call in the stack (`generate_speech`; one WebUI image generation).
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
   - opens an SSH tunnel;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
@@ -43,8 +47,8 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - one explainer request end to end;
   - the container, image, network and volume lists of other projects are identical before and after cleanup;
   - a key search that never prints the key finds nothing under `/home/nwm/ocu-eval/` and in the project's container logs.
-- [ ] 2.4 Configure WebUI image generation in the stack. This is blocked until the user supplies production's image settings; no code changes. Verify:
-  - the stored settings equal the supplied ones field by field;
+- [ ] 2.4 Configure WebUI image generation in the stack on the `openai` engine with production's settings, except base URL (the adapter), key and model (`doubao-seedream-5-0-flash-260915`). This is blocked until the user supplies the remaining production image settings; no code changes. Verify:
+  - the stored settings equal the supplied ones field by field, apart from those three;
   - the end-to-end smoke shows speech, a generated image and an MP4 output all working with sandbox networking disabled.
 
   If any of them fails, stop and ask the user.
