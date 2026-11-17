@@ -564,7 +564,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
 
 ## 3. Kit core (OCU `remotion-template`)
 
-- [ ] 3.1 Add the test runner: `node --test` over `remotion-template/tests/*.test.mjs`, plus a new OCU CI workflow that runs `npm ci` in the template and then the tests. Flag the CI change in the PR. Verify that the job runs a trivial test green on the PR.
+- [x] 3.1 Add the test runner: `node --test` over `remotion-template/tests/*.test.mjs`, plus a new OCU CI workflow that runs `npm ci` in the template and then the tests. Flag the CI change in the PR. Verify that the job runs a trivial test green on the PR.
 
   **Task 3.1 required evidence** (issue #823):
   - Triage: test infrastructure. Fixture level compact, overriding the group's expanded: the slice adds a CI workflow and one trivial test, with no runtime behavior.
@@ -591,7 +591,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - The full OCU unit command passes.
   - Non-goals: kit code; TypeScript compilation.
 
-- [ ] 3.2 Vendor Onda `lib/` into `src/kit/`, with its MIT header and its NOTICE entry in the same task:
+- [x] 3.2 Vendor Onda `lib/` into `src/kit/`, with its MIT header and its NOTICE entry in the same task:
   - fix the zod 4 call (`composition.ts:18`);
   - drop `adaptive-player.tsx`, `composition-json-schema.ts` and `registry-summary.ts`.
 
@@ -1022,7 +1022,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
   - Orchestrator (Phase 2): generate the real page once, confirm that every download verifies, and record the per-mood counts.
   - Non-goals: normalization, the image install, approval (#842–#845).
 
-- [ ] 6.2 The user listens and exports decisions. Commit the export as the tracked approval file, linking it. Verify that the file holds one decision per candidate, with the user as approver.
+- [x] 6.2 The user listens and exports decisions. Commit the export as the tracked approval file, linking it. Verify that the file holds one decision per candidate, with the user as approver.
 
   **Task 6.2 required evidence** (issue #842, human-gated: the PR is reviewed but never merged by an agent):
   - Triage: test data (a recorded human decision). Fixture level compact, overriding the issue's expanded: the slice commits one JSON file, one README paragraph and one static test. It changes no Dockerfile, no download and no manifest format.
@@ -1045,7 +1045,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
   - Orchestrator: before opening the PR, `cmp` the committed file with the user's export. Leave the PR open for the user to merge.
   - Non-goals: the source manifest, normalization and the image step. The `observing-the-star` re-release note is extended in 6.3 (see there), not here.
 
-- [ ] 6.3 Write the tracked source manifest for the approved tracks (URL, `source_sha256`, evidence, mood, loop flag, approval link; no audio binaries) and the normalization script (MP3 for non-loop, WAV for loop, -16 LUFS / -1.5 dBTP) that writes the shipped manifest with `shipped_sha256`. Verify with a static test and fixture tracks:
+- [x] 6.3 Write the tracked source manifest for the approved tracks (URL, `source_sha256`, evidence, mood, loop flag, approval link; no audio binaries) and the normalization script (MP3 for non-loop, WAV for loop, -16 LUFS / -1.5 dBTP) that writes the shipped manifest with `shipped_sha256`. Verify with a static test and fixture tracks:
   - approvers match the approval file;
   - the per-mood counts are reported against the target of four;
   - on short fixture tracks, the script's outputs measure within 0.5 LU of -16 LUFS and below -1.5 dBTP with `ffmpeg ebur128`, and a fixture with a wrong `source_sha256` fails naming the track.
@@ -1157,6 +1157,11 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
       - `approved_library` on the repository files returns those 12 tracks;
       - the validation of the exclusion file;
       - a fresh orchestrator Phase 2 run over the real sources, in which all 12 pass.
+
+  - Amended after the second Phase 2 run (user decision, 2026-11-17):
+    - **Fourth exclusion.** `and-just-like-that` (I -14.6 LUFS, TP 0.4 dBTP, LRA 4.7 LU) fails the check after encoding. It is not a gain-rule failure: 320 kb/s MP3 encoding raises its true peak, and no constant gain meets both limits. A gain of -1.9 dB gives -16.6 LUFS at -1.4 dBTP, and -2.0 dB gives -16.7 LUFS at -1.6 dBTP. The user excluded it, and `library-excluded.json` lists it as a fourth entry in the same shape.
+    - **Result.** The library ships 11 tracks: calm-curious 4, upbeat-corporate 1, neutral-serious 3, loop 3. Where the amendment above says 12 tracks, 11 binds. The approval file stays unchanged.
+    - **Evidence.** `approved_library` on the repository files returns those 11 tracks. A fresh orchestrator Phase 2 run over the real sources passes all 11, with 0 failures in the independent re-measurement. Merged as OCU #243 (`a3b9b31`).
 
 - [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
