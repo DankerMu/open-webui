@@ -158,7 +158,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - **images:** accepts WebUI's `openai`-engine generation request (JSON `/images/generations`) and edit request (multipart `/images/edits`, files as `image` or `image[]`). It forwards both to dmxapi `/v1/responses` with `prompt` as `input`, edit files as `data:` URLs in `image`, without `n` and with `watermark` false. It rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
 
   Verify each route with:
-  - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json` and `url`), an upstream error, a timeout and a wrong-type response;
+  - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json`, returned also when the caller asks for `url`), an upstream error, a timeout and a wrong-type response;
   - one live call in the stack (`generate_speech`; one WebUI image generation and one WebUI image edit).
 
   **Task 2.2 speech-route required evidence** (issue #817; the image routes are #853):
@@ -255,6 +255,80 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - Counts only, never printing a value: the key and the token are each found 0 times in `docker logs` of `ocu-eval-adapter` and `ocu-eval-computer-use-server`, and the key 0 times in `docker inspect ocu-eval-computer-use-server`.
     - `stop.sh`, then remove the chat's sandbox container and volume. The snapshot diff is as in 2.1.
   - Non-goals: the image routes (#853), the driver, and any production speech change.
+
+  **Task 2.2 image-routes required evidence** (issue #853; extends #817's `deploy/eval/adapter/eval_adapter.py`):
+  - Triage: feature (evaluation tooling). Fixture level expanded, agreeing with upstream: the adapter gains routes that accept uploads and spend the provider key.
+  - Governing invariant: as in #817. The provider key leaves the adapter only toward dmxapi, never through a redirect, and no response or log line holds it. In addition, the adapter token never leaves the stack: WebUI fetches a returned `data[].url` with its image `Authorization` header (`backend/open_webui/routers/images.py` ~676-680 and ~1055-1059), which holds the adapter token. So the adapter never returns a `url`.
+  - Risk packs:
+    - Auth / secrets — selected: the token check on both routes, the provider key, the `url` leak path above.
+    - Error handling — selected: 400 / 401 / 413 / 502, and an exception catch-all shared by every route.
+    - Public API — selected: WebUI's `openai` image engine is the consumer. Generation sends `model`, `prompt`, `n` (int, default 1), `size`, `response_format: "b64_json"`, then the configured extras (`images.py` ~643-661; `openai_request_params` drops `aspect_ratio_sizes`). An edit sends multipart text fields as `str`, `n` only when set, no extras, and files under `image` (one) or `image[]` (a list) (`images.py` ~996-1043). The model's `edit_image` tool sends one `image[]` file without `n` or `background` (`backend/open_webui/tools/builtin.py` ~477, `utils/middleware.py` ~1825). WebUI reads `res['data'][*]['url']` or `['b64_json']` after `raise_for_status`.
+    - Resource limits — selected: inbound body caps, upstream read and decoded-image caps, the timeout, a memory limit on the service.
+    - Legacy compatibility — selected: #817's speech route and its tests.
+    - Config — selected: `mem_limit` on `adapter`.
+    - Release / dependency — not selected: multipart parsing uses `python-multipart`, already a direct requirement of the server image (`computer-use-server/requirements.txt`, `python-multipart==0.0.26`, also in the baseline release `01b7ef7a64a5`). No requirement changes.
+    - File IO — not selected: the adapter writes no file. Starlette spools an upload over 1 MiB to `/tmp`, which uid 65534 can write in the `python:3.12-slim` image; nothing else is written.
+    - Not selected: schema, concurrency (stateless), file publish (WebUI stores the image).
+  - Sibling surfaces: #817's speech route (shares the token check, redactor, upstream client, caps and the new catch-all); WebUI's image settings in 2.4 (#819), which the orchestrator sets only minimally here.
+  - Upstream contract, measured by the orchestrator on 2026-11-17 UTC (recordings handed to the implementer, `b64_json` truncated to 1536 decoded bytes, the signed CDN URL replaced, no key):
+    - `POST https://www.dmxapi.cn/v1/responses` with `{"model", "input", "size", "watermark": false, "response_format": "b64_json"}`; an edit adds `"image": ["data:<type>;base64,…"]`. The recorded edit sent JPEG bytes declared as `image/png` and got 200.
+    - Success: 200 `application/json` in the OpenAI images shape, `{"model", "created", "data": [{"b64_json", "size", "output_format": "jpeg", "background"}], "usage"}`, in 9–15 s at ¥0.12. Without `response_format` the item carries a signed `url` instead.
+    - A size below 921600 pixels gives 502 with `error.message` `upstream API error (status 400): {"error":{"code":"InvalidParameter",…}}` and an empty `error.param`.
+  - Shape (`deploy/eval/adapter/eval_adapter.py`):
+    - Both routes check the adapter token first, before reading or parsing the body; otherwise 401 with no upstream call.
+    - `POST /v1/images/generations`, JSON. Required non-empty string `model` and `prompt`. `n` absent or the integer 1; any other `n` (including `true` and `2`) is 400 with no upstream call. Optional string `size`, and `response_format` `b64_json` or `url`. Every other key is a configured extra parameter, forwarded unchanged, except `input`, `image` and `watermark`, which the adapter sets and which are 400.
+    - `POST /v1/images/edits`, multipart. Text fields `model` and `prompt` (required), `size`, `response_format`, `n` (absent or `"1"`), `background` (accepted and not forwarded, since the upstream behavior is unmeasured); any other text field is 400. One or more files under `image` or `image[]`, each with a declared `image/png`, `image/jpeg` or `image/webp` content type and non-empty bytes; otherwise 400. The declared type is forwarded as given: the bytes are not sniffed, and bytes that disagree with the declared type are not refused, because WebUI labels a generated image stored from `b64_json` as `image/png` whatever its bytes (`images.py` ~520-522, ~964-967), and that image is what an edit sends back.
+    - Upstream request: `{"model", "input": <prompt>, "size"?, <extras>, "watermark": false, "response_format": "b64_json"}`, plus for edits `"image"`: one `data:<declared type>;base64,<bytes>` URL per file in upload order. Never `n`, never `prompt`.
+    - Response: 200 `{"created": <upstream created, else now>, "data": [{"b64_json": …}]}`, always `b64_json` whatever the caller's `response_format`; no upstream `url`, `usage` or other field is passed on.
+    - 502, through #817's redact-then-cut error body, for: an upstream non-2xx or 3xx; a timeout (180 s: WebUI's image session has no total timeout when `AIOHTTP_CLIENT_TIMEOUT` is unset, as in the stack, so the adapter bounds the call, far above the measured 9–21 s); a transport error; a non-JSON body; `data` missing, empty or holding an item without a non-empty string `b64_json` (so a `url` item); invalid base64; decoded bytes that start like none of JPEG (`FF D8 FF`), PNG (`89 50 4E 47`) or WebP (`RIFF….WEBP`); an upstream body over `ceil(MAX_IMAGE_BYTES × 4/3) + 64 KiB`; a decoded image over `MAX_IMAGE_BYTES` (50 MiB).
+    - Inbound caps, enforced while reading (a declared `Content-Length` over the cap, and a chunked body that crosses it, both give 413 with no upstream call): 1 MiB for the two JSON routes (speech included), 64 MiB for edits.
+    - Shared layer, applied to every route including speech:
+      - an exception handler or middleware turns any unexpected exception into a redacted 502 that names only the exception class, so a new route cannot bypass it;
+      - the redacting filter also redacts `exc_text` and the formatted `exc_info` of a record (or replaces `exc_info` with its redacted text);
+      - one upstream client with the cap and timeout as parameters, not a copy per route.
+  - Allowed changes to #817's files, each named in the PR (a scope revision recorded on #853):
+    - `eval_adapter.py`: the two routes, the shared layer above, speech's 1 MiB inbound cap and its move onto the shared catch-all and client. Speech's other behavior is unchanged.
+    - `compose.eval.yml`: `mem_limit: 1g` on `adapter` (one 64 MiB edit holds a few copies of the image); nothing else.
+    - `README.md`: one paragraph on the image routes, the `b64_json`-only response and why.
+    - `tests/deploy/test_eval_adapter.py`: new tests; existing tests change only where the shared layer moves a symbol.
+    - `tests/deploy/test_eval_stack.py`: the `mem_limit` assertion.
+  - Must preserve: #817's speech contract and what its tests assert; `computer-use-server/speech.py`; every production file; WebUI code (user decision 2026-11-16: image-generation code is not touched).
+  - Reading of #853's acceptance criteria: "`b64_json` and `url` responses" means a caller asking for `url` still gets `b64_json`, and an upstream `url` item is a 502.
+  - Required evidence, each test red before the change, in `tests/deploy/test_eval_adapter.py` with the recordings committed under `tests/deploy/fixtures/eval_adapter/`:
+    - 401 with no upstream call for a missing and for a wrong token on each image route; on the edit route, with a body over the edit cap, still 401, showing the token is checked before the body is read.
+    - Generation, with the literal payload WebUI's `openai` engine builds (`model`, `prompt`, `n: 1`, `size: "2048x2048"`, `response_format: "b64_json"`, plus one extra key): the upstream request equals the recorded `gen_b64` request plus the extra key, with no `n` and no `prompt`, and the provider key as Bearer. The response is 200 with exactly `created` and `data: [{"b64_json"}]`, the recorded value.
+    - A caller `response_format: "url"` still sends `b64_json` upstream and returns `b64_json`.
+    - Edit, built with `aiohttp.FormData` the way WebUI builds it (text fields as `str`, files with filename and content type):
+      - one `image` file;
+      - two `image[]` files of different types;
+      - the model tool's form: one `image[]` file of JPEG bytes declared `image/png`, no `n`, no `background`, forwarded as `data:image/png;base64,…` and answered with the recorded `edit_b64` response.
+
+      The upstream `image` list holds exactly one `data:` URL per file, in order, with each declared type and exact base64. `n` `"1"` is accepted; `background` is not forwarded.
+
+    - 400 with no upstream call: `n` 2, `n` `"2"` on an edit, `n` `true`, a missing or empty `prompt`, the extra key `watermark`, an unknown edit field, an edit without files, a file declared `text/plain`, an empty file.
+    - 413 with no upstream call: a declared and a chunked body over each cap (the caps patched small).
+    - 502 for each failure above, including the recorded `bad_size` response (the body holds `InvalidParameter`) and the recorded `gen_default_format` response (a `url` item without `b64_json`).
+    - The catch-all: an injected exception whose text holds the planted key, raised inside a route, gives a 502 naming only the class; neither the key nor a traceback holding it appears in any captured log. A record logged with `exc_info` whose exception text holds the key comes out redacted.
+    - #817's log-redaction tests extended to an image route's access line.
+    - `tests/deploy/test_eval_stack.py`: `adapter` has `mem_limit` 1 GiB, and nothing else in its shape changes.
+    - The orchestrator's full OCU unit run on the frozen head passes.
+
+  - Orchestrator on 210.77.77.27 (Phase 2), with the `src` checkout at the PR head:
+    - `start.sh` exits 0; `ocu-eval-adapter` is healthy with `RestartCount` 0.
+    - On the host, `ADAPTER_TOKEN` is read from `${EVAL_ROOT}/stack.env` and passed to a script in `ocu-eval-open-webui` only on stdin (`docker exec -i`), never on argv or in output. `open-webui` holds no `ADAPTER_TOKEN` in its environment, and that stays so. The script signs in as the admin from the container's own `WEBUI_ADMIN_*`.
+    - It sets the image config through WebUI's image config API, reading the full config first and posting it back whole, because every field of the update form is required:
+      - `ENABLE_IMAGE_GENERATION` and `ENABLE_IMAGE_EDIT` true (both default false, and the routes return 403 while off);
+      - both engines `openai`, both base URLs `http://adapter:8090/v1`, both keys the token (unset, they default to the provider key and dmxapi);
+      - model `doubao-seedream-5-0-flash-260915` and size 2048×2048 for both.
+
+      Read back: the engines, URLs, model and size equal those values, and both keys equal the token, compared and never printed.
+
+    - Through WebUI's API: one image generation and one edit of the generated image each return a stored file whose bytes start like JPEG, PNG or WebP. The adapter's log shows each route with status 200.
+    - Counts only: the key and the token are found 0 times in `docker logs` of `ocu-eval-adapter` and `ocu-eval-open-webui`.
+    - After the edit, `ocu-eval-adapter` has `RestartCount` 0 and `State.OOMKilled` false.
+    - `stop.sh`; the snapshot diff is as in 2.1.
+
+  - Non-goals: the aspect-ratio table and the rest of 2.4's settings (#819), the driver, any WebUI code change.
 
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
   - opens an SSH tunnel;
