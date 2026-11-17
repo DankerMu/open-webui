@@ -153,7 +153,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - Never print a resolved compose config or a container environment unredacted.
   - Non-goals: the adapter, the driver, and cleanup by chat id (#817, #853, #818).
 
-- [ ] 2.2 Write the evaluation adapter with two routes:
+- [x] 2.2 Write the evaluation adapter with two routes:
   - **speech:** accepts OCU's request with `mp3`/`wav`, `voice` and `instructions`, calls dmxapi `chat/completions` with `mimo-v2.5-tts`, and returns 502 without the key on upstream failure;
   - **images:** accepts WebUI's `openai`-engine generation request (JSON `/images/generations`) and edit request (multipart `/images/edits`, files as `image` or `image[]`). It forwards both to dmxapi `/v1/responses` with `prompt` as `input`, edit files as `data:` URLs in `image`, without `n` and with `watermark` false. It rejects `n` other than 1 with 400, returns the OpenAI images shape, and returns 502 without the key on upstream failure.
 
@@ -330,7 +330,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
 
   - Non-goals: the aspect-ratio table and the rest of 2.4's settings (#819), the driver, any WebUI code change.
 
-- [ ] 2.3 Write the driver and the cleanup script. The driver:
+- [x] 2.3 Write the driver and the cleanup script. The driver:
   - runs on the evaluation host, started detached by the orchestrator over SSH;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
   - sends one request with a 60-minute limit;
@@ -448,6 +448,24 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - Snapshot the container, image, network and volume lists, and copy `loaded-images.txt`; run `cleanup.sh`; snapshot again. Removed = exactly the project's objects (`ocu-eval-*` containers, the networks and volumes labelled `com.docker.compose.project=ocu-eval` (`ocu-eval_default`, `ocu-eval_*`), the ledger's sandboxes and volumes, the copied `loaded-images.txt` images and any `ocu-eval`-labelled image); added = nothing; any other difference is explained line by line as another project's. `${EVAL_ROOT}/data` holds no ledger id, and `chats.txt` is empty.
     - Then reload the package with `load.sh` and leave the stack stopped. The image config is gone with the WebUI volume; task 2.4 (#819), which runs next, writes it again.
   - Non-goals: the request set (#820), the image settings of 2.4 (#819), the baseline run (2.6), the `kit` failure markers (5.1, 5.3).
+  - Amended after implementation and three review rounds (OCU #240, 2026-11-17). Where these differ from the bullets above, these bind:
+    - WebUI 6b95a4995 answers an unknown chat with HTTP 401, not 404. The driver signs in once more, and a second 401 gives row 7 with reason `GET /api/v1/chats/<id>: HTTP 401`. The 404 `chat missing` branch stays as a defensive branch only.
+    - A POST answered with an HTTP error status is also looked up by its user message id. When no chat is found, the reason is `POST /api/chat/completions: HTTP <status>`.
+    - When the answer was lost and the lookup itself fails, the driver writes no manifest. It keeps `pending.json` without a chat id, stops the batch with a non-zero exit and a named reason, and the next run's recovery repeats the lookup.
+    - When a WebUI call fails after the chat id is known and the driver has not called stop, it makes one best-effort stop call before collecting.
+    - The first sign-in of a batch retries a refused or reset connection, 5 tries 3 s apart. Wrong credentials fail at once.
+    - A second driver refuses on the held lock instead of waiting. `chats.txt` must be a regular file, not a symlink. It holds only ids, so mode 0600 is not required.
+    - Rerun budget: a (phase, request, repetition) slot gets 3 minus the number of consecutive `infra` manifests at the end of its attempts on disk. Recovered `driver interrupted` manifests are `infra`. A slot whose latest attempt is not `infra` starts fresh. A slot with no attempt left is skipped with a `no attempt left` line, which does not change the exit status. A repetition above the request's `repetitions` is refused.
+    - An interrupted attempt's manifest holds `release`, `webui_image_id`, `models`, `counts`, `elapsed_seconds` and `check` as `null`, and `mp4` as `[]`. Its stack may have differed from the current one.
+    - Collection:
+      - only the first 20 `.mp4` entries are considered, and the rest become one entry `{"name": "outputs", "reason": "<n> more .mp4 entries"}`;
+      - names that vanish, are not UTF-8, or fail mid-copy are skipped with a reason;
+      - a file over 4 GiB is skipped as `too large`, a model fault;
+      - a file larger than the run directory's free space, or a write that hits ENOSPC or EDQUOT, is skipped as `no space`, and the partial copy is deleted;
+      - the 15 GiB floor applies to Docker's root filesystem only, before each attempt, not to the copy.
+    - Outcome table row 7a, between rows 7 and 8: no valid MP4, and a `no space` skip or a collection fault, gives `infra` with reason `disk: no space for <name>` or `driver: collect failed: <class>`. An `unreadable` skip (a permission or I/O error) stays row 9 `model`.
+    - stdout carries, besides one line per attempt and `eval: done <status>`, a line per recovered attempt and per skipped slot. A newline inside a reason is folded to a space. stderr may carry `could not stop chat`.
+    - Cleanup: a failed compose down skips image removal, keeps `images.env` and `loaded-images.txt`, and exits non-zero. Without `images.env`, a remaining project-labelled container or network makes it exit non-zero.
 
 - [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the adapter token as key (the adapter holds the dmxapi key), model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
   - the stored settings equal the values above, read back from WebUI's image config API;
@@ -455,7 +473,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
 
   If any of them fails, stop and ask the user.
 
-- [ ] 2.5 Commit the request set: five science-explainer requests, plus one course, one promo and one report. Verify the commit precedes the first baseline manifest.
+- [x] 2.5 Commit the request set: five science-explainer requests, plus one course, one promo and one report. Verify the commit precedes the first baseline manifest.
 
   **Task 2.5 required evidence** (issue #820):
   - Triage: test data. Fixture level compact, overriding the group's expanded: the slice is one data file, its shape test and one README line, with no runtime path, no secret and no host action.
