@@ -803,6 +803,90 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
 
   Before 6.3's manifest is written, extend `observing-the-star`'s `rerelease_note`, which searched only its file title, with the search under its OpenGameArt page title (PR #234 review). The orchestrator ran it on 2026-11-17 UTC: the iTunes Search API (term "Another space background track", with and without "yd") returned no track of that title or by that author, and MusicBrainz recording searches for "Another space background track" and "Observing The Star" (any artist) returned 0 recordings. The track was approved in 6.2, so 6.3 ships it only with this note recorded.
 
+  **Task 6.3 required evidence** (issue #843):
+  - Triage: feature (build-time tooling and a file format). Fixture level expanded, agreeing with upstream. It defines `manifest.json`, which task 6.4 installs and tasks 6.5 and 5.x read, and the script that 6.4's `Dockerfile` step runs.
+  - Governing invariant:
+    - only tracks the user approved ship;
+    - every shipped file comes from a source whose bytes match the pinned digest;
+    - every shipped file measures -16 LUFS ± 0.5 LU, with a true peak at or below -1.5 dBTP;
+    - the manifest names the approver and date of the tracked approval file.
+  - Deviation from the task text, settled here: no per-track source manifest is added.
+    - `deploy/music/candidates.json` already holds, per track, the source URL, size, `sha256`, the zip member, licence evidence, mood, loop flag and re-release note.
+    - `deploy/music/approvals.json` is the tracked approval file.
+    - The "tracked source manifest for the approved tracks" is therefore the approved subset of `candidates.json`, read together with `approvals.json`. A second copy of those fields would break the repository's one-implementation rule and could drift.
+  - Data change first: `observing-the-star`'s `rerelease_note` in `candidates.json` is extended with the page-title search the orchestrator ran on 2026-11-17 UTC (PR #234 review). The appended sentence: "Searched 2026-11-17 under the OpenGameArt page title: the iTunes Search API (term "Another space background track", with and without "yd") found no track of that title or by that author, and MusicBrainz recording searches for "Another space background track" and "Observing The Star" (any artist) returned 0 recordings." No other candidate changes.
+  - Risk packs:
+    - Schema — selected: `manifest.json` version 1, below.
+    - Release / packaging — selected: the output directory is self-contained, so 6.4 can install it either from a host release step (the font pattern: `release.py` prepares, the `Dockerfile` copies) or from a `Dockerfile` step. 6.4's fixture decides which. The script uses only the standard library, `ffmpeg` and `ffprobe`.
+    - File IO — selected: `fetch` and `build` refuse an existing output directory, work in a temporary sibling, and rename it into place only after every track passed. A failure leaves no partial output.
+    - Error handling — selected: a digest mismatch, a missing source, an infeasible gain or an out-of-tolerance output each fail and name the track.
+    - Legacy compatibility — selected: `music_candidates.py`, `listening_page.py`, their tests and the committed `approvals.json` stay unchanged in behaviour. The approvals export's SHA-256 stays `207fcbd1…`.
+    - Not selected: auth, concurrency, public API.
+  - Shape (OCU repository, `deploy/music/`):
+    - `music_library.py`: standard library only. It imports `music_candidates`, whose `load_candidates`, `load_decisions` and `fetch_candidate` are reused, not copied.
+      - `approved_library(candidates_path, approvals_path, root)` is a pure function. It returns the approved candidates in `candidates.json` order and the manifest's `approvals` block: `sha256` of the approvals file, `reviewer`, `date`. Every command uses it.
+      - Every command takes `--candidates`, `--approvals` and `--root`, defaulting to the repository's files, as `listening_page.py` does.
+      - `fetch --out <dir>` downloads each approved source with `fetch_candidate` into a temporary sibling of `<dir>`, then renames it to `<dir>`. Dropped candidates are not downloaded. A mismatch fails, naming the track id.
+      - `build --sources <dir> --out <dir>`:
+        - **Inputs.** It reads each approved source from `<sources>/<id><suffix>`, the files `fetch` writes. Before decoding, it re-verifies the file's pin: the member's `sha256` and `size` for zip tracks, the source's otherwise. A missing file or a differing digest fails, naming the track.
+        - **Measurement.** `ffmpeg -af ebur128=peak=true` gives the source's integrated loudness `I` and true peak `TP`. The gain is `-16 - I` dB.
+        - **Linear path.** When `TP + gain <= -1.5`, the output is `volume=<gain>dB` alone. `loudnorm` is not used: its linear mode also depends on the loudness range, and its dynamic mode misses the target on peaky material.
+        - **Infeasible gain.** Otherwise, the build fails, naming the track and its `I`, `TP` and the gain it needs. No limiter or compressor is applied: a single limiter pass lands below the target, because the gain is computed before it removes the loudest peaks, and `alimiter` limits sample peaks, not true peaks. A loop also needs a constant gain to stay seamless.
+        - **Encoding.** Non-loop tracks become stereo MP3 at a constant 320 kb/s with `libmp3lame`. Loop tracks become stereo 16-bit WAV. Both keep the source's sample rate, so a loop's sample count is unchanged.
+        - **Check after encoding.** Each output is measured again with `ebur128=peak=true`, and its summary values are parsed. `abs(I + 16) <= 0.5` and `TP <= -1.5` must hold, or the build fails, naming the track and the measured values.
+        - **Output.** Outputs are named `<id>.mp3` or `<id>.wav`. The evidence snapshots of the approved tracks are copied to `evidence/` and the approvals file to `approvals.json`, all inside the output, and `manifest.json` is written last.
+      - `report` prints the approved count per mood against the target of four, for example `calm-curious 6/4`. A shortfall is printed, not an error.
+    - `manifest.json`, version 1: `{"version": 1, "approvals": {"file": "approvals.json", "sha256", "reviewer", "date"}, "tracks": [...]}`. Every path in it is relative to the manifest's directory.
+      - Each track entry holds:
+        - `id`, `mood`, `loop`, `title`, `author`;
+        - `file`, `format` (`mp3` or `wav`), `sample_rate`, `duration_seconds` (from `ffprobe`);
+        - `source_url`, `licence_url`, `evidence` (the copied snapshot);
+        - `source_sha256` (the downloaded file's digest, the zip for zip tracks), and `member` (`{name, sha256}`) only for zip tracks;
+        - `shipped_sha256`;
+        - `integrated_lufs`, `true_peak_dbtp` (the after-encoding values);
+        - `rerelease_note`, `approver`, `approval_date`.
+      - `approver` and `approval_date` equal `approvals.reviewer` and `approvals.date`.
+      - The tracks appear in `candidates.json` order.
+    - `README.md` gains a "Library" section covering the approved subset as the source manifest, the three commands, the manifest format and the linear-gain rule.
+  - Must preserve: `candidates.json` apart from the one note, `approvals.json` byte-identical, `excluded.json`, `evidence/`, `music_candidates.py`, `listening_page.py`, `tests/deploy/test_music_listening.py`, and every production file. No audio file is committed.
+  - Required evidence, each test red before the change (`tests/deploy/test_music_library.py`, unittest):
+    - **Real files.** `approved_library` on the repository's files returns:
+      - 15 tracks in `candidates.json` order;
+      - approvals `sha256` `207fcbd170d914cb96135e30fb03a6a2e9b7fccde5873d0e6b96ab1b45c99b6b`, reviewer `Danker`, date `2026-11-16`;
+      - no dropped id.
+
+      `report` on the same files prints the four moods with their counts against four. `observing-the-star`'s note contains "Another space background track".
+
+    - **Fixture tracks.** These are generated at test time with `ffmpeg -f lavfi`; no audio is committed. Each is at least 10 seconds long, with amplitude changes, at 44.1 kHz, with fixture `candidates.json` and `approvals.json` in a temporary directory:
+      - a quiet non-loop track;
+      - a non-loop track whose source is a zip holding it as a member;
+      - a loop track.
+
+      `build` gives:
+      - two MP3 files and a WAV, each measured by the test's own `ebur128` parse at `abs(I + 16) <= 0.5` and `TP <= -1.5`;
+      - a WAV sample count equal to its source's;
+      - `shipped_sha256` equal to each file's digest and `source_sha256` equal to each fixture source's: the zip's for the zip track, whose `member.sha256` equals the member's digest;
+      - `approver` and `approval_date` equal to the fixture approvals;
+      - every manifest field with its type, and the copied evidence and approvals present at their manifest paths.
+
+    - **Refusals.** Each of these fails, names the track, and leaves no output directory:
+      - a fixture `sha256` that differs from its source;
+      - a zip-member fixture whose member differs from its pin;
+      - a missing source file;
+      - a non-loop track and a loop track whose peaks make the gain infeasible, each with its `I`, `TP` and needed gain in the message;
+      - an output that measures out of tolerance after encoding, forced by replacing the module-level function that wraps the one encoding `ffmpeg` call (for example `_encode`) with `unittest.mock.patch.object`, so that it writes a quieter file. The test calls `build` in process. The measurement after encoding stays real. No environment variable or CLI switch is added for this.
+
+      An existing `--out` is refused, names the directory and leaves it untouched, as in `listening_page.py`'s `test_existing_output_directory_is_refused_and_preserved`.
+
+    - **fetch.** It runs against a local server built on `OriginRequestHandler` (`tests/orchestrator/_http_origin.py`), which `tests/deploy/support.py` already uses for the music and font tests. No second test server is added. Only approved candidates are downloaded. A zip-member fixture yields `<id><suffix>`. A served byte change fails, naming the track.
+    - **ffmpeg.** The ffmpeg tests skip only when `ffmpeg` is absent from `PATH`, with that reason. Repository CI has no ffmpeg, so they skip there. The orchestrator's full unit run on the Mac (ffmpeg 9.0.1 with `libmp3lame`) must run them, not skip them. 6.4's image test is the first run on the image's ffmpeg.
+    - **Real sources, orchestrator, Phase 2, a hard gate before the PR is frozen.** `fetch` and `build` run over the real 15 approved sources in a scratch directory. Every output is within tolerance by the same check. The per-mood report and each track's `I`, `TP` and gain are posted.
+      - When a real track cannot meet the tolerance, the orchestrator stops and reports to the user with the track id and its measured `I`, `TP` and loudness range. The user decides.
+      - Lowering the target, widening the tolerance, or changing the approved set without the user is forbidden.
+    - **Full unit.** The full OCU unit command passes.
+
+  - Non-goals: the install into the image and image tests (6.4), ducking and renderer use (6.5), any change to the candidate set.
+
 - [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
   - narrated windows sit 15 ± 3 dB below the narration, with ramps of 0.5 ± 0.1 s;
