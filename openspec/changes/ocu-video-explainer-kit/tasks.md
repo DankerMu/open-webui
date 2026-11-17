@@ -773,6 +773,156 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
 
   Export the JSON Schema. Add the PolyForm NC notice entries (anything2explainer, video-talkcraft) in this task. Verify with `node --test` fixtures that every invalid case in the spec fails with a message naming chapter, scene, field and limit.
 
+  **Task 3.4 required evidence** (issue #826):
+  - Triage: feature (file format). Fixture level expanded: `script.json` is the format the model writes and tasks 3.5–3.8, 5.x and 7.x read.
+  - Governing invariant:
+    - every script that `validateScript` accepts has the fixed skeleton and stays within every limit;
+    - every rejection names the chapter, the scene, the field and the limit;
+    - the JSON Schema the model reads is generated from the same zod schema, so the two cannot drift.
+    - `validateScript` is the only entry point for checking a script. Tasks 3.5–3.8 and 5.x call it, not `scriptSchema.parse`.
+  - Risk packs:
+    - Schema — selected: version 1, below.
+    - Error handling — selected: empty, non-JSON and invalid input, each with a located message.
+    - Release / packaging — selected: the JSON Schema file ships in the template, so the image carries it at `/opt/remotion-template/script.schema.json`.
+    - Legacy compatibility — selected: the notice test of 3.2 and the image guards stay green.
+    - Documentation — selected: design Decision 3 now limits `.default` to component props. `NOTICE` section 6 is reworded to cover borrowed formats.
+    - Not selected: CLI (3.5 reads the module), file IO beyond the text passed in, auth.
+  - Sources and notices:
+    - `Vincentwei1021/anything2explainer` at `4f738189d866a8a1d1abd008456303617279a2c2`: the narration shape (short chapter names, caption blocks of at most 16 characters, a few sentences per scene).
+    - `Vincentwei1021/video-talkcraft` at `e19acbd958e45dbe0773817cffdf5b0e7646bf1c`: the idea of a typed parameter table per scene kind.
+    - Both are `PolyForm-Noncommercial-1.0.0`; the user approved their use on 2026-11-16. Only formats and ideas are taken, no code.
+    - **`NOTICE` section 6.** Its heading and introduction are reworded to cover `remotion-template/src/kit/` and `remotion-template/bin/`. Section 6 then distinguishes two kinds of source:
+      - vendored files, which keep their licence and ship its text;
+      - formats or ideas, which the repository's own FSL code borrows and which are listed with their notices.
+    - **One `NOTICE` paragraph per project.** Each holds, in one paragraph:
+      - the repository and the full commit;
+      - `PolyForm-Noncommercial-1.0.0`, never directly followed by `.`, because the notice test's whole-token match then fails;
+      - the licence URL `https://polyformproject.org/licenses/noncommercial/1.0.0`;
+      - what was taken;
+      - the project's `Required Notice:` line, verbatim on its own line:
+        - `Required Notice: Copyright (c) 2026 Vincent Wei (https://github.com/Vincentwei1021/anything2explainer)`
+        - `Required Notice: Copyright (c) 2026 Vincent Wei (https://github.com/Vincentwei1021/video-talkcraft)`
+
+      The Required Notice line contains the repository name, so it must sit in the same paragraph as the entry. That keeps the "exactly one paragraph" count at one.
+
+    - **`THIRD-PARTY-LICENSES.md`** gains one row per project. Each row holds the repository, the commit, the licence token and the Required Notice.
+    - **Schema module header.** The FSL header plus a third line: `// Source: Vincentwei1021/anything2explainer 4f738189d866a8a1d1abd008456303617279a2c2 reference/narration-storyboard.md PolyForm-Noncommercial-1.0.0`. This is the borrowed-format pattern of task 3.2.
+    - **Notice test.** `tests/notice-coverage.test.mjs` gains a literal list `REQUIRED_NOTICES` holding the two lines above. Each must appear exactly once in `NOTICE` as a whole trimmed line. Its repository must have exactly one `THIRD-PARTY-LICENSES.md` row, containing the first 8 characters of its commit and the licence token. This protects talkcraft, which has no `Source:` line.
+
+  - Shape (OCU `remotion-template/`):
+    - **`bin/script-schema.mjs`**, zod 4 in plain JavaScript, importing only `zod`. It exports:
+      - `VIDEO`: `{width: 1920, height: 1080, fps: 30}`, which 3.6 and 3.8 read;
+      - `LIMITS`: the numbers below, used in messages;
+      - `BODY_KINDS`: the body kinds without `custom`;
+      - `IMAGE_NAME`;
+      - `scriptSchema`;
+      - `validateScript(text)`;
+      - `scriptJsonSchema()`, which returns `z.toJSONSchema(scriptSchema)`.
+    - **Structure of version 1.** `{version: 1, title, music, hook, chapters, summary, endCard}`, using strict objects throughout:
+      - `title`: 1–24 characters;
+      - `music`: `none`, or a track id matching `^[a-z0-9-]+$`. Whether the track exists is checked by 6.5.
+      - `hook`, `summary` and `endCard`: scenes of kind `hook`, `summary` and `end-card`;
+      - `chapters`: 3–5 entries of `{name, scenes}`, where `name` has 1–6 characters and `scenes` holds 1–4 body scenes.
+      - The root schema's `description` states that a script holds at most one `custom` scene, because JSON Schema cannot express that.
+    - **Every scene** is `{kind, narration, image?, content}`, or `{kind: "custom", narration, image?, component}`.
+      - `kind` is a plain `z.literal`, per design Decision 3.
+      - `narration` is an array of 1–4 sentences, each an array of 1–4 caption blocks of 1–16 characters.
+      - On `end-card`, `narration` holds 0–4 sentences and is `.optional()`, so the JSON Schema does not require it. `validateScript` returns it as `[]` when absent, so 3.5 and 3.6 always receive an array.
+    - **Characters.** Every character limit uses zod's own `.min()` and `.max()` on strings. In zod 4.5.4 these count code points (`zod/v4/core/checks.js:331`, `util.codePointLength`), and they keep `minLength` and `maxLength` in the JSON Schema. `refine` and `superRefine` are not used for lengths, because `z.toJSONSchema` drops them.
+    - **`IMAGE_NAME`** is `^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.(png|jpg|jpeg|webp)$`. It rejects `/`, `\` and any `..`. `image`, when present, must match it.
+    - **Content by kind.** These are the candidate kinds. The gallery (4.2–4.4) may remove unapproved kinds from `BODY_KINDS` and may adjust these limits within version 1, regenerating `script.schema.json` in the same PR.
+      - `hook`: `{title ≤16, subtitle? ≤24}`;
+      - `question`: `{question ≤24}`;
+      - `concept-card`: `{kicker? ≤8, title ≤12, points 1–4 × ≤16, conclusion? ≤20}`;
+      - `process-steps`: `{steps 2–5 × {label ≤8, detail? ≤16}}`;
+      - `cause-effect`: `{cause ≤16, effect ≤16, link? ≤8}`;
+      - `comparison`: `{left, right}`, each `{title ≤8, points 1–4 × ≤12}`;
+      - `timeline`: `{events 2–6 × {year ≤8, label ≤12, detail? ≤16}}`;
+      - `key-number`: `{value: finite number, unit? ≤4, label ≤12}`;
+      - `chart`: `{type: "bar" | "line", title ≤12, unit? ≤4, points 2–8 × {label ≤6, value: finite number}}`;
+      - `image-callouts`: requires `image`, and `{callouts 1–3 × {x 0–1, y 0–1, label ≤10}}`;
+      - `definition-quote`: `{term ≤10, text ≤40, source? ≤16}`;
+      - `summary`: `{points 1–4 × ≤16}`;
+      - `end-card`: `{title ≤16, subtitle? ≤24}`;
+      - `custom`: `component` matching `^[A-Z][A-Za-z0-9]{0,39}$`, naming `src/custom/<component>.tsx`.
+    - **`validateScript(text)`** returns `{ok: true, script}` or `{ok: false, errors}`. Each error is `{chapter, scene, field, limit, message}`. Errors map as follows:
+
+      | Case                                                                                                      | `chapter`                                                         | `scene`                         | `field`                                                                         | `limit`                                                                       |
+      | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+      | empty or whitespace-only text                                                                             | `null`                                                            | `null`                          | `script.json`                                                                   | `non-empty`                                                                   |
+      | text that is not JSON                                                                                     | `null`                                                            | `null`                          | `script.json`                                                                   | `JSON`                                                                        |
+      | root not an object                                                                                        | `null`                                                            | `null`                          | `script.json`                                                                   | `object`                                                                      |
+      | top-level field (`version`, `title`, `music`, `chapters` count, a missing `hook`, `summary` or `endCard`) | `null`                                                            | `null`                          | the key                                                                         | e.g. `required`, `3–5 chapters`, `24 characters`                              |
+      | unknown key at any level, one error per key                                                               | as for its parent                                                 | as for its parent               | path to the key                                                                 | `unknown key`                                                                 |
+      | chapter field (`name`, `scenes` count)                                                                    | `"<n> <name>"`, or `"<n>"` when `name` is missing or not a string | `null`                          | `name` or `scenes`                                                              | e.g. `6 characters`, `1–4 scenes`                                             |
+      | inside a chapter scene, including a missing or unknown `kind`                                             | `"<n> <name>"`                                                    | the 1-based scene number        | path inside the scene, e.g. `narration[0][1]`, `content.left.points[1]`, `kind` | the bound, `required`, or, for a missing or unknown `kind`, the allowed kinds |
+      | inside the hook, summary or end card                                                                      | `null`                                                            | `hook`, `summary` or `end-card` | path inside the scene                                                           | the bound                                                                     |
+      | each `custom` scene after the first                                                                       | its chapter                                                       | its scene                       | `kind`                                                                          | `1 custom scene`                                                              |
+      - **Parsing.** Empty or whitespace-only text, and text that is not JSON, give that single error.
+      - **Custom count.** It runs over the parsed value whenever `chapters` is an array, even when other errors exist. Its message names the first custom scene's chapter and scene.
+      - **`message`.** It reads `<where>: <field> <problem> (limit <limit>)`. `<where>` is one of:
+        - `chapter 2 原理, scene 3 (comparison)`, where the kind is shown as `unknown kind` when it is not a known string;
+        - `hook`, `summary` or `end-card`;
+        - `chapter 2 原理`;
+        - `script`.
+
+    - **`script.schema.json`**, at the template root, is `scriptJsonSchema()` written with two-space indentation and a final newline.
+
+  - Must preserve: all files of tasks 3.1–3.3 except `NOTICE`, `THIRD-PARTY-LICENSES.md` and `tests/notice-coverage.test.mjs`, which only gain entries and the `REQUIRED_NOTICES` check. Also unchanged: `package.json`, `package-lock.json`, `Root.tsx` and `src/index.ts`.
+  - Required evidence, red first (`remotion-template/tests/script-schema.test.mjs`, `node:test`):
+    - **Valid fixtures.**
+      - A minimal script passes: 3 chapters of 1 scene each, and an end card without `narration`, which `validateScript` returns as `narration: []`.
+      - A maximal script passes: 5 chapters of 4 scenes, every body kind and one `custom`, and 4 sentences of 4 blocks of 16 characters.
+      - `VIDEO` equals `{width: 1920, height: 1080, fps: 30}`.
+    - **Invalid cases from the spec.** Each fails, with `chapter`, `scene`, `field` and `limit` asserted exactly as in the table:
+      - empty text;
+      - text that is not JSON;
+      - `[]` as the root;
+      - 0 and 6 chapters;
+      - a chapter with no scene;
+      - a sentence with no block;
+      - a missing hook, a missing summary and a missing end card;
+      - an unknown kind and a missing kind;
+      - a missing content field;
+      - a 17-character block;
+      - a 7-character chapter name;
+      - a body scene without narration, both with the key missing and with `[]`;
+      - `../x.png`, `a/b.png` and `a..b.png` as `image`;
+      - two `custom` scenes, plus a type error elsewhere in the same script, which still yields the custom error naming both scenes;
+      - three `custom` scenes, which yield two custom errors.
+    - **Edge cases.**
+      - A `hook` without narration fails.
+      - A 16-code-point block of 15 Han characters and one emoji (17 UTF-16 units) passes, and 17 code points fail.
+      - An `image-callouts` scene without `image` fails.
+      - An unknown top-level key and an unknown scene key each fail with `limit` `unknown key`.
+    - **Schema file.**
+      - The committed `script.schema.json` equals `scriptJsonSchema()`.
+      - Its root requires `version`, `title`, `music`, `hook`, `chapters`, `summary` and `endCard`.
+      - Its caption block carries `maxLength` 16, and the end card's `required` list does not contain `narration`.
+      - Its root `description` mentions the one-`custom` rule.
+    - **Notices.**
+      - The notice test passes with the new `Source:` line and the `REQUIRED_NOTICES` check.
+      - It fails, and is then restored, in each of these cases:
+        - the anything2explainer `NOTICE` paragraph is removed;
+        - the talkcraft `Required Notice:` line is removed from `NOTICE`;
+        - the talkcraft `THIRD-PARTY-LICENSES.md` row is removed.
+    - **Green.**
+      - In a scratch layout like 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+    - **Bundle and run.**
+      - The scratch entry imports `../bin/script-schema.mjs`.
+      - It registers a composition that calls `validateScript` on the minimal fixture. The composition throws on failure and otherwise renders a fixed text.
+      - `npx --no-install remotion bundle` and `npx --no-install remotion still` of it succeed, and the frame shows that text.
+    - **Unchanged guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+    - **PR checks.** The PR's `template-tests` run is green, and its log shows the schema tests passing.
+    - **Full unit.** The full OCU unit command passes.
+  - Non-goals:
+    - the voice fields and commands (3.5, which may add a top-level `voice` object in its own fixture);
+    - timeline fields (3.6);
+    - rendering;
+    - checking that a music id exists (6.5);
+    - removing unapproved kinds (4.2–4.4).
+
 - [ ] 3.5 Implement `kit new <name>`, `kit voice`, `kit voice-import` and `kit image`. Verify with `node --test`:
   - `new` refuses a non-empty directory;
   - `voice` stems carry the hash of text, voice and instructions, and change when any of them changes;

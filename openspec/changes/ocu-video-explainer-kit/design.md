@@ -63,7 +63,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
    - A scene has 1–4 sentences, and a sentence has caption blocks of at most 16 characters. `end-card` may have none.
    - Output is fixed at 1920×1080, 30 fps.
    - Validation runs before any bundling and refuses to render on any error. This deliberately departs from Onda's in-video `ErrorPlaceholder`.
-   - Schemas keep Onda's `kind: z.literal(...).default(...)` pattern. Defaults must already be valid output values, because zod 4 does not parse defaults.
+   - Component prop schemas keep Onda's `kind: z.literal(...).default(...)` pattern. Defaults must already be valid output values, because zod 4 does not parse defaults. The `script.json` scene kinds use plain `z.literal`: in a `discriminatedUnion` of two or more options, a defaulted discriminator throws `Duplicate discriminator value "undefined"` in zod 4.5.4, and the model must write the kind anyway.
 
 4. **Narration is bound to its text and drives the timeline.**
    - `kit voice` prints one `generate_speech` call per block. Each call names a WAV file whose stem carries an 8-character hash of the block text, the voice and the voice instructions.
