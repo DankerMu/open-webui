@@ -663,6 +663,105 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
 
   Probe `Intl.Segmenter('zh')` in the image's headless shell and record the result. Verify with `node --test` cases on long Chinese strings, line-start punctuation, and 9999, 12345 and 123456789.
 
+  **Task 3.3 required evidence** (issue #825):
+  - Triage: feature (pure library code). Fixture level compact, overriding the issue's "expanded", which names `script.json`, `timeline.json` and a CLI. Those belong to 3.4–3.6. This slice adds two pure modules with no file format, CLI, IO or dependency. Legacy compatibility is only kept, not extended: no existing file changes.
+  - Governing invariant: the helper never changes the input text. Joining its lines gives the input string exactly. No line starts with a closing punctuation mark, and no line ends with an opening one. A line exceeds its width only by trailing closing punctuation, by at most `HANG` (2 em).
+  - Line contract, which tasks 3.7, 4.x, 5.1 and 3.8 follow:
+    - `maxWidth` is in em of the text's font size. A consumer computes it as `floor(boxWidthPx / fontSizePx) - HANG`.
+    - The helper's lines are authoritative. A component renders each line returned by `wrapLines` as its own block element, inside a box of `(maxWidth + HANG)` em.
+    - CSS wrapping from `textStyle` is only a fallback. A re-wrapped line is detected by counting its rendered lines: wrap the line's text in an inline `<span>` and count `span.getClientRects()`, or count the distinct `top` values of a `Range` over the line's contents. The probe of 3.7 uses the same method. A block element's own `getClientRects()` and `scrollWidth` cannot show a wrap.
+  - Shape (OCU `remotion-template/src/kit/`):
+    - **Both files.** Each is TypeScript with only erasable syntax: no `enum`, no `namespace`, no parameter properties, and no type-only imports. That lets Node 22.23.2 run it directly. Each carries the two-line FSL header.
+    - **`text.ts`** imports nothing.
+    - **`theme.ts`** imports only `SPRING_SMOOTH` and `SPRING_SNAPPY` from `./onda/motion.ts` (that file imports nothing), so the springs are not copied.
+    - `theme.ts` exports `themes`, which holds exactly two candidates, `light` and `dark`. Task 4.6 keeps one. Each candidate holds:
+      - `canvas`: `{width: 1920, height: 1080, fps: 30}`;
+      - `safeArea`: `{top, right, bottom, left}` in pixels, with the inner box at least 80% of the width and of the height;
+      - `brand`: all 12 slots of Onda's `Brand` (`bg`, `surface`, `surface2`, `border`, `borderLit`, `text`, `dim`, `faint`, `accent`, `accentSoft`, `fontDisplay`, `fontBody`). The kit's colours live here and nowhere else, so 3.8 can apply them with Onda's `brandToCssVars` and the Onda primitives re-skin.
+        - `bg`, `surface`, `surface2`, `text`, `dim` and `accent` are `#rrggbb`.
+        - The other colour slots are `#rrggbb` or `rgba(r, g, b, a)`.
+        - Both font slots are exactly `'"Noto Sans CJK SC"'`, the font the image installs, with no generic or system fallback.
+      - `type`:
+        - `weights`: `{regular: 400, bold: 700}`;
+        - `sizes`: `{title, heading, body, caption, minimum}` in pixels, with `minimum` at least 32 and every size at or above it;
+        - `lineHeight` at least 1.25, and `letterSpacing` 0.
+      - `spacing`: a strictly increasing array of pixel values.
+      - `motion`: `{transitionFrames: 15, springs: {smooth: SPRING_SMOOTH, snappy: SPRING_SNAPPY}}`.
+    - `text.ts` exports:
+      - `CLOSING_PUNCTUATION`: `，。！？、；：）」』”’》】…%.,!?;:)]}`.
+      - `OPENING_PUNCTUATION`: `（「『“‘《【([{`.
+      - `HANG`: 2.
+      - `USE_INTL_SEGMENTER`: a boolean, set from the probe below.
+      - `width(ch)`: 0.5 for printable ASCII (U+0020–U+007E), 1 for every other character. It may be calibrated after the bundle measurement below.
+      - `units(text, {segmenter})` splits `text` into unbreakable units. It throws `RangeError` on any control character, including `\n` and tab, and works in this order:
+        1. **ASCII runs.** A run of ASCII letters and digits is one atom. `.`, `,`, `%` and `-` may sit between two such characters, and a `-` or `+` directly before a digit joins it. `万` or `亿` directly after a digit joins that atom, so `30万`, `3.5亿`, `COVID-19` and `2024-11-17` stay whole.
+        2. **Han runs.** A maximal run of Han characters becomes atoms: one per character, or, when `segmenter` is true, one per word segment of `Intl.Segmenter('zh', {granularity: 'word'})`. The segmenter is applied to the Han run only.
+        3. **Other characters.** Each remaining character is its own atom, except the characters of `CLOSING_PUNCTUATION` and `OPENING_PUNCTUATION` and U+0020.
+        4. **Attachment.** The gap between two atoms is cut at its first opening mark. The part before that mark joins the atom before it: closing marks and spaces (U+0020 only). The part from that mark on joins the atom after it. A gap before the first atom joins the first atom, and a gap after the last atom joins the last. A non-empty text without any atom is one unit; `units('')` and `wrapLines('')` return `[]`.
+      - `wrapLines(text, maxWidth, {segmenter = USE_INTL_SEGMENTER} = {})`:
+        - **Width of a unit.** A unit's trailing run of closing marks and spaces gives a hang of `min(width of the closing marks in it, HANG)`. The core width is the unit's total width minus that hang and minus its trailing spaces.
+        - **Line width** (used by the final assertion): the sum of `width()` over every character on the line, excluding only the last unit's hang and trailing spaces.
+        - **Fitting.** A unit goes on the current line when the sum of `width()` over every character already on the line, including the previous unit's hang and spaces (they sit mid-line once the new unit follows), plus the new unit's core width, is at most `maxWidth`. Otherwise it starts a new line. So every line is at most `maxWidth + HANG` wide.
+        - **Oversized units.** A unit whose core width exceeds `maxWidth` starts a new line, unless the current line is empty. It is then split by character, with opening marks bound to the character after them and closing marks to the character before.
+        - **Errors.** `RangeError` is thrown when `maxWidth` is below 2 or not an integer, or when an oversized unit's leading opening marks alone reach `maxWidth`.
+      - `formatCount(n)`, for a finite number:
+        - `|n| < 10000` gives `String(n)`.
+        - Otherwise it divides by 1e4 (万) or, from 1e8, by 1e8 (亿), truncates toward zero to one decimal, and drops a trailing `.0`. A minus sign is kept, and -0 gives `0`.
+        - A non-finite input throws `TypeError`.
+        - Examples: 9999 → `9999`, 12345 → `1.2万`, 20000 → `2万`, 99999999 → `9999.9万`, 123456789 → `1.2亿`, -12345 → `-1.2万`.
+      - `textStyle(theme)` returns `{fontFamily, lineHeight, letterSpacing: 0, whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'anywhere', lineBreak: 'strict'}` from the theme. It sets no `nowrap`.
+  - The `Intl.Segmenter` probe and width measurement, recorded verbatim in the PR:
+    - **Where.** The local production workspace image `open-computer-use:3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5` holds the same Remotion 4.0.537 headless shell and the font. Run it with `--rm --platform linux/amd64 --network none`.
+    - **Project.** A scratch project laid out as `skills/public/remotion/SKILL.md` describes: a copy of the template without `node_modules`, `node_modules` linked to `/opt/remotion-template/node_modules`, and the template's `remotion.config.ts` kept. Commands run from that directory.
+    - **What it renders.** A scratch composition draws these into the frame, which is the primary evidence (console output only supports it):
+      - `typeof Intl.Segmenter`;
+      - the word segments of `我们今天学习光的折射现象，速度是每秒30万公里。`;
+      - for a sample wrapped by `wrapLines` at width 12 in a `(12 + HANG)` em box, the rendered line count of each line, by the method in the line contract. The sample includes a line of only capitals, digits and `%`, measured after the font has loaded.
+    - **Segmenter result.** `USE_INTL_SEGMENTER` is `true` only when the shell returns multi-character word segments such as `折射`. It is `false` when the segmenter is missing, throws, or returns one segment per character.
+    - **Width result.** If any line renders as more than one line, the ASCII width in `width` is raised to the measured largest advance of `[A-Z0-9%]` at 1 em, rounded up to 0.05. The measurement is then repeated until no line re-wraps. The final value goes into the PR.
+    - **If emulation cannot start the shell,** the implementer stops and reports. The orchestrator then runs the same probe on 210.77.77.27.
+    - No probe composition is committed.
+  - Must preserve: every existing file. The PR's changed-file list holds only `src/kit/theme.ts`, `src/kit/text.ts`, `tests/theme.test.mjs` and `tests/text.test.mjs` under `remotion-template/`.
+  - Required evidence, red first (`remotion-template/tests/theme.test.mjs` and `remotion-template/tests/text.test.mjs`, `node:test`, importing the `.ts` files directly):
+    - **Theme.** Checked for both candidates:
+      - the same keys, with the `brand` key set equal to the literal list of the 12 slots;
+      - the colour formats;
+      - canvas 1920×1080 at 30 fps;
+      - a safe area of at least 80% by 80%;
+      - both font slots exactly `"Noto Sans CJK SC"`;
+      - `lineHeight` ≥ 1.25 and `letterSpacing` 0;
+      - every size ≥ `minimum` ≥ 32;
+      - `spacing` strictly increasing;
+      - `transitionFrames` 15, and the springs identical (`===`) to Onda's;
+      - WCAG contrast computed in the test: `text` and `dim` on `bg`, on `surface` and on `surface2` at ≥ 4.5, and `accent` and `faint` on `bg` and on `surface` at ≥ 3.
+    - **Table of inputs to expected lines.** Each row is tested with and without the segmenter, unless the row names one mode:
+      - `30万公里`, `3.5亿年前`, `COVID-19 疫苗`, `2024-11-17`, `e.g. 例如` and `CO2` keep their ASCII runs and `万`/`亿` whole;
+      - `“光”（折射）……。」` keeps each opening mark with the character after it and the closing run with the character before it; at width 4 its closing run hangs at most 2 em and the rest counts as core width;
+      - `他说：“……”` wraps without error;
+      - `我们光……是。」` at width 4 without the segmenter gives the two lines `我们光……` and `是。」`;
+      - `空（）字`, `「 」` and `……` give units whose joined text equals the input, and the empty string gives `[]`;
+      - `-12345` formatted and wrapped keeps `-1.2万` whole;
+      - a leading space joins the first unit;
+      - a string where a naive character-count break would put `，` and then `。」` at a line start keeps them on the line before;
+      - a 20-letter English word in quotes at width 8, after a line already 7/8 full, starts a new line and splits without leaving `“` at a line end.
+    - **Long strings.** A string of more than 200 characters mixing Han text, ASCII words, numbers and every closing mark is wrapped at widths 8, 12 and 16 in both modes. The joined lines equal the input. No line starts with a closing mark or ends with an opening mark, and every line width, as defined above, is within `maxWidth`, while the full line is within `maxWidth + HANG`.
+    - **Numbers.** 9999, 12345 and 123456789 give `9999`, `1.2万` and `1.2亿`, and so do the other examples. `NaN` and `Infinity` throw.
+    - **Errors.** `wrapLines('文字', 1)`, `wrapLines('文字', 2.5)` and `units('a\nb')` throw `RangeError`.
+    - **Green.**
+      - In a scratch layout like task 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+      - The `MODULE_TYPELESS_PACKAGE_JSON` warning is accepted, because `package.json` stays unchanged.
+    - **Bundle.** `npx --no-install remotion bundle` succeeds for the probe's scratch entry, which imports both modules. That entry uses an explicit `.ts` import of `./onda/motion.ts`, which also shows that webpack accepts that import.
+    - **PR checks.** The PR's `template-tests` run is green, and its log shows the theme and text tests passing.
+    - **Full unit.** The full OCU unit command passes.
+  - Non-goals:
+    - scene components;
+    - the probe composition of 3.7;
+    - fonts beyond the installed family;
+    - picking the theme (4.6);
+    - applying `brand` at the root (3.8);
+    - a TypeScript type check. The template has none; `tsconfig` `lib: ES2018` lacks `Intl.Segmenter`, so the helper reaches it through a local type declaration.
+
 - [ ] 3.4 Define the `script.json` schema in a `.mjs` module:
   - 1920×1080 at 30 fps;
   - the hook / 3–5 chapters / summary / end-card skeleton;
