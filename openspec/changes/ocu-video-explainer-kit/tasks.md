@@ -597,6 +597,64 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
 
   Verify that `npx --no-install remotion bundle` of the template succeeds and the notice-coverage test passes.
 
+  **Task 3.2 required evidence** (issue #824):
+  - Triage: feature (vendored third-party source). Fixture level compact, overriding the group's expanded: this slice adds no file format or CLI. It adds vendored library code, its notices and a notice test.
+  - Governing invariant: every kit file that comes from a third-party source names that source, its commit and its licence in a header, and the repository's notices list the same source with the same licence. The licence text ships with the code.
+  - Risk packs:
+    - Release / packaging — selected: the kit ships into the workspace image with the template; the MIT text ships beside it.
+    - Legacy compatibility — selected: `tests/test_remotion_image.py`, `tests/test-project-structure.sh`, the template's `package.json` and lock (no new dependency), and the existing `Root.tsx` and `index.ts` behaviour are unchanged.
+    - Documentation — selected: the OCU `CLAUDE.md` header rule gains the third-party exception.
+    - Not selected: schema, CLI, runtime behaviour (nothing imports the kit yet).
+  - Source: `degueba/onda` commit `3c814051269597b31fee1603bef7ccfb93d091b6` (2026-06-17), `lib/`, MIT, "Copyright (c) 2026 Rodrigo Botelho". Fetch it by that full SHA, for example `gh api repos/degueba/onda/tarball/<sha>`.
+  - Shape (OCU repository):
+    - Destination `remotion-template/src/kit/onda/`. It gets every file of `lib/` and `lib/primitives/`, keeping their relative paths, except `adaptive-player.tsx`, `composition-json-schema.ts` and `registry-summary.ts`.
+    - `index.ts` loses the three export blocks of the dropped files and nothing else. No other file references a dropped file except in comments.
+    - The zod 4 fix in `composition.ts`: `z.record(z.unknown())` becomes `z.record(z.string(), z.unknown())`. zod 4.5.4 still accepts the one-argument form at run time, so the fix is for the zod 4 signature, and no red test exists for it. No other code change.
+    - The vendored files keep only these external imports, all already in the template's `package.json`: `react`, `remotion`, `zod` and `@remotion/motion-blur`. Nothing is added to `package.json` or the lock.
+    - Header: each vendored file starts with these three lines, in place of the repository's FSL header, followed by the original content:
+
+      ```
+      // SPDX-License-Identifier: MIT
+      // Source: degueba/onda 3c814051269597b31fee1603bef7ccfb93d091b6 lib/<path> MIT
+      // Copyright (c) 2026 Rodrigo Botelho. <"Unmodified." | "Modified: <what>.">
+      ```
+
+      The last token of the `Source:` line is the source's licence. A later task that borrows only a format into code the repository writes itself keeps its FSL SPDX line and names the source's licence there. Tasks 3.4 (PolyForm) and 5.2 (Apache-2.0) are such cases.
+
+    - `remotion-template/src/kit/onda/LICENSE` holds Onda's MIT text verbatim from that commit.
+    - `NOTICE` gains a section for third-party sources in the explainer kit (`remotion-template/src/kit/`), with an entry naming Onda: `degueba/onda`, the commit, MIT, the copyright line and the path. `THIRD-PARTY-LICENSES.md` gains a table row in the same form as its other rows.
+    - `remotion-template/tests/notice-coverage.test.mjs` is the notice test. It uses `node:test` and the standard library only, so it runs in `template-tests`. It resolves every path from `import.meta.url`, so it gives the same result from the repository root (CI) and from the template directory.
+      - It scans `remotion-template/src/kit/` and `remotion-template/bin/`, the latter as empty when absent.
+      - Every `.ts`, `.tsx`, `.mjs` or `.js` file carries an `// SPDX-License-Identifier: <id>` line within its first 3 lines. Any other file fails, unless its basename is `LICENSE`.
+      - A `// Source: <owner>/<repo> <sha> <path> <licence>` line within the first 3 lines must have a 40-character lowercase hex `<sha>`.
+      - A file whose SPDX id is not `FSL-1.1-Apache-2.0` must carry a `Source:` line, and its SPDX id must equal that line's licence.
+      - For each distinct triple of `<owner>/<repo>`, the first 8 characters of `<sha>`, and the licence found in `Source:` lines:
+        - in `NOTICE`, exactly one blank-line-separated paragraph contains `<owner>/<repo>`, and it also contains the sha prefix and the licence;
+        - in `THIRD-PARTY-LICENSES.md`, exactly one table row contains `<owner>/<repo>`, and that row also contains the sha prefix and the licence.
+
+        A licence matches only as a whole token: not preceded or followed by `[A-Za-z0-9.-]`. So `FSL-1.1-Apache-2.0` does not match `Apache-2.0`.
+
+      - Every file whose SPDX id is not `FSL-1.1-Apache-2.0` must have a `LICENSE` in its own directory or in the nearest ancestor directory below `src/kit/` or `bin/`. Files in `src/kit/onda/primitives/` therefore find `src/kit/onda/LICENSE`. That `LICENSE` must contain the file's copyright: header line 3 without its `// ` prefix and without everything from the first `. ` onward, for example `Copyright (c) 2026 Rodrigo Botelho`. When the licence is `MIT`, it must also contain `Permission is hereby granted`.
+      - The test fails when no file carries a `Source:` line, since a pass over nothing would prove nothing.
+
+    - OCU `CLAUDE.md` gains one sentence after its existing header rules: third-party files under `remotion-template/src/kit/` keep their source's SPDX licence and a `Source:` line, and carry no Open Computer Use copyright. The sentence must not contain the literal `SPDX-License-Identifier: MIT`, because `tests/test_remotion_image.py` `test_claude_md_lists_skill_md_as_mit` reads the first line that does.
+
+  - Must preserve: `remotion-template/src/Root.tsx`, `remotion-template/src/index.ts`, `package.json`, `package-lock.json`, the Dockerfile and the `.dockerignore` rules of task 3.1; the existing smoke test; every production file outside the template, `NOTICE`, `THIRD-PARTY-LICENSES.md` and `CLAUDE.md`.
+  - Required evidence:
+    - **Red.** The notice test fails before the vendoring, because no file carries a `Source:` line. With the kit in place it also fails in each of these cases, each restored afterwards:
+      - the Onda `NOTICE` paragraph removed;
+      - the `THIRD-PARTY-LICENSES.md` row removed;
+      - one header's `Source:` line removed;
+      - one header's SPDX and `Source:` licence changed to `Apache-2.0`, which the same-entry rule must catch;
+      - `src/kit/onda/LICENSE` removed.
+    - **Green.** In a scratch copy of the template outside the repository, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass. The scratch directory mirrors the repository layout: `NOTICE` and `THIRD-PARTY-LICENSES.md` sit beside the template copy, so the test's `../../NOTICE` path resolves.
+    - **Bundle.** `npx --no-install remotion bundle` of the template succeeds. A second bundle of a scratch entry, in the scratch copy only and not committed, that imports `* as kit from './kit/onda'` and registers one composition using `CompositionRenderer` also succeeds. Then `npx --no-install remotion still` of that composition renders one frame, which evaluates the kit's modules under React 19. The scratch composition's `defaultProps` holds one valid entry for a registered scratch component that renders a fixed text, and the evidence shows that text in the frame, not `ErrorPlaceholder`. The scratch copy has no headless browser after `npm ci`, so `npx --no-install remotion browser ensure` runs there once beforehand; that one download is the only network use. The plain bundle never reaches `src/kit/`, so alone it proves nothing about the kit.
+    - **Upstream comparison.** A byte comparison of each vendored file with upstream, after its three header lines, shows only the documented changes: `index.ts` (three export blocks) and `composition.ts` (the record call). `LICENSE` is compared whole with upstream's root `LICENSE`.
+    - **Unchanged guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass unchanged.
+    - **PR checks.** The PR's `template-tests` run is green, and its log shows both test files passing.
+    - **Full unit.** The full OCU unit command passes.
+  - Non-goals: theme tokens (3.3), the schema (3.4), any scene component, wiring the kit into `Root.tsx`.
+
 - [ ] 3.3 Add the theme token module and the Chinese text helper:
   - punctuation and character-count segmentation;
   - no closing punctuation at line start;
