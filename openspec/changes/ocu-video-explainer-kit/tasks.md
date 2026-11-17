@@ -754,6 +754,16 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - **Bundle.** `npx --no-install remotion bundle` succeeds for the probe's scratch entry, which imports both modules. That entry uses an explicit `.ts` import of `./onda/motion.ts`, which also shows that webpack accepts that import.
     - **PR checks.** The PR's `template-tests` run is green, and its log shows the theme and text tests passing.
     - **Full unit.** The full OCU unit command passes.
+  - Amended after review round 1 (OCU #244, 2026-11-17). Where these differ from the bullets above, these bind:
+    - **Trailing spaces.** In a unit's core width, "its trailing spaces" means only the spaces after the unit's last character that is not a space. A space that sits before closing marks is rendered and counts toward the core width.
+    - **Oversized split.** In the character split, opening marks and the spaces after them bind to the next character. A space ends a piece only after a character that is not an opening mark.
+    - **Errors.** `RangeError` is also thrown when a piece of the character split still has a core width above `maxWidth`, for example a character followed by a closing run wider than `HANG`. The message names the piece and `maxWidth`. Such input has no valid output, and failing loudly is preferred to an overflowing line.
+    - **Input edges.** The invariant on line starts and line ends does not apply to the input's own edges. A text that starts with a closing mark or ends with an opening mark keeps that mark on its first or last line, because the helper never changes the text.
+    - **Evidence added:**
+      - regression cases for spaces before closing marks, for example `研究使用 COVID-19 ）。结果` at width 8 stays within `maxWidth + HANG`;
+      - the RangeError cases;
+      - `（ abc` at width 2 leaves no opening mark at a line end;
+      - `+` and `万` after a non-digit.
   - Non-goals:
     - scene components;
     - the probe composition of 3.7;
