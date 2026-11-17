@@ -762,7 +762,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - **Evidence added:**
       - regression cases for spaces before closing marks, for example `研究使用 COVID-19 ）。结果` at width 8 stays within `maxWidth + HANG`;
       - the RangeError cases;
-      - `（ abc` at width 2 leaves no opening mark at a line end;
+      - `（ abc` at width 2 throws `RangeError`, because its leading opening mark and space fill the width, and at width 3 it gives `（ a` and `bc`, leaving no opening mark at a line end;
       - `+` and `万` after a non-digit.
   - Non-goals:
     - scene components;
@@ -938,6 +938,220 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - `voice` stems carry the hash of text, voice and instructions, and change when any of them changes;
   - `voice-import` places a suffixed file under its stem;
   - `image` sanitizes a name with spaces and parentheses.
+
+  **Task 3.5 required evidence** (issue #827):
+  - Triage: feature (CLI and a schema addition). Fixture level expanded: the kit's command entry is the interface every later task and the skill call, and the slice adds the `voice` field to `script.json` version 1.
+  - Governing invariants:
+    - `new` either creates a complete project or changes nothing.
+    - A block's audio file name binds its text, voice and instructions. `voice` and `voice-import` derive it from one function, which 3.6 reuses.
+    - `voice-import` and `image` read only regular files inside the files root, and write only inside the project's `public/`.
+    - Every command that reads `script.json` calls `validateScript` and fails before writing anything when the script is invalid.
+  - Risk packs:
+    - CLI: selected. One entry, exit codes and output format, below.
+    - File IO: selected. Atomic writes, symlink and escape refusal, collisions.
+    - Schema: selected. The `voice` addition, the `music` id tightening and the deferred #826 findings, below.
+    - Error handling: selected. Usage errors, an invalid script, missing files.
+    - Legacy compatibility: selected. The template keeps its current sources; `tests/test_remotion_image.py` and `tests/test-project-structure.sh` stay green.
+    - Not selected: auth, network (the kit never opens a socket), and the server (no server or tool change).
+  - Shape (OCU `remotion-template/`):
+    - **`bin/kit.mjs`** is plain JavaScript. It imports only `node:` built-ins, `./script-schema.mjs` and `./voice-stem.mjs`, and needs no network. Both new `bin/` files carry the two-line FSL header, which the notice test checks.
+      - It exports `async run(argv, io)` for tests. `run` resolves to the exit code and never calls `process.exit`.
+      - `io` is `{root, videosRoot, filesRoot, stdout, stderr}`. `stdout` and `stderr` are objects with `.write(string)`. `run` never reads `process.cwd()`.
+      - When the file is executed directly, it sets `process.exitCode` from `run(process.argv.slice(2), …)`, with these defaults:
+        - `root`: the directory above the script's own `bin/`. This is `/opt/remotion-template` for `node /opt/remotion-template/bin/kit.mjs new <name>`, and the project for `node bin/kit.mjs <subcommand>` inside a project.
+        - `videosRoot`: `/home/assistant/videos`.
+        - `filesRoot`: `/mnt/user-data/files`.
+
+        No environment variable changes them.
+
+      - **Exit codes.**
+        - `0` on success.
+        - `1` on a refused or failed step.
+        - `2` on a usage error. That covers an unknown subcommand, a missing or extra argument, `new` run from a project, and any other subcommand run from the template.
+      - **Where the kit runs.** The template is a root whose `node_modules` is a real directory (not a symlink).
+        - `new` runs only there.
+        - Every other subcommand refuses there with exit 2 and the hint `cd /home/assistant/videos/<name> && node bin/kit.mjs <subcommand>`. This stops `node /opt/remotion-template/bin/kit.mjs voice` from silently reading the example script.
+      - **Streams.**
+        - stdout carries only data: the project path from `new`, the call lines from `voice`, and the name from `image`.
+        - Everything else goes to stderr, each line prefixed `kit <subcommand>: `, or `kit: ` when no subcommand was given. That covers usage text, counts, warnings, errors, and one line per missing stem from `voice-import`. The only exceptions are the indented message lines of an invalid script, described next.
+      - **A missing `root/script.json`** gives exit 1 and `kit <subcommand>: <path>: not found`.
+      - **An invalid script** gives exit 1. The output is these lines, in order:
+        1. `kit <subcommand>: script.json is invalid`;
+        2. the first 20 `validateScript` messages, one per line, each prefixed with two spaces;
+        3. when there are more, `  … and <k> more`.
+      - A subcommand added later (3.6, 5.1, 5.3) is one more entry in the same dispatch table.
+
+    - **`new <name>`**:
+      - `<name>` must match `^[a-z0-9][a-z0-9-]{0,39}$`. Any other name is a usage error.
+      - It refuses with exit 2 unless `root/node_modules` is a real directory (not a symlink). That is, it runs only from the template, never from a project.
+      - The target is `videosRoot/<name>`. It fails with exit 1, naming the directory and changing nothing, when the target exists and is not an empty directory. That includes a file, a symlink, or a directory with any entry, such as an old project's `src/Root.tsx`. `videosRoot` is created when absent.
+      - It copies every entry of `root` except `node_modules`, `tests` and `out`.
+        - The copy walks entries in sorted order.
+        - A symlink is refused, naming it, at the point the walk reaches it, not in a prescan.
+        - The copies are regular files and directories owned by the caller, with `u+w`.
+      - It creates `node_modules` as a symlink to the absolute `root/node_modules`.
+      - It builds the project in a temporary sibling directory and moves it into place with one rename. On failure the temporary directory is removed. An existing empty target directory is removed just before the rename.
+      - It prints the project path.
+    - **The example script.** `remotion-template/script.json` is tracked at the template root, and `new` copies it.
+      - It passes `validateScript` unchanged.
+      - It has 3 chapters, `music` `none`, no `image` and no `custom` scene.
+      - Its narration is Chinese.
+      - It has no `voice` object.
+      - Task 4.6 adjusts the example to the approved kinds.
+    - **`voice` in the schema.** Version 1 gains one optional top-level field, `voice: {id?, instructions?}`. It is a strict object, and both fields are optional.
+      - `id` is 0–64 characters matching `^[A-Za-z0-9._-]*$`. The empty string means the server's default voice.
+      - `instructions` is 0–200 characters.
+      - Defaults are filled after parsing, as for the end card's narration, not with `.default` (Decision 3). A missing `voice`, `id` or `instructions` comes back as `""` in `{id, instructions}`.
+      - Errors follow the 3.4 table's top-level row, with `chapter` and `scene` `null`:
+
+        | Case                    | `field`              | `limit`                     |
+        | ----------------------- | -------------------- | --------------------------- |
+        | `id` too long           | `voice.id`           | `64 characters`             |
+        | `id` pattern            | `voice.id`           | `letters, digits, . _ or -` |
+        | `instructions` too long | `voice.instructions` | `200 characters`            |
+        | unknown key             | `voice.<key>`        | `unknown key`               |
+
+      - `script.schema.json` is regenerated, and the drift test keeps passing.
+
+    - **Block stems.** `bin/voice-stem.mjs` exports `blockStems(script)`. It returns one entry per caption block, in playback order: `{scene, sentence, block, text, stem}`.
+      - `scene` is the 1-based position in playback order: hook is 1, then the chapter scenes in order, then summary and end card.
+      - `sentence` and `block` are 0-based.
+      - `stem` is `s<scene>-<sentence>-<block>-<hash>`. `<hash>` is the first 8 lowercase hex characters of SHA-256 over the UTF-8 of `JSON.stringify([text, voice.id, voice.instructions])`.
+      - 3.6 imports this module rather than recomputing the stem.
+    - **`voice`**:
+      - It validates `root/script.json`.
+      - For each block whose `public/voice/<stem>.wav` is not a regular file, it prints one line to stdout.
+        - The line is a JSON object with exactly these keys, which are the arguments of `generate_speech`: `text`, `filename` (`<stem>.wav`), `voice` (from `voice.id`) and `instructions` (from `voice.instructions`).
+        - Listing only the missing blocks refines the spec's "one call per caption block". Re-running `voice` after a partial import asks only for what is still missing.
+      - It then prints to stderr `<n> of <m> blocks need speech`.
+      - It writes nothing.
+    - **`voice-import`**:
+      - It validates the script.
+      - A stem whose `public/voice/<stem>.wav` is already a regular file is satisfied. It is not copied again, and it does not count as missing, even when its source is gone from `filesRoot`.
+      - For each other stem, it searches `filesRoot` in this order:
+        1. `<stem>.wav`;
+        2. `<stem> (<N>).wav`, with N a decimal integer of 2 or more without leading zeros, in ascending N.
+
+        It takes the first regular file. A symlink or a directory is skipped with a warning, and the search continues.
+
+      - It copies the file to `public/voice/<stem>.wav` through a temporary file in the same directory and a rename. The source's content is not checked, because the stem binds the content.
+      - It prints `imported <k> of <m>` to stderr. `m` counts all stems. `k` counts the stems copied now plus those already present.
+      - When any stem is still missing, it lists the missing stems and exits 1. The stems that were found are copied first.
+      - It never deletes a file in `public/voice/`.
+
+    - **`public/`.** `voice-import` and `image` create `public/voice/` and `public/images/` when they are absent. They fail with exit 1 when `public` or either directory is a symlink or not a directory.
+    - **`image "<path>"`**:
+      - An absolute path is used as given. A relative path resolves against `filesRoot`, so `image "generated-image (2).png"` works.
+      - The resolved path, after `realpath`, must be a regular file inside `realpath(filesRoot)`. Anything else fails with exit 1, naming the path: a path outside the files root, a symlink that resolves outside it, or a directory.
+      - The extension, lowercased, must be `png`, `jpg`, `jpeg` or `webp`.
+      - **Sanitizing the name** works on the stem:
+        1. replace every run of characters outside `[A-Za-z0-9._-]` with `-`;
+        2. collapse any run of `.` to one `.`;
+        3. truncate to 60 characters;
+        4. drop leading characters that are not `[A-Za-z0-9]`, and trailing `-` and `.`;
+        5. use `image` when the result is empty;
+        6. append `.` and the lowercased extension.
+
+        The result always matches `IMAGE_NAME`. For example, `generated-image (2).png` becomes `generated-image-2.png`.
+
+      - **Collisions.** When `public/images/<name>` exists with a different SHA-256, the command appends `-2`, `-3` and so on before the extension, up to the first free name or the first name with identical content. Identical content reuses the name.
+      - It copies through a temporary file and a rename, then prints only the final name. That name is what the model writes in `script.json`.
+
+    - **Deferred findings from #826 (OCU #245 review), fixed here because `voice` is the first caller of `validateScript`:**
+      - **P2.** Two cases now return one error, `{chapter: null, scene: null, field: "script.json", limit: "size"}`, with the message `script: script.json is too large to validate (limit size)`:
+        - a text longer than 1 MiB in UTF-8, which is refused before parsing;
+        - a `RangeError` thrown inside validation, such as zod's stack overflow above about 105,000 nested issues.
+
+        Only `RangeError` is caught; any other exception propagates. The number of errors stays unbounded in `validateScript`. That is accepted, because the CLI prints only 20.
+
+      - **Echo bounds.**
+        - A chapter name in `chapter` and `message`, and an unknown key in `field` and `message`, are first cut to 40 code points plus `…` when longer.
+        - Then U+0000–U+001F, U+007F–U+009F, U+2028 and U+2029 are written as `\n`, `\t` and `\r`, or otherwise as `\u` with four lowercase hex digits.
+        - Every other character, including `"` and `\`, is unchanged.
+
+        This amends the table row `"<n> <name>"` only for names over 40 code points or with those characters. The existing 7-character chapter-name assertion is unchanged.
+
+      - **`music`** is `none`, or a track id matching `^[a-z0-9][a-z0-9-]{0,39}$`. This replaces `^[a-z0-9-]+$`, which allowed a leading `-` and had no length cap. Task 6.5 passes the id to ffmpeg.
+        - Its `limit` becomes `none or a track id: a-z or 0-9 first, then a-z, 0-9 or -, at most 40 characters`.
+        - The one existing assertion of the old text changes to this.
+      - **Tests.**
+        - Each nested strict object gets an unknown-key case: comparison side, process step, timeline event, chart point, callout and custom scene.
+        - Each per-kind content field gets a limit+1 case that asserts `field` and `limit`. Before this, the drift test alone covered these.
+      - **Accepted behaviour, not changed.** When a scene's `kind` is missing or unknown, only the `kind` error is reported for that scene, because its shape is unknown. Unknown keys in that scene are reported after the kind is fixed.
+
+  - Must preserve:
+    - every file of tasks 3.1–3.4, except `bin/script-schema.mjs`, `script.schema.json` and `tests/script-schema.test.mjs`, which change only as listed above;
+    - `package.json`, `package-lock.json`, `Root.tsx`, `src/index.ts`, `src/kit/**`, `NOTICE`, the Dockerfile and `.dockerignore`.
+
+    New files: `bin/kit.mjs`, `bin/voice-stem.mjs`, `script.json`, `tests/kit.test.mjs` and `tests/voice-stem.test.mjs`.
+
+  - Required evidence, red first (`node:test`, temporary directories for `videosRoot`, `filesRoot` and a template copy):
+    - **`new`:**
+      - It creates the project with the template sources, a `node_modules` symlink to the template's, and a `script.json` that passes `validateScript`. It leaves no `tests`, `out` or temporary directory behind.
+      - An existing empty target directory is accepted.
+      - Each of these is refused, with exit 1 naming the directory and a byte-identical tree afterwards: a target holding only `src/Root.tsx`, a target that is a file, and a target that is a symlink.
+      - A bad name (`Water`, `-x`, `a/b` and a 41-character name), a missing name and an extra argument each give exit 2.
+      - Running from a project root (a symlinked `node_modules`) gives exit 2.
+      - `voice` run from the template root gives exit 2 with the hint.
+      - When a copy fails partway, the target is absent and no temporary directory remains. The failure is injected by a template symlink named `zz-link`, which the sorted walk reaches last.
+    - **Stems:**
+      - Changing the text, the voice id or the instructions each changes the hash. Changing the block position changes the prefix only.
+      - The stems of the example script are unique.
+      - The end card without narration has no stems.
+    - **`voice`:**
+      - Its output is one JSON line per missing block, with exactly the four keys. Blocks whose `public/voice/<stem>.wav` exists are skipped.
+      - An invalid script gives exit 1 with the located message, and nothing is written.
+      - A script with 25 errors prints 20 lines and then `… and 5 more`.
+      - A missing `script.json` gives exit 1 with `not found`.
+    - **`voice-import`:**
+      - `s1-0-0-<hash> (2).wav` lands as `public/voice/s1-0-0-<hash>.wav`.
+      - With both the exact name and a suffixed name present, the exact name wins.
+      - With `(3)` and `(2)` present, `(2)` wins.
+      - A symlink with a stem's name is ignored with a warning.
+      - A missing stem gives exit 1 listing it, while the others are still imported.
+      - A second run after the sources are deleted gives exit 0 with `imported <m> of <m>`.
+      - A `public/voice` that is a symlink gives exit 1.
+    - **`image`:**
+      - The bare relative name `generated-image (2).png` gives `generated-image-2.png`.
+      - A Han-only name gives `image.png`, and `A..B.PNG` gives `A.B.png`.
+      - 59 × `a` followed by `.b.png` gives 59 × `a` followed by `.png`.
+      - A second, different file of the same name gives `-2`. An identical file reuses the name.
+      - `../x.png`, an absolute path outside `filesRoot`, a symlink inside `filesRoot` pointing outside it, a directory and a `.gif` each fail with exit 1.
+      - A fuzz over 1,000 random names always yields a name that matches `IMAGE_NAME`. The names include spaces, parentheses, dots, Han characters, control characters, emoji, and names over 60 characters with a `.` at position 60.
+    - **Schema:**
+      - `voice` is absent, present and invalid (an unknown key, a 65-character id, a 201-character instruction).
+      - `music` `-x` and a 41-character id are refused.
+      - The size cases: `hook.narration` `[[1 × 500000]]` (under 1 MiB) and a 2 MiB text each return `ok: false` with `limit` `size`.
+      - A non-`RangeError` thrown inside validation propagates. The test injects it with `node:test`'s `mock.method(scriptSchema, "safeParse", …)`; the production code gets no seam.
+      - The echo bounds: a 100-character chapter name and an unknown key holding `\n` and U+2028 appear cut and escaped exactly as specified.
+      - The nested-strict and limit+1 cases described above.
+      - The regenerated `script.schema.json` equals `scriptJsonSchema()`.
+    - **Green:**
+      - In a scratch layout like task 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+    - **Offline run in the image:**
+      - Image and flags: the local production workspace image `open-computer-use:3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5`, run with `--rm --platform linux/amd64 --network none --user assistant`, the user production runs commands as.
+      - Setup: bind-mount the PR's `remotion-template/bin`, `script.json` and `script.schema.json` read-only (`:ro`) at the same paths under `/opt/remotion-template/`. The image's `node_modules` already holds zod 4.5.4.
+      - Steps:
+        - run `node /opt/remotion-template/bin/kit.mjs new water-cycle`;
+        - then, in `/home/assistant/videos/water-cycle`, run `node bin/kit.mjs voice`;
+        - then run `npx --no-install remotion bundle`.
+      - Recorded in the PR:
+        - the project tree at depth 1, owned by `assistant`;
+        - the `node_modules` link target, which must be `/opt/remotion-template/node_modules`;
+        - the voice-line count, which equals the example's block count;
+        - the bundle exit code.
+    - **Unchanged guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+    - **PR checks.** The PR's `template-tests` run is green, and its log shows the kit, stem and schema tests passing.
+    - **Full unit.** The full OCU unit command passes.
+  - Non-goals:
+    - `timeline`, `check`, `render` and `status` (3.6, 5.x);
+    - deleting stale voice files;
+    - converting MP3 speech, since `voice` always asks for WAV;
+    - the skill text (7.2);
+    - installing the kit's example or commands into the image beyond the existing `COPY` of the template (7.1 tests it in the built image);
+    - the text helper test gap from #825 (task 3.7's fixture).
+
 - [ ] 3.6 Implement `kit timeline`: silence trim, decoded durations, the gaps (0.06 s within a sentence, 10/20/45 frames, 40 lead-in, 90-frame tail as the end card's closing part), the 15-frame transition slots inside the post-narration gaps, narration normalized to -16 LUFS, recorded hashes, and the 60–180 s window. Verify with fixture audio:
   - block frames are within one frame;
   - every transition slot lies inside its gap, and an end card without narration lasts 90 frames;
