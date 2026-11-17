@@ -459,10 +459,35 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
   - Non-goals: normalization, the image install, approval (#842–#845).
 
 - [ ] 6.2 The user listens and exports decisions. Commit the export as the tracked approval file, linking it. Verify that the file holds one decision per candidate, with the user as approver.
+
+  **Task 6.2 required evidence** (issue #842, human-gated: the PR is reviewed but never merged by an agent):
+  - Triage: test data (a recorded human decision). Fixture level compact, overriding the issue's expanded: the slice commits one JSON file, one README paragraph and one static test. It changes no Dockerfile, no download and no manifest format.
+  - Risk packs:
+    - Schema / field names — selected: the file must load through the existing `music_candidates.load_decisions`, unchanged.
+    - Documentation — selected: the README paragraph.
+    - Others not selected: nothing reads the file at build or run time until 6.3.
+  - The user's export, handed to the orchestrator on 2026-11-17 UTC from the listening page built in #841: `version` 1, `reviewer` `Danker`, `date` `2026-11-16`, 24 decisions (15 `approve`, 9 `drop`), SHA-256 `207fcbd170d914cb96135e30fb03a6a2e9b7fccde5873d0e6b96ab1b45c99b6b`. The orchestrator hands the file to the implementer.
+  - Shape:
+    - `deploy/music/approvals.json` is the export byte for byte. No reformatting, no added field (`load_decisions` accepts exactly four keys).
+    - "Linking it" is met without a new field: the committed file is the export itself, pinned by SHA-256 in the test and the README; the PR body records its origin (the #841 listening page, handed over by the user) and its SHA-256; 6.3's manifest `approval link` points at `deploy/music/approvals.json`.
+    - `deploy/music/README.md` gains a short "Approval" section: the file is the user's unmodified listening export, its SHA-256, and the approval date, which is the export's `date` field `2026-11-16`; the approved count per mood (calm-curious 6, upbeat-corporate 2, neutral-serious 3, loop 4), below the target of four for two moods, which the spec reports rather than fails; and 6.3's manifest takes its approver and approval date from this file. The line "the tracked approval file come[s] later" is updated.
+  - Must preserve: `music_candidates.py`, `listening_page.py`, `candidates.json`, `excluded.json`, `evidence/` and every existing test, unchanged.
+  - Required evidence: a new test in `tests/deploy/test_music_listening.py` (`RealMusicFilesTests`), red before the file exists:
+    - `load_decisions(deploy/music/approvals.json, candidates)` returns one decision for each of the 24 tracked candidates;
+    - `reviewer` is `Danker` and `date` is `2026-11-16`;
+    - the file's SHA-256 equals the value above, so an edit after the export fails;
+    - the approved count per mood equals `{"calm-curious": 6, "upbeat-corporate": 2, "neutral-serious": 3, "loop": 4}`, the numbers the README states.
+    - The orchestrator's full OCU unit run on the frozen head passes.
+  - Orchestrator: before opening the PR, `cmp` the committed file with the user's export. Leave the PR open for the user to merge.
+  - Non-goals: the source manifest, normalization and the image step. The `observing-the-star` re-release note is extended in 6.3 (see there), not here.
+
 - [ ] 6.3 Write the tracked source manifest for the approved tracks (URL, `source_sha256`, evidence, mood, loop flag, approval link; no audio binaries) and the normalization script (MP3 for non-loop, WAV for loop, -16 LUFS / -1.5 dBTP) that writes the shipped manifest with `shipped_sha256`. Verify with a static test and fixture tracks:
   - approvers match the approval file;
   - the per-mood counts are reported against the target of four;
   - on short fixture tracks, the script's outputs measure within 0.5 LU of -16 LUFS and below -1.5 dBTP with `ffmpeg ebur128`, and a fixture with a wrong `source_sha256` fails naming the track.
+
+  Before 6.3's manifest is written, extend `observing-the-star`'s `rerelease_note`, which searched only its file title, with the search under its OpenGameArt page title (PR #234 review). The orchestrator ran it on 2026-11-17 UTC: the iTunes Search API (term "Another space background track", with and without "yd") returned no track of that title or by that author, and MusicBrainz recording searches for "Another space background track" and "Observing The Star" (any artist) returned 0 recordings. The track was approved in 6.2, so 6.3 ships it only with this note recorded.
+
 - [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
   - narrated windows sit 15 ± 3 dB below the narration, with ramps of 0.5 ± 0.1 s;
