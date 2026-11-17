@@ -2,17 +2,17 @@
 
 ## 1. Pin the workspace base image (OCU)
 
-- [ ] 1.1 Change the root `Dockerfile` line `FROM ubuntu:24.04` to `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d`, the linux/amd64 image manifest of `noble-20261024.1`. Verify on the release host:
+- [x] 1.1 Change the root `Dockerfile` line `FROM ubuntu:24.04` to `FROM ubuntu:24.04@sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d`, the linux/amd64 image manifest of `noble-20261024.1`. Verify on the release host:
   - after a pull, `docker image inspect` of the pinned reference shows `RootFS.Layers` = [`sha256:bec87777bc2fb2edcdf9af11df1531469e7df911309c1413082b18fcb8610278`] (the layer diff_id; `imagetools inspect` shows only the compressed blob `7a48b8f0…`);
   - a cached rebuild of the workspace role yields configuration digest `3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5`.
 
   A no-cache rebuild is not expected to reproduce it.
 
-- [ ] 1.2 Make `deploy/release.py` read the root recipe's `FROM` digest and record the workspace material `{"name": "base", "kind": "base-image", "requested": "ubuntu@sha256:<digest>"}`; a recipe without a digest fails the build before any image is built. Update the release-test fixture root recipes (`tests/deploy/test_offline_release.py`, now `FROM scratch`) to carry a digest. Verify with release tests:
+- [x] 1.2 Make `deploy/release.py` read the root recipe's `FROM` digest and record the workspace material `{"name": "base", "kind": "base-image", "requested": "ubuntu@sha256:<digest>"}`; a recipe without a digest fails the build before any image is built. Update the release-test fixture root recipes (`tests/deploy/test_offline_release.py`, now `FROM scratch`) to carry a digest. Verify with release tests:
   - a new inventory carries the material and passes `verify`;
   - an undigested root recipe fails the build naming the line, and writes no inventory;
   - an existing version-2 fixture inventory without the material still passes `verify` and import.
-- [ ] 1.3 Add a static test that fails, naming the line, when the root `Dockerfile`'s `FROM` has no `@sha256:`. Verify it fails on the old line and passes on the new one. Other Dockerfiles are out of scope.
+- [x] 1.3 Add a static test that fails, naming the line, when the root `Dockerfile`'s `FROM` has no `@sha256:`. Verify it fails on the old line and passes on the new one. Other Dockerfiles are out of scope.
 
   **Group 1 required evidence** (issue #815; authoritative where it is more specific than the bullets above):
   - Triage: feature; fixture level expanded, agreeing with upstream. Blast radius: every release build, and every import, verify and retarget of an existing release.
@@ -56,7 +56,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
 
 ## 2. Evaluation stack and baseline (OCU tooling)
 
-- [ ] 2.1 Write the `ocu-eval` compose definition and the start script. The stack:
+- [x] 2.1 Write the `ocu-eval` compose definition and the start script. The stack:
   - uses release images loaded from a package under `/home/nwm/ocu-eval/`, unmodified;
   - binds ports to 127.0.0.1;
   - sets `ENABLE_NETWORK=false`;
@@ -91,11 +91,11 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - `computer-use-server`:
       - `image: ${COMPUTER_USE_SERVER_IMAGE:?…}` and `ports: !override []`;
       - `volumes: !override` with only the docker socket and a same-path `${EVAL_ROOT}/data` bind;
-      - `environment: !override` mapping: `ENABLE_NETWORK: "false"`, `BASE_DATA_DIR: ${EVAL_ROOT}/data`, `DOCKER_IMAGE`, `MCP_API_KEY`, `OCU_INTERNAL_TOKEN`, and `TTS_BASE_URL` / `TTS_MODEL` / `TTS_VOICE` / `TTS_API_KEY` (left empty here; #817 sets them);
+      - `environment: !override` mapping: `ENABLE_NETWORK: "false"`, `BASE_DATA_DIR: ${EVAL_ROOT}/data`, `DOCKER_IMAGE`, `MCP_API_KEY`, `OCU_INTERNAL_TOKEN`, `CONTAINER_IDLE_TIMEOUT: "259200"` (production's value, so a three-day run is not reaped), and `TTS_BASE_URL` / `TTS_MODEL` / `TTS_VOICE` / `TTS_API_KEY` (left empty here; #817 sets them);
       - no `VISION_*`, no `ANTHROPIC_*`, and no dmxapi key.
     - `open-webui`:
       - `ports: !override ["127.0.0.1:${EVAL_WEBUI_PORT}:8080"]` and `image: ${OPENWEBUI_IMAGE}`;
-      - `environment: !override` with `DATABASE_URL` to the eval postgres, `WEBUI_SECRET_KEY`, `OPENAI_API_BASE_URL=https://www.dmxapi.cn/v1`, `OPENAI_API_KEY` (the dmxapi key), `ENABLE_OLLAMA_API=false`, `OFFLINE_MODE=true`, `ENABLE_OCU_WORKSPACE=true`, `OCU_INTERNAL_URL=http://computer-use-server:8081`, `OCU_INTERNAL_TOKEN` and `ENABLE_OCU_OFFICE_EDIT=false`.
+      - `environment: !override` with `DATABASE_URL` to the eval postgres, `WEBUI_SECRET_KEY`, `OPENAI_API_BASE_URL=https://www.dmxapi.cn/v1`, `OPENAI_API_KEY` (the dmxapi key), `ENABLE_OLLAMA_API=false`, `OFFLINE_MODE=true`, `ENABLE_OCU_WORKSPACE=true`, `OCU_INTERNAL_URL=http://computer-use-server:8081`, `OCU_INTERNAL_TOKEN`, `ENABLE_OCU_OFFICE_EDIT=false`, and `WEBUI_ADMIN_EMAIL` / `WEBUI_ADMIN_PASSWORD` from the admin credentials, so the admin exists before the port accepts a first signup.
     - `postgres`: `image: ${POSTGRES_IMAGE}` and `POSTGRES_PASSWORD`.
     - `open-webui-init` follows `deploy/production-like-test/compose.webui.override.yml` (~110-140):
       - `image: ${OPENWEBUI_IMAGE}`, `user: "0:0"`, and the `run-init.sh` entrypoint;
@@ -105,16 +105,16 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
       - `OCU_ORG_PROMPT_FILTER` unset, and `restart: "no"`.
   - Secrets:
     - `deploy/eval/secrets.sh init` generates values from `[A-Za-z0-9]` only, with an admin email of the form `eval-admin@ocu-eval.local`, because `POSTGRES_PASSWORD` goes into `DATABASE_URL` and `ADMIN_PASSWORD` into shell-built JSON in `openwebui/init.sh`. It generates `OCU_INTERNAL_TOKEN`, `MCP_API_KEY`, `WEBUI_SECRET_KEY`, `POSTGRES_PASSWORD` and the admin credentials. It writes them once, never overwriting, into `${EVAL_ROOT}/stack.env` with mode 0600; `MCP_API_KEY` must stay stable across restarts.
-    - The dmxapi key is read from `${EVAL_KEY_FILE}` (default `${EVAL_ROOT}/dmxapi.key`).
+    - The dmxapi key is read from `${EVAL_KEY_FILE}` (default `$HOME/.ocu-eval-dmxapi.key`, outside `EVAL_ROOT`, so the key search under `EVAL_ROOT` in 2.3 can pass).
     - Both files are refused unless they are regular files owned by the caller with mode 0600.
     - The scripts export the values into the compose environment only, and never echo them.
     - Upstream defaults (`admin`, `openwebui`, empty token) are never used.
   - Images:
     - `load.sh <package dir>` reads `release.json` and verifies `images.<role>.archive.{path,sha256}` before any `docker load`. It loads only the computer-use-server, workspace, open-webui and postgres roles, and binds `images.<role>.reference` to the `RUNTIME_IMAGE_VARS` names in `${EVAL_ROOT}/images.env`.
     - It appends to `${EVAL_ROOT}/loaded-images.txt` only references that were absent before the load.
-    - The free-space floor reuses `release.py`'s `DockerRootDir` free-space check (~2765-2793) at 15 GB. It runs before each load and in `start.sh`.
+    - The free-space floor reuses `release.py`'s `DockerRootDir` lookup (~2765-2793) at 15 GB. It runs up front and in `start.sh`; before each load it requires the floor plus three times the archive size, for unpacking.
   - Source: the stack runs from an OCU checkout on the host at the PR's merge commit, under `${EVAL_ROOT}/src`. The images come from the package named on the command line.
-  - Scripts: `start.sh` runs `compose … up -d --no-build --pull never`; `stop.sh` runs `compose … down`. Both export `stack.env` and `images.env` first, because the base files interpolate `${OCU_INTERNAL_TOKEN:?}` before `!override` applies. `stop.sh` does not need the dmxapi key file. `load.sh` refuses to load an archive whose reference already exists on the host with a different image id, so a production tag is never moved. Neither uses `--rmi`, `prune`, `system`, `-v`, or `rm` of anything outside the project.
+  - Scripts: `start.sh` runs `compose … up -d --no-build --pull never`, then `docker wait ocu-eval-open-webui-init`, and fails unless that prints 0 (`compose wait` sees only running containers); `stop.sh` runs `compose … down`. Both export `stack.env` and `images.env` first, because the base files interpolate `${OCU_INTERNAL_TOKEN:?}` before `!override` applies. `stop.sh` does not need the dmxapi key file. `load.sh` refuses to load an archive whose reference already exists on the host with a different image id, so a production tag is never moved. Neither uses `--rmi`, `prune`, `system`, `-v`, or `rm` of anything outside the project.
   - Must preserve, unchanged:
     - `deploy/up.sh`, the production overlay files and `tests/deploy/test_overlay_structure.py`;
     - `docker-compose.yml`, `docker-compose.webui.yml` and `cron/cleanup.sh`;
@@ -140,7 +140,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
       - `secrets.sh init` never overwrites.
       - `load.sh`, `start.sh` and `stop.sh` never invoke `prune`, `system`, `--rmi`, `-v`, `volume rm` or `network rm`.
       - A pre-existing reference is not written to `loaded-images.txt`.
-    - The full OCU unit command passes, and CI is green.
+    - The full OCU unit command passes on the frozen head, run by the orchestrator (`build.yml` is `disabled_manually`, so OCU PRs have no CI).
   - Orchestrator on 210.77.77.27 (Phase 2):
     - Record `docker compose version`.
     - Snapshot the container, image, network and volume lists before `load.sh`.
@@ -161,6 +161,101 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - unit tests on recorded responses: success (both audio formats with the content types `speech.py` accepts; image `b64_json` and `url`), an upstream error, a timeout and a wrong-type response;
   - one live call in the stack (`generate_speech`; one WebUI image generation and one WebUI image edit).
 
+  **Task 2.2 speech-route required evidence** (issue #817; the image routes are #853):
+  - Triage: feature (evaluation tooling). Fixture level expanded, agreeing with upstream: a network service on a shared host that holds the provider key.
+  - Governing invariant: the dmxapi key leaves the adapter only toward dmxapi, in the `Authorization` header, never through a redirect. No response or log line holds it, and no service's environment holds it except `open-webui` (2.1's `OPENAI_API_KEY`) and `adapter`. Only callers holding the adapter token can spend it through the adapter.
+  - Risk packs:
+    - Auth / secrets — selected: the provider key and the new adapter token.
+    - Error handling — selected: the 502 contract.
+    - Public API — selected: OCU's speech client (`computer-use-server/speech.py`) is the consumer; its content types, its 200-character error excerpt and its error handling fix the response contract.
+    - Config — selected: a new compose service and the server's `TTS_*` values.
+    - Resource limits — selected: the upstream timeout and the size caps.
+    - File IO / overwrite — selected: `secrets.sh init` now appends to an existing `stack.env`.
+    - Documentation — selected: `deploy/eval/README.md`.
+    - Legacy compatibility — selected: production speech code and #816's stack invariants. The `stack.env` append is one-way: #816's parser refuses the new name, so after it a `src` checkout older than this PR cannot run `start.sh` or `stop.sh` on that `EVAL_ROOT`. The README says so.
+    - Release / dependency — not selected: the adapter uses only the server image's direct requirements (`fastapi`, `uvicorn`, `aiohttp`); `httpx` is only transitive there and is not used. No requirement changes.
+    - Not selected: schema, concurrency (the adapter is stateless), file publish (OCU writes the file).
+  - Sibling surfaces: OCU's `speech.py` and `generate_speech` (consumers, unchanged); the image routes of #853, which reuse this module's token check, redactor, upstream client and service; WebUI's image engine key in 2.4, which is the adapter token.
+  - Upstream contract, measured by the orchestrator on 2026-11-17 (recordings handed to the implementer, audio truncated to 1536 bytes, no key):
+    - `POST https://www.dmxapi.cn/v1/chat/completions` with `{"model", "messages", "audio": {"format", "voice"?}}`. `messages` is an optional `{"role": "user", "content": <instructions>}` followed by `{"role": "assistant", "content": <input>}`.
+    - Success: 200 `application/json`, the audio base64 in `choices[0].message.audio.data`, already in the requested format. `wav` starts `RIFF….WAVE`; `mp3` starts with an MPEG frame sync (`0xFF`, top three bits of the next byte set) or `ID3`. No transcoding is needed.
+    - `voice` omitted uses `mimo_default`. An unknown voice gives 400 with `error.param` `Unknown voice: alloy. Available voices: [mimo_default, 冰糖, 茉莉, 苏打, 白桦, Mia, Chloe, Milo, Dean]`. An unknown model gives 503 `model_not_found`.
+  - Shape:
+    - `deploy/eval/adapter/eval_adapter.py`, one ASGI module (FastAPI, uvicorn, `aiohttp` for the upstream call). The name avoids the server image's own `/app/app.py` and `speech.py` and the test suite's server module names. No new image and no build.
+    - `POST /v1/audio/speech`:
+      - `Authorization: Bearer <ADAPTER_TOKEN>`, compared in constant time; otherwise 401 with no upstream call.
+      - JSON body: non-empty string `model` and `input`, `response_format` `mp3` or `wav`, optional string `voice` and `instructions`. Anything else is 400 with no upstream call.
+      - Forwards `model` as given; `voice` only when non-empty; the user message only when `instructions` is non-empty. The upstream call never follows a redirect.
+      - Returns 200 with the decoded bytes and `Content-Type: audio/mpeg` for `mp3`, `audio/wav` for `wav`.
+    - Caps: the upstream body is read in chunks and abandoned past `ceil(MAX_AUDIO_BYTES × 4/3) + 64 KiB`; decoded audio over `MAX_AUDIO_BYTES` (50 MiB, the adapter's own constant, equal to `speech.MAX_AUDIO_BYTES`) is refused.
+    - 502 with a JSON `{"error": …}` body, UTF-8 without `\u` escapes, for:
+      - an upstream non-2xx: `upstream HTTP <status>: <error.param, else error.message>`, redacted first, then cut to 160 characters, so the whole body fits inside `speech.py`'s 200-character excerpt and the model sees the voice list;
+      - an upstream 3xx (not followed);
+      - a timeout (90 s, below OCU's 120 s default);
+      - a transport error (class name only);
+      - a non-JSON body; missing, non-string or invalid base64 audio; empty audio; audio whose leading bytes do not match the requested format;
+      - either cap exceeded.
+    - Every response body and log line passes a redactor that removes the provider key and the adapter token. A log line holds the route, status, elapsed time and upstream status; never headers, bodies or input text.
+  - Compose (`deploy/eval/compose.eval.yml`):
+    - A new service `adapter`:
+      - `container_name: ocu-eval-adapter`, `image: ${COMPUTER_USE_SERVER_IMAGE:?…}`, no `build`, no `ports`;
+      - `user: "65534:65534"`, `security_opt: [no-new-privileges:true]`, `restart: unless-stopped`;
+      - one bind, `./deploy/eval/adapter:/eval-adapter:ro` (the host checkout's files are world-readable under umask 022), and `working_dir: /eval-adapter`;
+      - `entrypoint: ["python3", "-I", "-m", "uvicorn", "eval_adapter:app", "--app-dir", "/eval-adapter", "--host", "0.0.0.0", "--port", "8090"]` and `command: []`, replacing the image's server preflight and command;
+      - `healthcheck` probing `http://127.0.0.1:8090/healthz` (unauthenticated, returns `{"ok": true}`), replacing the image's 8081 probe;
+      - environment exactly `PROVIDER_KEY: ${EVAL_PROVIDER_KEY?}`, `ADAPTER_TOKEN: ${ADAPTER_TOKEN:?…}` and `UPSTREAM_BASE_URL: https://www.dmxapi.cn/v1`.
+    - `computer-use-server` gets `TTS_BASE_URL: http://adapter:8090/v1`, `TTS_MODEL: mimo-v2.5-tts`, `TTS_VOICE: ""` and `TTS_API_KEY: ${ADAPTER_TOKEN:?…}`. It still holds no dmxapi key.
+  - Secrets (`deploy/eval/secrets.sh init`):
+    - `ADAPTER_TOKEN` joins the generated `[A-Za-z0-9]` names, and the env-file parsers accept it.
+    - Without `stack.env`, `init` writes all names as before.
+    - With an existing `stack.env`, `init` first applies `eval_require_private`, then checks every line is `NAME=value` with a known name and a well-formed value; otherwise it refuses without echoing a value.
+    - If names are missing, it writes the original bytes plus one line per missing name to a 0600 temporary file in the same directory and renames it over `stack.env`; existing lines stay byte-identical. If none is missing, it changes nothing, prints `nothing to add` and exits 0.
+  - Allowed changes to #816's files, each named in the PR:
+    - `compose.eval.yml`: the `adapter` service and the four server `TTS_*` values.
+    - `secrets.sh`: the append path above. `common.sh`: the new name in the accepted set.
+    - `start.sh`: before `up`, it refuses, naming the path, when `deploy/eval/adapter` or a file in it is not readable by others (or a directory not searchable), because the adapter runs as uid 65534 and `start.sh` waits only for `open-webui-init`.
+    - `README.md`: the adapter service, `ADAPTER_TOKEN`, the append semantics, the one-way note, and cloning `src` under umask 022.
+    - `tests/deploy/test_eval_stack.py`:
+      - `STARTED`, `STACK_NAMES`, `PLANTED` / `SECRET_VALUES` and `SERVICE_IMAGE_VARS` gain the new name and service (the four-service test may be renamed);
+      - the empty-`TTS_*` assertion becomes the values above;
+      - the admin-password leak loop covers `adapter`;
+      - the second-`init` test becomes the no-op contract;
+      - the bind-source allow-list admits `./deploy/eval/adapter`.
+  - Must preserve, unchanged:
+    - `computer-use-server/speech.py`, `generate_speech` in `mcp_tools.py`, and every production compose and overlay file;
+    - #816's invariants: only `open-webui` publishes, on 127.0.0.1; no forbidden docker operation; every `container_name` starts with `ocu-eval-`;
+    - every other `tests/deploy` test.
+  - Required evidence, each test red before the change:
+    - `tests/deploy/test_eval_adapter.py` (unittest) loads the module with `importlib.util.spec_from_file_location` under a unique name, never as `app` or `speech`. It replays the recordings, committed under `tests/deploy/fixtures/eval_adapter/`, through a fake upstream served on an ephemeral 127.0.0.1 port.
+      - `mp3` with instructions and voice: the upstream request has exactly the two messages in order, `audio.format` `mp3`, the voice, and the provider key as Bearer. The response is 200 `audio/mpeg` with the decoded bytes.
+      - `wav` without voice or instructions: no `voice` key and no user message upstream; 200 `audio/wav`.
+      - Each returned content type is in `CONTENT_TYPES[fmt]` of `computer-use-server/speech.py`, and the adapter's `MAX_AUDIO_BYTES` equals `speech.MAX_AUDIO_BYTES`. `speech.py` is loaded by file location under a unique name too.
+      - 502 for each failure above: the recorded 400 (body holds `Unknown voice`), the recorded 503, a 302 whose `Location` points at a second fake server (which receives 0 requests), a timeout, a transport error, a 200 non-JSON body, a 200 JSON body without audio, invalid base64, empty audio, `wav` bytes for an `mp3` request, an upstream body over the read cap, and decoded audio over `MAX_AUDIO_BYTES` (the caps patched small in the test).
+      - 401 for a missing or wrong token and 400 for `response_format` `ogg` or an empty `input`, each with no upstream call.
+      - A planted key and token never appear in any response body or captured log, including when the upstream error body echoes the key.
+      - OCU's own client against the adapter: `synthesize()` from `speech.py`, against the adapter served by uvicorn on an ephemeral 127.0.0.1 port with the fake upstream, returns the bytes for `mp3`. For the recorded 400 it raises `SpeechError` whose text holds `Unknown voice`, `冰糖` and `Dean`, and no key.
+    - `tests/deploy/test_eval_stack.py`, on the merged config with fake values:
+      - `adapter` has no `ports` and no `build`, `image` from `COMPUTER_USE_SERVER_IMAGE`, the `user`, `security_opt`, `restart`, `entrypoint`, `working_dir` and `healthcheck` above, exactly the one read-only bind, and exactly the three environment keys;
+      - the server's four `TTS_*` values equal the values above;
+      - the fake provider key appears only in `open-webui` and `adapter`, and the fake adapter token only in `adapter` and the server's `TTS_API_KEY`;
+      - the source uses `${ADAPTER_TOKEN:?`.
+    - `secrets.sh init`:
+      - on a `stack.env` holding the six earlier names, keeps those lines byte-identical and adds `ADAPTER_TOKEN`;
+      - a second `init` prints `nothing to add`, exits 0 and changes no byte;
+      - a `stack.env` that is a symlink, mode 0644, or holds an unknown name is refused and left byte-identical, and no value is echoed.
+    - `start.sh` with an adapter file at mode 0600 exits non-zero naming it, with no `compose up`.
+    - The orchestrator's full OCU unit run on the frozen head passes.
+  - Orchestrator on 210.77.77.27 (Phase 2), with the `src` checkout at the PR head:
+    - `secrets.sh init` adds the token. `start.sh` exits 0. `ocu-eval-adapter` is running and healthy with `RestartCount` 0, and publishes no port.
+    - Through MCP in one chat:
+      - `generate_speech` writes `line1.mp3` with instructions;
+      - `generate_speech` writes `line2.wav` without;
+      - `bash_tool` runs `ffprobe` on both inside the offline sandbox, which reports `mp3` and `pcm_s16le`, each longer than 1 s;
+      - `generate_speech` with voice `alloy` returns an error text naming the unknown voice.
+    - Counts only, never printing a value: the key and the token are each found 0 times in `docker logs` of `ocu-eval-adapter` and `ocu-eval-computer-use-server`, and the key 0 times in `docker inspect ocu-eval-computer-use-server`.
+    - `stop.sh`, then remove the chat's sandbox container and volume. The snapshot diff is as in 2.1.
+  - Non-goals: the image routes (#853), the driver, and any production speech change.
+
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
   - opens an SSH tunnel;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
@@ -172,7 +267,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - the container, image, network and volume lists of other projects are identical before and after cleanup;
   - a key search that never prints the key finds nothing under `/home/nwm/ocu-eval/` and in the project's container logs.
 
-- [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the dmxapi key, model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
+- [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the adapter token as key (the adapter holds the dmxapi key), model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
   - the stored settings equal the values above, read back from WebUI's image config API;
   - the end-to-end smoke shows speech, a generated image and an MP4 output all working with sandbox networking disabled.
 
@@ -198,7 +293,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - unique ids and the field rules;
     - that no prompt contains `remotion`, `kit`, `skill`, `技能` or `/`.
 
-    The test is red before the file exists, and green in the PR's `pytest-orchestrator` log. The full OCU unit command passes.
+    The test is red before the file exists and green in the orchestrator's full OCU unit run on the frozen head (`build.yml` is `disabled_manually`, so OCU PRs have no CI).
 
   - Orchestrator, before task 2.6 starts: record this PR's OCU merge commit and its commit time, and confirm that no baseline manifest under `/home/nwm/ocu-eval/` predates it.
 
@@ -212,10 +307,10 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
 
 ## 3. Kit core (OCU `remotion-template`)
 
-- [ ] 3.1 Add the test runner: `node --test` over `remotion-template/tests/*.test.mjs`, plus a new OCU CI job that runs `npm ci` in the template and then the tests. Flag the CI change in the PR. Verify that the job runs a trivial test green on the PR.
+- [ ] 3.1 Add the test runner: `node --test` over `remotion-template/tests/*.test.mjs`, plus a new OCU CI workflow that runs `npm ci` in the template and then the tests. Flag the CI change in the PR. Verify that the job runs a trivial test green on the PR.
 
   **Task 3.1 required evidence** (issue #823):
-  - Triage: test infrastructure. Fixture level compact, overriding the group's expanded: the slice adds a CI job and one trivial test, with no runtime behavior.
+  - Triage: test infrastructure. Fixture level compact, overriding the group's expanded: the slice adds a CI workflow and one trivial test, with no runtime behavior.
   - Risk packs:
     - Release / packaging — selected: the CI workflow change, flagged in the PR, and keeping tests out of the image.
     - Legacy compatibility — selected: the `tests/test_remotion_image.py` guards stay green unchanged (no `scripts`, pinned deps, Dockerfile order, and `not (TEMPLATE / "node_modules").exists()`), as do `tests/test-project-structure.sh` and the exact template `COPY` line.
@@ -223,8 +318,10 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - Shape:
     - `remotion-template/tests/smoke.test.mjs` uses `node:test` and imports `zod` from the template's `node_modules`. It asserts that `z.object({a: z.string()})` parses, and that the template `package.json` has no `scripts`.
     - `.dockerignore` gains `remotion-template/tests/`, so tests ship neither into the image nor into user projects.
-    - A new `build.yml` job `template-tests`, under the existing `pull_request: branches: [main]` trigger:
-      - no `needs`, no secrets;
+    - A new standalone workflow `.github/workflows/template-tests.yml` with one job `template-tests` (user decision 2026-11-16: `build.yml` is `disabled_manually` and pushes images to GHCR on `main`, so it stays off):
+      - `on: pull_request: branches: [main]` only;
+      - `permissions: contents: read`; no secrets, no image build or push;
+      - checkout with `persist-credentials: false`;
       - `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1` and `actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0` (40-character SHA pins, per `security.yml`);
       - `node-version: '22.23.2'`;
       - `npm ci` in `remotion-template`, then `node --test "remotion-template/tests/*.test.mjs"` (quoted glob; Node 22 does not expand directories).
@@ -232,7 +329,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - Required evidence:
     - Locally, under Node 22, run `npm ci` and the test in a scratch copy of `remotion-template`, so the checkout gets no `node_modules`.
     - The test passes, and fails when the `zod` import is broken, which proves the file ran.
-    - The PR's `template-tests` job is green and its log shows one test passing.
+    - The PR's `template-tests` workflow run is green and its log shows one test passing.
     - `tests/test_remotion_image.py` passes unchanged.
     - The full OCU unit command passes.
   - Non-goals: kit code; TypeScript compilation.
@@ -316,7 +413,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
 
 ## 6. CC0 music library (OCU)
 
-- [ ] 6.1 Collect per-track evidence for the candidates: a live CC0 statement, or an archived statement whose digest matches `source_sha256`, plus a search for other licences. Build the listening page, which exports the user's decisions as JSON. Verify that every candidate on the page links its evidence snapshot and its re-release search note.
+- [x] 6.1 Collect per-track evidence for the candidates: a live CC0 statement, or an archived statement whose digest matches `source_sha256`, plus a search for other licences. Build the listening page, which exports the user's decisions as JSON. Verify that every candidate on the page links its evidence snapshot and its re-release search note.
 
   **Task 6.1 required evidence** (issue #841):
   - Triage: feature (release-side tooling; nothing enters the image). Fixture level expanded, agreeing with upstream: it downloads and verifies third-party files, and sets licence policy.
