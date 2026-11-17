@@ -65,13 +65,13 @@ The evaluation driver SHALL send each request through WebUI's chat API, with:
 
 The adapter SHALL accept OCU's speech request (`model`, `input`, `response_format` of `mp3` or `wav`, and optional `voice` and `instructions`). It SHALL return audio in the requested format, with the content type OCU expects. When the upstream call fails, times out or returns non-audio, it SHALL return HTTP 502 with an error body that holds no key.
 
-The adapter SHALL also accept WebUI's image request: `POST /images/generations` with `model`, `prompt`, `n`, `size`, `response_format` and any configured extra parameters. It SHALL forward it to dmxapi `POST /v1/responses`, the only route that serves `doubao-seedream-5-0-flash-260915`, with these changes:
+The adapter SHALL also accept WebUI's image request: `POST /images/generations` with `model`, `prompt`, `n`, `size`, `response_format` and any configured extra parameters other than the fields the adapter sets (`input`, `image`, `watermark`), which it SHALL refuse with HTTP 400. It SHALL forward it to dmxapi `POST /v1/responses`, the only route that serves `doubao-seedream-5-0-flash-260915`, with these changes:
 
 - `prompt` is sent as `input`;
 - `n` is dropped, and a request with `n` other than 1 fails with HTTP 400;
 - `watermark` is false.
 
-It SHALL return the OpenAI images response shape (`data[].b64_json` or `data[].url`). Upstream failures SHALL return HTTP 502 with no key.
+It SHALL return the OpenAI images response shape with `data[].b64_json`, never `data[].url`: WebUI fetches a returned URL with its image `Authorization` header, which would send the adapter token to the image host. Upstream failures SHALL return HTTP 502 with no key.
 
 The adapter SHALL also accept WebUI's image-edit request: multipart `POST /images/edits` with `model`, `prompt`, `size`, `response_format`, optional `n` and `background`, and one or more files under `image` or `image[]`. It SHALL forward the request to the same `/v1/responses` route, sending the files as `data:` URLs in `image` and applying the same `prompt`, `n` and `watermark` rules, and SHALL return the same response shape.
 
