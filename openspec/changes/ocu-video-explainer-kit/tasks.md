@@ -467,7 +467,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
     - stdout carries, besides one line per attempt and `eval: done <status>`, a line per recovered attempt and per skipped slot. A newline inside a reason is folded to a space. stderr may carry `could not stop chat`.
     - Cleanup: a failed compose down skips image removal, keeps `images.env` and `loaded-images.txt`, and exits non-zero. Without `images.env`, a remaining project-labelled container or network makes it exit non-zero.
 
-- [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the adapter token as key (the adapter holds the dmxapi key), model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
+- [x] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the adapter token as key (the adapter holds the dmxapi key), model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
   - the stored settings equal the values above, read back from WebUI's image config API;
   - the end-to-end smoke shows speech, a generated image and an MP4 output all working with sandbox networking disabled.
 
@@ -500,6 +500,63 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - Non-goals: running anything; the driver.
 
 - [ ] 2.6 Run the baseline on release `01b7ef7a64a5` with WebUI `6b95a4995e91`: each explainer twice, the others once, `infra` failures rerun at most twice. Keep that package under `/home/nwm/ocu-eval/`. Verify that 13 final-outcome manifests, one per request and repetition, plus a manifest for every rerun attempt, record that release identity, the WebUI image digest and an outcome.
+      **Task 2.6 required evidence** (issue #821):
+  - Triage: evaluation run (operations, no code PR). Fixture level expanded, agreeing with upstream: it runs the shared host's stack for hours, with the provider key and the adapter token in play.
+  - Governing invariant:
+    - every baseline video comes from production's images and production's tool, filter, init and compose sources;
+    - every attempt has a manifest;
+    - no secret reaches a run file or log;
+    - the request set is the one merged in #820.
+  - Risk packs:
+    - Auth / secrets — selected: the count-only key search.
+    - Concurrency / shared state — selected: one driver at a time (lock); orphan chats are stopped before a resume; only computed names are cleaned.
+    - Resource limits — selected: the Docker-root floor, recorded free space, and the sandboxes alive at the end.
+    - Error handling — selected: the resume procedure, interrupted manifests, reruns.
+    - File IO — selected: the run directories are kept; cleanup comes after the key search.
+    - Not selected: schema, public API, release / dependency (no code changes).
+  - Release identity, settled here:
+    - **Package.** The host holds the package `/home/nwm/ocu-eval/packages/ocu-0fc3c37-webui-6b95a49`, built at OCU `0fc3c37` by the cached rebuild of #815. Its `release.json` has SHA-256 `a2d592aeb7ab…`.
+    - **Equal to production.** Compared with production release `01b7ef7a64a5`'s `release.json` (SHA-256 `5f43f4a5d77e…`), every role's `reference`, `configuration_digest`, `descriptor_digests` and `archive.sha256` are equal, and so is `font_bundle.sha256`. A `reference` is `<repo>:<configuration digest>`, so equal references mean byte-identical images.
+    - **Where the two files differ:** `ocu_source_sha`, `source_bundle.sha256`, the builder's local `registry_digests` names, and the workspace `build` record, where #815 pinned the base image by digest. The evaluation stack does not consume `source.bundle`: `load.sh` loads only images, and compose comes from `src`.
+    - **The other runtime inputs** come from the `src` checkout, not the images:
+      - the Computer Use tool and the filters (`openwebui/`), installed by `open-webui-init`;
+      - `deploy/production-like-test/init/`;
+      - the compose files;
+      - `deploy/eval/requests.json`.
+    - **What this task verifies:** the release identity is the four running roles' images (`EVAL_ROLES`: workspace, computer-use-server, open-webui, postgres), plus those sources being unchanged from `01b7ef7a64a5`.
+    - Production's `release.json` is copied to `/home/nwm/ocu-eval/packages/production-01b7ef7a64a5/release.json`, and both packages are kept until acceptance ends.
+  - Preconditions, checked on the host and recorded in the comment before the batch starts:
+    - #820 merged at 2026-11-17T07:24:31Z (OCU `1a2650e`).
+    - The `src` HEAD of the last `start.sh` (#819: `5e6089a`) and the `src` HEAD at batch start satisfy both:
+      - `git diff --quiet 01b7ef7a64a5 <sha> -- openwebui docker-compose.yml docker-compose.webui.yml deploy/production-like-test/init`;
+      - `git diff --quiet 1a2650e <sha> -- deploy/eval/requests.json`.
+    - The stack runs the package above with the image settings of task 2.4, as read back for #819. The four `ocu-eval-*` containers' `{{.Image}} {{.State.StartedAt}}` are recorded.
+    - `runs/baseline/` does not exist. Docker root free space is recorded.
+  - Run, on the host:
+    - `mkdir -p /home/nwm/ocu-eval/snap/s821`;
+    - then, from `/home/nwm/ocu-eval/src`: `EVAL_ROOT=/home/nwm/ocu-eval EVAL_WEBUI_PORT=38080 setsid -f deploy/eval/run.sh --package /home/nwm/ocu-eval/packages/ocu-0fc3c37-webui-6b95a49 --phase baseline >/home/nwm/ocu-eval/snap/s821/run.log 2>&1 </dev/null`.
+    - This one batch covers the eight requests of `requests.json` in file order with their repetitions: 13 slots.
+    - The orchestrator polls the log with short SSH calls until its `eval: done` line.
+  - Resume, if the batch stops (a refusal, the floor, a failed lookup, a killed driver):
+    1. For each ledger chat, and each chat in `GET /api/v1/chats/?page=1` updated after the batch's earliest `started_at` (a failed lookup leaves its chat out of the ledger), whose task list is not empty, call `POST /api/tasks/chat/<id>/stop` on the host. Use `python3 -I` with the `stack.env` admin credentials and print no secret. Then confirm the list is empty.
+    2. If the stop was the floor: run the key search over the ledger sandboxes' logs (counts only), then `cleanup.sh --runs-only`. The MP4 and the transcript are already in the run directories.
+    3. Record the four containers' `{{.Image}} {{.State.StartedAt}}` again; they must be unchanged.
+    4. Resume each slot without a final manifest with its own `--request <id> --repetition <n>` call. The full command would start the completed slots afresh.
+  - Verify, posted as a comment on #821:
+    - **Slots.** Each of the 13 slots has at most 3 attempts, every one with a `manifest.json`. All but the last are `infra`, and at most one is not `infra`. A slot's final outcome is its last non-`infra` manifest, or three `infra` attempts.
+    - **Identity.** Every manifest whose `failure_reason` is not `driver interrupted` has:
+      - `release.release_json_sha256` `a2d592aeb7ab…` and `release.ocu_source_sha` `0fc3c378…`;
+      - `release.images.<role>.reference` equal to production's `reference`, and `image_id` equal to production's `configuration_digest` or one of its `descriptor_digests` (the identities `release.accepted_image_identities()` accepts; the #818 smoke manifests show the configuration digest on this host), for each of the four roles;
+      - one `webui_image_id` shared by all of them;
+      - `models` `qwen3.8-27b`, `doubao-seedream-5-0-flash-260915` (image and edit) and `mimo-v2.5-tts`.
+    - **Interrupted manifests.** A `driver interrupted` manifest holds `null` identity fields by design. It is listed separately, and the unchanged container records of the resume steps show the stack did not change during it. A slot whose final manifest is of this kind is named.
+    - **Timing.** The earliest `started_at` comes after #820's merge time.
+    - **Table.** One row per attempt: slot, attempt, outcome, class and reason, elapsed time, tool, image and speech calls, and MP4 duration.
+    - **Key search.** Counts only, with the #818 script, before any cleanup: nothing under `${EVAL_ROOT}`, in the `ocu-eval-*` logs, or in the logs of every ledger sandbox. The counts of every search made in a resume's step 2 are posted too, with the time and the number of sandboxes searched.
+    - **Resources.** Docker root free space at the start and at the end, and a `docker stats --no-stream` snapshot of the project's containers at the end.
+  - After the key search: `cleanup.sh --runs-only`. `runs/baseline/` and both packages stay; the stack keeps running for task 8.1's comparison setup.
+  - Non-goals: the thresholds (2.7, #822), any kit slice, the after run (8.1).
+
 - [ ] 2.7 Record the render success-rate threshold, set from the baseline, and the a-priori kit check pass-rate threshold in this change, and get the user's confirmation. Verify that the change holds both values and a link to the confirmation, dated before any after-run manifest.
 
 Suggested fixture level: expanded - it starts services on a shared host, handles a secret, and adds a network adapter.

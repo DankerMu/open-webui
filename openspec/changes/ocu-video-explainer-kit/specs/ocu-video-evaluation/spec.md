@@ -119,7 +119,7 @@ An `infra` failure MAY be rerun at most twice. Every attempt is recorded.
 
 The request set SHALL be committed before the baseline run starts. It holds five science-explainer requests run twice each, plus one course, one promo and one report request.
 
-The baseline SHALL run on release `01b7ef7a64a5` with WebUI `6b95a4995e91`, the production release, before any OCU slice of this change is released. Its package SHALL be kept under `/home/nwm/ocu-eval/` until acceptance ends. The after run SHALL use the release candidate with this change.
+The baseline SHALL run on release `01b7ef7a64a5` with WebUI `6b95a4995e91`, the production release, before any OCU slice of this change is released. A package rebuilt from a later commit counts as that release when its image references all equal production's and the tool, filter, init and compose sources are unchanged from `01b7ef7a64a5`. Its package SHALL be kept under `/home/nwm/ocu-eval/` until acceptance ends. The after run SHALL use the release candidate with this change.
 
 Before the after run, the thresholds SHALL be recorded in the change and confirmed by the user:
 
