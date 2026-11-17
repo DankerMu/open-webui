@@ -331,15 +331,123 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - Non-goals: the aspect-ratio table and the rest of 2.4's settings (#819), the driver, any WebUI code change.
 
 - [ ] 2.3 Write the driver and the cleanup script. The driver:
-  - opens an SSH tunnel;
+  - runs on the evaluation host, started detached by the orchestrator over SSH;
   - creates a chat with `qwen3.8-27b`, the video switch and image generation on;
   - sends one request with a 60-minute limit;
   - collects the transcript, the MP4 and a run manifest with every field the spec names.
 
-  The stack keeps the orchestrator data directory under `/home/nwm/ocu-eval/`. Cleanup removes only project-loaded images, compose containers and networks, and the recorded chat ids' sandbox containers, volumes and data directories. Verify:
+  The stack keeps the orchestrator data directory under `/home/nwm/ocu-eval/`. Cleanup removes only project-loaded images, compose containers, networks and volumes, and the recorded chat ids' sandbox containers, volumes and data directories. Verify:
   - one explainer request end to end;
   - the container, image, network and volume lists of other projects are identical before and after cleanup;
   - a key search that never prints the key finds nothing under `/home/nwm/ocu-eval/` and in the project's container logs.
+
+  **Task 2.3 required evidence** (issue #818):
+  - Triage: feature (evaluation tooling). Fixture level expanded, agreeing with upstream: it drives the shared host's stack, handles the admin credentials and removes Docker objects.
+  - Governing invariant: cleanup removes exactly the project's objects and nothing of another project; no run artifact, log or output holds the provider key, the adapter token or the admin password; every chat the driver may have created is in the ledger before it can be lost.
+  - Precondition: #820 is merged (`deploy/eval/requests.json` on OCU main). The orchestrator checks this before Phase 1, and Phase 2 takes request ids from that file.
+  - Deviation from the plan, settled here: the driver runs on the evaluation host, not on the Mac through an SSH tunnel (design Decision 15 amended; the spec names no tunnel, and issue #818's "opens an SSH tunnel" is superseded by this block). A run lasts up to 60 minutes, and during #816 an SSH session to the host hung with its remote command already finished. A detached host process survives that, and the admin credentials never leave the host. The orchestrator starts it over SSH and copies results back.
+  - Risk packs:
+    - Auth / secrets — selected: the admin credentials from `stack.env`, value redaction, the key search.
+    - Concurrency / shared state — selected: shared-host Docker objects, cleanup's exact-name scope, the lock between driver and cleanup.
+    - Resource limits — selected: the per-run 15 GiB floor, the 60-minute limit.
+    - Error handling — selected: the outcome table, reruns, non-idempotent POST, refusals.
+    - File IO / overwrite — selected: run directories, the ledger, root-owned data directories, copying from a sandbox-writable directory.
+    - Schema — selected: `manifest.json` version 1 is a new file format that tasks 2.6, 2.7 and 8.1 and the judging page read.
+    - Public API — selected: WebUI's chat, task, chat-list, model, function and config APIs, as consumed (read only).
+    - Documentation — selected: the README section.
+    - Legacy compatibility — selected: #816/#817/#853 scripts and tests stay green; `start.sh`, `stop.sh` and `load.sh` behave as before.
+    - Not selected: config (the driver reads configuration and never writes it), release / dependency (standard library only).
+  - Sibling surfaces: `common.sh` (env parsing, `eval_require_space`, compose wrapper), `stop.sh`, `load.sh`'s `loaded-images.txt` and `images.env`, `requests.json`, OCU `computer-use-server/docker_manager.py` (sandbox `owui-chat-<id>`, volume `chat-<id>-workspace`, data `${BASE_DATA_DIR}/<id>/outputs` mounted as `/mnt/user-data/files`, root-owned mode 0777), `computer-use-server/mcp_tools.py` and `speech.py` (speech error texts), WebUI 6b95a4995 `main.py`, `utils/middleware.py`, `tools/builtin.py` and `routers/images.py` (the contract below).
+  - WebUI contract consumed (6b95a4995; read only):
+    - `POST /api/chat/completions` with `parent_id: null` and no `chat_id` creates the chat server-side, saves the user message and an assistant placeholder, and answers at once with `{status, task_ids, chat_id}` when `session_id` is non-empty; the tool loop runs as a background task (`main.py` ~1190-1394, ~1776-1854). `session_id` also enables `generate_image` and `edit_image` (`utils/middleware.py` ~2769-2773). The prompt reaches the model only through the saved user message.
+    - The tool loop runs only on the streaming path, so `DEFAULT_MODEL_PARAMS.stream_response` must be true.
+    - `GET /api/tasks/chat/{chat_id}` lists live tasks, and also answers an empty list for an unknown or foreign chat. `POST /api/tasks/chat/{chat_id}/stop` cancels.
+    - `GET /api/v1/chats/{chat_id}`: the assistant message has `done`, optional `error` (`{content}`), and `output` items `{"type": "function_call", "name", "call_id", "arguments", "status"}` and `{"type": "function_call_output", "call_id", "output": [{"type": "input_text", "text"}], "status"}`.
+    - Result texts the outcome table reads: the tool-iteration cap writes the message error `Tool-call limit reached (<n> iterations).` (`utils/middleware.py` ~6036-6042); a failed speech synthesis returns text starting `Error: speech synthesis` (OCU `speech.py`, `mcp_tools.py` ~880-899); an image engine failure returns JSON whose `error` starts `400: [ERROR:` (`routers/images.py` ~848-852 and ~1207-1212 through `tools/builtin.py`). An image call that fails without an HTTP status (adapter unreachable, timeout, no image in the answer) gives `400: Something went wrong :/` (`constants.py` `_error_message`). The OCU tool wrapper reports its own transport faults with text starting `[CONFIG ERROR]`, `[NETWORK ERROR]`, `[MCP TRANSPORT ERROR]`, `[UNEXPECTED ERROR]` or `[Timeout`, or containing `wrapper crashed` after `[Error] ` (OCU `openwebui/tools/computer_use_tools.py` `_ERROR_PREFIXES` and ~866). Argument errors (text length, file name, aspect ratio) have other texts and are not infrastructure failures.
+    - `GET /api/v1/chats/?page=1` lists the user's chats newest first.
+  - Shape (`deploy/eval/`):
+    - `run.sh --package <dir> --phase baseline|after|smoke [--request <id>] [--repetition <n>]`: checks the root and port, exports `stack.env` and `images.env` through `common.sh`, and runs `driver.py` with `python3 -I` (the host's Python 3.10, standard library only). `smoke` is for runs that are neither baseline nor after run. Without `--request` it runs the whole of `requests.json` in file order with each request's `repetitions`; with `--request` and no `--repetition`, repetition 1. It writes one line per attempt and a final line `eval: done <exit status>` to stdout, and exits 0 when every attempt ended with a manifest, whatever its outcome.
+    - Lock: the driver holds an exclusive `flock` on `${EVAL_ROOT}/eval.lock` for the whole batch; `cleanup.sh` takes it with `flock -n` and refuses while a driver holds it.
+    - Per run, before anything else: `eval_require_space 0` of `common.sh` through `bash`. A refusal names both values, and stops the batch with a non-zero exit before any further POST.
+    - Preflight, once per batch, refusing with a named reason before any chat is created:
+      - the running `ocu-eval-*` containers' image ids equal those of `images.env`, and each `images.env` reference equals the package's `release.json` `images.<role>.reference`;
+      - `qwen3.8-27b` exists in `GET /api/models` and its `filters` hold `video_production_filter`;
+      - functions `computer_use_filter` and `video_production_filter` are active and global;
+      - the image config has generation and editing on, engine `openai`, base URL `http://adapter:8090/v1`;
+      - `DEFAULT_MODEL_PARAMS.function_calling` is `native` and `stream_response` is true.
+    - The request body, exactly: `stream: true`; `model: "qwen3.8-27b"`; `params: {}`; no `messages` (the frontend sends none without a system prompt); `files: []`; `filter_ids: ["video_production_filter"]`; `tool_ids: []`; `tool_servers: []`; `features: {"voice": false, "image_generation": true, "code_interpreter": false, "web_search": false}`; `variables` with the keys `{{USER_NAME}}`, `{{USER_EMAIL}}`, `{{USER_LOCATION}}` (`Unknown`), `{{CURRENT_DATETIME}}`, `{{CURRENT_DATE}}`, `{{CURRENT_TIME}}`, `{{CURRENT_WEEKDAY}}`, `{{CURRENT_TIMEZONE}}` (`Asia/Shanghai`), `{{USER_LANGUAGE}}` (`zh-CN`); `chat_variables: {}`; `session_id: "eval-<uuid4>"`; `id` and `message_ids: [{"model_id": "qwen3.8-27b", "message_id": <id>, "modelIdx": 0}]` for the assistant; `parent_id: null`; `user_message: {"id", "parentId": null, "childrenIds": [<assistant id>], "role": "user", "content": <prompt>, "timestamp": <unix seconds>, "models": ["qwen3.8-27b"]}`; `background_tasks: {"title_generation": true, "tags_generation": true, "follow_up_generation": true}`. All ids are fresh UUID4s.
+    - Run directory `${EVAL_ROOT}/runs/<phase>/<request id>/r<repetition>-a<attempt>/`, where attempt is the next free number. It is created before the POST, and `pending.json` (`user_message_id`, `started_at`) is written into it first.
+    - POST: retried up to 3 times only when the connection was refused before the request was sent. When the request was sent and the answer was lost (timeout, reset, non-JSON), the driver does not POST again: it lists `GET /api/v1/chats/?page=1`, fetches each chat updated since `started_at`, and takes the one whose history holds the user message id; none found means `infra` with reason `post lost`.
+    - Ledger: the chat id is appended to `${EVAL_ROOT}/chats.txt` (under the lock, `O_APPEND`) and written to `pending.json` before the driver waits.
+    - Waiting: polls the task list every 15 s, retrying a failed GET up to 3 times and signing in again on 401. When the list is empty, it fetches the chat; a 404 means `infra` (`chat missing`). At 60 minutes from the POST it calls the stop endpoint and waits up to 2 minutes for the list to empty.
+    - Interrupted runs: a run directory without `manifest.json` from an earlier driver process gets a manifest with outcome `failed`, class `infra`, reason `driver interrupted`, and its chat id from `pending.json`, or, when `pending.json` holds none, from the chat-list lookup by `user_message_id` that a lost POST uses (appended to the ledger if missing); it counts as an attempt.
+    - Run files, besides `pending.json`:
+      - `transcript.json`: the chat from `GET /api/v1/chats/{id}`, with every string over 4096 characters starting `data:` replaced by `<data-uri sha256=… bytes=…>`;
+      - the MP4 files: only regular files directly in `${EVAL_ROOT}/data/<chat id>/outputs/` whose names end `.mp4`, checked with `lstat` and opened with `O_NOFOLLOW`, no recursion; any other entry ending `.mp4` is not copied and is listed in the manifest's `skipped_outputs` with the reason;
+      - `manifest.json`, written last through a temporary file and a rename.
+    - Redaction by value: before anything is written to a run file, stdout or stderr, every value of `stack.env`, the provider key and the signed-in token are replaced by `[REDACTED]`. `run.sh` reads the key file `${EVAL_KEY_FILE:-$HOME/.ocu-eval-dmxapi.key}` after `eval_require_private`, as `start.sh` does, and hands it to the driver on stdin, never in argv or the environment. `failure_reason` is cut to 200 characters after redaction.
+    - `manifest.json` (version 1): `phase`, `request_id`, `kind`, `repetition`, `attempt`, `chat_id`, `release` (`ocu_source_sha`, `webui_source_sha`, the package's `release.json` SHA-256, and per role the reference and the running image id), `webui_image_id`, `models` (`chat` `qwen3.8-27b`; `image` and `image_edit` from the image config; `speech` from `docker exec ocu-eval-computer-use-server printenv TTS_MODEL`), `started_at`, `elapsed_seconds`, `outcome` (`succeeded` or `failed`), `failure_class` (`null`, `infra`, `kit` or `model`), `failure_reason` (`null` or a string), `check` (`null` until the kit exists), `counts` (`tool_calls`, `image_calls`, `speech_calls`), `mp4` (per file: name, size, SHA-256, `ffprobe` duration and video codec, `valid`), `skipped_outputs`.
+    - Counting, from the assistant message's `output`: every `function_call` is a tool call; `generate_image` and `edit_image` are image calls; `generate_speech` is a speech call. Result texts are the joined `text` of `output[*]` of the matching `function_call_output`.
+    - MP4 check: `docker run --rm --network none --entrypoint ffprobe -v <run dir>:/run:ro <DOCKER_IMAGE of images.env> -v error -show_entries format=duration:stream=codec_type,codec_name -of json /run/<name>`, since the host has no ffmpeg. A valid MP4 has a video stream and a duration above 0.
+    - Outcome, the first matching row wins:
+
+      | #   | Condition                                                                                                                                                                                                                                 | Outcome     | Reason               |
+      | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------------------- |
+      | 1   | the run reached its end without a stop, the message is `done` with no `error`, and at least one valid MP4 exists                                                                                                                          | `succeeded` | —                    |
+      | 2   | the driver called the stop endpoint                                                                                                                                                                                                       | `model`     | `time limit`         |
+      | 3   | a `function_call` named `ask_user` has status `pending`                                                                                                                                                                                   | `model`     | `asked the user`     |
+      | 4   | the message `error` starts `Tool-call limit reached`                                                                                                                                                                                      | `model`     | `tool-call limit`    |
+      | 5   | the message holds any other `error`                                                                                                                                                                                                       | `infra`     | `model API: <error>` |
+      | 6   | the task list is empty and the message is not `done`                                                                                                                                                                                      | `infra`     | `task lost`          |
+      | 7   | the driver's WebUI calls failed after their retries, or the POST was lost                                                                                                                                                                 | `infra`     | the call             |
+      | 8   | no valid MP4, and a speech result starts `Error: speech synthesis`, an image result's JSON `error` starts `400: [ERROR:` or equals `400: Something went wrong :/`, or any OCU tool result carries a wrapper transport prefix listed above | `infra`     | `adapter: <tool>`    |
+      | 9   | anything else                                                                                                                                                                                                                             | `model`     | `no valid MP4`       |
+
+      A failed run keeps its MP4 files and their `mp4` entries. `kit` is reserved: no run gets it until tasks 5.1 and 5.3 define the kit's failure output, but the schema accepts it.
+
+    - Reruns: an `infra` outcome is rerun at most twice, each attempt in its own run directory and manifest.
+    - `cleanup.sh [--runs-only]`, exiting 0 only when every target is gone:
+      - takes the lock (refuses if held); reads `chats.txt` and refuses, naming the line, if any line is not a lowercase UUID;
+      - for each id: `docker rm -f owui-chat-<id>` and `docker volume rm chat-<id>-workspace` when they exist; then `docker run --rm --network none --user 0:0 --entrypoint rm -v ${EVAL_ROOT}/data:/d <DOCKER_IMAGE> -rf -- /d/<id>`;
+      - without `--runs-only`: first the compose down of `stop.sh`, then the per-id steps, then `docker volume rm` of each volume listed by `docker volume ls --filter label=com.docker.compose.project=ocu-eval` whose name starts `ocu-eval_` (WebUI keeps the provider settings and the adapter token in its database), then the images: each `loaded-images.txt` reference, and each `repo:tag` (or id when untagged) of the images listed by `docker image ls --filter label=ocu-eval`, with `docker image rm` and no `-f`, skipping absent ones. Every helper run comes before the first image removal, since the helper uses a project image. If any per-id step failed, image removal is skipped entirely, so the helper image stays for the next run, and the exit is non-zero. Only when all of these images are gone are `images.env` and `loaded-images.txt` removed; otherwise both stay and the exit is non-zero;
+      - rewrites `chats.txt` through a temporary file and a rename, keeping the ids whose objects could not all be removed;
+      - is idempotent: a second run after a partial failure finishes the rest;
+      - never runs `prune`, `system`, `docker image rm -f`, or a removal of a name it did not compute; `runs/`, `stack.env`, `src/` and `packages/` stay.
+    - `README.md`: a section on running a request, the run directory and manifest, the outcome table and reruns, cleanup and its two modes, the lock, and appending a chat id by hand for a chat made outside the driver.
+
+  - Must preserve: `start.sh`, `stop.sh`, `load.sh`, `secrets.sh`, the adapter, `compose.eval.yml` and their tests unchanged in behavior (`common.sh` may gain shared helpers); every production file; WebUI code.
+  - Required evidence, each test red before the change (`tests/deploy/test_eval_driver.py` and `tests/deploy/test_eval_cleanup.py`, unittest, own recording stubs for `docker` and `df` on `PATH`, and a fake WebUI HTTP server on 127.0.0.1; the lock tests use the real `flock(1)` and the real `fcntl` lock):
+    - The completion request body equals the shape above, key for key.
+    - The chat id is in `chats.txt` and `pending.json` when the first poll fails and the driver exits.
+    - A POST whose answer is dropped after the server created the chat is not repeated, and the chat is found through the chat list and recorded; a refused connection is retried.
+    - Each preflight failure, `stream_response` false included, refuses before any POST, naming the reason.
+    - The free-space check below the floor (a fake `df`) refuses with both values and no POST, and stops the batch.
+    - The time limit (patched to seconds) calls the stop endpoint and gives `model` with reason `time limit`.
+    - Every row of the outcome table from a fake chat, including: a valid MP4 with the tool-call limit error gives `model`; an argument error from `generate_speech` without an MP4 gives `model` (row 9), and an `Error: speech synthesis` result gives `infra` (row 8); an image `400: [ERROR:` result gives `infra`; an empty task list with `done` false gives `infra` `task lost`; an invalid MP4 (fake `ffprobe` without a video stream) gives `model`.
+    - An `infra` outcome reruns twice and stops, leaving three attempt directories and manifests; a success on the second attempt stops there.
+    - A run directory without a manifest from an earlier process gets the `driver interrupted` manifest and counts as an attempt; the next attempt number is free. With no chat id in `pending.json`, the chat is found by its user message id and added to the ledger.
+    - Row 8 from each source: an image `400: Something went wrong :/` result, and an OCU tool result starting `[MCP TRANSPORT ERROR]`, each without an MP4, give `infra`.
+    - Counts from a fake `output` with mixed calls equal the hand count.
+    - `manifest.json` holds every field above with the right types; `release` values come from the fake package and the fake running image ids, and a mismatch refuses in preflight.
+    - A `data:` URI over 4096 characters in the fake chat is replaced in `transcript.json`.
+    - An `.mp4` symlink in `outputs/` pointing at a planted secret file is not copied, and `skipped_outputs` names it.
+    - The admin password, a planted provider key and the adapter token, planted by the fake WebUI in the image config answer and in the chat content, never appear in stdout, stderr, any run file or any command line.
+    - The lock: cleanup refuses, with no Docker command, while a driver process holds it; it proceeds once that process exits.
+    - Cleanup:
+      - a malformed `chats.txt` line refuses with no Docker command;
+      - `--runs-only` issues exactly the per-id removals and the helper (the argv above), and touches no compose object, volume or image;
+      - the full mode issues compose down, the per-id removals, the helper before any image removal, the labelled-volume removals, and `docker image rm` without `-f` for each listed and labelled image, and nothing else;
+      - absent objects are skipped without failing; `chats.txt` keeps the ids whose removal failed; a failed image removal keeps `images.env` and `loaded-images.txt` and exits non-zero; a failed helper removal issues no `docker image rm` and exits non-zero; a second run finishes;
+      - no `prune`, `system`, `image rm -f`, or name outside the computed set appears in any recorded command.
+    - The orchestrator's full OCU unit run on the frozen head passes.
+  - Orchestrator on 210.77.77.27 (Phase 2), `EVAL_ROOT=/home/nwm/ocu-eval` and `EVAL_WEBUI_PORT=38080` (as in #816 and #853), its `src` checkout at the PR head, package `/home/nwm/ocu-eval/packages/ocu-0fc3c37-webui-6b95a49`, the stack started with `start.sh` (the image config of #853 is in the WebUI volume):
+    - Append the probe chat ids left by #816 and #817 (`4c3f5b49-3291-4fdb-903a-7a1faf5a5160`, `24db1774-0670-4d5d-8408-07f9c3933c14`) to `chats.txt`.
+    - Start `setsid nohup deploy/eval/run.sh --package <package> --phase smoke --request <the first explainer id> >${EVAL_ROOT}/snap/818-smoke/run.log 2>&1 &`, and poll that log with short SSH calls until its `eval: done` line.
+    - The run directory holds `transcript.json`, `manifest.json` and an MP4, or a recorded failure with its class; every manifest field is present.
+    - Counts only, with the values on stdin, never printed: the provider key is found 0 times in every file under `${EVAL_ROOT}`; the adapter token and the admin password are found 0 times under `${EVAL_ROOT}` outside `stack.env`; both searches run in a helper `docker run --rm -i --network none --user 0:0 --entrypoint grep -v ${EVAL_ROOT}:/r:ro <workspace image> -r -l -F -f /dev/stdin /r`, which reads files the host user cannot; and 0 times in `docker logs` of every `ocu-eval-*` container and every ledger sandbox.
+    - Snapshot the container, image, network and volume lists, and copy `loaded-images.txt`; run `cleanup.sh`; snapshot again. Removed = exactly the project's objects (`ocu-eval-*` containers, the networks and volumes labelled `com.docker.compose.project=ocu-eval` (`ocu-eval_default`, `ocu-eval_*`), the ledger's sandboxes and volumes, the copied `loaded-images.txt` images and any `ocu-eval`-labelled image); added = nothing; any other difference is explained line by line as another project's. `${EVAL_ROOT}/data` holds no ledger id, and `chats.txt` is empty.
+    - Then reload the package with `load.sh` and leave the stack stopped. The image config is gone with the WebUI volume; task 2.4 (#819), which runs next, writes it again.
+  - Non-goals: the request set (#820), the image settings of 2.4 (#819), the baseline run (2.6), the `kit` failure markers (5.1, 5.3).
 
 - [ ] 2.4 Configure WebUI image generation and image editing in the stack on the `openai` engine: base URL the adapter, the adapter token as key (the adapter holds the dmxapi key), model `doubao-seedream-5-0-flash-260915`, default size 2048×2048, the aspect-ratio table of Decision 15, editing on. No code changes. Verify:
   - the stored settings equal the values above, read back from WebUI's image config API;
