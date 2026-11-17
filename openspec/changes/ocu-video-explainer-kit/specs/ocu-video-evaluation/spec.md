@@ -25,8 +25,8 @@ Before loading images and before every run, the tooling SHALL refuse to proceed 
 Cleanup SHALL remove only:
 
 - the images this project loaded;
-- the compose containers and networks;
-- the sandbox containers, `chat-<id>-workspace` volumes and orchestrator data directories of the chat ids recorded in this evaluation's run manifests.
+- the compose containers, networks and volumes (WebUI keeps the image settings, including the adapter token, in its database);
+- the sandbox containers, `chat-<id>-workspace` volumes and orchestrator data directories of the chat ids recorded in this evaluation's chat ledger, to which the driver adds each chat before it waits for the run.
 
 It SHALL NOT prune.
 

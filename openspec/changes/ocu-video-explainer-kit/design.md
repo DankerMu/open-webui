@@ -161,7 +161,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
     - The adapter renames `prompt` to `input`, drops `n`, sets `watermark` false, and returns the OpenAI images shape. WebUI's image base URL points at it, so the image-generation code stays untouched.
     - Image editing is on in production. WebUI sends edits as multipart `/images/edits`, and the adapter forwards them to the same `/v1/responses` with the files as `data:` URLs in `image`. Measured 2026-11-16: an edit at 2048×2048 took 21 s and cost about ¥0.12.
     - Production uses 2048×2048 by default, with an aspect-ratio table of 16:9, 9:16, 1:1, 4:3, 3:4 and more. The user left exact pixels open (2026-11-16), so the evaluation fixes: 1:1 2048×2048, 16:9 2560×1440, 9:16 1440×2560, 4:3 2304×1728, 3:4 1728×2304, 3:2 2496×1664, 2:3 1664×2496.
-    - The driver runs from the Mac through an SSH tunnel:
+    - The driver runs on the evaluation host, started detached over SSH, so a 60-minute run survives a dropped SSH session and the admin credentials stay on the host (amended 2026-11-17; the plan said the Mac through an SSH tunnel):
       - it turns on the video switch and image generation;
       - it posts each request to WebUI's chat completions API;
       - it records chat ids for cleanup and the tool, image and speech call counts;
