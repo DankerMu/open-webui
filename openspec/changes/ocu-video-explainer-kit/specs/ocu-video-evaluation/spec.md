@@ -60,7 +60,7 @@ The evaluation driver SHALL send each request through WebUI's chat API, with:
 
 - the chat model `qwen3.8-27b`;
 - the video switch and image generation on;
-- image generation on WebUI's `openai` engine, as in production (where it serves vllm-omni), with production's image settings copied field by field except three: the base URL points at the evaluation-only adapter, the key is the dmxapi key, and the model is `doubao-seedream-5-0-flash-260915`;
+- image generation on WebUI's `openai` engine, as in production (where it serves vllm-omni), with production's image settings copied field by field except three: the base URL points at the evaluation-only adapter, the key is the adapter's token (the adapter holds the dmxapi key), and the model is `doubao-seedream-5-0-flash-260915`;
 - speech from `mimo-v2.5-tts` through the same adapter.
 
 The adapter SHALL accept OCU's speech request (`model`, `input`, `response_format` of `mp3` or `wav`, and optional `voice` and `instructions`). It SHALL return audio in the requested format, with the content type OCU expects. When the upstream call fails, times out or returns non-audio, it SHALL return HTTP 502 with an error body that holds no key.

@@ -152,7 +152,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
       - no host firewall or network provisioning;
       - a 15 GB free-space floor on Docker's root.
     - The tooling lives in OCU `deploy/eval/`, beside `deploy/production-like-test/`, and is not part of any release.
-    - The speech adapter is a small service in the stack. It accepts OCU's speech request, calls dmxapi `chat/completions` with `mimo-v2.5-tts` audio output, and transcodes to the requested format. It returns 502 without the key on any upstream failure. OCU's `TTS_BASE_URL` points at it.
+    - The speech adapter is a small service in the stack. It accepts OCU's speech request, calls dmxapi `chat/completions` with `mimo-v2.5-tts` audio output, which arrives in the requested `mp3` or `wav` format, so nothing is transcoded (measured 2026-11-17). It returns 502 without the key on any upstream failure. OCU's `TTS_BASE_URL` points at it, and callers authenticate with a stack-generated adapter token; only the adapter holds the dmxapi key besides `open-webui`.
     - The same adapter serves image generation. Production runs WebUI's `openai` image engine against vllm-omni. WebUI always sends `n`, while dmxapi serves `doubao-seedream-5-0-flash-260915` only on `/v1/responses`, where the prompt field is `input`.
     - Measured on 2026-11-16, with a 1920×1080 PNG at about ¥0.12 and 18 s per image:
       - `/api/v3/images/generations` refuses the flash model ("not allowed on this route");
