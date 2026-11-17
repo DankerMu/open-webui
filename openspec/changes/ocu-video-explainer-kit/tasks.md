@@ -1135,6 +1135,28 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
     - **Full unit.** The full OCU unit command passes.
 
   - Non-goals: the install into the image and image tests (6.4), ducking and renderer use (6.5), any change to the candidate set.
+  - Amended after Phase 2 (user decision, 2026-11-17):
+    - **Measurement.** The real 15 sources were measured with `ebur128`. Five were infeasible under the strict rule `gain = -16 - I`:
+      - `and-just-like-that`: true peak -1.0 dBTP after gain;
+      - `beat-one`: -1.2 dBTP;
+      - `infinite-wonder`: -0.3 dBTP;
+      - `space-ranger-loop`: -0.4 dBTP;
+      - `observing-the-star`: +5.8 dBTP.
+    - **Gain rule.** The gain is now `min(-16 - I, -1.5 - TP)`. A track is feasible when the predicted `I + gain` rounds to -16.5 or above, which keeps it within the -16 ± 0.5 LU tolerance. The check after encoding is unchanged. This recovers `and-just-like-that` (-16.5) and `beat-one` (-16.3).
+    - **Exclusions.** `deploy/music/library-excluded.json` (version 1) lists the three tracks still outside tolerance:
+      - `infinite-wonder`, which the peak cap leaves at -17.2 LUFS;
+      - `space-ranger-loop`, at -17.1 LUFS, which as a loop takes no limiter;
+      - `observing-the-star`, at -23.3 LUFS.
+
+      Each entry carries its measured `I`, `TP` and LRA, `decided_by: "user"` and the date. `approved_library` subtracts these ids. An id that is not an approved candidate fails, naming it.
+
+    - **Result.** The library ships 12 tracks: calm-curious 4, upbeat-corporate 2, neutral-serious 3, loop 3. `report` prints the shortfalls and the exclusions. The approval file stays unchanged.
+    - **Evidence added:**
+      - a peak-capped fixture builds within tolerance;
+      - a fixture beyond tolerance fails;
+      - `approved_library` on the repository files returns those 12 tracks;
+      - the validation of the exclusion file;
+      - a fresh orchestrator Phase 2 run over the real sources, in which all 12 pass.
 
 - [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
