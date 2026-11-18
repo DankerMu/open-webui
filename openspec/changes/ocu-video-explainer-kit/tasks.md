@@ -1390,8 +1390,10 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
       - A mask never cuts a glyph box it reveals.
 
       Nothing else is a violation in 3.7. Rest after reveals and the other check rules belong to 5.1.
+
     - **Probe frames are computed.** They come from integers the caller supplies, by the formulas below, never from the model.
     - **Deterministic.** The same entry point and targets give a deep-equal result.
+
   - Risk packs:
     - **Schema**, selected: the probe result, version 1, defined below.
     - **Subprocess / browser**, selected. Bundling and rendering use Remotion's Node APIs inside the offline image, as `assistant`, against the root-owned `/opt/remotion-template/node_modules`. Bundling passes `enableCaching: false`, since `remotion.config.ts` applies only to `npx remotion` commands. The bundle and any frame output go to a fresh directory under `os.tmpdir()`, removed in `finally`.
@@ -1410,6 +1412,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
         - `minFontSizePx`: the smallest, over those text nodes' parent elements, of computed `font-size` times the element's rendered scale. The rendered scale is the product, over the element and its ancestors up to and including `root`, of √|a·d − b·c| of `new DOMMatrix(getComputedStyle(e).transform)`, where `none` gives 1. For SVG text, that product is taken over the outermost `<svg>`'s chain and multiplied by √|a·d − b·c| of the text element's `getCTM()`, which carries the viewBox scale. `minFontSizePx` is rounded to 0.01.
         - `lines`: an array of strings, the rendered lines, by 3.3's line-count method applied per code point. The record's code points that have a client rect are taken in order. A code point starts a new line when its trimmed rect overlaps the previous one's vertically by less than half the smaller rect's height. A code point without a rect joins the current line.
         - `clippedBy`: the paths of the record's clipping ancestors, nearest first.
+
       - **Marked text.** Every element with a `data-kit-text` attribute gives `{path, input, rendered}`. `input` is the attribute value, and `rendered` is the element's `textContent`. Kit components (4.2–4.4) put the field's input on the element that holds its lines.
       - **Scrolls.** Every element under `root` that contains a text record, whose computed `overflow-x` is `auto` or `scroll`, and whose `scrollWidth` exceeds a non-zero `clientWidth`, gives `{path, scrollWidth, clientWidth}`. Hidden or clipped overflow is judged by the mask rule, and visible overflow by the safe-area rule.
       - **Masks.** A record's clipping ancestors are its own element and its ancestors up to and including `root` whose computed `overflow-x` or `overflow-y` is `hidden`, `clip`, `auto` or `scroll`, or whose `clip-path` is not `none`. Each distinct one gives `{path, clipPath, clipBox}`.
@@ -1419,6 +1422,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
         - Known limit: an absolutely positioned descendant whose containing block lies outside a non-positioned clipping ancestor is not clipped by it in the browser, yet is judged against it here. Rendered scale reads only the `transform` property; the individual `scale`, `rotate` and `translate` properties and `zoom` are not measured.
       - **Font.** `measure.ts` also exports `fontPresent(family)`. It is true when a fixed ASCII sample measures differently in `<family>, monospace` than in `monospace`, and differently in `<family>, serif` than in `serif`. The frame's `fontPresent` is `fontPresent('"Noto Sans CJK SC"')`.
       - Boxes are `{x, y, width, height}` in canvas pixels, rounded to 0.01.
+
     - **`src/kit/probe/Probe.tsx`** exports `ProbeComposition({scenes})`, where `scenes` maps scene keys to components. It registers `<Composition id="KitProbe">` at 1920×1080 and 30 fps.
       - The input prop `targets` lists `{scene, props, durationInFrames}` per target. `calculateMetadata` sets the composition's `durationInFrames` to the sum of the targets' `durationInFrames`.
       - Target `t` renders its scene in `<Sequence from={offset_t} durationInFrames={durationInFrames_t}>`, as 3.8 places scenes, with `props` passed through unchanged. Inside the scene, `useCurrentFrame()` and `useVideoConfig().durationInFrames` are therefore the scene's own. Each scene sits in an `AbsoluteFill` root, the `root` that `measureFrame` receives. The scene root sets no `overflow` or `clip-path`.
@@ -1432,6 +1436,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
         - `midpoint = min(max(floor(durationInFrames / 2), entranceEnd), preExit)`.
 
         The caller sets `exitFrame` to `transitionOut.startFrame − startFrame` for a scene with a transition, and to `durationInFrames` otherwise. All three inputs are integers, with `durationInFrames ≥ 1`, `1 ≤ exitFrame ≤ durationInFrames` and `entranceFrames ≥ 0`. Anything else throws `RangeError` naming the field.
+
       - **`async probe({entryPoint, targets})`**:
         - `targets` entries are `{id, scene, props, durationInFrames, entranceFrames, exitFrame}`, with `id` unique and non-empty. They are validated before bundling.
         - `targets` is a non-empty array.
@@ -1448,7 +1453,9 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
         - `line start`: lines are judged per text block. The records at or inside one marked element, in document order, form one block, whose lines are their `lines` concatenated. Every other record is its own block. A block line after the block's first that starts with `，。！？、；：）」』` is a violation, with `path` the record holding it. `detail` is `line <n> starts with "<mark>"`, counting block lines from 1. A block's first line begins at the input's own edge, which 3.3 keeps.
         - `mask clips`: one violation per record and clipping ancestor whose `clipBox` is null, or whose `clipBox` intersects the record's `glyphBox` without containing it. `detail` is `by <mask path>`, followed by `: clip-path <value> is not measurable` when `clipBox` is null. A glyph box wholly outside its mask is not yet revealed, so it does not count.
       - **`formatViolation(v)`** returns `<target> <role> frame <frame>: <rule>: <path> <detail>`. Text inside `detail` passes through `escapeLine` from `script-schema.mjs`, uncut.
+
     - **The result, version 1:** `{version: 1, canvas: {width: 1920, height: 1080}, frames: [{target, role, frame, fontPresent, texts, hidden, marked, scrolls, masks}]}`. The frames come in target order, then role order.
+
   - Fixture scenes (`tests/render/fixtures/`: an entry calling `registerRoot` with `ProbeComposition` over the fixture scenes). The safe area and minimum come from `theme.ts`: inner box 96–1824 × 54–1026, minimum 32 px.
     - **`fits`** holds, at all three probe frames:
       - a marked two-line Chinese paragraph, rendered as `wrapLines` lines, each its own block, in a `(maxWidth + HANG)` em box at 48 px with the theme's line height of 1.4;
