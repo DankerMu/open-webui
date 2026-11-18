@@ -1158,6 +1158,217 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
   - a missing block fails, naming it;
   - an edited block's stale hash fails;
   - a 200-second fixture fails, stating its length.
+
+  **Task 3.6 required evidence** (issue #828):
+  - Triage: feature (CLI subcommand and a new file format). Fixture level is expanded: `timeline.json` is the format that tasks 3.8, 4.5, 5.1 and 5.3 read, and the narration track is the audio of every video.
+  - Governing invariants:
+    - **Blocks follow their audio.** Every caption block's frames follow its trimmed audio to within one frame.
+    - **Scene length.** Every scene lasts the longer of its narration plus gaps and its minimum.
+    - **Transitions.** Every transition's 15 frames lie after the outgoing scene's last block and inside that scene.
+    - **Narration track length.** The narration track is exactly as long as the timeline.
+    - **Failure writes nothing.** A `timeline` run that fails before its renames leaves `timeline.json`, `public/narration.wav` and the directory listings as they were.
+      - A failure between the two renames leaves a new narration next to the old timeline.
+      - The old timeline's `narration.sha256` exposes that mismatch, and 5.1's agreement check must compare it.
+    - **No frame numbers from the model.** Nothing in `script.json` holds a frame number.
+  - Risk packs:
+    - **CLI**, selected: one more entry in `kit.mjs`'s dispatch table, with 3.5's exit codes, streams, prefix and template refusal.
+    - **Schema**, selected: `timeline.json` version 1, defined below.
+    - **File IO**, selected: atomic replace of both outputs, and nothing written on failure.
+    - **Subprocess**, selected. `ffmpeg` runs through `execFile` with an argument array, never through a shell, and with `encoding: "buffer"` and `maxBuffer` of 32 MiB, which is more than the 17,280,000 bytes of 180 s of PCM.
+      - A missing binary fails, naming it.
+      - A non-zero exit is a reported reason, never an uncaught exception.
+    - **Error handling**, selected: missing, stale, undecodable and all-silent audio; the length window; and a loudness the track cannot reach.
+    - **Legacy compatibility**, selected: 3.5's commands and tests are unchanged except for the listed #827 follow-ups. The image guards stay green.
+    - **CI**, selected: `template-tests` gains an `ffmpeg` install step. The PR flags it.
+    - Not selected: auth, network, and server code.
+  - Shape (OCU `remotion-template/`):
+    - **`bin/kit-io.mjs`** is new. 3.5's helpers `readScript`, `Refusal`, `writeAtomic` and `publicDir` move here unchanged from `kit.mjs`. 3.5's `say` closure becomes the export `sayer(io, name)`, which returns it. `kit.mjs` and `timeline.mjs` both import these, so there is one copy and no import cycle.
+    - **`bin/scene-timing.mjs`** imports nothing.
+      - It carries the FSL header plus `// Source: Vincentwei1021/anything2explainer 4f738189d866a8a1d1abd008456303617279a2c2 reference/motion-vocabulary.md PolyForm-Noncommercial-1.0.0`, because the gap numbers come from there (Decision 7; its line 75 gives 10 frames within a paragraph and 45 before a chapter).
+      - It exports:
+      - `FPS`, which is 30;
+      - `SAMPLE_RATE`, which is 48000. One frame is 1600 samples.
+      - `GAPS`, which is `{block: 2880 samples (0.06 s), sentence: 10, sceneEnd: 20, chapterStart: 45, leadIn: 40, tail: 90}`. Every value is in frames except `block`.
+      - `TRANSITION_FRAMES`, which is 15.
+      - `LENGTH_WINDOW`, which is `{minFrames: 1800, maxFrames: 5400}`, that is 60–180 s, both bounds inclusive.
+      - `MIN_SCENE_FRAMES`, one value per kind. It is 60 for `hook`, `summary`, `custom` and every body kind, and 90 for `end-card`.
+        - These are conservative floors, set until components exist.
+        - Tasks 4.2–4.4 replace each kind's value with its component's declared minimum, and a test there checks that the two are equal.
+        - The `end-card` value stays at most 90 (Decision 4).
+      - `layout(script, blocks)` is pure.
+        - It takes the validated script, and `blocks`: the entries of `blockStems(script)`, each with a `samples` field holding the block's trimmed sample count.
+        - It returns the timeline object below, without `audioSha256` and the narration record.
+      - `loudnessOk(integratedLufs, truePeakDbtp)` is pure. It is the gate below.
+    - **Layout rules.** Positions are kept in samples at 48 kHz.
+      - **Scene order.** Scenes run in playback order: hook, the chapter scenes, summary, end card. The first scene starts at frame 0.
+      - **Inside a scene.**
+        - The first block starts at the scene's start frame. For the hook, it starts at the start frame plus `leadIn`.
+        - The next block of the same sentence starts `GAPS.block` samples after the previous block's end.
+        - The first block of the next sentence starts at the previous block's end, rounded up to a whole frame, plus `sentence` frames.
+      - **Scene end.** The narration ends at `narrationEndFrame`, which is the last block's end rounded up to a whole frame.
+        - The scene ends at `narrationEndFrame` plus the gap. The gap is `chapterStart` (45) when the next scene is the first scene of a chapter, and `sceneEnd` (20) otherwise.
+        - If the result is shorter than the scene's minimum, the scene ends at `startFrame + MIN_SCENE_FRAMES[kind]` instead. The extra frames are silence after the narration.
+      - **End card.** It has no following gap. It ends at `narrationEndFrame + tail`.
+        - Without narration, its `narrationEndFrame` is its `startFrame`.
+        - If the end is shorter than its minimum, it is extended to the minimum.
+        - So an end card without narration lasts exactly 90 frames.
+      - **Transitions.** Each scene except the end card has `transitionOut = {startFrame: endFrame - 15, frames: 15}`. The end card's is `null`. With the gaps above, the transition always lies after `narrationEndFrame`.
+      - **Block frames.** A block's `startFrame` is `floor(startSample / 1600)` and its `endFrame` is `ceil(endSample / 1600)`, exclusive.
+        - The trimmed segment keeps 0.02 s of silence at each end.
+        - So the audible gap within a sentence is about 0.10 s. The 0.06 s is the gap between trimmed segments.
+      - **Total.** `totalFrames` is the end card's `endFrame`.
+    - **`timeline.json`**, version 1, is written at the project root:
+
+      ```
+      {version: 1, fps: 30, sampleRate: 48000, totalFrames,
+       narration: {file: "public/narration.wav", sha256, integratedLufs, truePeakDbtp},
+       scenes: [{index, slot, chapter, scene, kind, startFrame, endFrame, narrationEndFrame,
+                 minFrames, transitionOut,
+                 sentences: [{blocks: [{stem, text, startSample, endSample, startFrame, endFrame, audioSha256}]}]}]}
+      ```
+
+      - `index` is 1-based in playback order. It equals the stem's `s<n>`.
+      - `slot` is `hook`, `chapter`, `summary` or `end-card`.
+      - `chapter` is the 1-based chapter number, or `null`.
+      - `scene` is the 1-based scene number within the chapter, or `null`.
+      - `audioSha256` is the SHA-256 of the imported `public/voice/<stem>.wav`.
+      - An end card without narration has `sentences: []`.
+
+    - **`kit timeline`**:
+      - **Inputs.** It validates `script.json` with `validateScript`. Then, for each block of `blockStems`, it reads `public/voice/<stem>.wav`.
+        - Only a regular file is read; a symlink counts as missing.
+        - `public` and `public/voice` are checked but never created: a symlink or a non-directory gives exit 1, and a missing directory reports every block as missing.
+        - `public/narration.wav` is replaced only after every check passes. The checks measure its temporary file. By then `public` already exists.
+      - **Audio problems.** Every problem is listed, in playback order, before the command exits 1. Each problem is one line, exactly:
+
+        `kit timeline: <where>, sentence <i+1> block <j+1>: <reason>`
+        - `<where>` comes from a new export of `script-schema.mjs`, `playbackWhere(script, index)`, which writes it as 3.4's messages do: `hook`, `chapter 2 原理, scene 3 (comparison)`, `summary` or `end-card`. It reuses the module's internal `sceneWhere`, which keeps its name.
+        - The sentence and block numbers are 1-based in messages. Stems stay 0-based.
+        - `<reason>` is one of:
+          - `missing <stem>.wav`;
+          - `stale: its text, voice or instructions changed, needs <stem>.wav`, when a regular file with the same `s<n>-<i>-<j>-` prefix but another hash exists;
+          - `cannot be decoded: <text>`, where `<text>` is ffmpeg's first stderr line with any leading `[<name> @ 0x<hex>] ` removed, escaped by `echo`'s rule. For a 0-byte file this is `cannot be decoded: Error opening input: Invalid data found when processing input` on both ffmpeg 6.1.1 and 9.0.1;
+          - `silent after trimming`.
+
+        After the list comes one line: `kit timeline: run node bin/kit.mjs voice, then voice-import`.
+
+      - **Decoding.** Each file is decoded with `ffmpeg -nostdin -v error -i <file> -ac 1 -ar 48000 -af <trim> -f s16le -`. Its trimmed length is the number of decoded samples.
+        - `<trim>` is `silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.02,areverse,silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.02,areverse`.
+      - **Length window.** It runs `layout`. A total outside `LENGTH_WINDOW` fails with exit 1 and `kit timeline: total <s> s (<frames> frames) is outside 60–180 s`.
+        - The seconds have one decimal.
+        - Above the window they are rounded up, below it rounded down. So 5401 frames reads `180.1 s`.
+      - **Narration track.** It writes every block's trimmed PCM at its `startSample` into one silent buffer of `totalFrames × 1600` samples.
+        - It normalizes that buffer with two-pass `loudnorm`.
+          - The first pass measures with `I=-16:TP=-1.5:LRA=11:print_format=json`.
+          - The second pass applies `I=-16:TP=-1.5:LRA=11:linear=true`, with the first pass's `measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh` and `offset`.
+          - The raw buffer goes to both passes on stdin (`-f s16le -ar 48000 -ac 1 -i pipe:0`); no raw temporary file exists.
+          - It writes 48 kHz, 16-bit, mono WAV.
+          - When a linear gain cannot meet the peak target, loudnorm falls back to dynamic mode. That is allowed: the gate below decides.
+        - It then measures the result with `ebur128=peak=true`, without `-v error`, so that the Summary is printed. It reads the integrated loudness and true peak from the Summary, rounded to one decimal.
+        - The gate is `loudnessOk`: the integrated loudness is within -16 ± 1 LU and the true peak is at or below -1.0 dBTP. Otherwise it fails with exit 1 and `kit timeline: narration measures <I> LUFS, <TP> dBTP; needs -16 ± 1 LUFS and at most -1.0 dBTP`.
+        - It also fails unless the result has exactly `totalFrames × 1600` samples. The failure line is `kit timeline: narration has <n> samples, expected <totalFrames × 1600>`.
+      - **Writing.** It writes `public/narration.wav` and `timeline.json` each through a temporary file in the same directory, then renames both, the narration first. On any failure before the renames, both temporary files are removed and the originals are left unchanged.
+      - **Output.** It prints nothing on stdout. On stderr it prints `kit timeline: <blocks> blocks, <scenes> scenes, <s> s (<frames> frames), <lufs> LUFS`, with the seconds and the LUFS to one decimal.
+      - **Missing ffmpeg.** It prints `kit timeline: ffmpeg: not found on PATH` and exits 1.
+      - It refuses in the template with 3.5's hint.
+
+    - **Deferred from the #827 review (OCU #246), fixed here.**
+      - **P2, parse message.** The JSON parse message is escaped by `echo`'s rule but no longer cut. This amends 3.5's handling: escape only. V8's message has two forms:
+        - one quotes a short snippet and holds no position;
+        - the other ends `in JSON at position N (line L column C)`, at most about 90 characters.
+
+        The 40-code-point cut removed the second form's position. 3.5's test asserting the `…` cut is replaced by two tests:
+        - `'{"version": 1,'` gives a message containing `(line 1 column 15)` and no `…`;
+        - `'{"a": [1,\n]}'` gives a message with `\n` escaped, no raw newline and no `…`.
+
+      - **P2, `echo()`.** `echo()` stops reading at the 41st code point instead of expanding the whole string. A test shows that a 450,000-character chapter name validates in under 2 s, under 1 MiB in total, with 68,000 unknown keys placed in `chapters[0].scenes[0].content` so that every error carries that chapter's label.
+      - **Note, directory at a voice target.** In `voice-import`, a directory at `public/voice/<stem>.wav` no longer aborts the run.
+        - The stem is reported with the line `kit voice-import: public/voice/<stem>.wav is not a regular file; counted missing`.
+        - It counts as missing, and the other stems are still imported.
+      - **P3, tests.** These cases are added:
+        - sanitize inputs, each with its exact result:
+          - `---` + 60 × `a` + `.png` gives 57 × `a` + `.png`;
+          - `a` + 30 × `..b` + `.png` gives `a` + 29 × `.b` + `.png`;
+          - 61 × `a` + `.png` gives 60 × `a` + `.png`;
+        - `a_.png` keeps its `_`;
+        - a sibling directory `<filesRoot>2/x.png` is refused;
+        - a directory at `public/voice/<stem>.wav` is not treated as satisfied;
+        - an injected `EACCES` gives exit 1.
+
+  - **CI.** `.github/workflows/template-tests.yml` gains one step before the tests: `sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg`. On Ubuntu 24.04 that installs 6.1.1, the image's version. The tests never skip when `ffmpeg` is absent; they fail, naming it.
+  - Must preserve:
+    - every file of tasks 3.1–3.5, except these, which change only as listed above:
+      - `bin/kit.mjs` (the helpers moved to `kit-io.mjs`, the dispatch entry, and the EISDIR handling);
+      - `bin/script-schema.mjs` (the parse message, `echo`, and the `playbackWhere` export);
+      - `NOTICE` and `THIRD-PARTY-LICENSES.md`: the anything2explainer paragraph and row add "and the gap numbers of `remotion-template/bin/scene-timing.mjs`" to what was taken;
+      - `tests/kit.test.mjs` and `tests/script-schema.test.mjs`;
+      - `.github/workflows/template-tests.yml`;
+    - `package.json`, `package-lock.json`, `Root.tsx`, `src/**`, the Dockerfile and the example `script.json`.
+
+    New files: `bin/kit-io.mjs`, `bin/scene-timing.mjs`, `bin/timeline.mjs` (the subcommand, imported by `kit.mjs`), `tests/scene-timing.test.mjs` and `tests/timeline.test.mjs`. No audio file is committed: tests generate their fixture audio with `ffmpeg` lavfi into a temporary directory.
+
+  - Required evidence, red first (`node:test`):
+    - **`layout`, pure, with sample counts given directly:**
+      - A 3-chapter script with known block lengths gives:
+        - the hook's first block at frame 40;
+        - the 0.06 s gap within a sentence;
+        - 10 frames between sentences;
+        - 45 frames before each chapter's first scene and 20 frames elsewhere;
+        - `scenes[i].startFrame` equal to `scenes[i-1].endFrame`;
+        - `totalFrames` equal to the sum of the scene lengths.
+      - A scene shorter than its minimum is extended to it.
+      - An end card without narration lasts exactly 90 frames; with narration it lasts its narration plus 90.
+      - Every `transitionOut` satisfies `narrationEndFrame ≤ startFrame` and `startFrame + 15 = endFrame` of the scene. There are `scenes - 1` transitions.
+      - A custom scene sits in its playback position.
+      - `FPS` equals `VIDEO.fps` from `script-schema.mjs`.
+      - `loudnessOk` accepts -15.0 and -17.0 LUFS at -1.0 dBTP, and refuses -14.9 LUFS, -17.1 LUFS and -0.9 dBTP.
+    - **`kit timeline` on fixture audio.** The audio is sine tones of known length, with 0.3 s of silence padded on each side, generated per test.
+      - **Block frames against the audio.** Every block's frames are checked against `public/narration.wav` itself, never against the tones' nominal lengths. For each tone, the test finds its first and last audible samples, `onset` and `offset`, and asserts:
+        - `startFrame ≤ floor(onset / 1600) ≤ startFrame + 1`;
+        - `endFrame − 1 ≤ ceil(offset / 1600) ≤ endFrame`.
+      - `timeline.json` matches the version-1 shape exactly.
+      - `public/narration.wav` has `totalFrames × 1600` samples. It measures within -16 ± 1 LUFS with a true peak at or below -1.0 dBTP.
+      - Re-running with unchanged inputs gives a byte-identical `timeline.json`.
+    - **Failures.** Each of the following gives exit 1 and the exact lines, and leaves an existing `timeline.json` and `narration.wav` byte-identical:
+      - a missing block, named;
+      - an edited block with its old file present, reported as `stale` with the new stem;
+      - an all-silent block;
+      - a 0-byte voice file, reported as `cannot be decoded`;
+      - a `public/voice` symlink;
+      - a script of about 200 s, reported as `total 200.x s (… frames) is outside 60–180 s`;
+      - a script under 60 s;
+      - a symlinked voice file, reported as missing;
+      - `ffmpeg` absent from `PATH`, named. The test runs `process.execPath bin/kit.mjs timeline` as a child process whose `PATH` holds only an empty directory.
+
+      The failure tests also assert that the directory listings of the project root and `public/` are unchanged, so no temporary file is left behind.
+
+    - **CLI.** `timeline` run in the template gives exit 2 with the hint. An invalid script gives 3.5's header line and indented messages.
+    - **#827 follow-ups.** Each of the cases listed above is a test.
+    - **Green.**
+      - In a scratch layout like task 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+    - **In the image.**
+      - Run the local production workspace image `open-computer-use:3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5` with `--rm --platform linux/amd64 --network none --user assistant`, with the PR's `bin/` bind-mounted read-only as in 3.5.
+      - Steps, in order:
+        1. `new`;
+        2. a `voice` listing;
+        3. generate a 2 s tone WAV per listed stem with the image's `ffmpeg` into `/mnt/user-data/files/`. The 26 blocks of the example then give about 68 s, inside the window.
+        4. `voice-import`;
+        5. `timeline`.
+      - Record in the PR the image's `ffmpeg -version` line, the timeline summary line, and `totalFrames` against the narration sample count.
+    - **Notices.** The notice test passes with the new `Source:` line. The anything2explainer triple stays in exactly one paragraph and one row.
+    - **Unchanged guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+    - **PR checks.** The PR's `template-tests` run is green. Its log shows the `ffmpeg` install and the timeline tests passing.
+    - **Full unit.** The full OCU unit command passes.
+
+  - Non-goals:
+    - rendering, captions and the renderer's use of `transitionOut` (3.8, 4.5);
+    - `kit check`'s timeline-agreement rule (5.1);
+    - music and ducking (6.5);
+    - component-declared minimums (4.2–4.4);
+    - MP3 speech;
+    - deleting stale voice files.
+
 - [ ] 3.7 Implement the shared probe composition, which records text boxes, overflow, font size, rendered text, line-start characters and mask boxes as JSON. Verify that a deliberately overflowing fixture scene is reported, and a fitting one is not.
 - [ ] 3.8 Implement the renderer over the validated script and timeline, with captions paged per block and the `custom` loader (`src/custom/<File>.tsx` through a generated `src/custom/index.ts`). Verify with short fixture renders:
   - three blocks give three caption pages;
