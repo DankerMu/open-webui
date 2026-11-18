@@ -196,7 +196,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
 ## Open Questions
 
 - Settled 2026-11-16: the evaluation's image settings are fixed in Decision 15 (the user left the exact pixel table open).
-- The numeric thresholds for render success rate and kit check pass rate. They are recorded and confirmed by the user after the baseline and before the after run (task 2.7).
+- Settled 2026-11-17: the render success-rate threshold is at least 12 of 13 final outcomes, and the kit check pass-rate threshold is at least 8 of 10 explainer runs. The user confirmed both after the baseline and before the after run (task 2.7, #822).
 
 ## Not yet specified
 
