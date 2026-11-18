@@ -499,7 +499,7 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
 
   - Non-goals: running anything; the driver.
 
-- [ ] 2.6 Run the baseline on release `01b7ef7a64a5` with WebUI `6b95a4995e91`: each explainer twice, the others once, `infra` failures rerun at most twice. Keep that package under `/home/nwm/ocu-eval/`. Verify that 13 final-outcome manifests, one per request and repetition, plus a manifest for every rerun attempt, record that release identity, the WebUI image digest and an outcome.
+- [x] 2.6 Run the baseline on release `01b7ef7a64a5` with WebUI `6b95a4995e91`: each explainer twice, the others once, `infra` failures rerun at most twice. Keep that package under `/home/nwm/ocu-eval/`. Verify that 13 final-outcome manifests, one per request and repetition, plus a manifest for every rerun attempt, record that release identity, the WebUI image digest and an outcome.
       **Task 2.6 required evidence** (issue #821):
   - Triage: evaluation run (operations, no code PR). Fixture level expanded, agreeing with upstream: it runs the shared host's stack for hours, with the provider key and the adapter token in play.
   - Governing invariant:
@@ -557,7 +557,13 @@ Minimal mergeable slice: atomic - the pin, its inventory record and its guard pr
   - After the key search: `cleanup.sh --runs-only`. `runs/baseline/` and both packages stay; the stack keeps running for task 8.1's comparison setup.
   - Non-goals: the thresholds (2.7, #822), any kit slice, the after run (8.1).
 
-- [ ] 2.7 Record the render success-rate threshold, set from the baseline, and the a-priori kit check pass-rate threshold in this change, and get the user's confirmation. Verify that the change holds both values and a link to the confirmation, dated before any after-run manifest.
+- [x] 2.7 Record the render success-rate threshold, set from the baseline, and the a-priori kit check pass-rate threshold in this change, and get the user's confirmation. Verify that the change holds both values and a link to the confirmation, dated before any after-run manifest.
+
+  **Task 2.7 record** (issue #822, human-gated):
+  - **Baseline** (#821, closed 2026-11-17): production release `01b7ef7a64a5` with WebUI `6b95a4995e91` and qwen3.8-27b. All 13 slots succeeded on their first attempt, with no `infra` rerun. The run's image-call count was 0 in all 13.
+  - **Render success rate:** the after run passes when at least 12 of its 13 final outcomes succeeded (≥ 92.3 %). The threshold is set from the baseline's 13/13 and tolerates one failure, given the sample size.
+  - **Kit check pass rate:** the after run passes when at least 8 of its 10 explainer runs both pass `kit check` and render successfully (≥ 80 %). This threshold is set a priori.
+  - **Confirmation:** the user confirmed both values on 2026-11-17, before any after-run manifest. Record: https://github.com/DankerMu/open-webui/issues/822#issuecomment-6965142573.
 
 Suggested fixture level: expanded - it starts services on a shared host, handles a secret, and adds a network adapter.
 Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one request end to end. The rest uses that stack.
@@ -655,7 +661,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - **Full unit.** The full OCU unit command passes.
   - Non-goals: theme tokens (3.3), the schema (3.4), any scene component, wiring the kit into `Root.tsx`.
 
-- [ ] 3.3 Add the theme token module and the Chinese text helper:
+- [x] 3.3 Add the theme token module and the Chinese text helper:
   - punctuation and character-count segmentation;
   - no closing punctuation at line start;
   - letter spacing 0 and line height ≥1.25;
@@ -772,7 +778,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - applying `brand` at the root (3.8);
     - a TypeScript type check. The template has none; `tsconfig` `lib: ES2018` lacks `Intl.Segmenter`, so the helper reaches it through a local type declaration.
 
-- [ ] 3.4 Define the `script.json` schema in a `.mjs` module:
+- [x] 3.4 Define the `script.json` schema in a `.mjs` module:
   - 1920×1080 at 30 fps;
   - the hook / 3–5 chapters / summary / end-card skeleton;
   - 1–4 scenes per chapter, 1–4 sentences per scene, 1–4 blocks per sentence, blocks ≤16 characters, chapter names ≤6;
