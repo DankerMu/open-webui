@@ -933,7 +933,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - checking that a music id exists (6.5);
     - removing unapproved kinds (4.2–4.4).
 
-- [ ] 3.5 Implement `kit new <name>`, `kit voice`, `kit voice-import` and `kit image`. Verify with `node --test`:
+- [x] 3.5 Implement `kit new <name>`, `kit voice`, `kit voice-import` and `kit image`. Verify with `node --test`:
   - `new` refuses a non-empty directory;
   - `voice` stems carry the hash of text, voice and instructions, and change when any of them changes;
   - `voice-import` places a suffixed file under its stem;
@@ -1152,7 +1152,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - installing the kit's example or commands into the image beyond the existing `COPY` of the template (7.1 tests it in the built image);
     - the text helper test gap from #825 (task 3.7's fixture).
 
-- [ ] 3.6 Implement `kit timeline`: silence trim, decoded durations, the gaps (0.06 s within a sentence, 10/20/45 frames, 40 lead-in, 90-frame tail as the end card's closing part), the 15-frame transition slots inside the post-narration gaps, narration normalized to -16 LUFS, recorded hashes, and the 60–180 s window. Verify with fixture audio:
+- [x] 3.6 Implement `kit timeline`: silence trim, decoded durations, the gaps (0.06 s within a sentence, 10/20/45 frames, 40 lead-in, 90-frame tail as the end card's closing part), the 15-frame transition slots inside the post-narration gaps, narration normalized to -16 LUFS, recorded hashes, and the 60–180 s window. Verify with fixture audio:
   - block frames are within one frame;
   - every transition slot lies inside its gap, and an end card without narration lasts 90 frames;
   - a missing block fails, naming it;
@@ -1369,7 +1369,161 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - MP3 speech;
     - deleting stale voice files.
 
+  - Amended after review round 1 (OCU #247, 2026-11-18). Where these differ from the bullets above, these bind:
+    - **Decode input.** The decode command puts `-f wav -t 181` before `-i`. It reads a voice file only through the WAV demuxer, so a concat list, a playlist or FLAC bytes behind a `.wav` name are refused, and it decodes at most 181 s, beyond the whole window. `generate_speech` writes RIFF `pcm_s16le` (task 2.2's `ffprobe` evidence), so real speech still decodes.
+    - **0-byte line.** A 0-byte voice file now gives `cannot be decoded: invalid start code [0][0][0][0] in RIFF header`, on ffmpeg 6.1.1 and 9.0.1.
+    - **Exit reason.** When ffmpeg is killed by a signal, or exits non-zero with nothing on stderr, the reason is `ffmpeg exited with <signal name or exit code>`, escaped. The same reason function serves the decode, normalize and measure steps.
+    - **Summary line.** The closing line comes from the pure export `summaryLine(blocks, scenes, totalFrames, integratedLufs)` in `timeline.mjs`.
+    - **CI runner.** `template-tests` runs on `ubuntu-24.04`, whose ffmpeg is 6.1.1 like the image's. `ubuntu-latest` had moved to 26.04 with ffmpeg 8.0.1.
+    - **Follow-ups** (non-blocking review findings): decode memory still grows with a multichannel or high-rate input's layout, the floor-versus-round block start, and an untested `-t 181`. They are tracked in #872.
+
 - [ ] 3.7 Implement the shared probe composition, which records text boxes, overflow, font size, rendered text, line-start characters and mask boxes as JSON. Verify that a deliberately overflowing fixture scene is reported, and a fitting one is not.
+
+  **Task 3.7 required evidence** (issue #829):
+  - Triage: feature (a browser measurement tool, a new JSON format, and the rules that read it). Fixture level expanded. The probe result is the format that the gallery (4.1), the component batches (4.2–4.4) and `kit check` (5.1) read. Its rules are the spec's text rules, which 4.2 needs as "a clean probe" before 5.1 exists.
+  - Governing invariants:
+    - **Every rendered text is measured.** Discovery walks the rendered DOM's text nodes. Text in a `custom` scene without kit markers is measured and judged like kit text; markers only add the input text to compare.
+    - **The rules are the spec's four, and only those.**
+      - Rendered text equals the input, for marked text.
+      - Glyphs stay inside the safe area, no box scrolls horizontally, and every font size is at or above the theme minimum.
+      - No wrapped line starts with `，。！？、；：）」』`.
+      - A mask never cuts a glyph box it reveals.
+
+      Nothing else is a violation in 3.7. Rest after reveals and the other check rules belong to 5.1.
+
+    - **Probe frames are computed.** They come from integers the caller supplies, by the formulas below, never from the model.
+    - **Deterministic.** The same entry point and targets give a deep-equal result.
+
+  - Risk packs:
+    - **Schema**, selected: the probe result, version 1, defined below.
+    - **Subprocess / browser**, selected. Bundling and rendering use Remotion's Node APIs inside the offline image, as `assistant`, against the root-owned `/opt/remotion-template/node_modules`. Bundling passes `enableCaching: false`, since `remotion.config.ts` applies only to `npx remotion` commands. The bundle and any frame output go to a fresh directory under `os.tmpdir()`, removed in `finally`.
+    - **Dependencies**, selected. `@remotion/bundler` and `@remotion/renderer` are imported as `@remotion/cli` 4.0.537 installs them; both are 4.0.537 in the lockfile. `package.json` and the lockfile do not change. A test asserts that both resolve to version 4.0.537.
+    - **Error handling**, selected: invalid targets, an unknown scene key, a scene that throws, and a missing or duplicated record each reject with a named error.
+    - **Legacy compatibility**, selected. No existing file changes except `tests/text.test.mjs` (the #825 follow-up below). `src/Root.tsx`, `src/index.ts`, the `kit` commands, NOTICE and CI stay unchanged. `kit new` does not copy `tests/` (`NOT_COPIED`), so the fixture scenes never reach a project.
+    - Not selected: CLI (3.7 adds no `kit` subcommand), network, auth, CI.
+  - Shape (OCU `remotion-template/`). Each new file carries the two-line FSL header. TypeScript uses only erasable syntax, as in 3.3.
+    - **`src/kit/probe/measure.ts`** runs in the page and imports nothing. It exports `measureFrame(root)`, which returns one frame's measurement:
+      - **Text records.** A text node under `root` is measured when its data holds a non-whitespace character, it has at least one client rect, and its parent element is visible: the product of computed `opacity` from that parent up to `root` is above 0, and its computed `visibility` is not `hidden`. A text node that fails only the visibility test goes into `hidden` as `{path, text}` instead, with `path` the text node's parent element's.
+
+        A measured text node belongs to its nearest ancestor whose computed `display` is neither `inline` nor `contents`. That ancestor is the record's element. There is one record per element, in document order, with these fields:
+        - `path`: the element's path from `root`, as `<tag>:nth-child(<i>)` steps joined by `>`. The path of `root` itself is the empty string.
+        - `text`: the record's text nodes' data, concatenated in document order.
+        - `glyphBox`: the union, over each non-whitespace code point of those text nodes, of the client rects of a `Range` over that code point. Each rect is first trimmed vertically about its centre to the computed `line-height` of the code point's parent element times that element's rendered scale (as for `minFontSizePx`), when that is a length and the product is smaller than the rect's height. A text rect spans the font's ascent plus descent (about 1.45 em for Noto Sans CJK SC) whatever the line height, while masks and the safe area are laid out against the line box.
+        - `minFontSizePx`: the smallest, over those text nodes' parent elements, of computed `font-size` times the element's rendered scale. The rendered scale is the product, over the element and its ancestors up to and including `root`, of √|a·d − b·c| of `new DOMMatrix(getComputedStyle(e).transform)`, where `none` gives 1. For SVG text, that product is taken over the outermost `<svg>`'s chain and multiplied by √|a·d − b·c| of the text element's `getCTM()`, which carries the viewBox scale. `minFontSizePx` is rounded to 0.01.
+        - `lines`: an array of strings, the rendered lines, by 3.3's line-count method applied per code point. The record's code points that have a client rect are taken in order. A code point starts a new line when its trimmed rect overlaps the previous one's vertically by less than half the smaller rect's height. A code point without a rect joins the current line.
+        - `clippedBy`: the paths of the record's clipping ancestors, nearest first.
+
+      - **Marked text.** Every element with a `data-kit-text` attribute gives `{path, input, rendered}`. `input` is the attribute value, and `rendered` is the element's `textContent`. Kit components (4.2–4.4) put the field's input on the element that holds its lines.
+      - **Scrolls.** Every element under `root` that contains a text record, whose computed `overflow-x` is `auto` or `scroll`, and whose `scrollWidth` exceeds a non-zero `clientWidth`, gives `{path, scrollWidth, clientWidth}`. Hidden or clipped overflow is judged by the mask rule, and visible overflow by the safe-area rule.
+      - **Masks.** A record's clipping ancestors are its own element and its ancestors up to and including `root` whose computed `overflow-x` or `overflow-y` is `hidden`, `clip`, `auto` or `scroll`, or whose `clip-path` is not `none`. Each distinct one gives `{path, clipPath, clipBox}`.
+        - For overflow clipping, `clipBox` is the padding box.
+        - For `clip-path: inset(...)` with one to four `px` or `%` lengths and no `round`, it is that inset of the border box. When both apply, it is their intersection.
+        - Any other `clip-path` gives `clipBox: null`.
+        - Known limit: an absolutely positioned descendant whose containing block lies outside a non-positioned clipping ancestor is not clipped by it in the browser, yet is judged against it here. Rendered scale reads only the `transform` property; the individual `scale`, `rotate` and `translate` properties and `zoom` are not measured.
+      - **Font.** `measure.ts` also exports `fontPresent(family)`. It is true when a fixed ASCII sample measures differently in `<family>, monospace` than in `monospace`, and differently in `<family>, serif` than in `serif`. The frame's `fontPresent` is `fontPresent('"Noto Sans CJK SC"')`.
+      - Boxes are `{x, y, width, height}` in canvas pixels, rounded to 0.01.
+
+    - **`src/kit/probe/Probe.tsx`** exports `ProbeComposition({scenes})`, where `scenes` maps scene keys to components. It registers `<Composition id="KitProbe">` at 1920×1080 and 30 fps.
+      - The input prop `targets` lists `{scene, props, durationInFrames}` per target. `calculateMetadata` sets the composition's `durationInFrames` to the sum of the targets' `durationInFrames`.
+      - Target `t` renders its scene in `<Sequence from={offset_t} durationInFrames={durationInFrames_t}>`, as 3.8 places scenes, with `props` passed through unchanged. Inside the scene, `useCurrentFrame()` and `useVideoConfig().durationInFrames` are therefore the scene's own. Each scene sits in an `AbsoluteFill` root, the `root` that `measureFrame` receives. The scene root sets no `overflow` or `clip-path`.
+      - In a `useLayoutEffect` keyed on the composition frame, it takes a `delayRender` handle. After `document.fonts.ready` and one animation frame, it calls `measureFrame` on the active target's root, logs `kit-probe <JSON of {index, ...measurement}>`, where `index` is the composition frame, and then calls `continueRender`.
+      - An unknown scene key throws `Error('kit probe: unknown scene "<key>"')`.
+      - Tasks 3.8 and 4.1 register it in their roots. 3.7 registers it only in the fixture entry.
+    - **`bin/probe.mjs`** has these exports:
+      - **`probeFrames({durationInFrames, entranceFrames, exitFrame})`** returns `[{role: "entrance-end", frame}, {role: "midpoint", frame}, {role: "pre-exit", frame}]`:
+        - `preExit = exitFrame − 1`;
+        - `entranceEnd = min(entranceFrames, preExit)`;
+        - `midpoint = min(max(floor(durationInFrames / 2), entranceEnd), preExit)`.
+
+        The caller sets `exitFrame` to `transitionOut.startFrame − startFrame` for a scene with a transition, and to `durationInFrames` otherwise. All three inputs are integers, with `durationInFrames ≥ 1`, `1 ≤ exitFrame ≤ durationInFrames` and `entranceFrames ≥ 0`. Anything else throws `RangeError` naming the field.
+
+      - **`async probe({entryPoint, targets})`**:
+        - `targets` entries are `{id, scene, props, durationInFrames, entranceFrames, exitFrame}`, with `id` unique and non-empty. They are validated before bundling.
+        - `targets` is a non-empty array.
+        - It bundles `entryPoint`, selects `KitProbe` with the input prop `targets`, and renders the distinct probe frames, the set of `offset_t + frame` over every target's three, through `renderFrames`' `frames` option, which refuses duplicates. It collects `kit-probe ` lines through `onBrowserLog`.
+        - The collector is the pure export `collectRecords(lines, indexes)`, given those distinct indexes. It parses the `kit-probe ` lines and returns one record per index in `indexes`. A record serves every role whose frame it is, so the result still holds three frames per target. It throws when a record is missing, duplicated, or carries an index outside `indexes`. Records map back to target and role by composition frame.
+        - It returns the result below.
+        - It runs with the working directory at the project root (the template, or a project whose `node_modules` link reaches the image's), since Remotion finds the headless shell under `node_modules/.remotion` there.
+        - Every rejection is an `Error` whose message starts `kit probe: `. A render failure keeps Remotion's message and names the target and frame being rendered when they are known.
+      - **`violations(result, theme)`** is pure. It returns `[{target, role, frame, rule, path, detail}]` in result order, with a tolerance of 0.5 px on every box comparison. Hidden text is never a record, so no rule sees it.
+        - `text differs`: a marked element whose `rendered` is not equal to `input`. `detail` is `rendered "<rendered>", input "<input>"`.
+        - `outside safe area`: a `glyphBox` not inside the safe-area rectangle (`theme.safeArea` inset from `theme.canvas`). `detail` names each crossed edge and its distance, for example `left 12.5 px, top 3 px`.
+        - `scrolls`: every scroll entry. `detail` is `scrollWidth <n> > clientWidth <n>`.
+        - `font size`: `minFontSizePx` below `theme.type.sizes.minimum`. `detail` is `<n> px < <minimum> px`.
+        - `line start`: lines are judged per text block. The records at or inside one marked element, in document order, form one block, whose lines are their `lines` concatenated. Every other record is its own block. A block line after the block's first that starts with `，。！？、；：）」』` is a violation, with `path` the record holding it. `detail` is `line <n> starts with "<mark>"`, counting block lines from 1. A block's first line begins at the input's own edge, which 3.3 keeps.
+        - `mask clips`: one violation per record and clipping ancestor whose `clipBox` is null, or whose `clipBox` intersects the record's `glyphBox` without containing it. `detail` is `by <mask path>`, followed by `: clip-path <value> is not measurable` when `clipBox` is null. A glyph box wholly outside its mask is not yet revealed, so it does not count.
+      - **`formatViolation(v)`** returns `<target> <role> frame <frame>: <rule>: <path> <detail>`. Text inside `detail` passes through `escapeLine` from `script-schema.mjs`, uncut.
+
+    - **The result, version 1:** `{version: 1, canvas: {width: 1920, height: 1080}, frames: [{target, role, frame, fontPresent, texts, hidden, marked, scrolls, masks}]}`. The frames come in target order, then role order.
+
+  - Fixture scenes (`tests/render/fixtures/`: an entry calling `registerRoot` with `ProbeComposition` over the fixture scenes). The safe area and minimum come from `theme.ts`: inner box 96–1824 × 54–1026, minimum 32 px.
+    - **`fits`** holds, at all three probe frames:
+      - a marked two-line Chinese paragraph, rendered as `wrapLines` lines, each its own block, in a `(maxWidth + HANG)` em box at 48 px with the theme's line height of 1.4;
+      - a block whose right edge sits exactly on x = 1824, with `text-align: right`;
+      - text at exactly 32 px;
+      - an `overflow: hidden` mask exactly the size of its text, and a `clip-path: inset(0)` reveal in its end state;
+      - an unmarked text that CSS wraps into two lines;
+      - an `opacity: 0` text placed outside the safe area.
+    - **One failing scene per rule.** Each fails only its own rule:
+      - `edge-over`: the edge block 1 px further right gives `outside safe area`.
+      - `small-font`: 31 px gives `font size`.
+      - `wrap-start`: `光的折射，速度` in a 4 em box with `line-break: anywhere` gives `line start` at `，`.
+      - `scroll`: a fixed-width, `overflow-x: auto` box whose text does not wrap but stays inside the safe area gives `scrolls` and `mask clips` (by that box).
+      - `wrap-start-lines`: a marked element `data-kit-text="光的折射，速度"` holding the block lines `光的折射` and `，速度` gives `line start` at the second line's path.
+      - `scaled-font`: 48 px text inside `transform: scale(0.5)` gives `font size`.
+      - `mask-small`: an `overflow: hidden` wrapper 10 px narrower than its fixed-width text block, and a `clip-path: circle(...)` element, each give `mask clips`.
+      - `text-differs`: `data-kit-text="光的折射现象"` rendering `光的折射` gives `text differs`.
+      - `custom-overflow`: unmarked text crossing the safe area's left edge, but still inside the canvas, gives `outside safe area`. This is the spec's custom-scene scenario.
+      - `late-overflow`: text inside the safe area through the midpoint, then moved past the safe area's right edge, but still inside the canvas, by the pre-exit frame, gives `outside safe area` at `pre-exit` only. The movement is driven by `useVideoConfig().durationInFrames`, which shows the scene sees its own length.
+  - Required evidence, red first:
+    - **Pure tests, in `tests/probe.test.mjs`** (run by CI's `tests/*.test.mjs`):
+      - `probeFrames` cases cover a scene with a transition, one without, `entranceFrames` past the pre-exit frame, a 1-frame scene, and every `RangeError`.
+      - `violations` runs on hand-written results, one or more per rule, at the tolerance boundary: 0.5 px over passes and 0.51 px fails.
+      - The exemptions and edges are covered: a block's first line, a marked block whose second record starts with `，` (a violation), a glyph box wholly outside its mask, `clipBox: null` (a violation), and one violation per record and mask pair.
+      - `formatViolation` gives the exact lines, with control characters in the text escaped.
+      - Target validation errors are covered.
+      - `collectRecords` throws on a missing record, a duplicated one, and an index outside the expected set.
+      - `@remotion/bundler` and `@remotion/renderer` resolve to 4.0.537.
+    - **Browser tests, in `tests/render/probe.test.mjs`.** They run only in the image. The `tests/*.test.mjs` glob does not match them, so CI and plain local runs never skip them silently.
+      - `fits` gives zero violations. It also asserts what was recorded:
+        - the record count, and each record's `text` and `lines`;
+        - the edge block's `glyphBox` right edge at 1824 ± 0.5;
+        - the marked paragraph's `glyphBox` height at 2 × 1.4 × 48 ± 0.5;
+        - both masks' `clipBox`;
+        - the `opacity: 0` text in `hidden`, not in `texts`;
+        - `fontPresent` true, while `fontPresent('"No Such Font KP"')` measured in the same page is false;
+        - the 32 px text's `minFontSizePx` exactly 32.
+      - A target whose `entranceEnd` equals its `midpoint` gets three frame entries, two of them deep-equal except for `role`.
+      - Each failing scene gives exactly its expected violation list, compared deep-equal by target, role, frame, rule and path.
+      - Probing `fits` twice gives deep-equal results.
+      - An unknown scene key, a scene that throws (the message names its target and frame), and an invalid target each reject. The invalid target rejects before any bundle is written.
+    - **In the image.**
+      - Run the local production workspace image `open-computer-use:3d0ceae2b7d5a6af582662a8de61c6bbf4791daf383d6ba42cd1141b208844b5` with `--rm --platform linux/amd64 --network none --user assistant`.
+      - Set up a scratch copy of the PR's template without `node_modules`, with `node_modules` linked to `/opt/remotion-template/node_modules`.
+      - Run `node --test "tests/render/*.test.mjs"` there.
+      - Record in the PR the image's `node --version`, the test output, the bundle and render times, and one 48 px code point's untrimmed rect height.
+      - If emulation cannot start the shell, the implementer stops and reports. The orchestrator then runs the same tests on 210.77.77.27.
+    - **#825 follow-up.** `tests/text.test.mjs` gains `好（」（ abcdefg` at width 3 without the segmenter, giving `["好", "（」", "（ a", "bcd", "efg"]`. It fails under each of two `splitByCharacter` mutations, recorded red in the PR: a space setting `tail`, and an opening mark setting `tail`.
+    - **Green.**
+      - In a scratch layout like task 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+    - **PR checks.** The PR's `template-tests` run is green.
+    - **Full unit.** The full OCU unit command passes.
+    - **Unchanged guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+  - Must preserve: every existing file except `tests/text.test.mjs`. The PR's changed-file list under `remotion-template/` holds only:
+    - `src/kit/probe/measure.ts` and `src/kit/probe/Probe.tsx`;
+    - `bin/probe.mjs`;
+    - `tests/probe.test.mjs` and `tests/render/**`;
+    - `tests/text.test.mjs`.
+  - Non-goals:
+    - `kit check` and its CLI and job (5.1);
+    - the gallery (4.1);
+    - registering `KitProbe` in the template's root (3.8);
+    - the entrance lengths of kit components (4.2–4.4) and of custom scenes (5.1);
+    - contact sheets;
+    - render tests in CI;
+    - any rule beyond the four above.
+
 - [ ] 3.8 Implement the renderer over the validated script and timeline, with captions paged per block and the `custom` loader (`src/custom/<File>.tsx` through a generated `src/custom/index.ts`). Verify with short fixture renders:
   - three blocks give three caption pages;
   - a fixture custom scene renders;
