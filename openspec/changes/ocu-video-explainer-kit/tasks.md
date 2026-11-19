@@ -1582,7 +1582,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
       - escaping in error messages;
       - a render failure without a known target.
 
-- [ ] 3.8 Implement the renderer over the validated script and timeline, with captions paged per block and the `custom` loader (`src/custom/<File>.tsx` through a generated `src/custom/index.ts`). Verify with short fixture renders:
+- [x] 3.8 Implement the renderer over the validated script and timeline, with captions paged per block and the `custom` loader (`src/custom/<File>.tsx` through a generated `src/custom/index.ts`). Verify with short fixture renders:
   - three blocks give three caption pages;
   - a fixture custom scene renders;
   - a missing custom file fails, naming the scene.
@@ -2024,6 +2024,104 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
     - **Evidence.** `approved_library` on the repository files returns those 11 tracks. A fresh orchestrator Phase 2 run over the real sources passes all 11, with 0 failures in the independent re-measurement. Merged as OCU #243 (`a3b9b31`).
 
 - [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
+
+  **Task 6.4 required evidence** (issue #844):
+  - Triage: feature. It adds a workspace `Dockerfile` step with a build-time download, and it installs `manifest.json` version 1 (6.3), which 6.5 and `kit check` read. Fixture level expanded.
+  - Governing invariants (spec "Every track has verified CC0 evidence and recorded user approval" and "Tracks are loudness-normalized"):
+    - **What ships.** The image ships exactly the library that `music_library.py` builds from the approved, non-excluded tracks: the 11 of 6.3.
+    - **Download and pin.** Each source is downloaded at build time, and a `source_sha256` or member mismatch, or a source that cannot be fetched, fails the build naming the track.
+    - **Measured in the image.** Every shipped file matches its `shipped_sha256`, measures -16 LUFS ± 0.5 LU, and has a true peak at or below -1.5 dBTP, measured with the image's own ffmpeg.
+    - **Approval.** The approver fields match the tracked approval file.
+  - Measured before this fixture (orchestrator, 2026-11-19): `music_library.py fetch` on the Mac, then `build` inside the production workspace image `open-computer-use:3d0ceae2…`, which has ffmpeg 6.1.1 and Python 3.12. The build passed 11 of 11 tracks: `beat-one` gave -16.3 LUFS / -1.5 dBTP, and the other 10 gave -16.0 LUFS with true peaks from -1.8 to -7.7 dBTP. The image's ffmpeg therefore meets the tolerance that 6.3 checked on ffmpeg 9.0.1.
+  - Risk packs:
+    - **Release / packaging**, selected. One `Dockerfile` step. `release.py` builds the workspace from committed files only, and `deploy/music/` is committed and not `.dockerignore`d (the patterns there are root-anchored). `release.py` does not change. The music layer is cached with the rest, as design Decision 13 says.
+    - **Supply chain / network**, selected. The step downloads through `music_candidates.fetch_candidate`. It writes while hashing and checks the `sha256`/`size` and member pins at the end of each stream. `fetch` writes into a temporary sibling (`_staged`) that is renamed into place only after every track passed, and `build` checks every pin again before decoding. So a mismatched byte never reaches `/opt/video-music`. No other network access is added, and the image stays offline at run time.
+    - **File IO / permissions**, selected. `/opt/video-music/` is root-owned and readable by `assistant`, not writable by it. Build inputs are removed in the same `RUN`.
+    - **Schema**, selected: the installed `manifest.json` is 6.3's version 1, unchanged.
+    - **Legacy compatibility**, selected. No other layer changes, and no file outside the changed-file list below changes. The `remotion-template` install step, the skills `COPY` and the existing `test-docker-image.sh` sections behave as before.
+    - **CI**, selected but not runnable: OCU `build.yml`, which holds the sandbox-image smoke step, is `disabled_manually`. The orchestrator's local image build and `test-docker-image.sh` run stand in for it, a deviation already recorded for this change. No workflow file changes.
+    - **Error handling / partial outputs**, selected. A failing `RUN` commits no layer, and `_staged` leaves no output. Tests: the failure-mode cases below.
+    - **Resource limits**, selected. The sources include a 31 MB zip, which `fetch` downloads once each for `spacetime` and `great-mission`, and the output is about 83 MB. Tests: the build time and image-size difference recorded in Phase 2.
+    - **Documentation**, selected. `deploy/music/README.md` line 14 ("Nothing here enters the workspace image yet. The image install comes later (task 6.4).") becomes a statement that the workspace image's `Dockerfile` downloads, normalizes and installs the library at `/opt/video-music/` (`manifest.json` there), naming the step. Nothing else in the README changes.
+    - Not selected: auth, concurrency, public API, the renderer (6.5).
+  - Sibling surfaces:
+    - **Producer:** `music_library.py build`.
+    - **Validators:** the `SHIPPED_IDS` and `APPROVALS_SHA256` pins in `tests/deploy/test_music_library.py`, and the new in-image checker.
+    - **Storage:** `/opt/video-music/`.
+    - **Consumers:** 6.5 (renderer and `kit check`) and the 7.1 image test.
+    - **Build input:** the release context (`committed_context_relatives` in `deploy/release.py`), or a clean `--no-local` clone.
+    - **Pattern followed:** the pinned font bundle in `deploy/fonts/`.
+  - Shape (OCU repository):
+    - **`Dockerfile`.** One step, placed immediately before `COPY --chown=root:root remotion-template/ /opt/remotion-template/` and after the `list-subagent-models` step.
+      - Deviation from the issue's "after the template step": `deploy/music/` changes far less often than `remotion-template/`. Placed after the template step, every template edit in this change would re-download and re-encode the library on the next build.
+      - The step is:
+
+        ```dockerfile
+        # CC0 music library for the explainer kit (deploy/music/README.md): download
+        # each approved source, verify its pin, normalize with this image's ffmpeg,
+        # and install the library and manifest. A changed or vanished source fails
+        # the build naming the track. Root-owned, readable by assistant.
+        COPY --chown=root:root deploy/music/ /tmp/ocu-music/deploy/music/
+        RUN python3 -B /tmp/ocu-music/deploy/music/music_library.py fetch --out /tmp/ocu-music/sources && \
+            python3 -B /tmp/ocu-music/deploy/music/music_library.py build --sources /tmp/ocu-music/sources --out /opt/video-music && \
+            rm -rf /tmp/ocu-music && \
+            chmod -R a+rX,go-w /opt/video-music
+        ```
+
+        `--root` defaults to `/tmp/ocu-music`, so the evidence paths resolve. The comment text may be reworded; the commands, paths and order bind.
+
+    - **`tests/test-docker-image.sh`** gains one section, "Music library", in the existing `pass`/`fail` style. Its numbered headers become `[n/16]` throughout: today they read `[1/14]` to `[14/14]`, then `[15/15]`. The section runs in default mode and is skipped under `--browser-relay-only`.
+      - **Expected values from the repository**, taken on the host with `python3 -I`: the track ids in order, from `approved_library` over the repository's `candidates.json`, `approvals.json` and `library-excluded.json`, and the SHA-256 of `deploy/music/approvals.json`.
+      - **Checks inside the image**, through `run_in_container` as `assistant`, by an inline Python 3 checker that uses only the standard library and the image's `ffmpeg`. It does not import `music_library.py`, so the check is independent of the builder. Each check is its own `pass`/`fail` line:
+        1. `/opt/video-music/manifest.json` is readable, parses, and has `version` 1.
+        2. The manifest's track ids, in order, equal the expected ids, which are 11.
+        3. `approvals.sha256` equals the SHA-256 of `/opt/video-music/approvals.json` and the repository's approvals digest. Every track's `approver` and `approval_date` equal `approvals.reviewer` and `approvals.date`.
+        4. Every track's `file` and `evidence` exist, and the file's SHA-256 equals `shipped_sha256`.
+        5. The audio files under `/opt/video-music` (`*.mp3`, `*.wav`) are exactly the manifest's files.
+        6. Every track measures `abs(I + 16) <= 0.5` and `TP <= -1.5` by `ffmpeg -af ebur128=peak=true`, parsed from its summary. A failure names the track and the values.
+        7. `/opt/video-music` and every file in it are owned by root and are not writable by `assistant`.
+        8. `/tmp/ocu-music` is absent.
+    - **Static test.** `tests/test_remotion_image.py`, the existing home of the workspace-`Dockerfile` order assertions, gains a test. It uses that module's `_dockerfile_instructions()` (continuation lines joined), so it adds no second parser, and it asserts four things:
+      - the `COPY` line and the `RUN` commands above, in that order;
+      - the step sits after `list-subagent-models` and before the `remotion-template` `COPY`;
+      - `fetch` precedes `build`, and `build` writes `--out /opt/video-music`;
+      - the step removes `/tmp/ocu-music`.
+
+      It fails, naming the missing line, on the current `Dockerfile`.
+
+  - Required evidence, red first:
+    - **Red.**
+      - The static test fails on `origin/main`'s `Dockerfile`.
+      - `tests/test-docker-image.sh` run against the production image `open-computer-use:3d0ceae2…` fails the new section's checks, because there is no `/opt/video-music`, while every pre-existing section keeps its result.
+      - Record both in the PR.
+    - **Failure modes of the step's commands.** Each runs inside the production image, as root, with network on. The PR's `deploy/music/` is copied to `/tmp/ocu-music/deploy/music/` (the path the `RUN` text names), one data change is applied there, and the step's `RUN` text is run. The altered track is `simple-menu-loop`, the last shipped track in `candidates.json` order, so the earlier ones download first. Each case:
+      - its `source.sha256` altered: stderr `music: simple-menu-loop: SHA-256 differs from pin`, exit 1;
+      - its `source.url` set to `http://127.0.0.1:9/missing`: stderr starting `music: simple-menu-loop: download failed:`, exit 1. This is the vanished-source case.
+
+      In both cases, `/opt/video-music` and `/tmp/ocu-music/sources` do not exist afterwards. A failing `RUN` fails the image build, so these stand for the spec scenario "Source digest mismatch".
+
+    - **Build and image test** (orchestrator, Phase 2, on the frozen PR head):
+      - `docker build --platform linux/amd64 -t ocu-music-844:<short sha> .` from a clean `--no-local` clone on the Mac's Docker daemon.
+      - Record the build time, the music step's per-track lines (I, TP, gain) and the image size difference against `3d0ceae2…`.
+      - Then `tests/test-docker-image.sh ocu-music-844:<short sha>` passes in full. Any section that also fails on `3d0ceae2…` under the same emulation is listed with both outputs, and must not be in the new section.
+      - The tag is removed after the merge. Nothing else is removed.
+    - **Static and unit.** `tests/test_remotion_image.py`, `tests/deploy/test_music_library.py` and `tests/deploy/test_music_listening.py` pass, with the ffmpeg tests run, not skipped. `tests/deploy/test_workspace_base_pin.py` and `tests/test-project-structure.sh` pass. The full OCU unit command passes.
+
+  - Must preserve:
+    - every other `Dockerfile` instruction, byte for byte, and their order;
+    - the data under `deploy/music/` unchanged: `candidates.json`, `approvals.json` (`207fcbd1…`), `library-excluded.json`, `excluded.json` and `evidence/`, plus the scripts;
+    - `release.py` and the CI workflows unchanged;
+    - no audio committed.
+
+    The PR's changed files are `Dockerfile`, `tests/test-docker-image.sh`, `tests/test_remotion_image.py` and `deploy/music/README.md`, the last for the one line above.
+
+  - Non-goals:
+    - ducking, looping and the music rules in the renderer and check (6.5);
+    - the end-to-end kit test in the image (7.1);
+    - a release inventory entry for the music sources;
+    - enlarging the library or revisiting the exclusions;
+    - re-enabling `build.yml`.
+
 - [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
   - narrated windows sit 15 ± 3 dB below the narration, with ramps of 0.5 ± 0.1 s;
   - music `none` gives narration only;
