@@ -1806,6 +1806,296 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
 ## 4. Scene components and the gallery (OCU `remotion-template`)
 
 - [ ] 4.1 Build the gallery generator. It renders every registered candidate in both theme candidates inside the PR's workspace image on 210.77.77.27 (image labelled `ocu-eval`), probes every sample with 3.7, writes one static page, and lets the page export the user's decisions as JSON. Verify that one placeholder component renders with its probe result and that the export downloads.
+
+  **Task 4.1 required evidence** (issue #831):
+  - **Triage.** Feature, fixture level expanded. This task adds:
+    - the gallery in which the user approves components and the theme (design Decision 12);
+    - the candidate catalog that 4.2–4.4 fill;
+    - two new formats: the page's decision export and the tracked `gallery/approvals.json`.
+
+    It also takes applying `brand` at the explainer root. Task 3.3 assigned that to 3.8, and 3.8's fixture left it out.
+
+  - Governing invariants:
+    - **What is approved is what ships.** A single wrapper, `KitFrame`, applies the theme at the root of three things: the explainer, every probe scene, and every gallery sample. So the frames the user approves in a theme are the frames `kit check` probes and `kit render` renders.
+    - **Both themes, every sample.** Every catalog sample and the theme sample render in `light` and `dark` inside the workspace image. Each gets a clip, three key frames, and a 3.7 probe result, and violations show on the page.
+    - **Only the user decides.** Decisions come from the page's export, which the user downloads. Nothing in 4.1 writes a decision. The tracked `gallery/approvals.json` starts with no entries.
+    - **No placeholder ships.** The tracked catalog lists no candidate. The placeholder that proves the gallery lives in the tests, which `.dockerignore` keeps out of the image.
+  - Deviation, settled here: Decision 12 says the gallery image is "built with the release builder on the Mac". Host step 1 below instead runs `docker build` on the same root `Dockerfile` from a clean `--no-local` clone, which is the same committed context the release builder uses. The release builder builds and exports all seven roles, while the gallery needs only the workspace image.
+  - Sibling surfaces:
+    - **Producers.**
+      - Tasks 4.2–4.4 add candidates to `catalog.ts` and components to `components.tsx`.
+      - An approved candidate enters `registry.ts` by importing the same component from `components.tsx`, with no copy, so the registered component is the one the gallery showed.
+      - 4.2's fixture pins that import, and decides how the candidate's `minFrames` and `entranceFrames` feed `MIN_SCENE_FRAMES` and the probe targets, so each value keeps one home.
+    - **Validators:** `validateCatalog` and `loadApprovals`.
+    - **Consumers.**
+      - The approval checks in 4.2–4.4, and the equality test in 4.6, read `loadApprovals`.
+      - 5.1 probes through `KitRoot`'s framed `KitProbe`.
+      - 5.3 renders through `ExplainerBody`, which `KitFrame` now roots.
+    - **Failure paths.** `gallery.mjs` either leaves a complete page or nothing.
+  - Risk packs:
+    - **Schema**, selected. Three formats, all defined below:
+      - the catalog;
+      - the page export, version 1;
+      - `gallery/approvals.json`, version 1, with its validator.
+    - **CLI**, selected. The command is `node bin/gallery.mjs --out <dir>`, run from a project root. Any other argument list exits 2 with `kit gallery: usage: node bin/gallery.mjs --out <dir>`. A refusal or failure exits 1 with `kit gallery: <message>`.
+    - **Subprocess / browser**, selected.
+      - `gallery.mjs` bundles the gallery entry once and opens one browser, which serves every clip and still.
+      - `probe()` then bundles and opens its own browser, as 3.7 defines.
+      - So there are two bundles and two browsers per run, each closed in `finally`.
+      - `probe.mjs` does not change.
+    - **UI (static page)**, selected. The page's controls, the export and the partial-selection rule are tested through a pure page builder, with a stubbed DOM, as `listening_page.py` is.
+    - **File IO**, selected. An existing `--out` is refused before any work. The gallery writes into a temporary sibling and renames it to `--out` only after every item rendered and was probed, so a failure leaves neither `--out` nor the sibling.
+    - **Error handling**, selected. Each of these fails as named below:
+      - an invalid catalog;
+      - mismatched catalog and component ids;
+      - a render that throws;
+      - an invalid approvals file.
+    - **Release / packaging**, selected. `bin/gallery.mjs`, `bin/gallery-page.mjs`, `bin/gallery-approvals.mjs`, `src/kit/gallery/**` and `gallery/approvals.json` ship in `/opt/remotion-template`. The placeholder stays out only through `.dockerignore`'s `remotion-template/tests/`. The PR image is checked for both: the files are present and `/opt/remotion-template/tests` is absent.
+    - **Resource limits**, selected. The host run shares 210.77.77.27 with the four running `ocu-eval` containers. It runs with `--cpus=2 --memory=4g`, the sandbox's limits, and its time is recorded.
+    - **Legacy compatibility**, selected.
+      - `ExplainerBody`'s root becomes `KitFrame`, with the same background. 3.8's render tests stay green.
+      - `KitRoot`'s `KitProbe` scenes become `framed(registry)`.
+      - `kit new` gains `gallery` in `NOT_COPIED`; no `kit` subcommand changes.
+      - `src/Root.tsx` and `src/index.ts` are byte-identical.
+      - No dependency changes.
+    - **Shared host**, selected. Only the orchestrator touches the host. These rules apply there:
+      - the image carries the `ocu-eval` label;
+      - the 15 GiB floor is checked before loading, and the step stops when it is short;
+      - only this run's image tag, container and scratch directory are removed, each by exact name;
+      - no prune, and no full `cleanup.sh`, which would remove the WebUI volume and its image config.
+    - Not selected:
+      - auth;
+      - network, since the run uses `--network none`;
+      - concurrency, since it is one process with one run at a time.
+  - Shape (OCU `remotion-template/`). Each new file under `src/kit/` and `bin/` carries the two-line FSL header and uses only erasable TypeScript. Modules on the bundle side import no `node:` built-in.
+    - **`bin/script-schema.mjs`** gains one export, `contentSchema(kind)`. It returns the `z.strictObject` of that kind's `CONTENT`, the object that `scene()` builds today, and `scene()` uses it. Nothing else in the file changes.
+    - **`src/kit/render/KitFrame.tsx`** exports two things:
+      - **`KitFrame({theme, children})`** is an `AbsoluteFill` that carries:
+        - `brandToCssVars(theme.brand)`;
+        - `backgroundColor: theme.brand.bg`;
+        - `color: theme.brand.text`;
+        - `fontFamily: theme.brand.fontBody`.
+      - **`framed(registry)`** maps each kind to a component that renders `<KitFrame theme={props.theme}><C {...props} /></KitFrame>`.
+
+      It is used in two places:
+      - `ExplainerBody` replaces its background `AbsoluteFill` with one `KitFrame` around its scenes and captions.
+      - `KitRoot` passes `framed(registry)` to `ProbeComposition`.
+
+    - **`src/kit/gallery/catalog.ts`** imports only `.mjs` and `.ts` files, and no TSX, so both Node (through type stripping) and the bundle import it. It exports:
+      - `type Candidate = {id, kind, source, minFrames, entranceFrames, samples}`, where each sample is `{id, content, image, timing}` and `timing` has the shape of 3.8's scene `props.timing`: `{durationInFrames, narrationEndFrame, sentences: [{blocks: [{text, startFrame, endFrame}]}]}`, with frames relative to the scene.
+      - `candidates: Candidate[]`, empty in 4.1.
+      - `validateCatalog(candidates)`, which throws `Error('kit gallery: <where>: <problem>')` at the first rule that fails, in the order below. `<where>` is `catalog`, `<id>` or `<id>/<sample>`. The rules and their problem texts:
+        1. `candidates` is an array: `catalog: is not an array`.
+        2. `id` matches `^[a-z0-9]+(-[a-z0-9]+)*$`, is at most 40 characters, is not `theme`, and is unique: `<id>: id is invalid, reserved or repeated`.
+        3. `kind` is in `BODY_KINDS`, or is `hook`, `summary` or `end-card`: `<id>: kind is not a scene kind`.
+        4. `source` is a non-empty single line: `<id>: source must be one non-empty line`.
+        5. `minFrames` and `entranceFrames` are integers with `0 ≤ entranceFrames < minFrames`: `<id>: needs integers 0 ≤ entranceFrames < minFrames`.
+        6. `samples` is a non-empty array: `<id>: has no samples`.
+        7. Each sample `id` matches `^[a-z0-9]+(-[a-z0-9]+)*$`, is at most 20 characters, and is unique within its candidate: `<id>/<sample>: id is invalid or repeated`.
+        8. `content` passes `contentSchema(kind)`: `<id>/<sample>: content: <the first zod issue's path and message>`.
+        9. `image` is `null`, or matches `IMAGE_NAME`: `<id>/<sample>: image is invalid`.
+        10. The timing rules:
+            - `timing.durationInFrames` is an integer of at least `minFrames`: `<id>/<sample>: timing.durationInFrames must be an integer ≥ <minFrames>`;
+            - `narrationEndFrame` is an integer from 0 to `durationInFrames`: `<id>/<sample>: timing.narrationEndFrame is out of range`;
+            - there are 0–4 sentences, each of 1–4 blocks: `<id>/<sample>: timing.sentences must hold 0–4 sentences of 1–4 blocks`;
+            - each block's `text` is 1–16 code points: `<id>/<sample>: timing block <s>.<b> text must be 1–16 characters`;
+            - each block's frames are integers with `0 ≤ startFrame < endFrame ≤ narrationEndFrame`, and each block starts at or after the previous block's end: `<id>/<sample>: timing block <s>.<b> frames are out of order or range`.
+
+            `<s>` and `<b>` are 1-based.
+
+    - **`src/kit/gallery/components.tsx`** exports `components`, a map from candidate id to component. It is empty in 4.1.
+    - **`src/kit/gallery/ThemeSample.tsx`** is the theme sample. It is real and it ships. It shows:
+      - the four type sizes (`title`, `heading`, `body`, `caption`), each as one fixed Chinese line of at most 12 characters, through `wrapLines`;
+      - the 12 brand slots as labelled swatches;
+      - the caption band from `captionBand`.
+
+      Its text passes the probe rules in both themes. It lasts 90 frames, with an entrance of 15.
+
+    - **`src/kit/gallery/entry.tsx`** calls `registerRoot` with two compositions, both at 1920×1080 and 30 fps:
+      - **`KitGallerySample`.** Its input props are `{candidate, sample, theme}`: the candidate id (or `"theme"`), the sample id (`"sample"` for the theme), and `"light"` or `"dark"`.
+        - It renders the framed component with `{content, image, timing, theme: themes[theme]}`, or the framed `ThemeSample`.
+        - `calculateMetadata` sets `durationInFrames` to the sample's `timing.durationInFrames`, or 90 for the theme sample.
+        - It rejects an unknown id with `kit gallery: <id>[/<sample>]: not in the catalog`.
+        - It rejects a mismatch between the catalog's ids and `components`' keys, in either direction, with `kit gallery: components has "<id>", the catalog does not` or the reverse.
+      - **`KitProbe`**, from `ProbeComposition`, with the scenes `{"gallery-sample": GallerySample}`. That scene renders exactly as `KitGallerySample` does for the same props.
+    - **`bin/gallery.mjs`** exports `gallery({out})` and runs as the CLI above. The steps, in order:
+      1. Import `catalog.ts`, then call `validateCatalog`.
+      2. Bundle `src/kit/gallery/entry.tsx` with `enableCaching: false`. `publicDir` is the project's `public/` when that exists, and otherwise a fresh empty directory under `os.tmpdir()`. `probe()` gets the same `publicDir`.
+      3. Build the items. Each item is `(candidate, sample, theme)`: the theme sample first, then each candidate's samples in catalog order, then the same list again for the other theme. Themes go in the order `light`, `dark`. The item id is `<candidate>--<sample>--<theme>`, for example `theme--sample--light`.
+      4. For each item, in that order:
+         - render the clip with `renderMedia` (H.264, `concurrency: 1`, so a CPU-limited container never opens more pages than it can hold) to `clips/<item id>.mp4`;
+         - render the three `probeFrames` frames with `renderStill` to `frames/<item id>--<role>.png`. `exitFrame` is `durationInFrames`, and `entranceFrames` is the candidate's value (15 for the theme sample).
+      5. Make one `probe()` call over every item. Each target's `id` is the item id, its scene is `gallery-sample`, and its props are `{candidate, sample, theme}`. Then split `violations(result, themes[theme])` per item by `target`.
+      6. Write `gallery.json` and `index.html`.
+      7. Rename the sibling to `--out`.
+
+      Any failure removes the sibling and propagates as `kit gallery: <message>`. A render failure keeps Remotion's message and names the item id.
+
+    - **`gallery.json`, version 1:** `{version: 1, node: process.version, themes: ["light", "dark"], candidates: [{id, kind, source}], items: [...]}`.
+      - `candidates` is in catalog order.
+      - Each item is `{id, candidate, sample, theme, clip, frames: {<role>: <png path>}, violations: [<formatViolation line>]}`, in item order.
+      - Paths are relative to `--out`.
+      - It is serialized with 2-space indentation and a final newline.
+    - **`bin/gallery-page.mjs`** is pure. It exports `renderPage(gallery, pageSha256)`, which returns the `index.html` text. `pageSha256` is the SHA-256 of the written `gallery.json` bytes.
+      - The page loads nothing remote. Because a `file://` page cannot fetch `gallery.json`, the candidate ids and `pageSha256` are embedded in the page's script as JSON.
+      - **Per item:** a `<video>` of the clip, the three key frames, and either `probe: clean` or each violation line.
+      - **Per candidate:** one decision control (`approve`, `redo`, `drop`) and an optional note.
+      - **Theme pick:** one, `light` or `dark`, which may be left unset.
+      - **Reviewer:** a text field.
+      - **Date:** a field in `YYYY-MM-DD` form.
+      - **The export button.** It requires a reviewer, a valid date, and a decision for every candidate on the page. Otherwise it downloads nothing and its status line says what is missing. Otherwise it downloads `gallery-decisions.json` with this body, serialized with 2-space indentation and a final newline:
+
+        ```json
+        {
+        	"version": 1,
+        	"page": "<pageSha256>",
+        	"reviewer": "…",
+        	"date": "YYYY-MM-DD",
+        	"decisions": [{ "id": "<candidate>", "decision": "approve" }],
+        	"theme": "light"
+        }
+        ```
+
+        - `decisions` is in catalog order.
+        - A decision carries `"note": "<text>"` only when the note is non-empty after trimming.
+        - `theme` is `"light"`, `"dark"` or `null`.
+        - A page with no candidates exports `decisions: []`. That is how the 4.6 theme-only export looks.
+
+    - **`gallery/approvals.json`**, tracked at the template root, starts as `{"version": 1, "entries": []}`. A later entry is `{"id", "decision", "reviewer", "date", "export", "export_sha256"}`:
+      - `id` is a candidate id, or `theme`;
+      - `decision` is `approve`, `redo` or `drop`, or `light` or `dark` for `theme`;
+      - `export` matches `^gallery/exports/[A-Za-z0-9._-]+\.json$` and names the user's own export file, committed unmodified;
+      - `export_sha256` is that file's digest.
+    - **`bin/gallery-approvals.mjs`** is pure. It exports `loadApprovals(root)`, which returns `{decisions: Map<id, decision>, theme: "light" | "dark" | null}`. A later entry for an id replaces an earlier one, and `redo` counts as not approved. It throws `kit gallery: approvals: <problem>` for each of these:
+      - **Shape:** a version other than 1, or an unknown or missing field, in the approvals file or in any linked export.
+      - **Export link:**
+        - an `export` outside the pattern;
+        - an `export` that is not a regular file (checked with `lstat`, so a symlink is refused);
+        - an `export_sha256` that differs from the file's digest.
+      - **Entry against export:**
+        - an entry whose reviewer or date differs from its export's;
+        - an entry other than `theme` whose id is not in its export's `decisions`, or whose decision differs from it;
+        - a `theme` entry whose decision differs from its export's `theme`, or whose export has `theme: null`.
+    - **`bin/kit.mjs`.** `NOT_COPIED` gains `gallery`, so projects get no `gallery/`. No other change.
+
+  - **3.7 follow-ups, assigned.**
+    - **To 4.2**, where real components first meet the probe:
+      - inline-block wrap false positive;
+      - rotated or vertical writing;
+      - mixed `vertical-align`;
+      - `display: contents` opacity;
+      - single-axis `overflow-x: clip`;
+      - nested `svg` / `foreignObject`;
+      - inline transforms;
+      - the merged-mask miss.
+    - **To 5.1:**
+      - SIGTERM and process group;
+      - duplicate record after a retry;
+      - 20 s against 28 s handle wait;
+      - message escaping;
+      - render failure without a target.
+    - **The #830 follow-ups:**
+      - control characters in text fields, to 5.1;
+      - a raw `script.json` render, to 5.3;
+      - caption start and scene-end probe frames, to 4.5.
+    - 4.1 takes only the brand root.
+  - **Fixture** (`tests/render/fixtures/gallery/`). The browser tests copy a fixture `catalog.ts` and `components.tsx` over the scratch project's, as 3.8 copied `Orbit.tsx`.
+    - **`ok`.** One candidate, `placeholder`, of kind `question`, with `minFrames` 60 and `entranceFrames` 10. Its component renders two elements:
+      - a 200×100 box at (96, 54) with `background: THEME.accent`, imported from `src/kit/onda/tokens.ts`. That value is `var(--onda-accent, #D96B82)`.
+      - `content.question` through `wrapLines`, at body size, marked with `data-kit-text`, with its top-left corner at (96, 400). No glyph covers the box.
+
+      It has two samples, each with a 60-frame timing holding one sentence of one block, frames [0, 30):
+      - `max`: a 24-character question, the schema's maximum;
+      - `overflow`: the same, with the question's left edge at x = 1800.
+
+    - **`mismatch`.** `components` holds `extra`, which the catalog lacks.
+    - **`throws`.** The `ok` candidate's component throws `Error('placeholder throws at frame 30')` at frame 30.
+    - **Unframed entry.** A fixture-only entry, `unframed-entry.tsx`, registers `Unframed`, which renders the `ok` component without `KitFrame`. The test stills it directly.
+
+  - Required evidence, red first:
+    - **Pure tests** (`tests/gallery.test.mjs`, `tests/gallery-page.test.mjs` and `tests/gallery-approvals.test.mjs`, run by CI):
+      - `validateCatalog`: each of the ten rules gives its message, one case each. The `ok` catalog passes, and the tracked `candidates` is empty and passes.
+      - `contentSchema(kind)` gives the same result as the scene schema for each kind.
+      - `renderPage` is run on a hand-written `gallery.json`, with its script executed under Node against a stubbed DOM, as `tests/deploy/test_music_listening.py` does:
+        - a complete selection downloads `gallery-decisions.json` with the exact body, including the note rule, the catalog order and `page`;
+        - a missing candidate decision, reviewer or date downloads nothing and shows the reason;
+        - an unset theme gives `"theme": null`;
+        - an empty catalog exports `decisions: []`.
+      - **Round trip.** A complete export from that page is written to a temporary `gallery/exports/`, with matching approvals entries. `loadApprovals` returns those decisions and that theme.
+      - `loadApprovals`:
+        - the tracked file gives no decisions and a `null` theme;
+        - a later entry replaces an earlier one, and `redo` is not approved;
+        - every refusal above gives its message, one case each.
+      - **`kit new`.** `NOT_COPIED` holds `gallery`, and a `kit new` test project has no `gallery/`.
+    - **Browser tests** (`tests/render/gallery.test.mjs`, image only, beside 3.7's and 3.8's, run with `--test-concurrency=1`):
+      - **A run over `ok`** writes the following:
+        - `index.html` and `gallery.json`;
+        - 6 clips, which are the theme sample and the two placeholder samples, each in 2 themes;
+        - 18 key frames.
+
+        Checked with `ffprobe`:
+        - each clip is H.264, 1920×1080, 30 fps, with 90 counted frames (theme) or 60 (placeholder);
+        - each PNG is 1920×1080.
+
+      - **Probe results.** `max` and the theme sample have no violations in either theme. `overflow` has exactly `outside safe area`, on the question's path, at all three roles in both themes, and the page shows each of those lines.
+      - **Brand at the root.** In `max`'s entrance-end PNG, the pixel at (196, 104), decoded with ffmpeg to `rgb24`, equals `themes.light.brand.accent` in light and `themes.dark.brand.accent` in dark, within ±2 per channel. The `Unframed` still gives `#D96B82` there.
+      - **The explainer.** 3.8's explainer tests pass unchanged.
+      - **Rejections.**
+        - `mismatch` exits 1 with `kit gallery: components has "extra", the catalog does not`.
+        - `throws` exits 1 with a message that contains `placeholder--max--light` and `placeholder throws at frame 30`.
+        - An existing `--out` is refused and left untouched.
+        - After each rejection, neither `--out` nor a sibling exists.
+      - **Usage.** `node bin/gallery.mjs` with no argument exits 2 with the usage line.
+
+    - **In the image (implementer, Mac).** Use the production workspace image `3d0ceae2…`, with the flags and setup of 3.7, and run `node --test --test-concurrency=1 "tests/render/*.test.mjs"`. Every render test of 3.7, 3.8 and 4.1 passes. Record the times.
+    - **On 210.77.77.27 (orchestrator, Phase 2).**
+      1. **Build.** From a clean `--no-local` clone of the PR head on the Mac, run `docker build --platform linux/amd64 --label ocu-eval=gallery-<short sha> -t ocu-gallery:<short sha> .`. In that image, check that `/opt/remotion-template/tests` is absent and that `bin/gallery.mjs` and `gallery/approvals.json` are present.
+      2. **Space.** Compare the image's `RootFS.Layers` with those of the host's `3d0ceae2…`. Compute the new layers' unpacked size from the Mac's `docker history`. If Docker's root free space minus that size is below 15 GiB, stop and report to the user, loading nothing.
+      3. **Load.** Run `docker save ocu-gallery:<short sha> | ssh … docker load`.
+      4. **Fixture.**
+         - Make a scratch project on the Mac: the PR's `remotion-template` without `node_modules`, with the `ok` fixture's `catalog.ts` and `components.tsx` copied in.
+         - Stream it as a tar over ssh to `/home/nwm/ocu-eval/gallery-<short sha>/`.
+         - Run the container `ocu-gallery-run-<short sha>` from the image with `--network none --user assistant --cpus=2 --memory=4g`, mounting that directory read-only.
+         - Inside the container, copy the project to `/tmp/proj`, link `node_modules` to the image's, and run `node bin/gallery.mjs --out /tmp/proj/gallery-out`, recording the time.
+         - `docker cp` the output back to the Mac, then `docker rm` the container by name.
+      5. **Check the page.** On the Mac, confirm it the way the browser test does: the file counts, the violations in `gallery.json`, and the `overflow` lines on the page.
+      6. **Export.** Open `index.html` from a `file://` URL in a headless browser and click export:
+         - select `approve` for `placeholder`;
+         - set the reviewer to `orchestrator-test`;
+         - set the date to the run's date;
+         - pick `light`.
+
+         Save the download, then check that `loadApprovals` accepts it in a temporary tree. This proves only that the download works. The file is not committed.
+
+      7. **Clean up.** Remove `ocu-gallery:<short sha>` on the host and on the Mac, and `/home/nwm/ocu-eval/gallery-<short sha>/` on the host, each by exact name. Nothing else is removed.
+
+    - **Green.**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root.
+      - The PR's `template-tests` run is green.
+      - The full OCU unit command passes, run with nothing else running.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+
+  - **Must preserve.** Every existing file, except these four:
+    - `src/kit/render/Explainer.tsx`, for the `KitFrame` root;
+    - `src/kit/Root.tsx`, for `framed(registry)`;
+    - `bin/kit.mjs`, for `NOT_COPIED`;
+    - `bin/script-schema.mjs`, for `contentSchema`.
+
+    No dependency changes. The changed-file list under `remotion-template/` holds only those four, plus:
+    - `src/kit/render/KitFrame.tsx`;
+    - `src/kit/gallery/**`;
+    - `bin/gallery.mjs`, `bin/gallery-page.mjs` and `bin/gallery-approvals.mjs`;
+    - `gallery/approvals.json`;
+    - the three pure test files, and one `tests/kit.test.mjs` case for `NOT_COPIED`;
+    - `tests/render/gallery.test.mjs` and `tests/render/fixtures/gallery/**`.
+
+  - Non-goals:
+    - real candidates and their notices (4.2–4.4);
+    - the theme pick and the equality test (4.6);
+    - publishing the page anywhere but the Mac;
+    - gallery runs in CI;
+    - any `kit` subcommand.
+
 - [ ] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
@@ -2023,7 +2313,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
     - **Result.** The library ships 11 tracks: calm-curious 4, upbeat-corporate 1, neutral-serious 3, loop 3. Where the amendment above says 12 tracks, 11 binds. The approval file stays unchanged.
     - **Evidence.** `approved_library` on the repository files returns those 11 tracks. A fresh orchestrator Phase 2 run over the real sources passes all 11, with 0 failures in the independent re-measurement. Merged as OCU #243 (`a3b9b31`).
 
-- [ ] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
+- [x] 6.4 Add the workspace `Dockerfile` step that downloads the sources, verifies `source_sha256`, runs the normalization script and installs the library and shipped manifest at `/opt/video-music/`. Verify in `tests/test-docker-image.sh` that every file exists and matches its manifest `shipped_sha256`, that every file measures within 0.5 LU of -16 LUFS, and that the manifest is readable by the sandbox user.
 
   **Task 6.4 required evidence** (issue #844):
   - Triage: feature. It adds a workspace `Dockerfile` step with a build-time download, and it installs `manifest.json` version 1 (6.3), which 6.5 and `kit check` read. Fixture level expanded.
@@ -2096,7 +2386,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
       - Record both in the PR.
     - **Failure modes of the step's commands.** Each runs inside the production image, as root, with network on. The PR's `deploy/music/` is copied to `/tmp/ocu-music/deploy/music/` (the path the `RUN` text names), one data change is applied there, and the step's `RUN` text is run. The altered track is `simple-menu-loop`, the last shipped track in `candidates.json` order, so the earlier ones download first. Each case:
       - its `source.sha256` altered: stderr `music: simple-menu-loop: SHA-256 differs from pin`, exit 1;
-      - its `source.url` set to `http://127.0.0.1:9/missing`: stderr starting `music: simple-menu-loop: download failed:`, exit 1. This is the vanished-source case.
+      - its `source.url` set to `http://127.0.0.1:9/missing.ogg`: stderr starting `music: simple-menu-loop: download failed:`, exit 1. This is the vanished-source case. (Amended after OCU #250: the URL first read `…/missing`, which has no extension, so the candidate loader refused it with `audio must be one of .mp3, .ogg, .wav, .flac` before any download. The `.ogg` URL keeps the track's own suffix and reaches the download.)
 
       In both cases, `/opt/video-music` and `/tmp/ocu-music/sources` do not exist afterwards. A failing `RUN` fails the image build, so these stand for the spec scenario "Source digest mismatch".
 
