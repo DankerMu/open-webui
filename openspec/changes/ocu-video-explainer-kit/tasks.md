@@ -1383,7 +1383,7 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - **CI runner.** `template-tests` runs on `ubuntu-24.04`, whose ffmpeg is 6.1.1 like the image's. `ubuntu-latest` had moved to 26.04 with ffmpeg 8.0.1.
     - **Follow-ups** (non-blocking review findings): decode memory still grows with a multichannel or high-rate input's layout, the floor-versus-round block start, and an untested `-t 181`. They are tracked in #872.
 
-- [ ] 3.7 Implement the shared probe composition, which records text boxes, overflow, font size, rendered text, line-start characters and mask boxes as JSON. Verify that a deliberately overflowing fixture scene is reported, and a fitting one is not.
+- [x] 3.7 Implement the shared probe composition, which records text boxes, overflow, font size, rendered text, line-start characters and mask boxes as JSON. Verify that a deliberately overflowing fixture scene is reported, and a fitting one is not.
 
   **Task 3.7 required evidence** (issue #829):
   - Triage: feature (a browser measurement tool, a new JSON format, and the rules that read it). Fixture level expanded. The probe result is the format that the gallery (4.1), the component batches (4.2–4.4) and `kit check` (5.1) read. Its rules are the spec's text rules, which 4.2 needs as "a clean probe" before 5.1 exists.
@@ -1529,11 +1529,276 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - contact sheets;
     - render tests in CI;
     - any rule beyond the four above.
+  - Amended after four review rounds and three fix passes (OCU #248, 2026-11-18; the third pass approved by the user). Where these differ from the bullets above, these bind:
+    - **Tolerance.** Box comparisons tolerate 0.5 px horizontally and 1 px vertically. The vertical tolerance is multiplied by the record's rendered scale when that is above 1, and every text record carries that scale as `scale`. Trimmed glyph rects sat 0.2–0.8 px above the line box in the image's shell at 32, 36, 48, 64 and 96 px with line height 1.4, so a mask exactly the size of its line needs more than 0.5 px vertically. The boundary tests are 0.5 / 0.51 px horizontally and 1 / 1.01 px vertically.
+    - **When a frame is measured.** The probe measures a frame only after three conditions hold, in order:
+      1. the scene root covers the canvas, for at most 120 animation frames;
+      2. every other pending `delayRender` handle has been released, for at most 20 s, after which it rejects naming the handles;
+      3. one more animation frame has passed with nothing pending.
+
+      A scene's own `<Img>` or data fetch therefore holds the measurement.
+
+    - **The run.**
+      - `probe()` opens one browser, which serves both the composition select and the frame render, and closes it in `finally`.
+      - It renders at concurrency 1, because an extra page logs a record at its own initial frame.
+      - It takes `publicDir` (default `public`), which it links into the bundle with `symlinkPublicDir`.
+      - SIGTERM during a probe ends Node and leaves no headless shell.
+    - **Paragraph height.** The asserted height is that of the union of the marked paragraph's two line records' glyph boxes: 2 × 1.4 × 48.
+    - **Clipping.**
+      - Overflow clips a record only when every absolutely or fixed positioned element between the clipping ancestor and the record has its containing block at or inside that ancestor. These properties make an element a containing block:
+        - a position other than `static`, for an absolute descendant;
+        - `transform`, the individual `translate`, `rotate` and `scale` properties, or `preserve-3d`;
+        - `perspective`, `filter` or `backdrop-filter`;
+        - paint or layout containment, which `content-visibility: auto` implies;
+        - `will-change` naming any of the above.
+
+        A fixed element without any of these belongs to the viewport.
+
+      - `clip-path` always clips the whole painted subtree.
+      - An element with `display: contents` neither clips nor contains.
+      - This lifts the first "Known limit" above.
+
+    - **Masks.** There is one mask entry per clipping element. Its overflow part applies when it clips any of its records.
+      - An `inset()` clip box is that inset of the border box. A negative inset extends it beyond the border box, and it is not cut back to the border box.
+      - When both overflow and an `inset()` apply, the clip box is their intersection.
+    - **Safe area.** A record wholly outside a measurable mask that clips it is not shown, so it is not judged against the safe area. The mask rule judges clipped overflow.
+    - **Line start.** The mark is a line's first non-whitespace code point. When marked elements nest, the block belongs to the outermost one.
+    - **Extra fixture scenes**, beyond the list above:
+      - `font-absent`, `camera`, `clipped-abs`, `fixed-clipped` and `clip-negative` are clean;
+      - `escaped-abs`, `clip-path-noncb`, `backdrop`, `rotate`, `contents`, `inline-small`, `wrap-start-spaces`, `late-image`, `delayed-move` and `svg-font` each give their own violation list (`backdrop` and `rotate` give `mask clips`, `contents` gives `outside safe area`);
+      - `stuck`, whose own `delayRender` never releases, rejects naming it.
+    - **Entry.** Task 3.8 registers `KitProbe` in the kit's own root, `src/kit/Root.tsx`, not in `src/Root.tsx`. The template's root and its `Main` composition stay as the current skill describes them (see 3.8).
+    - **Follow-ups for the next probe consumer** (4.1, 4.2 or 5.1). These are non-blocking review findings; that task's fixture takes them up:
+      - an inline-block label wrapped to a line start gives a false `line start`;
+      - rotated text and vertical writing modes;
+      - mixed `vertical-align`;
+      - opacity on a `display: contents` element;
+      - single-axis `overflow-x: clip`;
+      - nested `svg` / `foreignObject`;
+      - inline transforms;
+      - a merged mask where overflow meets a wider `clip-path` can miss a violation;
+      - a replaced browser leaking after SIGTERM, a duplicated record after a retry, and the in-image SIGTERM test once passing 20 s. 5.1 should run the probe in its own process group with a SIGKILL fallback;
+      - the 20 s handle wait against Remotion's 28 s;
+      - escaping in error messages;
+      - a render failure without a known target.
 
 - [ ] 3.8 Implement the renderer over the validated script and timeline, with captions paged per block and the `custom` loader (`src/custom/<File>.tsx` through a generated `src/custom/index.ts`). Verify with short fixture renders:
   - three blocks give three caption pages;
   - a fixture custom scene renders;
   - a missing custom file fails, naming the scene.
+
+  **Task 3.8 required evidence** (issue #830):
+  - Triage: feature. The renderer composes a validated `script.json` and its `timeline.json` (3.6) into the explainer video. It adds a new generated file format, `src/custom/index.ts`, and the scene props contract that components (4.2–4.4), the gallery (4.1), `kit check` (5.1) and `kit render` (5.3) build on. Fixture level expanded.
+  - Governing invariants:
+    - **The timeline decides time.** Every scene starts and ends on its `timeline.json` frames, and every caption page shows exactly during its block's `[startFrame, endFrame)`. The renderer computes no duration of its own, so the rendered length is `timeline.totalFrames`.
+    - **One block is one page** (design Decision 5). Captions come from the timeline's blocks through `@remotion/captions` with `pageBreakAfter` on every block's token.
+    - **Script and timeline must agree.** A timeline that does not match the script rejects, naming the scene. Nothing renders from a guess.
+    - **No placeholders.** In 3.8 only `custom` has a component. Any other kind rejects naming the scene until 4.2–4.4 register it.
+    - **Existing workflow untouched.** `src/Root.tsx`, `src/index.ts` and their 150-frame `Main`, which the current skill (unchanged until 7.2) tells the model to edit and render, keep every byte. The kit gets its own entry.
+  - Sibling surfaces:
+    - The producer is `layout()` and `timeline.mjs` (3.6).
+    - 5.1's rule "a scene whose length disagrees with the timeline" and its probe targets reuse `explainerScenes`, not a second agreement check.
+    - 4.5 draws transitions inside each scene's `transitionOut`, which the renderer ignores in 3.8.
+    - 4.1 and 4.2–4.4 register components in `registry.ts` and lay text out above `captionBand`.
+  - Risk packs:
+    - **Schema**, selected: the scene props and the generated `src/custom/index.ts` below. `timeline.json` version 1 is read as 3.6 writes it.
+    - **Subprocess / browser**, selected. Bundling, the probe and one MP4 render run in the offline image, as in 3.7.
+    - **Dependencies**, selected. `@remotion/captions` is imported as installed (4.0.537). `package.json` and the lockfile do not change. A test asserts that `@remotion/captions` resolves to 4.0.537.
+    - **Error handling**, selected. Each of these rejects with a named error: invalid input props, a script that fails `validateScript`, a timeline mismatch, a kind without a component, a stale custom index, and a missing custom file.
+    - **Legacy compatibility**, selected. No existing file changes except `export` on `fieldPath` in `bin/script-schema.mjs`. NOTICE, CI, the `kit` commands, `src/Root.tsx` and `src/index.ts` stay unchanged.
+    - **File IO / path safety / overwrite**, selected. `writeCustomIndex` checks with `lstat`, refuses symlinks, and replaces `src/custom/index.ts` atomically. `customIndexSource` and `writeCustomIndex` take a script returned by `validateScript`. Its `COMPONENT` pattern (`^[A-Z][A-Za-z0-9]{0,39}$`) is what keeps the name from leaving `src/custom/` or breaking the generated import string, so neither function accepts raw JSON. Tests: the `writeCustomIndex` cases below.
+    - **Config / project setup**, selected: the new entry `src/kit/index.ts` and the tracked `src/custom/` directory, which `kit new` copies. Tests: the tracked-index equality and the fresh-project bundle below.
+    - **Resource limits**, not selected. The 481-frame render time is recorded. Render time at the 5400-frame maximum belongs to 5.3 and 5.4.
+    - Not selected:
+      - CLI: no `kit` subcommand. `check` and `render` call the index generator in 5.1 and 5.3.
+      - Network and auth.
+  - Shape (OCU `remotion-template/`). Each new file under `src/kit/` and `bin/` carries the two-line FSL header. TypeScript uses only erasable syntax, as in 3.3. Modules that the bundle imports from `bin/` import no `node:` built-in.
+    - **`bin/explainer-scenes.mjs`** is pure. It imports only `./script-schema.mjs`, for `playbackWhere`. It exports `explainerScenes(script, timeline)`:
+      - Input: `script` as `validateScript` returns it, and `timeline` as parsed from `timeline.json`.
+      - It returns one entry per scene, in playback order (hook, chapter scenes, summary, end card): `{index, where, kind, component, startFrame, durationInFrames, props}`.
+        - `index` is 1-based, as in the voice stems.
+        - `where` is `playbackWhere(script, index)`.
+        - `component` is the custom scene's name, or `null`.
+        - `startFrame` and `durationInFrames` are the scene's timeline frames: `durationInFrames` is `endFrame − startFrame`.
+        - `props` is `{content, image, timing}`. `content` is the scene's `content`; a custom scene has none, so the key is absent. `image` is the scene's image name, or `null`. `timing` is `{durationInFrames, narrationEndFrame, sentences: [{blocks: [{text, startFrame, endFrame}]}]}`, with every frame relative to the scene's start. Hashes, stems and samples are left out.
+      - It throws an `Error` at the first check that fails, in the order below. The message is `<where>: timeline.json <problem>; run node bin/kit.mjs timeline`. `<where>` is `script` for the whole-file checks, the scene's `where` for a scene, and `<where>, sentence <s> block <b>` (1-based) for a block. `<v>` is a value as `JSON.stringify` writes it, passed through `escapeLine`. These are the problems:
+        - a missing field or a field of the wrong type, including a frame that is not an integer: `<field> is missing or has the wrong type`, with `<field>` written by `fieldPath` from `script-schema.mjs`, for example `scenes[2].sentences[0].blocks[1].endFrame`. That function gains `export` and is not copied; nothing else in `script-schema.mjs` changes;
+        - `version is <v>, expected 1`;
+        - `fps is <v>, expected 30`;
+        - `narration.file is <v>, expected "public/narration.wav"`;
+        - `has <n> scenes, script.json has <m>`;
+        - `kind is <v>, script.json has "<kind>"`;
+        - `has <n> sentences, script.json has <m>`;
+        - `has <n> blocks in sentence <s>, script.json has <m>`;
+        - `text differs from script.json` (at the block);
+        - `startFrame <n> is not the previous scene's end <m>` (0 for the first scene);
+        - `endFrame <n> is not above startFrame <m>`;
+        - `block <start>–<end> lies outside the scene <start>–<end>` (absolute frames);
+        - `totalFrames <n> is not the last scene's end <m>` (at `script`, after the scenes).
+
+        Block audio hashes and the 60–180 s window are not checked here (5.1 and 3.6).
+
+    - **`bin/custom-index.mjs`** is CLI-side. Both of its functions take a script returned by `validateScript`. It exports:
+      - **`customIndexSource(script)`** is pure. For a script whose custom scene names `Orbit`, it returns exactly these three lines, each ending in `\n`:
+
+        ```ts
+        // Generated by node bin/kit.mjs from script.json. Do not edit: kit check and kit render rewrite it.
+        export { default } from './Orbit.tsx';
+        export const component = 'Orbit';
+        ```
+
+        Without a custom scene, it returns the same first line followed by `export default null;` and `export const component = null;`.
+
+      - **`async writeCustomIndex(root, script)`** checks the custom file, then writes `src/custom/index.ts` with `writeAtomic`:
+        - When the script has a custom scene, `src/custom/<component>.tsx` must be a regular file, checked with `lstat`. A missing file throws a `Refusal` `<where>: src/custom/<component>.tsx is missing`. A symlink gives `… is a symlink`, and anything else `… is not a regular file`.
+        - Before that, `<root>/src/custom` is checked whether or not the script has a custom scene. It is refused as `<root>/src/custom: is missing`, `… is a symlink` or `… is not a directory`, with `<root>` as given.
+        - Nothing is written when it refuses.
+
+    - **`src/custom/index.ts`** is tracked in the template. It equals `customIndexSource` of the template's `script.json`, which has no custom scene. `kit new` copies it, so a fresh project bundles.
+    - **`src/kit/render/captions.ts`** imports only `@remotion/captions`. It exports two functions:
+      - **`captionPages(timeline)`**:
+        - It makes one token per block in playback order: `{text, startMs: startFrame × 1000 / 30, endMs: endFrame × 1000 / 30, timestampMs: null, confidence: null, pageBreakAfter: true}`.
+        - It calls `createTikTokStyleCaptions` on them with `combineTokensWithinMilliseconds: 0`.
+        - It returns `[{text, startFrame, endFrame}]`. `text` is the page's text, and the frames are the page's one token's `fromMs` and `toMs` times 30 / 1000, rounded.
+        - A page with other than one token throws.
+        - The library's own trimming stands: a block that is only whitespace gives no page, and leading whitespace is removed from a page's text. This was measured on 4.0.537: `" "` gives no page and `" 光"` gives `光`.
+      - **`captionBand(theme)`** returns `{top, bottom}`, the bottom 96 px of the safe area: 930–1026 on the 1080-line canvas. Components in 4.2–4.4 keep their text above `top`. That rule is a contract for those fixtures, not a probe rule.
+    - **`src/kit/render/Captions.tsx`** exports `Captions({pages, theme})`, which renders the page whose `startFrame ≤ frame < endFrame`, or nothing:
+      - lines from `wrapLines(text, 16)`, each its own block, in a centred box of `(16 + HANG)` em;
+      - `theme.type.sizes.caption` at regular weight, in `theme.brand.text`, with `textStyle(theme)` and centred text;
+      - the line box centred vertically in the caption band;
+      - `data-kit-text` set to the page's text, on the element that holds the lines;
+      - no background box.
+    - **`src/kit/render/CustomScene.tsx`** imports the default export and `component` from `../../custom/index.ts`. It exports two things:
+      - **`CustomScene(props)`** renders that default export with `{timing, theme, image}`, the custom component's props. These are design Decision 8's timing and theme, plus the scene's image.
+      - **`customProblem(name)`** returns `null` when `component === name` and the default export is neither `null` nor `undefined`. Otherwise it returns `src/custom/index.ts is for "<component>", not "<name>"` (`is for no custom scene, not "<name>"` when `component` is `null`), or, when the names agree but the default export is `null` or `undefined`, `src/custom/<name>.tsx does not default-export a component`.
+    - **`src/kit/render/registry.ts`** exports `registry`, a map from scene kind to component, which in 3.8 holds only `custom: CustomScene`. Tasks 4.2–4.4 add their kinds here.
+    - **`src/kit/render/Explainer.tsx`** exports two components:
+      - **`ExplainerBody({script, timeline, registry, theme})`**, given a validated script, renders three layers:
+        - an `AbsoluteFill` in `theme.brand.bg`;
+        - each entry of `explainerScenes` as `<Sequence from={startFrame} durationInFrames={durationInFrames}>` holding its kind's component with `{...props, theme}`;
+        - `Captions` over all scenes, from `captionPages(timeline)`.
+      - **`ExplainerComposition({registry, theme})`** registers `<Composition id="Explainer">` at 1920×1080 and 30 fps. Its component is `ExplainerBody` plus `<Audio src={staticFile('narration.wav')}>` from `remotion`. The input props are `{script, timeline}`, the parsed objects, and the default props are `{script: null, timeline: null}`.
+
+        `calculateMetadata` performs these checks in order. Each failure throws `Error('kit render: <message>')`:
+        1. both props are objects, else `input props need script and timeline objects`;
+        2. `validateScript(JSON.stringify(script))` is ok, else the first error's message, followed by ` (and <n> more)` when there are others;
+        3. `explainerScenes` does not throw;
+        4. every scene's kind has a registry component, else `<where>: no component for kind "<kind>"`;
+        5. for a custom scene, `customProblem(component)` is `null`, else `<where>: <problem>`.
+
+        It returns `{durationInFrames: timeline.totalFrames, props: {script: <validated>, timeline}}`.
+
+    - **`src/kit/Root.tsx`** exports `KitRoot`, which registers `ExplainerComposition` with `registry` and `themes.light`, and `ProbeComposition` with `scenes = registry`. Task 4.6 replaces `themes.light` with the picked theme. **`src/kit/index.ts`** calls `registerRoot(KitRoot)`. Kit commands bundle this entry. Studio and `npx remotion render src/index.ts Main` never load it.
+    - Captions are not probe targets in 3.8. A block at its 16-character maximum (Han, or ASCII at the helper's 1 em) at 36 px in the fixed band is one clean line, which target E below proves. Whether 5.1 probes captions is that task's decision.
+
+  - Fixture (`tests/render/fixtures/explainer/`):
+    - **Script** (`script.json` in the fixture directory). It is valid; `title` is `光的折射`, `music` is `none`, and there is no `voice` or `image`:
+      - hook: content `{title: "光的折射"}`, one sentence of three blocks: `光为什么`, `会弯折`, `在水里`;
+      - chapter `现象`: a `question` with content `{question: "筷子为何看起来折断"}` and the block `筷子看起来折断`;
+      - chapter `原理`: a `custom` scene naming `Orbit`, with one sentence of the blocks `速度变了` and `方向就变`;
+      - chapter `应用`: a `concept-card` with content `{title: "透镜", points: ["放大镜"]}` and the block `透镜利用折射`;
+      - `summary`: content `{points: ["折射改变方向"]}` and the block `记住这一点`;
+      - `end-card`: content `{title: "谢谢观看"}`, no narration.
+
+      No content text equals a block text, so a caption is told apart from scene text by its marked `input` being a block text. Every probe target and every input prop uses `validateScript(<fixture text>).script`, never the raw JSON. The raw JSON has no end-card narration, which only `validateScript` fills in.
+
+    - **Maximum-length variant.** The same script with the hook's first two blocks replaced by `光从空气进入水中速度变慢方向改变` (16 Han characters) and `%%%%%%%%%%%%%%%%` (16 ASCII characters, the widest per `src/kit/text.ts`), with its own `layout()` timeline at the same sample counts.
+    - **Timeline.** It is `layout()` from `scene-timing.mjs` with every block at 24000 samples (0.5 s), plus `narration: {file: "public/narration.wav", …}`. It totals 481 frames:
+      - hook 0–134, with blocks [40, 55), [56, 72) and [73, 89);
+      - question 134–194;
+      - custom 194–271, with blocks [194, 209) and [210, 226);
+      - concept card 271–331;
+      - summary 331–391;
+      - end card 391–481.
+
+      The renderer does not enforce the 60–180 s window.
+
+    - **Components.** Fixture components for `hook`, `question`, `concept-card`, `summary` and `end-card` render their content text, marked with `data-kit-text`, at body size above the caption band. The fixture entry registers `ExplainerComposition` with them plus the real `custom: CustomScene`. It also registers `ProbeComposition` with one key, `explainer`, which renders `ExplainerBody` (no audio) over the target's `{script, timeline}` props.
+    - **`Orbit.tsx`** renders one marked text, `Orbit <timing.durationInFrames> <blocks in sentence 1> <block 2's startFrame> <theme.brand.accent>`: `Orbit 77 2 16 #1F6FEB`.
+    - **Scratch project.** The tests build one under `os.tmpdir()`:
+      1. copy the PR's `src/`, `bin/`, `tests/render/fixtures/`, `package.json`, `tsconfig.json` and `remotion.config.ts`;
+      2. link `node_modules` to the image's;
+      3. copy `Orbit.tsx` into `src/custom/` and run `writeCustomIndex`;
+      4. write a 481-frame, 48 kHz mono `public/narration.wav` with ffmpeg.
+
+      The scratch project is removed in `after`.
+
+  - Required evidence, red first:
+    - **Pure tests** (`tests/explainer-scenes.test.mjs`, `tests/captions.test.mjs`, `tests/custom-index.test.mjs`, run by CI):
+      - `explainerScenes` on the fixture script and timeline gives the six entries: their kinds, `where`, frames, `component`, and relative timing. The custom entry is `{durationInFrames: 77, narrationEndFrame: 32, sentences: [{blocks: [{text: "速度变了", startFrame: 0, endFrame: 15}, {text: "方向就变", startFrame: 16, endFrame: 32}]}]}`, it has no `content` key, and `image` is `null`.
+      - Every problem in the list above throws its exact message, one case each, with the scene's `where`.
+      - The import lists of `explainer-scenes.mjs`, `script-schema.mjs` and `captions.ts` hold no `node:` specifier.
+      - `captionPages` on the fixture timeline gives eight pages with the blocks' texts and frames. The hook's three blocks give three pages.
+      - The same tokens without `pageBreakAfter` give one page. This is the premise of design Decision 5.
+      - `" "` gives no page, and `" 光"` gives `光`.
+      - Every frame from 0 to 5400 round-trips exactly.
+      - `customIndexSource` returns the exact text with and without a custom scene. The tracked `src/custom/index.ts` equals the source for the template's `script.json`.
+      - `writeCustomIndex` writes those bytes and gives the same bytes when run twice. A missing custom file is refused as `chapter 2 原理, scene 1 (custom): src/custom/Orbit.tsx is missing`. A symlinked file, a directory in its place, a missing `src/custom/` (also for a script without a custom scene), a symlinked one, and a file in its place are each refused with their message. Nothing is written after a refusal.
+      - `@remotion/captions` resolves to 4.0.537.
+    - **Browser tests** (`tests/render/explainer.test.mjs`, image only, as in 3.7):
+      - **Caption pages.** `probe()` runs over the fixture entry with these `explainer` targets, each lasting 481 frames:
+
+        | Target | `entranceFrames` | `exitFrame` | Frames        |
+        | ------ | ---------------- | ----------- | ------------- |
+        | A      | 47               | 81          | 47, 80, 80    |
+        | B      | 64               | 111         | 64, 110, 110  |
+        | C      | 200              | 241         | 200, 240, 240 |
+        | D      | 55               | 56          | 55, 55, 55    |
+        | E      | 47               | 65          | 47, 64, 64    |
+
+        Targets A–D use the fixture script, and E uses the maximum-length variant. The marked caption at each frame of A–D is:
+        - frame 47: `光为什么`;
+        - frame 64: `会弯折`;
+        - frame 80: `在水里`;
+        - frame 200: `速度变了`;
+        - frames 55, 110 and 240: none. These are the gap between two blocks of a sentence, the post-narration gap, and the custom scene after its narration.
+
+        The caption is the marked entry whose `input` is a block text, and the text record at or inside it. At E's frames 47 and 64 it is the 16-character Han and ASCII block. Each caption is a single line. Its `glyphBox` lies inside the band, 930–1026, and is centred at x = 960 ± 0.5. `violations(result, themes.light)` is empty for every target.
+
+      - **The custom scene renders.** At frames 200 and 240, the texts hold `Orbit 77 2 16 #1F6FEB`, and at frames 47, 55, 64, 80 and 110 they do not.
+      - **The MP4.** `renderMedia` renders the fixture `Explainer` as H.264. `ffprobe` gives:
+        - one 1920×1080, 30 fps video stream of 481 frames (counted);
+        - one AAC audio stream;
+        - a duration of 481 / 30 s, within one frame.
+
+        Record the render time in the PR.
+
+      - **A fresh project bundles.** Before the scratch project's index is regenerated, with the tracked null `src/custom/index.ts`, the real entry's `KitProbe` is selected with a `custom` target, and that succeeds. The fixture `Explainer` with the Orbit script rejects, naming the scene, as `kit render: chapter 2 原理, scene 1 (custom): src/custom/index.ts is for no custom scene, not "Orbit"`.
+      - **Rejections.** Each of these rejects through `selectComposition`, before any frame renders:
+        - the fixture with the custom scene renamed `Comet`, against the `Orbit` index: `kit render: chapter 2 原理, scene 1 (custom): src/custom/index.ts is for "Orbit", not "Comet"`;
+        - the real kit entry `src/kit/index.ts` with the fixture props: `kit render: hook: no component for kind "hook"`;
+        - a timeline whose hook block 2 text is `会转弯`: `kit render: hook, sentence 1 block 2: timeline.json text differs from script.json; run node bin/kit.mjs timeline`;
+        - input props `{script: null, timeline: null}`: `kit render: input props need script and timeline objects`;
+        - the fixture script with a 25-character title and a 17-character hook block: `kit render: script: title is too long (limit 24 characters) (and 1 more)`;
+        - a custom scene naming `Blank`, with `src/custom/Blank.tsx` holding `export default null;` and its index generated: `kit render: chapter 2 原理, scene 1 (custom): src/custom/Blank.tsx does not default-export a component`.
+      - **The real entry bundles.** `selectComposition` of the real entry's `KitProbe` succeeds with a `custom` target.
+      - **`Main` is unchanged.** `selectComposition` of `Main` over `src/index.ts` in the scratch project still gives 150 frames.
+
+    - **In the image.** Use the same image, flags and setup as 3.7, then run `node --test --test-concurrency=1 "tests/render/*.test.mjs"`. The files must run one after the other, because 3.7's SIGTERM test counts every headless shell on the machine. Both 3.7's and 3.8's render tests must pass. Record in the PR the image's `node --version`, the output, and the bundle, probe and render times. If emulation cannot run them, the implementer stops and reports, and the orchestrator runs them on 210.77.77.27.
+    - **Green.**
+      - In a scratch layout like task 3.2's, under Node 22.23.2, `npm ci` and then `node --test "tests/*.test.mjs"` pass from the template.
+      - `node --test "remotion-template/tests/*.test.mjs"` passes from the repository root.
+      - The PR's `template-tests` run is green.
+      - The full OCU unit command passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+
+  - Must preserve: every existing file except the `fieldPath` export. The PR's changed-file list under `remotion-template/` holds only:
+    - `bin/script-schema.mjs`, for that one keyword;
+    - `src/kit/Root.tsx` and `src/kit/index.ts`;
+    - `src/kit/render/**`;
+    - `src/custom/index.ts`;
+    - `bin/explainer-scenes.mjs` and `bin/custom-index.mjs`;
+    - the three pure test files above;
+    - `tests/render/explainer.test.mjs` and `tests/render/fixtures/explainer/**`.
+  - Non-goals:
+    - transitions (4.5), music and ducking (6.5), the theme pick (4.6);
+    - scene components (4.2–4.4) and their caption-band layout;
+    - `kit check`, `kit render` and their calls to `writeCustomIndex` (5.1, 5.3);
+    - probing captions in the check;
+    - the 3.7 follow-ups listed above;
+    - render tests in CI;
+    - any change to the skill (7.2).
 
 Suggested fixture level: expanded - it defines new file formats (`script.json`, `timeline.json`) and a CLI.
 Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper and schema, with their tests. No command consumes them yet, so they stay green on their own.
