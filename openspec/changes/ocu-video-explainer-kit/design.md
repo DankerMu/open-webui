@@ -118,7 +118,7 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
     - The checklist is advisory in this change. The skill tells the model to fix and re-check on any "no".
     - A passing check records a hash of `script.json`, `timeline.json`, `src/` and the files under `public/` it references. The generated `src/custom/index.ts` is written deterministically before hashing. `render` refuses to start when the current hash differs.
 
-11. **Render publishes atomically.** The video renders into `out/` and is verified with ffprobe (codec, pixel format, AAC, duration). Only then is it moved to `/mnt/user-data/files/<name>.mp4`. A failed or killed render leaves the target as it was.
+11. **Render publishes atomically.** The video renders into the project, at `.kit/render/<token>.mp4` (amended by task 5.3 from `out/`: each run gets its own name, and the next start sweeps it). It is verified with ffprobe (codec, pixel format, AAC, duration). Only then is it copied to `.<name>.mp4.<token>.partial` in `/mnt/user-data/files/` and renamed to `<name>.mp4`; the files directory is a separate filesystem in production, so a direct rename would fail with `EXDEV`. A failed or killed render leaves the target as it was.
 
 12. **Gallery approval.**
     - The gallery renders every candidate in both theme candidates inside the workspace image built from the PR branch. That image is built with the release builder on the Mac, loaded on 210.77.77.27 under the `ocu-eval` label, and removed by the evaluation cleanup. The output is one static page.
