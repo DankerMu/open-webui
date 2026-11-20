@@ -1383,6 +1383,41 @@ Minimal mergeable slice: tasks 2.1–2.3, a working isolated stack with one requ
     - **CI runner.** `template-tests` runs on `ubuntu-24.04`, whose ffmpeg is 6.1.1 like the image's. `ubuntu-latest` had moved to 26.04 with ffmpeg 8.0.1.
     - **Follow-ups** (non-blocking review findings): decode memory still grows with a multichannel or high-rate input's layout, the floor-versus-round block start, and an untested `-t 181`. They are tracked in #872.
 
+  - **Follow-up #872** (2026-11-20; the three review findings deferred above).
+    - Triage: bug fix with test gaps, one module (`timeline.mjs`'s single-block decode) and two test files. Fixture level compact.
+    - Risk packs:
+      - **Resource limits**, selected. A multichannel, high-rate voice file makes `areverse` buffer up to 181 s in the input's own layout, because `-ac` and `-ar` are output options and apply after the `-af` chain. #872 measured about 2.9 GB peak for an 8-channel 384 kHz FLAC-in-WAV, and a review measured about 5.5 GB for an 8-channel 655,350 Hz one, above the workspace's 4 GB container.
+      - **Subprocess**, selected. The decode stays one `execFile` argument array.
+      - **Legacy compatibility**, selected. Converting before `silenceremove` moves trim points by a few samples for every input that is not already mono 48 kHz. A mono 48 kHz input decodes byte-identically. A project whose voice files are not mono 48 kHz gets a slightly different `timeline.json` the next time `kit timeline` runs, which invalidates its passing check. That is the 5.2 hash working as designed.
+      - Not selected: Schema, CLI, Concurrency, File IO, Documentation (no format, command, message or doc changes).
+    - **Shape.**
+      - **Item 1.** The single-block decode filter becomes `aformat=sample_rates=48000:channel_layouts=mono,` followed by the current `TRIM` chain (built from `SAMPLE_RATE`), so `areverse` only ever holds mono 48 kHz. `DECODE_INPUT`, the `-ac 1 -ar 48000` output options and every other argument stay as they are. The comment above `DECODE_INPUT` states both bounds:
+        - the decoded output stays near 17.4 MB, under `MAX_BUFFER`;
+        - decode memory is bounded because the conversion runs before `areverse`, quoting the head's peak measured below and naming it a measurement in the image's ffmpeg 6.1.1.
+      - **Item 2.** In `tests/scene-timing.test.mjs`, `SAMPLES.甲` becomes 47800, so 乙 starts at sample 114680, frame 71.675. Every expected value that follows from 甲 is recomputed by hand: 甲 `[64000, 111800, 40, 70]` and 乙 `[114680, 138680, 71, 87]`, with all other blocks and scene frames unchanged. The comment above `SAMPLES` says why: 乙's start has a fractional part above one half, so `Math.round` and `Math.floor` disagree there.
+      - **Item 3.** `tests/timeline.test.mjs` gains one test next to the length-window tests. Two projects are built from `minimal()`, as the 200-second test builds its own, and differ only in the first block's tone length: 200 s in one, exactly 181 s in the other, with the other five blocks at 1 s. Both runs fail with the length-window message, matching `/^kit timeline: total \d+\.\d s \(\d+ frames\) is outside 60–180 s\n$/`, and their stderr is byte-equal. Without `-t 181`, the 200 s tone decodes in full, so its total is larger. If the two runs differ at the current head, the implementer stops and reports.
+    - **Required evidence, red first:**
+      - **Pure** (CI, Mac and `ubuntu-24.04`):
+        - `node --test "tests/*.test.mjs"` in the template passes, including the 22 existing `timeline.test.mjs` cases (the 24 kHz stereo case among them) and the 13 `scene-timing.test.mjs` cases.
+        - **Mutations**, each red, recorded in the PR and reverted:
+          - the block `startFrame` in `scene-timing.mjs` (`Math.floor(cursor / SAMPLES_PER_FRAME)`, line 115 at `f13b499`) with `Math.round` fails the hand-computed layout test, on 乙;
+          - `DECODE_INPUT` without `"-t", "181"` fails the new length test.
+
+          Removing the `aformat` prefix fails no pure test; the in-image measurement below covers it.
+
+      - **In the image** (production image `3d0ceae2…`, ffmpeg 6.1.1), each run a fresh `docker run --rm --platform linux/amd64 --network none --user assistant` container, one at a time:
+        - **Input.** Generated once in its own container and kept on a scratch bind mount: `ffmpeg -nostdin -v error -f lavfi -i "aevalsrc=0.5|0.5|0.5|0.5|0.5|0.5|0.5|0.5:s=384000:d=181" -c:a flac -f wav big.wav`. That is 8 channels at 384 kHz, FLAC in WAV, small on disk.
+        - **Peak memory.** The decode argument array, copied verbatim from `timeline.mjs` at `origin/main` and at the head, runs under `sh -c` as the container's only work, with its stdout piped to `wc -c`. The shell prints ffmpeg's exit status and the byte count, then `cat /sys/fs/cgroup/memory.peak`. The PR records both argument arrays, both peaks, both exit statuses, both byte counts and the Docker VM's memory size. The head exits 0, writes 17,376,000 bytes (181 s of mono 48 kHz 16-bit), and peaks under 400 MB. If the VM has too little memory for `origin/main`'s run to finish unlimited, the PR says so and records how it ended.
+        - **Under a 1 GB limit.** The same two commands run with `--memory=1g --memory-swap=1g`. `origin/main`'s is killed (record the exit status); the head's exits 0.
+        - **Byte identity.** A mono 48 kHz 16-bit WAV (a 1 s sine with 0.5 s of silence before and after) decodes to the same SHA-256 under both argument arrays, in the image and on the Mac. A mono 24 kHz version of it is decoded the same way, and its two output sizes are recorded; a difference there is expected.
+      - **Guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass. The full OCU unit command is not required, since no file outside `remotion-template/` changes.
+
+    - **Must preserve.** `bin/timeline.mjs` changes only in the decode filter and the comment above `DECODE_INPUT`. `bin/scene-timing.mjs` and every other file under `bin/` and `src/` stay byte-identical. Of the tests, only the two named files change. There are no dependency or lockfile changes.
+    - **Non-goals:**
+      - memory caps outside ffmpeg (`ulimit`, cgroups) and a format allowlist;
+      - the narration concat and loudnorm pass, whose input is already mono 48 kHz PCM;
+      - the 60–180 s window and the layout rules.
+
 - [x] 3.7 Implement the shared probe composition, which records text boxes, overflow, font size, rendered text, line-start characters and mask boxes as JSON. Verify that a deliberately overflowing fixture scene is reported, and a fitting one is not.
 
   **Task 3.7 required evidence** (issue #829):
@@ -2863,7 +2898,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
         - 5.4 also times `kit render` at the maximum length, under `--cpus=2 --memory=4g` (from the 3.8 block's "5.3 and 5.4").
       - **Out of scope, reported only:** the workspace image ships no `LICENSE`, `LICENSE-APACHE` or `NOTICE` file. The Dockerfile copies only `remotion-template/`. This predates the change and affects every third-party source.
 
-- [ ] 5.3 Implement `kit render`:
+- [x] 5.3 Implement `kit render`:
   - background launch;
   - render into the project (`.kit/render/<token>.mp4`, amended by the fixture below from `out/`), verify with ffprobe (H.264, yuv420p, AAC, duration), then move atomically to `/mnt/user-data/files/<name>.mp4`;
   - `status` distinguishes died-without-exit;
@@ -3152,6 +3187,35 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
     - the eval driver's `kit` row (8.1);
     - the skill text (7.2);
     - enforcing the checklist answers.
+
+  - Amended after OCU #255 (2026-11-20, merged `f13b499`). Where these differ from the bullets above, these bind:
+    - **Usage errors.** `render` in the template root and `render` with an extra argument leave the exit-1 refusal list. Both exit 2 through `kit.mjs`'s dispatcher, as `check` and `status` do:
+      - in the template root: `kit render: run it inside a project: cd <videos>/<name> && node bin/kit.mjs render`;
+      - with an extra argument: `kit render: usage: node bin/kit.mjs render`.
+    - **More 5.1 and 5.2 assertions changed on purpose:**
+      - `tests/kit.test.mjs`'s unknown-subcommand example is now `publish`, since `render` is a subcommand;
+      - 5.2's listing of `.kit/check` in `tests/render/check.test.mjs` gains `tmp`, from `startJob`'s step 5.
+    - **Additions.**
+      - The worker logs `render: frames 0/<total>` once the composition is selected. Evidence 2's kill point skips it, because 0 is below `total/10`.
+      - `job.mjs` exports `JOBS`. `project-hash.mjs` exports `readHashed`, and `projectHash` takes an optional `read` seam, which only tests pass.
+      - Verify reasons the bullets above leave open:
+        - `verify: no video stream`;
+        - `verify: ffprobe: not found on PATH`;
+        - `verify: ffprobe exited with <code>: <first stderr line>`.
+
+        Seconds in verify reasons are shown with `toFixed(6)`.
+
+      - The stop handler is installed in the `--worker` entry point, before `runRender` logs its first line. Only in-image evidence 3 covers it.
+
+    - **A known window until 5.4.** `takeLock` treats an absent lock (`ENOENT` on its read) as stale and removes the path before it retries. With three overlapping starts and no killed start, B can remove the lock C has just linked, and both start. The published target stays a complete, verified video.
+    - **Deferred from review, with owners:**
+      - **5.4:**
+        - when the lock read finds no lock, `takeLock` retries `link()` without `rm`; a three-starter test (A held through a blocking precondition, B gets `EEXIST`, C links before B's read) shows C's lock survives and B is refused;
+        - the start path also sweeps stale `.<name>.mp4.<32 hex>.partial` files. A real stop during the copy exits after `STOP_DELAY_MS`, before the worker removes its partial; the name stays hidden, but only a later successful render swept it;
+        - `projectHash` reports an `AF_UNIX` socket under `src/` as non-regular rather than `ENXIO`, and a subdirectory removed between its `lstat` and its `readdir` as vanished rather than `ENOENT`;
+        - `settled()` in `tests/render/render.test.mjs` calls `status` before it reads the log; the orchestrator's run printed the verify-and-publish time as `NaN`;
+        - evidence that Remotion's temporary files land under `.kit/render/tmp` while a render runs.
+      - **Out of scope, reported only:** after a failed spawn, `job.json` keeps `pid: null`, so `status` shows `died without an exit (pid null)`.
 
 - [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
