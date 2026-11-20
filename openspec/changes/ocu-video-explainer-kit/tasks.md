@@ -1805,7 +1805,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
 
 ## 4. Scene components and the gallery (OCU `remotion-template`)
 
-- [ ] 4.1 Build the gallery generator. It renders every registered candidate in both theme candidates inside the PR's workspace image on 210.77.77.27 (image labelled `ocu-eval`), probes every sample with 3.7, writes one static page, and lets the page export the user's decisions as JSON. Verify that one placeholder component renders with its probe result and that the export downloads.
+- [x] 4.1 Build the gallery generator. It renders every registered candidate in both theme candidates inside the PR's workspace image on 210.77.77.27 (image labelled `ocu-eval`), probes every sample with 3.7, writes one static page, and lets the page export the user's decisions as JSON. Verify that one placeholder component renders with its probe result and that the export downloads.
 
   **Task 4.1 required evidence** (issue #831):
   - **Triage.** Feature, fixture level expanded. This task adds:
@@ -2095,11 +2095,176 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - publishing the page anywhere but the Mac;
     - gallery runs in CI;
     - any `kit` subcommand.
+  - Amended after OCU #251 (2026-11-19, merged `609c6ac`). Where these differ from the bullets above, these bind:
+    - **`src/kit/gallery/catalog-rules.ts`.**
+      - It holds `Candidate`, `validateCatalog`, `isCandidateId` and the theme constants. `catalog.ts` re-exports `Candidate` and `validateCatalog`. `bin/gallery-approvals.mjs`, `entry.tsx` and `ThemeSample.tsx` import `isCandidateId` and the theme constants from it directly.
+      - It exists because the test fixtures overwrite `catalog.ts`.
+      - `bin/gallery-approvals.mjs` imports `isCandidateId` from it, so the candidate id rule has one implementation.
+      - Tasks 4.2–4.4 add candidates to `catalog.ts`, not to this file.
+    - **Theme pick.** The page's theme pick has a third radio, "no pick", checked by default, which exports `"theme": null`. The export body is unchanged.
+    - **Deferred, with their owners:**
+      - **Node's `MODULE_TYPELESS_PACKAGE_JSON` warning.** The template `package.json` has no `"type"`, so every run that imports a `.ts` module from Node prints this warning on stderr. That covers `gallery.mjs`, and every `loadApprovals` caller from 4.2 on. Owned by 5.1's fixture, which decides whether `"type": "module"` is safe for `remotion.config.ts` and the bundle.
+      - **Containment in `loadApprovals`.** It `lstat`s only the export file. A symlinked `gallery/`, `gallery/exports/` or `approvals.json` is followed, and there is a window between the `lstat` and the read. Owned by 4.6's fixture, which can require `realpath` containment or `O_NOFOLLOW` with `fstat`.
+      - **Signals.** SIGINT or SIGTERM during `gallery.mjs` leaves the temporary sibling and the work directory behind. Owned by 5.1, with the probe's SIGTERM follow-up.
 
 - [ ] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
+
+  **Task 4.5 required evidence** (issue #835):
+  - **Triage.** Feature, fixture level expanded. The renderer draws the transition slots that `kit timeline` already writes (`transitionOut`, task 3.6), and `explainerScenes` begins validating them.
+  - **Reading of Decision 4, settled here.**
+    - **The transition is the outgoing scene's exit.** During its `transitionOut` window (`[endFrame − 15, endFrame)`, the last 15 frames of the post-narration gap), the scene fades out to the theme's background.
+    - **The incoming scene's entrance** is that component's own entrance (`entranceFrames`, from 4.2). It begins on the adjacent frame, which is the incoming scene's `startFrame`.
+    - **The incoming scene is never drawn before its own start**, and no scene sees a shifted or negative local frame.
+    - **Why this reading.**
+      - A scene's first block can start on its first frame (only the hook has a lead-in), so any effect on or after the incoming `startFrame` would run under narration.
+      - Drawing the incoming scene early would be the `TransitionSeries` overlap that Decision 4 rejects.
+      - `@remotion/transitions` presentations need `TransitionSeries`, so the fade is written directly, with no dependency change.
+  - Governing invariants:
+    - **Only inside the slot.** A transition affects a scene's pixels exactly on its `transitionOut` frames:
+      - every frame before the window renders as it did before this task;
+      - the last window frame is the theme background alone;
+      - nothing of the outgoing scene is drawn on or after its `endFrame`.
+    - **One source.**
+      - The window comes from `timeline.json`. `explainerScenes` validates it and passes it on, and the renderer never recomputes `endFrame − 15`.
+      - `TRANSITION_FRAMES` stays defined only in `bin/scene-timing.mjs`.
+    - **Length unchanged.** The rendered frame count equals `totalFrames`.
+  - Sibling surfaces:
+    - **Producer:** `layout()` in `bin/scene-timing.mjs`, unchanged. It sets `transitionOut` on every scene but the last.
+    - **Validator:** `explainerScenes`, used by `kit render`, `kit check` and the renderer.
+    - **Consumers:**
+      - `ExplainerBody`, the only place the exit is applied. It is not in `framed(registry)`, not in components, and not around `Captions`.
+      - The probe's `exitFrame`, which 5.1 derives from `transitionOut.startFrame`. Its pre-exit frame is the frame before the window, so it never measures a fading frame.
+    - **Not affected:**
+      - The gallery samples and `KitProbe` scenes, which have no exit.
+      - Captions. The last caption page ends at `narrationEndFrame`, which is no later than the window's start.
+  - Risk packs:
+    - **Schema**, selected.
+      - `timeline.json` version 1 is unchanged.
+      - `explainerScenes` adds checks on `transitionOut`, each with its own message.
+      - Every message has the existing form: `<where>: timeline.json <problem>; run node bin/kit.mjs timeline`.
+
+      The checks:
+      1. **Shape**, in `checkShape`. On every scene, `transitionOut` is `null`, or an object with integer `startFrame` and `frames`. Otherwise the existing shape message applies, with the field path, for example `scenes[2].transitionOut.frames is missing or has the wrong type`.
+
+      Checks 2–6 run as whole-timeline passes, in this order, after the existing `totalFrames` check: 2. On the last scene, `transitionOut` must be `null`: `<where>: timeline.json the last scene has a transition; …`. 3. On any other scene, `transitionOut` must not be `null`: `<where>: timeline.json scene has no transition; …`. 4. `frames` must equal `TRANSITION_FRAMES`: `<where>: timeline.json transition is <n> frames, expected 15; …`. 5. The window must end at the scene's end: `<where>: timeline.json transition ends at <startFrame + frames>, not at the scene's end <endFrame>; …`. 6. The window must start no earlier than the end of the scene's last caption block (the scene's `startFrame` when it has no blocks): `<where>: timeline.json transition starts at <startFrame>, before the last block ends at <frame>; …`. This is the spec scenario's "after the outgoing scene's last block". Nothing ties `narrationEndFrame` to the blocks.
+
+    - **Legacy compatibility**, selected.
+      - **3.8's render tests stay green unchanged.** Their probe frames (`tests/render/explainer.test.mjs:47-53`) all lie before the fixture's windows (119, 179, 256, 316, 376), and their 481-frame `ffprobe` count is unchanged.
+      - **4.1's tests stay green unchanged.** That includes the explainer `KitFrame` still at frame 200 (`tests/render/gallery.test.mjs:218,369`), which pins a wrapped scene's position.
+      - **The wrapper leaves layout unchanged.** `Sequence` already wraps its children in an `AbsoluteFill` (`remotion/dist/cjs/Sequence.js:622`), so a second one inside it changes no layout. The frame-200 still above is the evidence, so no comparison against a render from before this task is needed.
+      - **Two pure tests in `tests/explainer-scenes.test.mjs` are updated by design:**
+        - `EXPECTED` (`:112`) gains each entry's `exit`;
+        - the import-list assertion (`:221`) gains `./scene-timing.mjs`.
+
+        A new assertion checks that `bin/scene-timing.mjs` itself imports nothing, so the bundle-side import stays pure.
+
+      - `scene-timing.mjs`, `timeline.mjs`, `probe.mjs`, the components and `src/Root.tsx` stay byte-identical.
+
+    - **Subprocess / browser**, selected. The new evidence renders in the workspace image, as 3.8's does.
+    - **Error handling**, selected. The six checks are covered by the pure tests, one case each.
+    - Not selected:
+      - dependencies, since `@remotion/transitions` is not used and nothing is added;
+      - CLI, since no command changes;
+      - file IO;
+      - network;
+      - auth;
+      - resource limits, since render length is unchanged;
+      - shared host, since there is no host run.
+
+  - Shape (OCU `remotion-template/`):
+    - **`bin/explainer-scenes.mjs`.**
+      - Imports `TRANSITION_FRAMES` from `./scene-timing.mjs` and adds checks 1–6.
+      - Each returned entry gains `exit`. It is `{startFrame, frames}` with `startFrame` relative to the scene's start, or `null` for the last scene.
+      - `props` is unchanged, so custom scenes still receive `{image, timing, theme}`.
+    - **`src/kit/render/SceneExit.tsx`** (new, with the FSL header) exports `SceneExit({exit, children})`.
+      - With `exit` set to `null` it renders `children` as they are, with no wrapper element.
+      - Otherwise it renders `children` inside an `AbsoluteFill` with a linear `opacity` = `interpolate(frame, [exit.startFrame − 1, exit.startFrame + exit.frames − 1], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})`, where `frame` is `useCurrentFrame()` inside the scene's `Sequence`.
+      - The result, frame by frame:
+
+        | Frame                         | Opacity |
+        | ----------------------------- | ------- |
+        | before the window             | 1       |
+        | window's first frame          | 14/15   |
+        | window's second-to-last frame | 1/15    |
+        | window's last frame           | 0       |
+
+      - The curve is linear because an eased curve changes the window's edge frames by less than a colour level. The edges then cannot be measured, and an off-by-one window would pass.
+
+    - **`src/kit/render/Explainer.tsx`.** `ExplainerBody` wraps each `<Scene>` in `<SceneExit exit={entry.exit}>` inside its `Sequence`. Nothing else changes.
+
+  - **Assigned follow-ups.** The #830 follow-up assigned to 4.5 (caption start and scene-end probe frames) is taken here, in both its parts:
+    - caption start and last-frame probe frames;
+    - the scene-end frame.
+
+    Both land in the render test below. The other assignments stand as the 4.1 block lists them.
+
+  - **The transition's look is not reviewed in the gallery.** The gallery renders components alone, so the user first sees transitions in 7.1's end-to-end video. If that review asks for a different look, the change is made to `SceneExit` alone. Recorded as a non-goal.
+  - **Fixture** (`tests/render/fixtures/transitions/`).
+    - `fixture.mjs` builds its script with 3.8's `fixtureScript(edit)` and its timeline with `fixtureTimeline`. It adds no second copy of either.
+    - The edit gives three chapters. Chapter 1 holds two scenes, and its first scene has three blocks. That scene is followed by a scene that is not a chapter's first, so its gap is the 20-frame scene-end gap. A `layout()` run checked this: with 3.8's `BLOCK_SAMPLES` the scene ends its narration 20 frames before its end.
+    - The test first asserts the timeline's coverage. If the edit stops producing any of these, the test fails before any render:
+      - a boundary whose next scene is not a chapter's first, with `endFrame − narrationEndFrame = 20`;
+      - a boundary whose next scene is a chapter's first, with `endFrame − narrationEndFrame = 45` and `narrationEndFrame + 45 ≥ startFrame + minFrames`, so the gap is not stretched;
+      - a scene with `narrationEndFrame + nominal gap < startFrame + minFrames`, strictly, so `minFrames` sets its end.
+    - **Setup**, as 3.8 does it (`tests/render/explainer.test.mjs:140-141`):
+      - reuse `tests/render/fixtures/explainer/entry.tsx`;
+      - copy `Orbit.tsx`;
+      - run `writeCustomIndex`;
+      - write a `narration.wav` of `totalFrames × 1600` samples.
+    - The components are 3.8's fixture scenes (`tests/render/fixtures/explainer/scenes.tsx`), which draw their text from frame 0. Any change at a boundary is therefore the transition's.
+  - Required evidence, red first:
+    - **Pure** (`tests/explainer-scenes.test.mjs`, CI):
+      - each of checks 1–6 rejects with its exact message, one case each;
+      - the fixture timeline passes;
+      - `exit` equals `{startFrame: transitionOut.startFrame − startFrame, frames: 15}` on every scene but the last, and `null` on the last.
+    - **Browser** (`tests/render/transitions.test.mjs`, image only, run with `--test-concurrency=1` beside 3.7's, 3.8's and 4.1's).
+      - Pixel checks use PNG stills of the fixture's `Explainer` composition, from `renderStill` in one browser, decoded with ffmpeg to `rgb24`. Encoded video is not exact enough for ±2 after a hard change.
+      - The MP4 render is used only for the `ffprobe` frame count.
+      - The text region is the box x 200–1400, y 200–500, where 3.8's fixture scenes draw.
+
+      For each boundary, with `s` = `transitionOut.startFrame` and `e` = `endFrame`:
+      - Frame `s − 1` equals frame `narrationEndFrame` of the same scene, within ±2 per channel for every pixel. The scene is static, and no caption shows in the gap.
+      - Frame `s` differs from frame `s − 1`: the largest per-channel difference in the text region is above 8. At opacity 14/15 it is about 15 levels.
+      - Frame `e − 2` is not the background: some text-region pixel differs from `theme.brand.bg` by more than 4, at opacity 1/15.
+      - Frame `e − 1` equals `theme.brand.bg`, within ±2, for every pixel.
+      - Frame `e` equals frame `e + 1` within ±2. This shows the incoming scene at full opacity with no residue, and only when the band shows the same caption page on both frames. Otherwise the comparison is restricted to rows above y 930.
+
+    - Across the whole video:
+      - the last scene's last 15 frames equal its frame `narrationEndFrame` (no exit in the tail);
+      - frames 0 and 20 of the hook are equal (no effect in the lead-in);
+      - `ffprobe` counts `totalFrames` frames.
+    - **Captions.** These use chapter 1's first scene. `b1` is its first block and `b2` its second, with frames taken from the timeline. The band is y 930–1026.
+      - At frame `b1.startFrame`, the band differs from frame `b1.startFrame − 1`.
+      - Frame `b1.endFrame − 1` equals frame `b1.startFrame` in the band.
+      - If `b2.startFrame > b1.endFrame`, frame `b1.endFrame` shows the background in the band.
+      - At frame `b2.startFrame`, the band differs from frame `b1.startFrame`, which shows that a new page began.
+      - At the end of the scene's last block, frame `last.endFrame − 1` shows a page and frame `last.endFrame` shows the background in the band.
+    - **Mutations**, each red, then reverted:
+      - the window starts one frame early (`exit.startFrame − 1`), which turns the frame `s − 1` check red;
+      - the window starts one frame late, which turns the frame `s` check red;
+      - the window is 16 frames, ending one frame late, which turns the frame `e − 1` check red;
+      - the exit is applied to the last scene;
+      - `SceneExit` wraps `Captions` as well.
+    - **In the image (implementer, Mac).** Run the production workspace image `3d0ceae2…` with 3.7's flags and setup. `node --test --test-concurrency=1 "tests/render/*.test.mjs"` must pass all render tests of 3.7, 3.8, 4.1 and 4.5. Record the times.
+    - **Green.**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root.
+      - The PR's `template-tests` passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+      - The full OCU unit command is not required, because no file outside `remotion-template/` changes.
+
+  - **Must preserve.** Every existing file except `bin/explainer-scenes.mjs`, `src/kit/render/Explainer.tsx` and `tests/explainer-scenes.test.mjs`, the last with the two updates above. No dependency change. The changed-file list under `remotion-template/` holds only those three, plus:
+    - `src/kit/render/SceneExit.tsx`;
+    - `tests/render/transitions.test.mjs`;
+    - `tests/render/fixtures/transitions/**`.
+  - Non-goals:
+    - a gallery view of transitions;
+    - transition variety or a per-scene transition choice (one theme transition for the whole film);
+    - component entrances (4.2–4.4);
+    - probe target construction for real scripts (5.1).
+
 - [ ] 4.6 The user picks the theme in the gallery and exports the pick; commit it into `gallery/approvals.json`, linking it. A `redo` component from 4.2–4.4 is redone and re-reviewed, or stays unshipped. Remove the unpicked theme and every candidate kind without an `approve` entry. Verify with a static test that the schema kinds, registry, JSON Schema and example script equal the approved set, and that hook, summary and end card are approved. Task 7.2 extends the test to the skill's kind list.
 
 Suggested fixture level: expanded - it adds the components that the schema's kinds bind to, and a user approval gate.
