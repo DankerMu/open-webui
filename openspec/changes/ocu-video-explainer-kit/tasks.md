@@ -2278,7 +2278,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
 
 ## 5. Kit check and render (OCU `remotion-template`)
 
-- [ ] 5.1 Implement the mechanical stage of `kit check` as a background job reported by `kit status`. It covers the schema, the probe rules from 3.7, rest after reveals, unnarrated stretches outside lead-in, tail and end card, timeline agreement, image, font and voice assets, and the custom count. The music rules (unknown id, track length) are added in 6.5. Verify:
+- [x] 5.1 Implement the mechanical stage of `kit check` as a background job reported by `kit status`. It covers the schema, the probe rules from 3.7, rest after reveals, unnarrated stretches outside lead-in, tail and end card, timeline agreement, image, font and voice assets, and the custom count. The music rules (unknown id, track length) are added in 6.5. Verify:
   - each rule has a failing and a passing fixture;
   - `check` returns at once;
   - `status` reports running, passed and failed with reasons.
@@ -2559,8 +2559,294 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
     - timing on the maximum script (5.4);
     - the music rules (6.5);
     - the skill text (7.2).
+  - Amended after OCU #253 (2026-11-20, merged `c76ed08`). Where these differ from the bullets above, these bind:
+    - **Re-layout comparison order.** The comparison checks `totalFrames` first, then each scene's `endFrame − startFrame` in playback order, then any other field.
+      - `explainerScenes` requires the scenes to be contiguous, with `totalFrames` equal to the last scene's end. Checking a scene's length first would therefore make the `totals` message unreachable.
+      - With this order, the `lasts` message is reachable only when lengths shift between scenes and the total stays the same. Its test uses such a compensating edit.
+    - **`jobState` checks liveness first, then reads the result.** If the result were read first, a worker that wrote its result and exited between the two reads would show as `died`. Linux procps truncates `ps -o args=` at `COLUMNS` even when the output is piped, so `ps` runs without `COLUMNS`.
+    - **Worker errors.**
+      - A thrown error with a string `code` (a system error) becomes `failed` with `check: <message>`.
+      - Any other thrown error is a bug. It ends the worker without a result, so `status` shows `died` and the stack is in the log.
+    - **Exports and options.**
+      - `job.mjs` also exports `handleStopSignals()`, which holds the `stopping` flag beside `writeResult`. `writeResult` resolves to whether it wrote.
+      - `runChecks` also takes `log` (the stage lines) and `files` (the file reader).
+    - **The `(<n> reasons)` count.** In 5.1, `<n>` counts the `… and <m> more` line. 5.2 takes the fix (a true count) from 5.3, because 5.2 already changes `status`.
+    - **Deferred from review, with owners:**
+      - **5.3:**
+        - a failed spawn in `startJob` (the `'error'` event fires before its listener is attached);
+        - the probe's `kit-probe-*` temp directory after a kill;
+        - two `check` calls started at the same moment.
+      - **5.4:** the worker has no deadline.
+      - **6.5:** its music rules renumber the `check: stage 6 probe` line that in-image evidence 6 and 7 wait for.
 
 - [ ] 5.2 Add the contact sheet and the fixed yes/no checklist after a passing mechanical stage, with the video-shotcraft (Apache-2.0) NOTICE entry, plus the passing-check hash over `script.json`, `timeline.json`, `src/` and the referenced `public/` files. Verify that a passing check writes exactly one four-tile sheet and prints the questions, that editing `src/` or a referenced `public/` file invalidates the hash, and that regenerating `src/custom/index.ts` without changes does not.
+
+  **Task 5.2 required evidence** (issue #838):
+  - **Triage.** Feature, fixture level expanded. 5.2 adds stage 2 of `kit check` (Decision 10):
+    - a 2×2 contact sheet of key frames;
+    - a fixed yes/no checklist that `status` prints after a pass;
+    - the passing-check hash, which 5.3's `render` compares before it starts.
+
+    It changes the check's result format and `status`'s passed output, and it makes `startJob` clear its job directory. Both are shared with 5.3.
+
+  - Governing invariants:
+    - **A pass vouches for what was checked.**
+      - The recorded hash covers the bytes of `script.json` and `timeline.json` that stages 1 and 2 judged, and the `src/` and referenced `public/` files as they stood before the stages that read them.
+      - A change to any hashed file while the check runs ends the check as `failed`, never as `passed` with a hash of the edited tree.
+    - **`passed` implies a complete sheet, and nothing else leaves one.**
+      - The sheet is moved into place only after the final hash comparison succeeds, and `result.json` is written last.
+      - A failed run leaves no `contact.png` (spec, "Overflow fails the check"): the stage order guarantees it.
+      - A killed or died run may leave `contact.png`, if the signal lands between stage 8's `rename` and the result. `status` reports a sheet only from this run's passed result, and the next `startJob` removes it.
+      - An edit made and then reverted while the check runs cannot be told apart by two hash reads. The bytes rendered then equal the bytes hashed, so this is accepted.
+    - **One source per value.**
+      - The referenced `public/` files are the files the assets stage reads.
+      - Each tile's frame is the probe's pre-exit frame.
+      - The checklist is one constant.
+    - **`src/custom/index.ts` is inside the hash and deterministic.** It is generated from `script.json` before the first hash read, so a check whose generator is stable passes, and regenerating the file with the script unchanged leaves the hash unchanged.
+    - **The hash is importable without Remotion.** 5.3's `render` recomputes the hash in its start path, which must not load `@remotion/*`.
+  - Sibling surfaces:
+    - **Producers of hashed files:**
+      - `kit voice-import` writes `public/voice/<stem>.wav`;
+      - `kit timeline` writes `timeline.json` and `public/narration.wav`;
+      - `kit image` writes `public/images/<name>`;
+      - `writeCustomIndex` (3.8) writes `src/custom/index.ts`;
+      - the model edits `script.json` and `src/custom/<File>.tsx`.
+    - **Reused, not duplicated:**
+      - `explainerScenes` for the tiles;
+      - `probeFrames`' pre-exit rule (`exitFrame − 1`);
+      - `writeCustomIndex` and `customIndexSource`;
+      - `job.mjs`'s `startJob`, `jobState` and `writeResult`;
+      - `writeAtomic`.
+    - **Consumers:**
+      - 5.3, whose `render` reads the passed result's `hash`, recomputes it with `projectHash`, refuses on a difference, and reuses the cleared job directory for its own state;
+      - 5.4, which times the check including this stage;
+      - 6.5, whose music rules insert before the probe and so renumber the stage lines;
+      - 7.2, whose skill text tells the model to view the sheet, answer the checklist, and on any "no" fix the project and check again.
+  - Risk packs:
+    - **CLI**, selected. `status`'s passed output changes (see Shape). No new subcommand.
+    - **Subprocess / browser**, selected.
+      - **A second bundle and browser.** The contact-sheet stage bundles `src/kit/index.ts` again and opens its own browser, which is closed in `finally`. Sharing the probe's bundle would change `probe.mjs`, which stays byte-identical; 5.4 measures the cost.
+      - **Signals.** The 5.1 handling covers the stage unchanged: on SIGTERM or SIGINT `stopping` suppresses the result and Remotion's listener SIGKILLs the browser's group; on SIGKILL `--pdeathsig` takes the shell. Evidence 5 below extends 5.1's evidence 6 and 7 to this stage.
+      - **ffmpeg.** It tiles the stills with `xstack`. It is spawned with an argument array (no shell), exactly as `timeline.mjs` spawns it, and its stderr goes to the log. The orchestrator measured this in production image `3d0ceae2…` under `--cpus=2 --memory=4g` (2026-11-20): four 960×540 PNGs tiled into one 1920×1080 PNG (`rgb24`) in 249 ms. `montage` is also present but unused, since the kit already depends on ffmpeg.
+    - **File IO**, selected.
+      - The sheet's work directory is `.kit/check/sheet/`, holding the bundle's `outDir` and the four stills. It is removed in `finally`, and the next `startJob` sweeps whatever a killed run leaves there.
+      - The tiled sheet is written to `.kit/check/contact.next.png`, outside the work directory. Stage 8 renames it to `.kit/check/contact.png` when the hashes match, and removes it otherwise. `.kit/` is outside the hashed set and in `NOT_COPIED`.
+      - The hash walk uses `lstat` and follows no link, which settles the `<root>/src` symlink passed on from 5.1.
+    - **Concurrency**, selected. A file edited while the worker runs is detected by the second hash read (invariant 1). Concurrent `check` starts remain as in 5.1; the start marker stays deferred to 5.3.
+    - **Schema**, selected. `result.json` stays version 1 and gains four fields (see Shape): `count`, which `status` reads for a failure, and `hash`, `sheet` and `tiles`, which it reads for a pass.
+    - **Error handling**, selected.
+      - A render, select or ffmpeg failure in the sheet stage is the reason `contact sheet: <message>`; the run fails and no sheet is left.
+      - A non-regular entry in the hashed set is a reason (see the hash rules).
+      - A system error from the hash walk propagates as in 5.1 (`check: <message>`). A pure test makes a directory under `src/` unreadable (`chmod 000`, skipped when running as root, mode restored in `t.after` before cleanup) and asserts that reason.
+    - **Resource limits**, selected. The stage renders four stills at scale 0.5. Its work directory lives under the job directory, so a killed run leaves at most one per project.
+    - **Release / packaging**, selected. `NOTICE` and `THIRD-PARTY-LICENSES.md` gain the video-shotcraft entry. Both lie outside `remotion-template/`, so the full OCU unit command is required.
+    - **Legacy compatibility**, selected.
+      - Every 5.1 stage, message and boundary is unchanged. A project that 5.1 judged gets the same reason list, apart from the new `src` reasons of the snapshot and the reasons of stages 7 and 8.
+      - `status`'s running, died and none lines are unchanged.
+      - `startJob`'s refusal, spawn and `job.json` steps are unchanged.
+    - Not selected:
+      - auth, since the check runs as the project's owner with no credentials;
+      - network, since it runs offline;
+      - shared host, since there is no host run;
+      - dependencies, since none is added;
+      - config / project setup, since `kit new` and the template's configuration are unchanged;
+      - documentation / migration notes, since 7.2 owns the skill text and no stored state needs migrating (`.kit/` is per-run).
+  - Shape (OCU `remotion-template/`). New files carry the FSL header.
+    - **`bin/project-hash.mjs`** (new). It imports only `node:` built-ins and the kit's own Remotion-free modules. A test asserts its static import list, and that `kit.mjs` still reaches no `@remotion/*` module.
+      - **`referencedPublicFiles(script, timeline)`** takes a validated script and a timeline that passed stage 2. It returns the sorted, de-duplicated project-relative paths of:
+        - each scene's `public/images/<image>`;
+        - each block's `public/voice/<stem>.wav`;
+        - `timeline.narration.file`.
+      - **`projectHash(root, {script, timeline, scriptText, timelineText})`** resolves to `{hash}` or `{reasons}`. The entries are:
+        - `["script.json", sha256(scriptText)]` and `["timeline.json", sha256(timelineText)]`, the texts the caller judged;
+        - every regular file under `src/`, found by a recursive walk with `lstat`;
+        - every path of `referencedPublicFiles`, as `[path, sha256]`, or `[path, null]` when the file is absent or is not a regular file. It is judged regular by the same `lstat` test as `projectFiles.regular` in `check-rules.mjs`. The assets stage reports those, so the hash stage adds no second reason.
+
+        The entries are sorted by path in code-unit order and serialized as `JSON.stringify` of the `[path, sha256 | null]` pairs. `hash` is the lowercase hex SHA-256 of that text. The hash depends on paths and contents only, never on mtime or mode.
+
+      - **Reasons, each stopping the hash:**
+        - `src` absent: `src: is missing`;
+        - `src` a symlink: `src: is a symlink`;
+        - `src` not a directory: `src: is not a directory`;
+        - any entry under `src/` that is neither a directory nor a regular file: `src/<path>: is not a regular file or directory; the check hashes regular files only`.
+
+    - **`bin/checklist.mjs`** (new). It exports `CHECKLIST`, a frozen array of exactly ten questions.
+      - **Header.** Its third header line is `// Source: Vincentwei1021/video-shotcraft 42f922fe076f6428814d10f6184caf22a8b2adc2 references/aesthetic-rules.md Apache-2.0`. The orchestrator pinned the commit on GitHub and read the file at that commit (2026-11-20). The header says the questions are adapted from the rules' self-check questions, translated and reduced to what four still frames can answer.
+      - **The questions**, in this order, each ending with the rule it comes from:
+        1. `Does each tile have one main subject that the eye goes to first? (Q5)`
+        2. `Is all text meant to be read complete and easy to read at this size, with nothing cut off, overlapping or too small? (Q11)`
+        3. `Is any small decorative text clearly decorative, so that no tile has text a viewer would try and fail to read? (Q11)`
+        4. `Does each tile show what its scene's narration in script.json says? (C1)`
+        5. `Does each tile add something new, with no two tiles showing the same picture or making the same point? (P4)`
+        6. `Does every element sit in its place in the layout, with nothing floating over or covering another element by accident? (Q9)`
+        7. `Are glows and highlights, if any, on the main subject only, at most one per tile, and kept inside its edges? (Q4)`
+        8. `Do the illustrations and any mock content look finished and credible, with no placeholder, watermark or stray text? (Q1, Q10)`
+        9. `Is the text in every tile seen straight on, not tilted at an angle that makes it hard to read? (Q6)`
+        10. `Is every tile free of blank, black or unfinished-looking areas? (P1)` (P1 asks for one's own frame check before delivery. This question is that check's blank-frame item, the one the existing skill's contact-sheet step names.)
+    - **`bin/contact-sheet.mjs`** (new). It is loaded only through the worker's dynamic import of `check-rules.mjs`.
+      - **`sheetTiles(scenes)`** takes `explainerScenes`' entries:
+        - The candidates are every entry except the `end-card` scene, in playback order. There are `m` of them, between 5 and 22.
+        - Tile `i` (0–3) takes candidate `Math.round(i × (m − 1) / 3)`, so the hook is tile 1 and the summary is tile 4.
+        - Its frame is `startFrame + (exit?.startFrame ?? durationInFrames) − 1`, the probe's pre-exit frame, in composition frames.
+        - It returns `[{where, frame}]`, four entries in playback order.
+      - **`contactSheet(root, {script, timeline, tiles, workDir, output})`:**
+        1. Bundles `src/kit/index.ts` with `probe.mjs`'s bundle options, `enableCaching: false` and `symlinkPublicDir: true` (the image's `node_modules` is root-owned, and the public directory is not copied), plus `publicDir` `public` and `outDir` `<workDir>/bundle`.
+        2. Opens its own browser with `probe.mjs`'s browser options, and selects composition `Explainer` with input props `{script, timeline}` (the raw parsed files).
+        3. Renders each tile's frame with `renderStill` at `scale: 0.5`, as PNG.
+        4. Tiles the stills with `ffmpeg … -filter_complex "[0][1][2][3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0" -frames:v 1` into `output`. The result is 1920×1080, filled left to right, top to bottom, in tile order.
+        5. Closes the browser and removes `workDir`, but not `output`, in `finally`.
+    - **`bin/check-rules.mjs`** changes:
+      - **The snapshot.** After stage 2 passes, `runChecks` logs `check: snapshot` and runs `writeCustomIndex`:
+        - On success it runs `projectHash` with the texts stages 1 and 2 read. Each `projectHash` reason is reported, does not stop stages 3–5, and skips every `needsPass` stage.
+        - On a `writeCustomIndex` refusal it records no snapshot and reports nothing. The probe stage's own `writeCustomIndex` call reports the refusal exactly as in 5.1 (`custom index: <message>`), when stages 3–5 passed. A missing custom file therefore still gives only 5.1's assets reason.
+      - **Stage 7, `contact-sheet`** (`needsPass`). It runs `contactSheet` with `tiles = sheetTiles(explainerScenes(script, timeline))`, `workDir` `.kit/check/sheet` and `output` `.kit/check/contact.next.png`. A thrown error becomes `contact sheet: <message>`, and `contact.next.png` is removed.
+      - **Stage 8, `hash`** (`needsPass`).
+        - It re-reads `script.json` and `timeline.json` through `state.files.text`, then runs `projectHash` with the judged `script` and `timeline` objects and the re-read texts.
+        - The stage adds `the project changed while the check ran; run node bin/kit.mjs check again`, and removes `contact.next.png`, when any of these holds:
+          - there is no snapshot;
+          - a re-read text is `null`;
+          - `projectHash` gives reasons;
+          - the hash differs from the snapshot's.
+        - Otherwise it renames `contact.next.png` to `.kit/check/contact.png`, and the run's pass carries `{hash, tiles}`.
+      - **`runChecks`** resolves to `{reasons, pass}`:
+        - `pass` is `{hash, sheet: ".kit/check/contact.png", tiles}` when the reasons are empty, and `null` otherwise.
+        - Its options gain `sheet`, defaulting to the real `contactSheet`, so pure tests inject a stub.
+        - The probe stage is unchanged and still calls `writeCustomIndex`, which writes the same bytes.
+      - **The stage lines** are `check: stage <n> <name>` for stages 1–8, with `check: snapshot` between stages 2 and 3. 6.5's music rules will renumber the probe and later stages, and must update the in-image tests that wait for a stage line.
+    - **`bin/job.mjs`** changes:
+      - **`startJob` step 2** removes the whole `.kit/<name>/` directory with `rm -r`, then recreates it, instead of removing `result.json` and `log` alone. Every file a previous run left goes: its sheet, its work directory, and 5.3's own state.
+      - **`writeResult(root, name, token, outcome, reasons, extra = {})`** writes the 5.1 fields, plus `count`, the number of reasons before the 40-line bound, plus `extra`'s fields. Here `extra` is `{hash, sheet, tiles}` for a passed check.
+      - **`result.json`** is still version 1. `count` is always present in 5.2 results, while `hash`, `sheet` and `tiles` appear only in a passed result.
+    - **`bin/check.mjs`** changes:
+      - **The worker** passes `pass` as `extra` when the outcome is `passed`.
+      - **`status`, passed:**
+        - Line 1 is `kit status: check passed`.
+        - Line 2 is `contact sheet: <absolute path of .kit/check/contact.png>`.
+        - Four tile lines follow, `  tile <i> (<top left|top right|bottom left|bottom right>): <where>, frame <frame>`.
+        - Then comes the line `view the contact sheet and answer each question yes or no; on any no, fix the project and run node bin/kit.mjs check again:`.
+        - Last come the ten questions, each as `  <n>. <question>`.
+        - It exits 0.
+      - **`status`, failed.** The header is `kit status: check failed (<n> reasons)`, with `<n>` read from `count`, or from the number of lines when `count` is absent.
+    - **`NOTICE`** gains a paragraph in section 6, in the anything2explainer paragraph's form:
+      - `video-shotcraft: Vincentwei1021/video-shotcraft, commit 42f922fe076f6428814d10f6184caf22a8b2adc2, licensed under Apache-2.0`, with the license text shipping as the repository's `LICENSE-APACHE`;
+      - the source's copyright line verbatim, `Copyright 2026 Wei Yihao` (its `LICENSE`, Apache-2.0 §4(c));
+      - no sentence or table cell ending in `Apache-2.0.`, because `hasLicenceToken` rejects the licence token when `.` or `-` follows it;
+      - `Adapted text: the yes/no questions of remotion-template/bin/checklist.mjs are rewritten from the self-check questions of references/aesthetic-rules.md (translated to English and reduced to what four still frames can answer); no code is copied.`
+    - **`THIRD-PARTY-LICENSES.md`** gains one row for it, with the same commit, licence and usage.
+
+  - **Follow-ups.**
+    - **Taken here:**
+      - the `<root>/src` symlink, from 5.1;
+      - the status count, from #837's review, because 5.2 already changes `status`. QUEUE and the 5.1 amendment record this move.
+    - **Still deferred to 5.3:**
+      - a failed spawn in `startJob`;
+      - the probe's own temp directory after a kill (the sheet stage's work directory is handled here);
+      - concurrent starts.
+  - **Fixture.** It is 5.1's passing project (`tests/render/fixtures/check/`) and pure fixture (`tests/fixtures/check/`), unchanged.
+    - **Tiles.** The passing script, from 3.8's `fixtureScript()`, has five candidate scenes: the hook, the chapters' `question`, `custom` and `concept-card`, and the summary. With `m = 5`, the tiles are the hook, `question`, `concept-card` and the summary.
+    - **No image.** The script references no image. The cases that edit a referenced file therefore edit `public/voice/<stems[0]>.wav`, and the image cases use the `raw.hook.image = "light.webp"` variant of `tests/check-rules.test.mjs`.
+  - Required evidence, red first:
+    - **Pure** (CI):
+      - `tests/project-hash.test.mjs`, on a temporary project:
+        - the same tree gives the same hash, and `touch` alone changes nothing;
+        - each of these changes the hash:
+          - editing a `src/` file;
+          - adding a `src/` file;
+          - renaming a `src/` file with the same content (path sensitivity);
+          - editing a referenced image;
+          - editing a referenced voice WAV;
+          - editing `narration.wav`;
+          - changing `scriptText` or `timelineText`;
+        - editing or adding a `public/` file that is not referenced changes nothing;
+        - `writeCustomIndex` run again on the same script changes nothing;
+        - `src` missing, `src` as a symlink, a symlink inside `src/` and a FIFO inside `src/` each give their reason;
+        - an absent referenced file gives a `null` entry and no reason;
+        - the static import list holds no `@remotion/*` module.
+      - `tests/check-rules.test.mjs` additions:
+        - **Referenced files.** `assetsRule`, run with a recording file reader, reads exactly the `public/` paths that `referencedPublicFiles` returns. This is checked on the passing fixture and on its `raw.hook.image = "light.webp"` variant.
+        - **`sheetTiles`.**
+          - At `m = 5` it picks candidates 0, 1, 3 and 4; at `m = 22`, candidates 0, 7, 14 and 21.
+          - The end card is never picked.
+          - Frames equal the pre-exit frame.
+        - **`runChecks`** with stub `probe` and `sheet`, on a project on disk (`onDisk(t)`, with the default file reader). The sheet stub creates `.kit/check/` and writes `output`, so stage 8's `rename` has a file. The real work-directory cleanup is proven by in-image evidence 1.
+          - A pass gives `pass` with the hash, the sheet path and the tiles, and logs the snapshot and stages 1–8 in order.
+          - Each of these gives exactly the reason `the project changed while the check ran; run node bin/kit.mjs check again` and `pass: null`:
+            - a probe stub that edits a `src/` file;
+            - a sheet stub that edits `public/voice/<stems[0]>.wav`;
+            - a probe stub that deletes `script.json`.
+          - A sheet stub that throws gives `contact sheet: <message>`.
+          - After a pass, a hash mismatch and a sheet failure, `.kit/check/` holds no `sheet/`, and holds no `contact.next.png`.
+          - A symlinked `src` gives `src: is a symlink`, still runs stages 3–5, and skips stages 6–8.
+          - A project missing its custom file gives only 5.1's assets reason.
+      - `tests/job.test.mjs`:
+        - `startJob` removes a planted `contact.png`, a planted `sheet/` directory with a file in it, and the old `result.json` and `log`, before the worker starts;
+        - `writeResult` records `count` and `extra`'s fields.
+      - `tests/kit.test.mjs`:
+        - `status` on a passed result prints the passed output above exactly;
+        - `status` on a passed result without `sheet` or `tiles` (a 5.1 result) prints `kit status: check passed`, then `no contact sheet from this run; run node bin/kit.mjs check again`, and exits 1;
+        - `status` on a failed result of 45 reasons prints `check failed (45 reasons)`, then 40 reasons, then `… and 5 more`.
+      - `tests/notice-coverage.test.mjs` passes with `checklist.mjs`'s Source line.
+      - **5.1 assertions changed on purpose:**
+        - `tests/check-rules.test.mjs`:
+          - the six-stage `RULES` test becomes eight stages;
+          - `stageLines(6)` becomes the snapshot line plus eight stages;
+          - every `deepEqual` on `runChecks` reads `.reasons`;
+          - the passing cases inject a `sheet` stub, so CI never bundles Remotion.
+        - `tests/job.test.mjs`: the result's key list gains `count`.
+        - `tests/kit.test.mjs`: the passed output.
+        - `tests/render/check.test.mjs` tests 1 and 8: the exact `kit status: check passed` output.
+    - **In the image** (`tests/render/check.test.mjs`, added cases):
+      1. **One sheet.** After the passing check, `.kit/check/` holds exactly `job.json`, `log`, `result.json` and `contact.png`, and `contact.png` is a 1920×1080 PNG.
+         - **The comparison.** The test renders its own still of `Explainer` at each tile's frame (`renderStill`, `scale: 0.5`). It decodes the stills and the sheet's quadrants with `ffmpeg -f rawvideo -pix_fmt rgb24`, and compares them in tile order.
+         - **The tolerance** is ±2 per channel. The implementer records the measured maximum. If two separate bundles and browsers differ by more than that, the implementer stops and reports instead of widening the bound.
+      2. **Status after a pass.** `status` prints the passed output, the absolute sheet path, the four tile lines and the ten questions, and exits 0.
+      3. **The spec scenario "Overflow fails the check".** 5.1's evidence 3 now also asserts that no `contact.png` exists.
+      4. **No stale sheet.**
+         - In one project root: a pass, then `OrbitOverflow.tsx` swapped in as the custom file, then a new check. It ends `failed`, with no `contact.png`.
+         - After another pass, a check whose worker is SIGKILLed before its stage 7 (5.1's evidence 9) leaves no `contact.png`.
+      5. **Kill during the sheet.**
+         - **Setup.** The log shows `check: stage 7 contact-sheet`, and `headlessShells()` finds a shell.
+         - **The two runs.** The worker gets SIGTERM; in a second run, SIGKILL.
+         - **Expected each time:**
+           - within 10 s, no shell is left;
+           - `status` says `died`;
+           - no `contact.png` exists. Under SIGTERM, a signal landing in the last part of the ffmpeg run may let stage 8 rename before the worker exits 100 ms later. Then `contact.png` may exist, and `status`, which says `died`, does not report it.
+           - after the next `startJob`, neither `.kit/check/sheet/` nor `contact.next.png` remains.
+      6. **Edited during the check.** When the log shows `check: stage 6 probe`, the test appends a comment line to `src/custom/<File>.tsx`. The check ends `failed` with exactly the changed-project reason, and no `contact.png` exists.
+      7. **Hash after a pass.**
+         - `result.json`'s `hash` equals `projectHash`, computed by the test on the project afterwards.
+         - After `writeCustomIndex` runs again, it is still equal.
+         - After a one-byte edit to `public/voice/<stems[0]>.wav`, it differs.
+    - **Mutations**, each red, then reverted:
+      - `projectHash` ignoring paths, caught by the rename case;
+      - `projectHash` hashing all of `public/`, caught by the unreferenced case;
+      - `customIndexSource` appending `Date.now()`, caught by the in-image passing check, which ends with the changed-project reason;
+      - stage 8 skipped, with the hash taken once at the end, caught by evidence 6 and the pure edit stubs;
+      - the sheet moved into place in stage 7, before the comparison, caught by evidence 6's absent-sheet assertion;
+      - `startJob` removing only `result.json` and `log`, caught by the job test and by the second bullet of evidence 4;
+      - tiles placed column-first, caught by evidence 1's quadrant comparison;
+      - `status` counting lines rather than `count`, caught by the 45-reason case.
+    - **In the image (implementer, Mac):** production image `3d0ceae2…` with 3.7's flags, running `timeout 2400 node --test --test-concurrency=1 "tests/render/*.test.mjs"`, alone, with no second container running. Record each test's time, the passing check's duration, and the sheet stage's own duration.
+    - **Green:**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root.
+      - `template-tests` passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+      - In the image, `npx remotion compositions src/index.ts` still lists `Main`.
+      - The full OCU unit command passes, run alone, because `NOTICE` and `THIRD-PARTY-LICENSES.md` change.
+  - **Must preserve.** Every existing file except these:
+    - `bin/check-rules.mjs`, `bin/check.mjs` and `bin/job.mjs`, as above;
+    - `NOTICE` and `THIRD-PARTY-LICENSES.md`, additions only;
+    - the tests named above.
+
+    `probe.mjs`, `explainer-scenes.mjs`, `custom-index.mjs`, `timeline.mjs`, `kit.mjs`, `script-schema.mjs`, `scene-timing.mjs` and every file under `src/` stay byte-identical. There are no dependency or lockfile changes.
+
+  - Non-goals:
+    - enforcing the checklist answers, for example with an answer file (design "Not yet specified");
+    - `render` and its hash refusal (5.3);
+    - timing on the maximum script (5.4);
+    - the music rules (6.5);
+    - the skill text (7.2).
+
 - [ ] 5.3 Implement `kit render`:
   - background launch;
   - render into `out/`, verify with ffprobe (H.264, yuv420p, AAC, duration), then move atomically to `/mnt/user-data/files/<name>.mp4`;
