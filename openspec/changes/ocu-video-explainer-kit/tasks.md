@@ -2579,7 +2579,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
       - **5.4:** the worker has no deadline.
       - **6.5:** its music rules renumber the `check: stage 6 probe` line that in-image evidence 6 and 7 wait for.
 
-- [ ] 5.2 Add the contact sheet and the fixed yes/no checklist after a passing mechanical stage, with the video-shotcraft (Apache-2.0) NOTICE entry, plus the passing-check hash over `script.json`, `timeline.json`, `src/` and the referenced `public/` files. Verify that a passing check writes exactly one four-tile sheet and prints the questions, that editing `src/` or a referenced `public/` file invalidates the hash, and that regenerating `src/custom/index.ts` without changes does not.
+- [x] 5.2 Add the contact sheet and the fixed yes/no checklist after a passing mechanical stage, with the video-shotcraft (Apache-2.0) NOTICE entry, plus the passing-check hash over `script.json`, `timeline.json`, `src/` and the referenced `public/` files. Verify that a passing check writes exactly one four-tile sheet and prints the questions, that editing `src/` or a referenced `public/` file invalidates the hash, and that regenerating `src/custom/index.ts` without changes does not.
 
   **Task 5.2 required evidence** (issue #838):
   - **Triage.** Feature, fixture level expanded. 5.2 adds stage 2 of `kit check` (Decision 10):
@@ -2846,14 +2846,312 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
     - timing on the maximum script (5.4);
     - the music rules (6.5);
     - the skill text (7.2).
+  - Amended after OCU #254 (2026-11-20, merged `b4a439c`). Where these differ from the bullets above, these bind:
+    - **`projectHash`.** It lists every non-regular entry under `src/`, not only the first. An entry that vanishes between `readdir` and `lstat` is skipped, and the second hash read detects the change.
+    - **A passed result whose `sheet` is not a string, or whose `tiles` are not four `{where, frame}` entries**, counts as a 5.1 result: `no contact sheet from this run; …`, exit 1.
+    - **`contactSheet`.**
+      - `workDir` and `output` are passed as absolute paths. `result.sheet` stays relative.
+      - ffmpeg runs with `-nostdin -v error -y`. A failure reads `ffmpeg exited with <signal or code>`, followed by `: <first stderr line>` when stderr is not empty. A missing ffmpeg reads `ffmpeg: not found on PATH`.
+    - **The import pin.** `tests/job.test.mjs` also pins `check.mjs`'s static imports, which gain `node:path` and `./checklist.mjs`.
+    - **Deferred from review, with owners:**
+      - **5.3:**
+        - refuse a symlinked `.kit` or `.kit/<name>`;
+        - read hashed files with `O_NONBLOCK | O_NOFOLLOW`, then `fstat`;
+        - a file that vanishes during the walk counts as a change, not `check: ENOENT`.
+      - **5.4:**
+        - `settled()` in `tests/render/check.test.mjs` must call `status` before it reads the log. The orchestrator's run printed the sheet stage's duration as `NaN`.
+        - 5.4 also times `kit render` at the maximum length, under `--cpus=2 --memory=4g` (from the 3.8 block's "5.3 and 5.4").
+      - **Out of scope, reported only:** the workspace image ships no `LICENSE`, `LICENSE-APACHE` or `NOTICE` file. The Dockerfile copies only `remotion-template/`. This predates the change and affects every third-party source.
 
 - [ ] 5.3 Implement `kit render`:
   - background launch;
-  - render into `out/`, verify with ffprobe (H.264, yuv420p, AAC, duration), then move atomically to `/mnt/user-data/files/<name>.mp4`;
+  - render into the project (`.kit/render/<token>.mp4`, amended by the fixture below from `out/`), verify with ffprobe (H.264, yuv420p, AAC, duration), then move atomically to `/mnt/user-data/files/<name>.mp4`;
   - `status` distinguishes died-without-exit;
   - refuses to start after an unchecked edit.
 
   Verify the refusal, a successful fixture render, and a killed render that leaves the previous target intact.
+
+  **Task 5.3 required evidence** (issue #839):
+  - **Triage.** Feature, fixture level expanded. 5.3 adds `kit render`, a background job that publishes the user's video. It extends the job model (a start lock, one kit job at a time, a per-job temp directory) and `status`, which reports the most recently started job.
+  - Governing invariants:
+    - **A published video is the checked project.**
+      - The start path and the worker each recompute `projectHash` and compare it with the passing check's `hash`.
+      - The worker hashes again after the render and before publishing. A change at any point ends the render `failed`, and nothing is published.
+      - An edit made and then reverted while the render runs is not detected. The bytes rendered then equal the bytes hashed, so this is accepted, as in 5.2.
+    - **The target is complete or untouched** (spec, "Killed render leaves no partial file"). `/mnt/user-data/files/<name>.mp4` changes only by a `rename` of a verified, fully written copy in the same directory.
+      - A failed, killed or died render leaves the target as it was.
+      - **The one window that cannot be closed.** A SIGKILL, a stop signal, or a `writeResult` error after the `rename` has been issued publishes a complete, verified video while `status` says `died`. The stop check before the `rename` only keeps a stop that arrives earlier from publishing.
+    - **Nothing the user sees is partial.** The copy is written as `.<name>.mp4.<token>.partial` in the files directory. The eval driver collects only names ending `.mp4` (`deploy/eval/driver.py` `gather`). The outputs listing and the archive skip dot names (`outputs_broker.py`, `app.py`).
+    - **One kit job at a time.** `check` and `render` each refuse while either runs. The decision and the spawn happen under one start lock. So a check can never clear the pass a running or relaunched render depends on, and two parallel tool calls cannot both start. One window is accepted: when a start was killed while it held the lock, two later starters that both read that stale lock can both take it over, because one may remove the other's fresh lock. This needs a killed start and two concurrent starts together.
+    - **A relaunch reuses the last passing check.** `render` never touches `.kit/check/`.
+    - **The start path is Remotion-free.** `kit.mjs` still reaches no `@remotion/*` module.
+  - **Measured by the orchestrator** before writing (2026-11-20, production image `3d0ceae2…`, `--cpus=2 --memory=4g`, 5.1's passing project, `totalFrames` 1994):
+    - **Filesystems.** In production, `/mnt/user-data/files` is a host bind and the project a docker volume (`docker_manager.py`). With a tmpfs at `/mnt/user-data/files`, `rename` from the project fails with `EXDEV`, and without it the rename succeeds. Publishing therefore copies into the files directory, then renames there.
+    - **One full render** (`renderMedia`, h264, yuv420p, aac, default concurrency): bundle 19.9 s, render 131.5 s.
+      - The video stream is h264 / yuv420p with `nb_frames` 1994 and a duration of 66.466667 s, which is 1994 / 30.
+      - The audio stream is aac at 66.475 s, so the container's duration is 66.475 s. The container duration is therefore not an exact match. The video stream's frame count is.
+    - **CPU count.** `os.cpus()` reports 14 inside a `--cpus=2` container, so Remotion's default concurrency follows the host, not the quota.
+    - **SIGKILL of the rendering process.** It had 1 headless-shell group, 1 ffmpeg (the stitcher, a child of node) and 1 esbuild. Within 3 s each was gone or a zombie. Nothing live remained.
+  - Sibling surfaces:
+    - **Inputs:**
+      - the passing check's `result.json` (`hash`), from 5.2;
+      - `projectHash` and `referencedPublicFiles`;
+      - `writeCustomIndex`;
+      - `validateScript`;
+      - the `Explainer` composition and its `calculateMetadata`, from 3.8.
+    - **Shared code:** `job.mjs` (`startJob`, `jobState`, `writeResult`, `handleStopSignals`), and the `status` lines of 5.1 and 5.2.
+    - **Consumers:**
+      - **the eval driver's reserved `kit` outcome** (task 2.3). 5.3 completes the kit's failure output: the `status` lines starting `kit status: check failed`, `kit status: check died`, `kit status: render failed` and `kit status: render died`. The driver row that maps them is owned by 8.1, before the after run;
+      - **6.5**, whose music joins the render's audio;
+      - **7.1**, whose image end-to-end test runs `render`;
+      - **7.2**, whose skill text describes `render` and `status`;
+      - **5.4**, which times the render at the maximum length (below).
+  - Risk packs:
+    - **CLI**, selected. The new subcommand is `render`, with no arguments, run inside a project. `kit.mjs`'s usage list and dispatch table gain it. `status` changes as described under Shape.
+    - **Subprocess / browser**, selected.
+      - The worker is detached, as in 5.1, with `TMPDIR` set to `.kit/<name>/tmp` (see `job.mjs`).
+      - The render uses its own bundle and browser, both closed or removed in `finally`.
+      - Concurrency is pinned to 2, the production CPU quota, because the default follows the host's visible CPUs.
+      - On SIGTERM or SIGINT the 5.1 handling applies. On SIGKILL `--pdeathsig` takes the browser, and the stitcher ends when node's pipe closes (measured above).
+    - **File IO**, selected.
+      - The render writes to `.kit/render/<token>.mp4`. Each run has its own name, so an orphan of a killed run can never write the file a relaunch publishes, and the next start sweeps it.
+      - This amends Decision 11's `out/`; both are inside the project.
+      - The publish steps are listed under Shape.
+      - Symlinked `.kit` or `.kit/<name>` is refused, and the target is refused when it is a symlink or not a regular file.
+    - **Concurrency**, selected. The start lock and the one-job rule (above).
+    - **Schema**, selected. A render's `result.json` is version 1, `{version, token, outcome: "succeeded" | "failed", reasons, finishedAt, count, exitCode, target?, frames?}`.
+    - **Error handling**, selected. Every worker failure is a reason, and a non-system error without a reason is `died`, as in 5.1. Messages are listed under Shape.
+    - **Resource limits**, selected.
+      - **Concurrency** is 2.
+      - **Disk.** The render keeps one video in `.kit/render/` until the next start, and one partial copy in the files directory during the copy. A full disk fails the copy, which removes its partial and leaves the target as it was.
+      - **Timing.** The fixture render is timed under `--cpus=2 --memory=4g`. The 5400-frame maximum, assigned to "5.3 and 5.4" in the 3.8 block, is owned by 5.4, which now times `render` as well as `check`.
+    - **Legacy compatibility**, selected.
+      - Each check line of `status` is unchanged when the check is the most recent job.
+      - 5.1's refusal text for a running check is unchanged.
+    - **Documentation**, selected. Decision 11's `out/` in `design.md` is amended to `.kit/render/<token>.mp4` in this docs PR. The skill text is 7.2's (a non-goal).
+    - Not selected:
+      - auth, since the render runs as the project's owner;
+      - network, since it runs offline;
+      - shared host, since there is no host run;
+      - dependencies, since none is added;
+      - config, since the image is unchanged;
+      - release / packaging, since only `remotion-template/` changes;
+      - music, which is 6.5.
+  - Shape (OCU `remotion-template/`). New files carry the FSL header.
+    - **`bin/kit-io.mjs`** gains the exported `PROJECT_NAME`, moved from `kit.mjs` unchanged, so `render.mjs` can use it without an import cycle.
+    - **`bin/job.mjs`** changes:
+      - **`JOBS = ["check", "render"]`.**
+      - **`jobState`** accepts `outcome: "succeeded"` as a finished state (`{state: "succeeded", result}`). Check outcomes are unchanged.
+      - **`jobStartedAt(root, name)`** (new export) returns `job.json`'s `startedAt`, or `null`. `status.mjs` uses it.
+      - **`startJob(root, name, workerArgv, {precondition, execPath = process.execPath} = {})`.** Existing three-argument calls keep working. It runs these steps in order:
+        1. **Symlink refusal.** It refuses a symlinked or non-directory `.kit` (`.kit: is a symlink`, `.kit: is not a directory`), and the same for `.kit/<name>`.
+        2. **The start lock.** It writes `{pid, startedAt}` to `.kit/start.lock.<random>`, then publishes it with `link()` to `.kit/start.lock`. `EEXIST` means the lock is held, and the temp file is removed either way. A lock is published complete, so no starter ever reads a half-written one.
+           - **On `EEXIST`** it reads the lock. The lock is held while all of these are true:
+             - its content parses;
+             - its pid is alive (`kill(pid, 0)` succeeds, or fails with `EPERM`);
+             - that process's start time (`ps -o lstart= -p <pid>`) is no later than the lock's `startedAt` plus 1 s.
+
+             A pid reused after a container restart therefore reads as stale. While the lock is held, `startJob` refuses with `another kit command is starting a job (pid <pid>); try again, or remove .kit/start.lock if none is`. An unparsable lock is held and never taken over. A stale lock is removed, and the start retries once.
+
+           - The lock is removed in `finally`.
+
+        3. **Under the lock**, it refuses when any job in `JOBS` is `running`: `a <job> is already running (pid <pid>); run node bin/kit.mjs status`.
+        4. It awaits `precondition()` when one is given. A `Refusal` from it propagates.
+        5. It removes `.kit/<name>/` and recreates it with `tmp/` inside.
+        6. It writes `job.json`, spawns the worker with `TMPDIR` set to `<root>/.kit/<name>/tmp` added to the environment, attaches the child's `'error'` listener synchronously before any `await`, closes the log, and on a spawn error throws it (a system error, so `kit <name>: <message>`, exit 1).
+        7. It rewrites `job.json` with the pid.
+
+      - **`stopRequested()`** returns the stop flag, so a worker can check it before publishing.
+      - **`writeResult`** is unchanged.
+
+    - **`bin/project-hash.mjs`** hardening (from #838's review): every file is read through `open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)`, then `fstat` on the handle.
+      - A handle that is not a regular file, or `ELOOP`, counts as a non-regular entry: a `src/` reason, or a `null` referenced entry.
+      - `ENOENT` or `ENOTDIR` after the listing counts as vanished: skipped under `src/`, `null` for a referenced file. The second hash read then reports the change instead of `check: ENOENT`.
+    - **`bin/render.mjs`** (new) exports `render(ctx)`. It imports only `node:` built-ins and the kit's Remotion-free modules, and loads Remotion only in the worker, by dynamic import of `bin/render-video.mjs`.
+      - **The start path.**
+        - The project name is `basename(root)`. When it does not match `PROJECT_NAME`, the start path refuses with `<root>: not a kit project; run kit new`.
+        - It calls `startJob(root, "render", ["bin/render.mjs", "--worker"], {precondition})`. The precondition, run under the lock:
+          1. `jobState(root, "check")` must be `passed`, with a string `hash`. Otherwise it refuses: `no passing check; run node bin/kit.mjs check`.
+          2. It reads `script.json` and `timeline.json`. Each must parse and validate (`validateScript`, then `explainerScenes`).
+          3. `writeCustomIndex` must succeed.
+          4. `projectHash` must give a hash equal to the check's.
+
+          A failure in steps 2–4 refuses: `the project changed since the last passing check; run node bin/kit.mjs check, then render`.
+
+        - On success it prints `kit render: started (pid <pid>); run node bin/kit.mjs status` to stderr and returns 0.
+
+      - **The worker**, run as `node bin/render.mjs --worker <token>`, is `runRender(root, {token, filesRoot, render, log, copy, stopRequested})`. `render` defaults to the real one, `copy` to the step 7.3 copy, and `stopRequested` to `job.mjs`'s, so pure tests inject stubs. It reads `script.json` and `timeline.json` following symlinks, as the check's `projectFiles.text()` does. The start path reads them the same way. The steps:
+        1. It installs the stop handler.
+        2. It re-reads the check's pass and the project, and compares the hash, giving the start path's two messages on failure.
+        3. It calls `render({root, script, timeline, output: .kit/render/<token>.mp4, log})`.
+           - `script` and `timeline` are `JSON.parse` of the hashed texts, never `validateScript`'s output. This covers the #830 follow-up "a raw `script.json` render".
+           - A thrown error is `render: <message>`.
+        4. It verifies the video with `ffprobe` (argv, no shell). Each failed rule is one reason, in this order:
+           - `verify: video codec is <c>, expected h264`;
+           - `verify: pixel format is <p>, expected yuv420p`;
+           - `verify: no AAC audio stream`;
+           - `verify: <n> video frames, the timeline has <totalFrames>`;
+           - `verify: the video stream lasts <d> s, the timeline needs <t> s`, when the video stream's duration differs from `totalFrames / 30` by more than 1/60 s (half a frame);
+           - `verify: the audio lasts <d> s, the timeline needs <t> s`, when the AAC stream is shorter than `totalFrames / 30 − 1/30` s. AAC padding makes the audio slightly longer: 66.475 s against 66.466667 s, measured.
+        5. It hashes again: `the project changed while the render ran; run node bin/kit.mjs check, then render`.
+        6. It returns without a result when `stopRequested()`.
+        7. It publishes to `<filesRoot>/<name>.mp4`:
+           1. It removes stale partials in `filesRoot`: regular files whose names match `^\.<name>\.mp4\.[0-9a-f]{32}\.partial$` exactly.
+           2. It refuses the target when `lstat` shows a symlink (`publish: <target> is a symlink; not replaced`) or anything but a regular file (`publish: <target> is not a regular file; not replaced`).
+           3. It copies the video to `.<name>.mp4.<token>.partial` with `COPYFILE_EXCL`, `fsync`s it, and checks that the size equals the source's.
+           4. It checks `stopRequested()` again.
+           5. It renames the partial to the target.
+           6. It removes the source video.
+
+           Before the rename, any error removes the partial and is `publish: <message>`. After a completed rename, an error in step 6 is only logged (`render: could not remove <path>: <message>`) and does not change the outcome. The next start removes `.kit/render/` anyway.
+
+        8. It writes the result:
+           - success: `outcome: "succeeded"`, `exitCode: 0`, `target`, `frames`, and the worker exits 0;
+           - failure: `outcome: "failed"`, `exitCode: 1`, and the worker exits 1.
+
+      - **The log** gets:
+        - `render: start`;
+        - `render: frames <done>/<total>` at most once per 10%;
+        - `render: verify`;
+        - `render: publish`;
+        - `render: done <outcome>`.
+
+    - **`bin/render-video.mjs`** (new, loaded only by the worker) is the real `render`:
+      - It bundles `src/kit/index.ts` with the probe's options (`enableCaching: false`, `symlinkPublicDir: true`, `publicDir` `public`, `outDir` `.kit/render/bundle`).
+      - It opens its own browser with the probe's options and selects `Explainer` with `{script, timeline}`.
+      - It calls `renderMedia` with `codec: "h264"`, `pixelFormat: "yuv420p"`, `audioCodec: "aac"` and `concurrency: 2`.
+      - It closes the browser and removes the bundle in `finally`.
+    - **`bin/status.mjs`** (new) holds `status(ctx)`, moved from `check.mjs` with the check lines unchanged.
+      - It reports the job whose `job.json` has the latest `startedAt`. With none, it prints the 5.1 none line, exit 4.
+      - The render lines:
+
+        | Render state | Line                                                                                              | Exit |
+        | ------------ | ------------------------------------------------------------------------------------------------- | ---- |
+        | running      | `kit status: render running (pid <pid>, <s> s)`                                                   | 3    |
+        | succeeded    | `kit status: render succeeded: <target>`                                                          | 0    |
+        | failed       | `kit status: render failed with exit <exitCode> (<n> reasons)`, then each reason after two spaces | 1    |
+        | died         | `kit status: render died without an exit (pid <pid>); see .kit/render/log`                        | 1    |
+
+      - `check.mjs` keeps `check(ctx)` and the check worker.
+
+    - **`bin/kit.mjs`** gains `render`, imports `status` from `status.mjs`, imports `PROJECT_NAME` from `kit-io.mjs`, and its header names `render`.
+
+  - **Follow-ups.**
+    - **Taken here:**
+      - from #837's review: the spawn `'error'` race, the probe's temp directory (now under the job's `tmp/`), and concurrent starts;
+      - from #838's review: the symlinked `.kit` and `.kit/<name>`, `O_NONBLOCK | O_NOFOLLOW` hashing, and a vanished file counting as a change;
+      - from #830: the raw `script.json` render.
+    - **Passed on:**
+      - the `gallery.mjs` signal cleanup (from 4.1), to 4.6, which runs the gallery again. The gallery is not a kit job;
+      - the eval driver's `kit` row, to 8.1;
+      - timing at the 5400-frame maximum for `render`, to 5.4.
+  - **Fixture.**
+    - **Pure.** 5.1's pure fixture project on disk, with a passed check result whose `hash` is `projectHash` of that project. The stub `render` writes an MP4 made by ffmpeg (`testsrc` at 64×36, 30 fps, `totalFrames` frames, libx264 yuv420p, with an AAC sine track). Variants write mpeg4, yuv444p, no audio, or one frame too few.
+    - **In the image.** 5.1's passing project (`totalFrames` 1994), checked once by the test. The in-image command gains `--tmpfs /mnt/user-data/files:uid=1001,gid=1001,mode=0755,size=2g`, so publishing crosses filesystems as in production.
+  - Required evidence, red first:
+    - **Pure** (CI), in `tests/render-job.test.mjs` (new) and the existing files:
+      - **Refusals**, each with its exact text and exit 1:
+        - no check;
+        - a failed check;
+        - a 5.1-format pass without `hash`;
+        - an edited `src/` file;
+        - an edited `public/voice/<stems[0]>.wav`;
+        - a `script.json` that no longer validates;
+        - a missing custom file;
+        - a running check;
+        - a running render;
+        - a name outside `PROJECT_NAME`;
+        - a symlinked `.kit`;
+        - a symlinked `.kit/render`;
+        - a held start lock with a live pid;
+        - `render` in the template root;
+        - `render` with an extra argument, which exits 2.
+
+        A held lock with a dead pid is taken over.
+
+      - **`runRender` with the stub render:**
+        - **Success.** The target holds the stub's bytes, no `.partial` remains, `.kit/render/<token>.mp4` is gone, and the result is `succeeded` with `exitCode` 0.
+        - **Each verify variant** gives its reason, with the planted previous target byte-identical.
+        - **A stub that edits a `src/` file** gives the changed-during reason with the target unchanged. So does a stub that deletes `script.json`.
+        - **A pre-existing stale `.<name>.mp4.<32 hex>.partial`** is removed. A file `.<name>.mp4.notes.partial` is not.
+        - **A symlink or a directory at the target** gives its reason and is left as it was.
+        - **A copy failure.** The case plants a previous target and injects a copy that writes the first half of the source to its destination and then throws. It asserts `publish: …`, a target byte-identical to the planted one, and no `.partial`.
+        - **A stop during the copy.** The injected `stopRequested` turns true from inside the injected copy, after step 6. The case asserts no rename, a byte-identical target and no result written.
+        - **A source removal that throws after the rename** still ends `succeeded`, with the log line.
+        - **The one-frame-short variant** gives the frames reason and then the duration reason, in that order.
+        - **A short audio variant**, with the AAC track cut by 0.5 s, gives the audio reason.
+        - **The input props** the stub receives deep-equal `JSON.parse` of the hashed texts. The schema has no defaults or transforms, so the parsed file is what `calculateMetadata` validates. In-image evidence 4 renders that raw file end to end.
+      - **`job.mjs`:**
+        - a render `result.json` with `outcome: "succeeded"` and this run's token reads as `succeeded` after the worker exits, not `died`;
+        - a lock naming a live, unrelated pid whose start time is after the lock's `startedAt` is taken over. An unparsable lock is held;
+        - a spawn with a non-executable `execPath` rejects with its system error, before any listener race. Run 20 times with no unhandled `'error'`;
+        - the worker's environment has `TMPDIR` under `.kit/<name>/tmp`;
+        - two `startJob` calls racing in one process result in exactly one start and one refusal.
+      - **`project-hash.mjs`:**
+        - a FIFO and a symlink handed to the read helper are non-regular, without blocking;
+        - a file removed between the listing and the read is skipped, and the next read's hash differs.
+      - **`status.mjs`:**
+        - each render line and exit code;
+        - the latest-`startedAt` rule, with a render after a check and a check after a render;
+        - the check lines unchanged.
+      - **Static imports:** `render.mjs` and `status.mjs` hold no `@remotion/*` module, and `kit.mjs` still reaches none.
+      - **5.1 and 5.2 assertions changed on purpose:**
+        - `kit.mjs`'s usage list and import pin;
+        - `check.mjs`'s import pin, since `status` moved out;
+        - `job.mjs`'s import pin and its tests of the removal step, which now also creates `tmp/`;
+        - the `status` tests in `tests/kit.test.mjs`, which stay where they are with the same expected text, plus `job.mjs`'s new exports in its import pin.
+
+    - **In the image** (`tests/render/render.test.mjs`, new, run as its own `node --test` invocation):
+      1. **Returns at once.** `kit render` on the checked project exits 0 within 5 s, and `status` says `render running` and exits 3.
+      2. **SIGKILL keeps the target.**
+         - **Setup.** A planted previous target (any bytes) is present. When the log shows the first `render: frames <done>/<total>` line with `done` at least `total / 10`, the worker gets SIGKILL. By then the stitching ffmpeg runs; at 25% it did, measured.
+         - **The scan.** `ps -eo pid,stat,comm --no-headers`. A process counts when its `stat` does not start with `Z` and its `comm` is `chrome-headless`, `ffmpeg` or `esbuild`. `comm` is cut to 15 characters, and Chrome's children show `/proc/self/exe` as their arguments.
+         - **Positive control.** The same scan just before the kill finds at least one `chrome-headless` and one `ffmpeg`, or the test fails.
+         - **Expected:**
+           - within 10 s, the scan finds nothing;
+           - `status` says `render died without an exit` and exits 1;
+           - the target is byte-identical to the planted file;
+           - no `.partial` exists.
+      3. **SIGTERM keeps the target.** The same as evidence 2, with SIGTERM.
+      4. **A relaunch reuses the check, and the render succeeds.**
+         - `kit render` again, with no new check, starts and ends `render succeeded: /mnt/user-data/files/<name>.mp4` (exit 0).
+         - `ffprobe` of the target shows h264, yuv420p, an AAC stream, 1994 video frames, and a video stream duration of 1994 / 30 s, to within 1/60 s.
+         - There is no `.partial` in the files directory, and no `.kit/render/*.mp4`.
+         - Record the bundle and render times. The `render.test.mjs` invocation runs in its own container with `--cpus=2 --memory=4g` (see the command below).
+      5. **The one-job rule.** `kit check` during a running render is refused with `a render is already running …`, and `.kit/check/result.json` keeps its pass.
+    - **Mutations**, each red, then reverted:
+      - the worker skips its post-render hash, caught by the pure editing stub;
+      - publishing renames into the target before the copy completes (copying straight to the target name), caught by the copy-failure case;
+      - no `stopRequested()` check before the rename, caught by the stop case;
+      - the partial name ending in `.mp4`, caught by a pure assertion that the name ends `.partial`;
+      - `startJob` without the start lock, caught by the racing case;
+      - the `'error'` listener attached after `await log.close()`, caught by the spawn case;
+      - `status` reporting the check always, caught by the render-after-check case.
+    - **In the image (implementer, Mac):**
+      - **The command.** The production image `3d0ceae2…` with 3.7's flags plus the tmpfs mount above.
+        - Every render test file except `render.test.mjs` runs in one container, each file as its own invocation: `for f in tests/render/*.test.mjs; do [ "$f" = tests/render/render.test.mjs ] && continue; timeout 2400 node --test --test-concurrency=1 "$f" || exit 1; done`.
+        - `render.test.mjs` runs in a second container with `--cpus=2 --memory=4g` added: `timeout 2400 node --test --test-concurrency=1 tests/render/render.test.mjs`.
+        - Only one container may run at a time.
+      - **Record:** each file's time, and evidence 4's times under the CPU and memory limits.
+    - **Green:**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root.
+      - `template-tests` passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+      - In the image, `npx remotion compositions src/index.ts` still lists `Main`.
+      - The full OCU unit command is not required, since no file outside `remotion-template/` changes.
+
+  - **Must preserve.** Every existing file except these:
+    - `bin/kit.mjs`, `bin/kit-io.mjs` (`PROJECT_NAME` only), `bin/job.mjs`, `bin/check.mjs` and `bin/project-hash.mjs`, as above;
+    - the tests named above.
+
+    `probe.mjs`, `explainer-scenes.mjs`, `custom-index.mjs`, `timeline.mjs`, `script-schema.mjs`, `scene-timing.mjs`, `check-rules.mjs`, `contact-sheet.mjs`, `checklist.mjs` and every file under `src/` stay byte-identical. There are no dependency or lockfile changes.
+
+  - Non-goals:
+    - music in the render (6.5);
+    - timing at the 5400-frame maximum (5.4);
+    - the eval driver's `kit` row (8.1);
+    - the skill text (7.2);
+    - enforcing the checklist answers.
 
 - [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
