@@ -2110,7 +2110,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
 - [ ] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
-- [ ] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
+- [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
 
   **Task 4.5 required evidence** (issue #835):
   - **Triage.** Feature, fixture level expanded. The renderer draws the transition slots that `kit timeline` already writes (`transitionOut`, task 3.6), and `explainerScenes` begins validating them.
@@ -2264,6 +2264,12 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - transition variety or a per-scene transition choice (one theme transition for the whole film);
     - component entrances (4.2–4.4);
     - probe target construction for real scripts (5.1).
+  - Amended after OCU #252 (2026-11-19, merged `a697806`). Where these differ from the bullets above, these bind:
+    - **The mutation "`SceneExit` wraps `Captions` as well".** Pixels cannot detect it. Check 6 ends every caption page before its window begins, so a fade on the captions with their timing kept changes no pixel. The accepted substitute moves `Captions` into each scene's `Sequence`, which shifts its timing and turns the caption checks red. "Not around Captions" is therefore enforced by review and by the comment in `Explainer.tsx`.
+    - **Deferred, with owners:**
+      - **Flex direction.** Remotion's `Sequence` wrapper lays out its children in a row (`flexDirection: undefined`), while `KitFrame` and `SceneExit` use a column. The last scene renders unwrapped, so it keeps the row. A component with a normal-flow root would lay out differently in the explainer than in the gallery or the probe. The 4.2 fixture must require component roots to be `AbsoluteFill` (or fully sized), or wrap every scene.
+      - **`entry.exit`.** 5.1 reads the probe's `exitFrame` from `entry.exit`.
+      - **The 15-frame constant.** `theme.motion.transitionFrames` (15) duplicates `TRANSITION_FRAMES`, and only `tests/theme.test.mjs` reads it. 4.6 removes the duplicate.
 
 - [ ] 4.6 The user picks the theme in the gallery and exports the pick; commit it into `gallery/approvals.json`, linking it. A `redo` component from 4.2–4.4 is redone and re-reviewed, or stays unshipped. Remove the unpicked theme and every candidate kind without an `approve` entry. Verify with a static test that the schema kinds, registry, JSON Schema and example script equal the approved set, and that hook, summary and end card are approved. Task 7.2 extends the test to the skill's kind list.
 
@@ -2276,6 +2282,284 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
   - each rule has a failing and a passing fixture;
   - `check` returns at once;
   - `status` reports running, passed and failed with reasons.
+
+  **Task 5.1 required evidence** (issue #837):
+  - **Triage.** Feature, fixture level expanded. 5.1 adds two commands and two formats:
+    - `kit check`, a background job, and `kit status`, which reports on it;
+    - the job's state files and its result format.
+
+    It also builds the job model that 5.3's `kit render` reuses.
+
+  - Governing invariants:
+    - **No stale pass.** A run removes the previous result before it starts. `status` reports _passed_ only from a result written by the current run's worker, after every rule ran.
+    - **It returns at once.** `check` returns before any bundling, rendering or file hashing. Long work runs only in the worker.
+    - **One source per value.**
+      - The theme the check judges with is the theme `Explainer` renders with.
+      - Each scene's exit frame is `explainerScenes`' `exit`, not `transitionOut` derived again.
+      - Each kind's entrance and reveal timing has one home, which the probe targets and the rest rule both read.
+    - **Bounded, escaped reasons.** Every reason is one escaped line of bounded length, and the list itself is bounded.
+    - **A killed check leaves nothing running.** Remotion 4.0.537 starts each headless shell in a process group of its own (`detached` on Linux), so a signal to the worker's group never reaches it. The shells are reaped by Remotion's own mechanisms, which the worker keeps intact:
+      - **On SIGTERM or SIGINT,** Remotion's listener SIGKILLs the browser's group.
+      - **On SIGKILL,** the shell was launched through `setpriv --pdeathsig SIGKILL`, which Remotion uses when `setpriv` is on `PATH`. The production image has `/usr/bin/setpriv` (util-linux 2.39.3, measured 2026-11-19), so the shell dies with the worker.
+    - **Why the worker is detached.** `detached: true` puts the worker in its own session and group, so killing the caller's group (for example, a tool call ending) leaves the check running.
+  - **Before 4.2, no real script passes.** The tracked `registry.ts` holds only `custom`, and every script needs `hook`, `summary` and `end-card`.
+    - A check on such a project fails at the probe stage with `<where>: no component for kind "hook"` (see rule 6).
+    - The passing evidence below uses a scratch project with a fixture registry, as 3.8 and 4.1 did.
+  - Sibling surfaces:
+    - **Producers:**
+      - `kit timeline` (3.6) writes `timeline.json`, `public/narration.wav` and the blocks' `audioSha256`;
+      - `kit voice-import` writes `public/voice/<stem>.wav`;
+      - `kit image` writes `public/images/<name>`;
+      - `writeCustomIndex` (3.8) writes `src/custom/index.ts`.
+    - **Validators reused, not duplicated:**
+      - `validateScript`;
+      - `explainerScenes`;
+      - `lengthError` (`bin/timeline.mjs`);
+      - `layout` and `blockStems`;
+      - `probe`, `probeFrames`, `violations` and `formatViolation` (3.7).
+    - **Consumers:**
+      - 5.2, which runs its stage after a passing result and adds the hash over `script.json`, `timeline.json`, `src/` and the referenced `public/` files. `.kit/` is outside that set.
+      - 5.3, whose `render` reuses `bin/job.mjs` and adds its own line to `status`.
+      - 5.4, which times this check.
+      - 6.5, which appends the music rules after rule 5 and before the probe.
+      - The evaluation's reserved `kit` outcome (task 2.3's failure table, "until tasks 5.1 and 5.3 define the kit's failure output"). 5.1 defines the check's failure output as `status`'s `check failed` and `check died` lines; 5.3 adds the render's.
+      - 7.2, whose skill text describes `check` and `status`.
+  - Risk packs:
+    - **CLI**, selected. The new subcommands are `check` and `status`, with no arguments, run inside a project. The usage list and exit codes follow `kit.mjs`; `status` has its own codes, listed under Shape.
+    - **Subprocess / browser**, selected.
+      - **The worker.** It is spawned with `detached: true`, so it gets a new session and process group, with its stdout and stderr going to the log.
+      - **Signals.** On SIGTERM or SIGINT the worker:
+        1. sets a `stopping` flag, after which `writeResult` writes nothing, so a probe rejected by the closed browser never becomes `failed`;
+        2. exits 143 after 100 ms, giving Remotion's listener its turn first. Remotion's SIGINT listener may exit 130 sooner.
+
+        Either way no result is written, and `status` reports `died`.
+
+      - **The probe.** It runs inside the worker, unchanged.
+      - **Spawn.** The worker is spawned with `cwd: root`, because `probe.mjs` resolves paths from the project root and `kit` may be called from another directory.
+      - **The log.** Before each stage the worker writes `check: stage <n> <name>` (`schema`, `timeline`, `assets`, `unnarrated`, `rest`, `probe`), and at the end `check: done <passed|failed>`.
+      - **Loading.**
+        - `kit.mjs` imports `bin/check.mjs`, which imports only `node:` built-ins, `kit-io.mjs` and `job.mjs` for the start path.
+        - The worker loads `check-rules.mjs`, `probe.mjs` and `theme.ts` with dynamic `import()`, so no `@remotion/*` module enters any other subcommand. `tests/kit.test.mjs` links only `zod` into its projects.
+        - A test asserts the static import lists of `kit.mjs`, `check.mjs` and `job.mjs`.
+
+    - **File IO**, selected.
+      - The state lives in `<project>/.kit/check/`: `job.json`, `log` and `result.json`.
+      - `job.json` and `result.json` are written with `writeAtomic`.
+      - `kit new` does not copy `.kit`, because `NOT_COPIED` gains `.kit`.
+    - **Concurrency**, selected.
+      - While a check runs, a second `check` is refused: `a check is already running (pid <pid>); run node bin/kit.mjs status`, exit 1.
+      - A dead worker's state never blocks a new run.
+    - **Schema**, selected.
+      - **`job.json`, version 1:** `{version, name: "check", token, pid, startedAt}`, where `token` is 16 random bytes in hex and `startedAt` is in milliseconds.
+      - **`result.json`, version 1:** `{version, token, outcome: "passed" | "failed", reasons: [string], finishedAt}`.
+      - **One script schema change** (taken from the #830 follow-ups). Every `chars()` text field, and `voice.instructions`, rejects control characters with the pattern `^\P{Cc}*$`. This is the class `src/kit/text.ts`'s `units()` already uses. zod 4.5.4 carries the pattern into `z.toJSONSchema()`, dropping the `u` flag. `script.schema.json` is regenerated, and its drift test stays green. Fields already limited by their own pattern (image and component names) keep that pattern.
+    - **Error handling**, selected. Each rule is a pure function with its own messages. A thrown system error in the worker becomes the result `failed`, with the reason `check: <message>`.
+    - **Resource limits**, selected. Reasons are bounded to 40 lines of 300 code points each. The log is not bounded: it grows only with one run's progress lines and Remotion's output, and each run truncates it.
+    - **Release / packaging**, selected.
+      - `package.json` gains `"type": "module"`, which removes the 4.1 warning from every Node import of a `.ts` file. The worker loads `theme.ts`, so the warning would otherwise sit on `check`'s path.
+      - The orchestrator measured this before writing the fixture (2026-11-19, production image `3d0ceae2…`, scratch copy of `a697806` with only that field added):
+        - `import("./src/kit/theme.ts")` printed no warning;
+        - `npx remotion compositions src/index.ts` listed `Main`;
+        - the pure suite passed, except two NOTICE tests that need the repository root, which the scratch copy lacked.
+      - The template has no `.js` files, and no dependency or lockfile entry changes.
+    - **Legacy compatibility**, selected.
+      - `KitRoot` reads the theme from `KIT_THEME` and renders the same as before.
+      - `MIN_SCENE_FRAMES`, `layout()` and every existing subcommand are unchanged.
+      - `probe.mjs` is byte-identical.
+    - Not selected:
+      - auth, since there are no users or credentials and the check runs as the project's owner;
+      - network, since the check runs offline;
+      - shared host, since there is no host run;
+      - dependencies, since none is added and `@remotion/*` stays as pinned.
+
+  - Shape (OCU `remotion-template/`). New files carry the FSL header and import only `node:` built-ins and the kit's own modules.
+    - **`src/kit/theme.ts`** exports `KIT_THEME = themes.light`, the one theme of the explainer. 4.6 changes it to the user's pick. `src/kit/Root.tsx` passes `KIT_THEME` to `ExplainerComposition`.
+    - **`bin/scene-timing.mjs`** gains:
+      - **`ENTRANCE_FRAMES`:** an entry for every key of `MIN_SCENE_FRAMES`, each 15, the kit-wide entrance. A `custom` scene must settle within it, and 7.2's skill says so.
+      - **`REVEALS = {}`:** a map from kind to `(timing) => [{type: "key" | "batch", startFrame, endFrame}]`, frames relative to the scene. It is empty in 5.1.
+      - **`revealsOf(kind, timing, reveals = REVEALS)`:** returns the declared list. Without a declaration it returns `[{type: "key", startFrame: 0, endFrame: ENTRANCE_FRAMES[kind]}]`.
+      - **`REST_FRAMES = {key: 30, batch: 15}`.**
+
+        4.2–4.4 set a kind's `ENTRANCE_FRAMES` value and its `REVEALS` entry from the approved component, so these stay the one home 4.1 asked for. A test asserts that `ENTRANCE_FRAMES` and `MIN_SCENE_FRAMES` have the same keys. Until 4.2, batch reveals are exercised only by declarations injected in the pure tests.
+
+    - **`bin/job.mjs`** (generic; 5.3 reuses it) exports three functions:
+      - **`startJob(root, name, workerArgv)`:**
+        1. Refuses if `jobState` is `running`.
+        2. Creates `.kit/<name>/` (`writeAtomic` creates no directory), then removes `result.json` and `log`.
+        3. Writes `job.json` with `pid: null`.
+        4. Spawns `process.execPath` with `workerArgv` and the token, with `detached: true`, `cwd: root` and stdio to the log, then calls `unref()`.
+        5. Rewrites `job.json` with the pid and returns it.
+      - **`jobState(root, name)`** returns one of these:
+        - `{state: "none"}` when there is no `job.json`;
+        - `{state: "passed" | "failed", result}` when `result.json`'s token equals `job.json`'s;
+        - `{state: "running", pid, startedAt}` when the pid is alive and is this job. Alive means `ps -o args= -p <pid>` exits 0 and its output contains the token. This survives pid reuse.
+        - `{state: "died", pid}` otherwise.
+      - **`writeResult(root, name, token, outcome, reasons)`** bounds the reasons. Each passes through `escapeLine`, is cut to 300 code points with a final `…`, and at most 40 are kept, followed by `… and <n> more` when more exist.
+    - **`bin/check.mjs`** exports `check(ctx)`. It calls `startJob(root, "check", [bin/check.mjs, "--worker"])`, prints `kit check: started (pid <pid>); run node bin/kit.mjs status` to stderr, and returns 0. Run as `node bin/check.mjs --worker <token>`, it is the worker:
+      1. It installs the signal handler.
+      2. It runs `runChecks(root)` and calls `writeResult`.
+      3. It exits 0. Node warnings and progress go to the log only and never become reasons.
+
+      A thrown system error becomes the single reason `check: <message>`.
+
+    - **`bin/check-rules.mjs`** is pure, apart from the reads its stages need through an injected `fs`. It exports the ordered rule list and `runChecks(root, {probe, reveals, theme})`, where the defaults are the real `probe`, `REVEALS` and `KIT_THEME`.
+      - Every rule in a stage runs and collects its reasons. A failing stage 1 or 2 stops the run. Stages 3–5 all run, and the probe (stage 6) runs only when 1–5 passed.
+      - Each rule is also exported on its own and takes its inputs as arguments: the script, the timeline, the reveals table and a stub file reader.
+        - The boundary and mutation cases call these functions directly, with hand-written timelines and `REVEALS`.
+        - This test seam is needed because no `layout()` timeline can fail rules 4 or 5 today. With `MIN_SCENE_FRAMES` at 60, the longest unnarrated stretch is about 59 frames, and the default rest is `durationInFrames − 30`, at least 30. Stage 2 rejects any timeline that `layout()` did not produce.
+      - `<where>` is `playbackWhere`'s text. A duration `<s> s` is `(frames / 30)` to one decimal, rounded half up (`(Math.round(frames / 3) / 10).toFixed(1)`). The rules:
+        1. **Schema.**
+           - `script.json` is read directly, not through `readScript`.
+           - A missing file gives `script.json: not found`.
+           - Otherwise each `validateScript` problem is one reason with its own message, unindented. `writeResult`'s 40-line bound applies.
+        2. **Timeline.**
+           - A missing or unparsable `timeline.json` gives `timeline.json: missing or not JSON; run node bin/kit.mjs timeline`.
+           - Any `explainerScenes` problem is reported as its own message.
+           - A `lengthError(totalFrames)` result is reported as its own text. This takes the #830 follow-up on unbounded frame values.
+           - Each later check runs only when the one before it passed:
+             1. `explainerScenes` passes.
+             2. Every block's `stem` (string), `startSample` and `endSample` (integers) have the right type: `script: timeline.json <field path> is missing or has the wrong type; run node bin/kit.mjs timeline`, the form `explainerScenes` uses.
+             3. Each block's `stem` equals `blockStems(script)`'s at the same place: `<where>, sentence <s> block <b>: timeline.json is stale (its text, voice or instructions changed); run node bin/kit.mjs voice, voice-import, then timeline`. Every stale block is reported.
+             4. With every stem matching, `layout(script, blocks)` is compared with the file. Here `blocks` is `blockStems(script)`, with `samples = endSample − startSample` taken from the timeline's block. The comparison is a deep equality of `layout()`'s scenes against the file's scenes with each block's `audioSha256` removed, plus `totalFrames`. This reproduction is exact: `placeBlocks` sets `endSample = cursor + samples`, and `withHashes` adds only `audioSha256`.
+           - The first difference found gives one of these:
+             - a scene's `endFrame − startFrame`: `<where>: timeline.json lasts <a> frames, the script and narration need <b>; run node bin/kit.mjs timeline`;
+             - `totalFrames`: `timeline.json totals <a> frames, the script and narration need <b>; run node bin/kit.mjs timeline`;
+             - any other field: `<where>: timeline.json disagrees with the script and narration at <field path>; run node bin/kit.mjs timeline`.
+        3. **Assets.** Each must be a regular file, checked with `lstat`:
+           - each scene's `image` under `public/images/`: `<where>: image "<name>" is missing from public/images; run node bin/kit.mjs image "<path>"`;
+           - each block's `public/voice/<stem>.wav`, whose SHA-256 must equal its `audioSha256`: `<where>, sentence <s> block <b>: <stem>.wav is missing` or `… changed since kit timeline; run node bin/kit.mjs timeline`;
+           - `public/narration.wav`, whose SHA-256 must equal `narration.sha256`: `narration.wav is missing` or `narration.wav changed since kit timeline; run node bin/kit.mjs timeline`;
+           - for a custom scene, `src/custom/<component>.tsx`: `<where>: src/custom/<component>.tsx is missing`.
+
+           The font is checked by the probe stage, because it is the browser's font.
+
+        4. **Unnarrated stretches.** (This rule and the next can only fail on hand-written timelines today; see the test seam above.)
+           - **What counts.** A stretch is the frames between one block's `endFrame` and the next block's `startFrame`, in playback order, across scene boundaries.
+           - **Lead-in.** The stretch before the first block is the lead-in and does not count.
+           - **End card and tail.** Anything at or after the end card's `startFrame` is the end card or the tail. A stretch is cut at that frame.
+           - **Limit.** A stretch longer than 90 frames fails, so 90 passes and 91 fails: `<where>: <n> frames (<s> s) without narration, frames <a>–<b>; at most 90 (3 s)`. `<where>` is the scene holding frame `<a>`.
+        5. **Rest after reveals.**
+           - **Which reveals.** For each scene, the rule reads `revealsOf(kind, timing)`, sorted by `startFrame`.
+           - **Rest.** Each reveal's rest is the next reveal's `startFrame`, or the exit frame for the last reveal, minus its `endFrame`. The exit frame is `exit.startFrame`, or `durationInFrames` when the exit is `null`.
+           - **Limits.** A key reveal needs at least 30 frames of rest and a batch reveal at least 15. The message is `<where>: <type> reveal ending at frame <e> rests <r> frames before the next reveal at frame <f>; needs <30|15>`, or `… before the exit at frame <f>; …` when it is the last reveal. Frames are relative to the scene.
+        6. **Probe.**
+           - **Before the probe.** `writeCustomIndex` runs first. A refusal from it becomes the reason `custom index: <message>`.
+           - **Captions are not probe targets.** 3.8's target E proves that a block at its 16-character maximum is one clean line in the fixed band, and the schema bounds every block. This settles the question 3.8 left to 5.1.
+           - **Targets.** `probe({entryPoint: "src/kit/index.ts", publicDir: "public", targets})` gets one target per `explainerScenes` entry:
+             - `id`: the entry's `where`;
+             - `scene`: its kind;
+             - `props`: `{...props, theme: KIT_THEME}`;
+             - `durationInFrames`;
+             - `entranceFrames`: `ENTRANCE_FRAMES[kind]`;
+             - `exitFrame`: `exit?.startFrame ?? durationInFrames`.
+           - **Reasons:**
+             - each `formatViolation` line of `violations(result, KIT_THEME)`;
+             - one `font "Noto Sans CJK SC" is not installed` when any frame has `fontPresent: false`;
+             - for a probe whose error message contains `unknown scene "<kind>"` (a substring match, since `probe()` wraps the message), the reason `<where of the first scene of that kind>: no component for kind "<kind>"`;
+             - for any other thrown probe error, `probe: <message>`. This takes the follow-up on render failures without a target.
+
+    - **`bin/kit.mjs`** gains `check` and `status`, both with no arguments and run inside a project. It adds `.kit` to `NOT_COPIED`, and its header comment adds `status`'s exit codes 3 and 4. No other change.
+      - `status` writes to stdout, since its report is the command's data, and exits as follows. The running time `<s>` is whole seconds since `startedAt`, rounded down.
+
+        | Job state | Line                                                                                               | Exit |
+        | --------- | -------------------------------------------------------------------------------------------------- | ---- |
+        | running   | `kit status: check running (pid <pid>, <s> s)`                                                     | 3    |
+        | passed    | `kit status: check passed`                                                                         | 0    |
+        | failed    | `kit status: check failed (<n> reasons)`, then each reason on its own stdout line after two spaces | 1    |
+        | died      | `kit status: check died without an exit (pid <pid>); see .kit/check/log`                           | 1    |
+        | none      | `kit status: no check has run; run node bin/kit.mjs check`                                         | 4    |
+
+        5.3 defines how a second job's line combines with these.
+
+  - **Follow-ups assigned to 5.1** (from the 3.7 amendment, #830 and the 4.1 note):
+    - **Taken here:**
+      - the process group with a SIGKILL fallback;
+      - message escaping and bounded echo;
+      - a render failure without a known target;
+      - control characters in text fields;
+      - unbounded frame values, through the length window;
+      - the probe's `exitFrame` from `entry.exit`;
+      - Node's typeless-package warning.
+    - **Passed on, because `probe.mjs` does not change here:**
+      - the duplicate record after a retry, to 5.4, which times the full check;
+      - the 20 s against 28 s handle wait, to 5.4;
+      - the signal cleanup in `gallery.mjs`, to 5.3, which writes the render's kill handling;
+      - the `<root>/src` symlink, to 5.2, which hashes `src/`.
+  - **Fixture** (`tests/fixtures/check/` for pure tests and `tests/render/fixtures/check/` for image tests).
+    - The passing project is a scratch copy of the template with:
+      - a fixture `src/kit/render/registry.ts` that registers 3.8's fixture scene components;
+      - one custom scene;
+      - a script built with 3.8's `fixtureScript(edit)`, whose `layout()` comes to at least 1800 frames;
+      - a timeline written as `kit timeline` writes it, with block WAV files whose hashes are recorded;
+      - a matching `narration.wav`.
+    - Failing variants each change one thing from the passing project.
+  - Required evidence, red first:
+    - **Pure** (CI):
+      - `tests/check-rules.test.mjs`. For each rule:
+        - a passing case;
+        - one failing case per message, with the exact text;
+        - the boundaries: 90/91 unnarrated frames, key rest 30/29 and batch rest 15/14 (through injected `REVEALS`), and stems that differ in one block;
+        - the end-card cut and the excluded lead-in.
+
+        Also:
+        - stage order: a schema failure runs no later stage, and a probe stub that throws if called proves that a failure in stages 3–5 skips the probe;
+        - the `unknown scene` mapping;
+        - reasons bounded at 40 and 300 code points, and escaped.
+
+      - `tests/job.test.mjs`, using a tiny worker script from the fixture:
+        - none, running, passed, failed and died;
+        - pid reuse: `job.json` naming a live process without the token gives `died`;
+        - a second start while running is refused;
+        - a new start removes the old result and log before spawning. While the fixture worker blocks on a file, the test asserts that `result.json` and `log` are absent, and that a worker which then dies gives `died`, not the old pass.
+      - `ps -o pgid= -p <pid>` equals the worker's pid while it runs, which shows it was detached.
+      - **Small units:**
+        - `tests/script-schema.test.mjs`: a control character in each text field is rejected, and the drift test passes on the regenerated `script.schema.json`;
+        - `tests/scene-timing.test.mjs`: `ENTRANCE_FRAMES` keys equal `MIN_SCENE_FRAMES` keys, and `revealsOf`'s default;
+        - `tests/kit.test.mjs`: `NOT_COPIED` holds `.kit`, the usage list holds `check` and `status`, and `package.json` has `"type": "module"`.
+
+    - **In the image** (`tests/render/check.test.mjs`, run with `--test-concurrency=1` beside the other render tests):
+      1. **Returns at once.** `kit check` on the passing project exits 0 within 5 s. The next `kit status` says `running` and exits 3.
+      2. **Passes.** Within the test's time limit, `status` says `check passed` and exits 0.
+      3. **The spec scenario "Overflow fails the check".** A custom scene whose marked text crosses the safe area gives `check failed`, with a reason naming its `where`, a probe role, a frame and `outside safe area`.
+      4. **The tracked registry.** The passing project's script on the tracked `registry.ts` fails with `hook: no component for kind "hook"`.
+      5. **A second check** while the first runs is refused with the message above, and the first run is unaffected.
+      6. **SIGTERM during the probe.** The log shows `check: stage 6 probe`, and the `/proc` scan for `chrome-headless-shell` used by `tests/render/probe.test.mjs` (`headlessShells()`) finds at least one shell. Then the worker gets SIGTERM. Within 10 s the scan finds none, and `status` says `died` and exits 1.
+      7. **SIGKILL during the probe.** The same setup, but the worker gets SIGKILL. Within 10 s the scan finds no shell, which shows `--pdeathsig` at work, and `status` says `died`.
+      8. **The caller's group is killed.** `kit check` runs from `setsid bash -c 'node bin/kit.mjs check; sleep 60'`, and that group is SIGKILLed as soon as `check` returns. The check still ends `passed`.
+      9. **A stale pass is never shown.** After a passed run, a new `check` whose worker is SIGKILLed before it finishes reports `died`.
+    - **Mutations**, each red, then reverted:
+      - `startJob` not removing the old result and log, which the absent-files assertion catches;
+      - liveness by `kill(pid, 0)` alone, which the pid-reuse case catches;
+      - the worker spawned without `detached`, which the pgid assertion and the caller-group case catch;
+      - `writeResult` ignoring `stopping`, which a pure `tests/job.test.mjs` case catches: with `stopping` set, `writeResult` writes no `result.json`;
+      - the rest rule using `durationInFrames` in place of `exit.startFrame`;
+      - the unnarrated limit at `>= 90`;
+      - the stretch not cut at the end card.
+    - **In the image (implementer, Mac):** the production workspace image `3d0ceae2…`, with 3.7's flags, running `node --test --test-concurrency=1 "tests/render/*.test.mjs"`. All render tests pass. Record the times, including the passing check's duration.
+    - **Green:**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root.
+      - `template-tests` passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+      - In the image, `npx remotion compositions src/index.ts` still lists `Main`.
+      - The full OCU unit command is not required, since no file outside `remotion-template/` changes.
+
+  - **Must preserve.** Every existing file except these:
+    - `bin/kit.mjs`;
+    - `bin/scene-timing.mjs`, with additions only;
+    - `bin/script-schema.mjs` and `script.schema.json`, for the control-character rule only;
+    - `src/kit/theme.ts` and `src/kit/Root.tsx`, for `KIT_THEME` only;
+    - `package.json`, for `"type"` only;
+    - the tests named above.
+
+    `probe.mjs`, `explainer-scenes.mjs`, `timeline.mjs` and every component stay byte-identical. There are no dependency or lockfile changes.
+
+  - Non-goals:
+    - the contact sheet, the checklist and the passing hash (5.2);
+    - `render` (5.3);
+    - timing on the maximum script (5.4);
+    - the music rules (6.5);
+    - the skill text (7.2).
+
 - [ ] 5.2 Add the contact sheet and the fixed yes/no checklist after a passing mechanical stage, with the video-shotcraft (Apache-2.0) NOTICE entry, plus the passing-check hash over `script.json`, `timeline.json`, `src/` and the referenced `public/` files. Verify that a passing check writes exactly one four-tile sheet and prints the questions, that editing `src/` or a referenced `public/` file invalidates the hash, and that regenerating `src/custom/index.ts` without changes does not.
 - [ ] 5.3 Implement `kit render`:
   - background launch;
