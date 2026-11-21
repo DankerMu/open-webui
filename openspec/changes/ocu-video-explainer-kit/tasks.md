@@ -2483,11 +2483,14 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
         - `Comparison` follows `split-screen/SplitScreen.tsx`.
 
         Their headers follow 4.2's three-line pattern: line 3 is `// Source: degueba/onda 3c814051269597b31fee1603bef7ccfb93d091b6 registry/components/<dir>/<File>.tsx MIT`, then the sentence "Only the choreography comes from the source above, no code".
+
       - `CauseEffect` has no counterpart and no `Source:` line.
       - Onda already has its notice, so `NOTICE` and `THIRD-PARTY-LICENSES.md` do not change.
       - Remocn, which has no notice yet, and remotion-bits are not used. The remotion-bits notice moves on to the first task that ports from it.
+
     - **Arrows without SVG.** Onda's `Timeline.tsx` draws its line in an `<svg>`. These scenes draw every arrow, connector and axis from plain block elements: a bar, plus a head made from borders. Nothing rotates, so no arrow needs a construct the probe does not support. 4.2's source scan therefore applies unchanged, and 3.7's probe follow-ups pass on to 4.4 (charts).
     - **Approvals entries for 4.2 candidates.** The export's decisions on 4.2's six candidates are copied into `approvals.json` with the rest. A `redo` or `drop` there removes that candidate in step 7, like any other.
+
   - **Inherited items, disposed of:**
     - **Roots, caption band and probe follow-ups** are handled as in 4.2. Arrows and connectors are not text, so they carry no `data-kit-text` and need no glyph box. They still lie inside the scene's text box, and inside the safe area.
     - **万/亿.** None of the four kinds has a numeric field. `timeline.year` is text, so `formatCount` has nothing to format.
@@ -2517,10 +2520,12 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
         - below it, the detail at `caption` (18 em = 648 px), 50.4 px tall.
 
         Six events take 6 × 100.8 = 604.8 px, plus 5 gaps of 32 px, for 764.8 px. That is within 784.
+
       - **`Timeline` without an image** (`TEXT_BOX`, 1728 × 784). The same rows, with the label at `body` (672 px, 67.2 px tall) and the detail at `caption` (648 px, 50.4 px tall). Six events take 6 × 117.6 = 705.6 px, plus 5 gaps of 12 px, for 765.6 px.
       - **`ProcessSteps` beside an image.** One step per row: the label at `body` (10 em = 480 px, 67.2 px tall), with the detail at `caption` below it (648 px, 50.4 px tall). Five steps take 588 px. That leaves 196 px for 4 arrows, 49 px each including padding.
 
       Everything visual beyond these rules, including the arrow style, is the implementer's choice, and the gallery is where it is judged.
+
     - **`src/kit/scenes/layout.tsx`.** Code is only appended at the end, for example an `Arrow` helper. The file at `911e89a` stays a byte-exact prefix.
     - **`bin/scene-timing.mjs`.** Only the comment changes, to name the four kinds as their components' own values.
     - **`src/kit/gallery/catalog.ts`.** Four candidates are appended after 4.2's six, in this order: `process-steps`, `cause-effect`, `comparison`, `timeline`. Each follows 4.2's rules:
@@ -2529,8 +2534,10 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - it reads its timing from `scene-timing.mjs`;
       - it has the samples `max`, `image` (`"sample.png"`) and `min`, built as in 4.2. `max` puts every list at its maximum count and every field at its limit; `min` has required fields only, each of two Han characters, with lists at their minimum count.
 
-      4.2's candidates and samples do not change.
+        4.2's candidates and samples do not change.
+
     - **`src/kit/gallery/components.tsx` and `src/kit/render/registry.ts`.** One line each per new candidate, in catalog order, with 4.2's form.
+
   - **The approval gate.** 4.2's order, steps 1–9, applies, and the PR stays a draft until step 6.
     - **After the export, only these may change:**
       - the export, at `gallery/exports/<YYYY-MM-DD>-batch-4-3.json`;
@@ -2562,20 +2569,20 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - Every other render test passes unchanged.
     - **Mutations**, each red, then reverted:
 
-      | Mutation                                                                                    | Test that goes red         |
-      | ------------------------------------------------------------------------------------------- | -------------------------- |
-      | an arrow drawn as `<svg>` in `ProcessSteps`                                                 | source scan                |
-      | `whiteSpace: 'nowrap'` in `Timeline`                                                        | source scan                |
-      | in the `image` sample, one `ProcessSteps` label's `Lines` starts at `IMAGE_BOX.panel.left`  | marked text inside its box |
-      | `CauseEffect` drops `link`                                                                  | marked fields              |
-      | `Timeline` draws only its first five events                                                 | marked fields              |
-      | `Comparison` ignores `image`                                                                | image through the gallery  |
-      | a looping opacity after the entrance on `Comparison`'s right side                           | settled                    |
-      | one 4.2 scene file changed by one character                                                 | preservation               |
-      | a line inserted inside `layout.tsx`'s `Lines`                                               | preservation               |
-      | `registry.ts` wraps the timeline component                                                  | registry text              |
-      | in a temporary tree, a newer export whose decision for `hook` is `redo`, linked by one entry for `process-steps` only | newest export binds |
-      | the new `process-steps` approve entry removed (after step 6)                                | approval gate              |
+      | Mutation                                                                                                              | Test that goes red         |
+      | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+      | an arrow drawn as `<svg>` in `ProcessSteps`                                                                           | source scan                |
+      | `whiteSpace: 'nowrap'` in `Timeline`                                                                                  | source scan                |
+      | in the `image` sample, one `ProcessSteps` label's `Lines` starts at `IMAGE_BOX.panel.left`                            | marked text inside its box |
+      | `CauseEffect` drops `link`                                                                                            | marked fields              |
+      | `Timeline` draws only its first five events                                                                           | marked fields              |
+      | `Comparison` ignores `image`                                                                                          | image through the gallery  |
+      | a looping opacity after the entrance on `Comparison`'s right side                                                     | settled                    |
+      | one 4.2 scene file changed by one character                                                                           | preservation               |
+      | a line inserted inside `layout.tsx`'s `Lines`                                                                         | preservation               |
+      | `registry.ts` wraps the timeline component                                                                            | registry text              |
+      | in a temporary tree, a newer export whose decision for `hook` is `redo`, linked by one entry for `process-steps` only | newest export binds        |
+      | the new `process-steps` approve entry removed (after step 6)                                                          | approval gate              |
 
     - **In the image (implementer, Mac).** As in 4.2: `node --test --test-concurrency=1 "tests/render/*.test.mjs"` on `3d0ceae2…` with 3.7's flags. Every render test passes. Record per-file times.
     - **On 210.77.77.27 (orchestrator, after review).** 4.2's host step, on the tracked catalog.
@@ -2588,6 +2595,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - The diff check compares `<gallery head>..<final head>` against the allow-list above.
       - The appended approvals entries are exactly the export's ten decisions, in catalog order.
       - "Newest export binds" is green.
+
   - **Must preserve.** Every existing file, except:
     - **Changed as above:**
       - `bin/scene-timing.mjs`, the comment only;
@@ -2607,6 +2615,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - `gallery/public/**`.
 
     No dependency changes.
+
   - **Non-goals:**
     - batch 4.4;
     - the theme pick, kind removal and the equality test (4.6);
