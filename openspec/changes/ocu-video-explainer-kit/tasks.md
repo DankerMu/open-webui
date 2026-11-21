@@ -2153,7 +2153,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **Containment in `loadApprovals`.** It `lstat`s only the export file. A symlinked `gallery/`, `gallery/exports/` or `approvals.json` is followed, and there is a window between the `lstat` and the read. Owned by 4.6's fixture, which can require `realpath` containment or `O_NOFOLLOW` with `fstat`.
       - **Signals.** SIGINT or SIGTERM during `gallery.mjs` leaves the temporary sibling and the work directory behind. Owned by 5.1, with the probe's SIGTERM follow-up.
 
-- [ ] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
+- [x] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
 
   **Task 4.2 required evidence** (issue #832):
   - **Triage.** Feature, fixture level expanded. The task:
@@ -2438,6 +2438,30 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - entrances longer than 15 frames;
     - per-scene transitions;
     - reveals that follow the narration.
+
+  - Amended after OCU #261 (2026-11-21, merged `911e89a`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Boxes.** `TEXT_BOX` is `{96, 96, 1728, 784}`. `IMAGE_BOX.text` is `{96, 96, 1024, 784}`, and `IMAGE_BOX.panel` is `{1184, 168, 640, 640}`. With an image, the text is left-aligned in the text column.
+      - **Entrance.** Beat `b` starts at `min(round(b × STAGGER), 9)`. It runs `theme.motion.springs.smooth`, stretched to end at frame 15, as a fade plus a rise of `spacing[2]`. Accent rules grow by `scaleX`/`scaleY`. From frame 15 on, every value is exactly 1.
+      - **`Lines` takes `theme`.** `layout.tsx` also exports `useEntrance`, `Enter`, `Grow`, `Mark` (unmarked accents), `SceneText`, `Picture`, `fit`, `textArea` and `column`.
+      - **End card.** Without an image, the text sits on a full-width `accentSoft` band.
+      - **`sample.png`.** ffmpeg 6.1.1, `gradients=s=1280x960:c0=0x123B5E:c1=0x3E8E9E:…` with a 192×192 `0xFF8C1A` patch overlaid at the centre (17621 bytes). The command is in a `catalog.ts` comment.
+      - **Duplicated helper.** `trackedKinds` appears in both `tests/render/check.test.mjs` and `tests/render/explainer.test.mjs`, because the shape allows no new helper file.
+    - **Changes to existing tests.**
+      - **`tests/gallery.test.mjs`.** "Tracked catalog is empty and passes" became "the tracked catalog passes validateCatalog".
+      - **`tests/gallery-approvals.test.mjs`.** "The tracked approvals file has no entries" became "the tracked approvals file loads: every decision names a script kind, every approve names a catalog candidate, the theme is null or a kit theme". This overrides 4.1's "the tracked file gives no decisions and a `null` theme".
+        - It changed before the gallery run (review round 1), so it holds unedited at steps 6 and 7 and no post-export step touches it.
+        - At 4.6, kinds without an `approve` leave the schema while their `redo`/`drop` entries stay. Candidate ids that differ from their kinds (4.3, 4.4) also break the id-to-kind mapping. Those fixtures say how this test follows.
+    - **Gate record.**
+      - **Gallery head.** `1211549`. The host run took 619 s and produced 38 clips and 114 key frames, all with empty violations. The `gallery.json` sha256 is `d14e6c99385a193c2828d2b7857d742d73ef7821107e691ebbeaf1520c2d96a5`.
+      - **The user's export.** Reviewer `Danker`, 2026-11-21: all six `approve`, theme `light`.
+        - It is committed byte-identical as `gallery/exports/2026-11-21-batch-4-2.json` (sha256 `737bd08e…`).
+        - `approvals.json` holds six `approve` entries. No theme entry; 4.6 links the export's `light`.
+        - Nothing was removed in step 7.
+    - **Deferred, with their owners:**
+      - **`wrapLines` throws on some schema-valid text** (`src/kit/text.ts`). Two inputs trigger it: a run of opening marks that fills `maxWidth`, as with eight or more `（` at maxWidth 8 (a hook title beside an image), and one character followed by a long run of closing marks. `kit check` then reports a `probe:` RangeError instead of a layout reason. Owned by 5.1.
+      - **ConceptCard conclusion overflow.** Beside an image, a conclusion with an 18-letter ASCII token between two Han characters wraps into 3 lines and overruns `IMAGE_BOX.text`, though it stays inside the safe area and above the band. Owned by 5.1.
+      - **The probe's SIGTERM test flaked once.** In one in-image glob run it ended above 20 s. This was seen again here, and it is already owned by 5.1.
 
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
