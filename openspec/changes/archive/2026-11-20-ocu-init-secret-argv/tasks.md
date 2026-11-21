@@ -1,6 +1,8 @@
 ## 1. Keep credentials out of curl argv (OCU)
 
-- [ ] 1.1 In `openwebui/init.sh`, build the signin, signup and tool-valve bodies from the environment and pipe them to `curl --data-binary @-`. Write the admin token's header to a private `ocu-init-auth.*/auth` file named by `AUTH`, and remove that directory on every exit. `deploy/production-like-test/init/run-init.sh` stays byte-identical. Verify with the cases below and the OCU unit command.
+- [x] 1.1 In `openwebui/init.sh`, build the signin, signup and tool-valve bodies from the environment and pipe them to `curl --data-binary @-`. Write the admin token's header to a private `ocu-init-auth.*/auth` file named by `AUTH`, and remove that directory on every exit. `deploy/production-like-test/init/run-init.sh` stays byte-identical. Verify with the cases below and the OCU unit command.
+
+- Done in OCU #259 (2026-11-20, merged `aa8a6ee`); review round 1 clean. Deviations: the fake API's token literal became the constant `FAKE_TOKEN`; the signin-path test also asserts that signup was not called. Docs drift found in review went to (#886).
 
 Suggested fixture level: expanded - credentials on a shared host, every deployment's first boot, and new trap and file lifecycle code.
 Minimal mergeable slice: atomic - the three bodies, the header file and its cleanup protect the same secrets and are tested together.

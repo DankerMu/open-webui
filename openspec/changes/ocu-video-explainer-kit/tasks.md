@@ -3802,6 +3802,10 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
       - a timeout for `timeline.mjs`'s own ffmpeg calls;
       - process-group kills;
       - sweeping `timeline.mjs`'s narration partial.
+    - Done in OCU #258 (2026-11-20, merged `70d3444`); review round 1 clean.
+      - `publish`'s stale-partial loop and the music sweep share one `removeStale(dir, pattern)` in `render.mjs`.
+      - `timeline.mjs`'s `wav()` became an inline `Buffer.concat([wavHeader(pcm.length, 1), pcm])`.
+      - `job.test.mjs` needed no change.
 
 Suggested fixture level: expanded - it changes the workspace `Dockerfile`, adds a build-time download, and adds `manifest.json`, a file format read by `kit check` and the renderer.
 Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. It ships nothing into the image.
