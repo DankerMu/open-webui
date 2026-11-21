@@ -2464,6 +2464,168 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **The probe's SIGTERM test flaked once.** In one in-image glob run it ended above 20 s. This was seen again here, and it is already owned by 5.1.
 
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
+
+  **Task 4.3 required evidence** (issue #833):
+  - **Triage.** Feature, fixture level expanded. The task adds the second batch of scene components and registers them: process steps (with arrows), cause and effect, comparison, and timeline. The kinds are `process-steps`, `cause-effect`, `comparison` and `timeline`. It runs the approval gate a second time. 4.2's block and its amendment (OCU #261) bind wherever this block does not differ.
+  - **Governing invariants.** 4.2's invariants apply unchanged: what the user approves is what ships, only the user decides, one home per number, no silent field, and the theme decides the look. In addition:
+    - **Approved code stays approved.**
+      - These stay byte-identical: 4.2's six scene files, `boxes.ts`, `bin/gallery.mjs` and `bin/gallery-page.mjs`.
+      - `layout.tsx` may only gain code at its end. Its text at `911e89a` is a byte-exact prefix of the new file, so every existing export keeps its code.
+    - **The user sees everything that ships.**
+      - The gallery renders every catalog candidate, so the six approved 4.2 candidates appear again next to this batch.
+      - The page asks for a decision on every candidate, so the export holds ten decisions.
+      - Each later approvals entry replaces an earlier one (4.1), so the user's newest decision binds for all ten.
+  - **Deviations, settled here:**
+    - **Sources.** All four are written on the vendored Onda `lib/` and 4.2's `layout.tsx`, and none is copied from a registry component.
+      - Three follow the choreography of an Onda registry component at commit `3c81405`:
+        - `ProcessSteps` follows `progress-steps/ProgressSteps.tsx`;
+        - `Timeline` follows `timeline/Timeline.tsx`;
+        - `Comparison` follows `split-screen/SplitScreen.tsx`.
+
+        Their headers follow 4.2's three-line pattern: line 3 is `// Source: degueba/onda 3c814051269597b31fee1603bef7ccfb93d091b6 registry/components/<dir>/<File>.tsx MIT`, then the sentence "Only the choreography comes from the source above, no code".
+
+      - `CauseEffect` has no counterpart and no `Source:` line.
+      - Onda already has its notice, so `NOTICE` and `THIRD-PARTY-LICENSES.md` do not change.
+      - Remocn, which has no notice yet, and remotion-bits are not used. The remotion-bits notice moves on to the first task that ports from it.
+
+    - **Arrows without SVG.** Onda's `Timeline.tsx` draws its line in an `<svg>`. These scenes draw every arrow, connector and axis from plain block elements: a bar, plus a head made from borders. Nothing rotates, so no arrow needs a construct the probe does not support. 4.2's source scan therefore applies unchanged, and 3.7's probe follow-ups pass on to 4.4 (charts).
+    - **Approvals entries for 4.2 candidates.** The export's decisions on 4.2's six candidates are copied into `approvals.json` with the rest. A `redo` or `drop` there removes that candidate in step 7, like any other.
+
+  - **Inherited items, disposed of:**
+    - **Roots, caption band and probe follow-ups** are handled as in 4.2. Arrows and connectors are not text, so they carry no `data-kit-text` and need no glyph box. They still lie inside the scene's text box, and inside the safe area.
+    - **万/亿.** None of the four kinds has a numeric field. `timeline.year` is text, so `formatCount` has nothing to format.
+    - **Kinds, reveals and timing.**
+      - `BODY_KINDS` and the schema do not change.
+      - `REVEALS` stays `{}`.
+      - For the four kinds, `ENTRANCE_FRAMES` stays 15 and `MIN_SCENE_FRAMES` stays 60.
+      - Every element of every scene settles within the 15-frame entrance, steps, arrows and events included. A sequential reveal that follows the narration is a non-goal.
+    - **`tests/gallery-approvals.test.mjs`.** Candidate ids still equal their kinds, so its id-to-kind rule holds unchanged.
+  - **Risk packs.** As 4.2's, with these differences:
+    - **Legacy compatibility.**
+      - No timeline moves.
+      - `tests/render/check.test.mjs` test 4 and the `kitExplainer` case still take the all-registered branch, because their fixture script has none of the four kinds.
+      - The 4.2 tests whose expectations name the batch grow to cover all ten candidates. What changes in them is listed under Required evidence.
+    - **File IO.** Not selected, because `bin/gallery.mjs` does not change.
+    - **Resource limits.** The host run renders 62 clips, roughly 1.6 times 4.2's 619 s. It still uses `--cpus=2 --memory=4g`, and its time is recorded.
+  - **Shape** (OCU `remotion-template/`). New files carry the FSL header, use erasable TypeScript only, and import no `node:` built-in.
+    - **The four scenes**, `src/kit/scenes/{ProcessSteps,CauseEffect,Comparison,Timeline}.tsx`. Each is a component of `{content, image, timing, theme}` with an `AbsoluteFill` root, and follows 4.2's rules for every scene. What each draws:
+      - **`ProcessSteps`:** 2–5 steps in order. Each step has its label (bold) and its optional detail (`dim`). Between consecutive steps sits an unmarked arrow pointing to the next step, so there are `steps − 1` arrows.
+      - **`CauseEffect`:** the cause, then an arrow pointing to the effect, then the effect. The optional link (accent) sits on or beside the arrow. Without a link, the arrow alone remains.
+      - **`Comparison`:** two sides next to each other, each with its title (bold) and 1–4 points after unmarked bullets, with a divider that is not text.
+      - **`Timeline`:** 2–6 events in order along an unmarked axis, each with a marker. Every event shows its year (accent), its label (bold) and its optional detail (`dim`).
+
+      **Sizes and layout.** Each field takes one of the sizes `layout.tsx`'s `Size` type allows: `title` 96, `heading` 64, `body` 48 and `caption` 36. Widening that type would break the prefix rule. Sizes are picked per layout; with an image, a scene may use smaller sizes than without one, and a horizontal layout may stack vertically. Every marked text must lie inside its box (the browser test). Arrows, connectors, axes and dividers also lie inside the scene's box. A `Lines` box is `(maxWidth + HANG)` em wide with `HANG = 2`, and each line is 1.4 em tall. Feasible layouts at the `max` sample, as proof that the box rule can be met (the implementer may choose any other layout that passes):
+      - **`Timeline` beside an image** (`IMAGE_BOX.text`, 1024 × 784). One event per row, top to bottom:
+        - a 24 px marker on the axis, a 24 px gap, the year at `caption` (10 em = 360 px), a 24 px gap, then the label at `caption` (14 em = 504 px). That is 936 px wide, within 1024, and 50.4 px tall;
+        - below it, the detail at `caption` (18 em = 648 px), 50.4 px tall.
+
+        Six events take 6 × 100.8 = 604.8 px, plus 5 gaps of 32 px, for 764.8 px. That is within 784.
+
+      - **`Timeline` without an image** (`TEXT_BOX`, 1728 × 784). The same rows, with the label at `body` (672 px, 67.2 px tall) and the detail at `caption` (648 px, 50.4 px tall). Six events take 6 × 117.6 = 705.6 px, plus 5 gaps of 12 px, for 765.6 px.
+      - **`ProcessSteps` beside an image.** One step per row: the label at `body` (10 em = 480 px, 67.2 px tall), with the detail at `caption` below it (648 px, 50.4 px tall). Five steps take 588 px. That leaves 196 px for 4 arrows, 49 px each including padding.
+
+      Everything visual beyond these rules, including the arrow style, is the implementer's choice, and the gallery is where it is judged.
+
+    - **`src/kit/scenes/layout.tsx`.** Code is only appended at the end, for example an `Arrow` helper. The file at `911e89a` stays a byte-exact prefix.
+    - **`bin/scene-timing.mjs`.** Only the comment changes, to name the four kinds as their components' own values.
+    - **`src/kit/gallery/catalog.ts`.** Four candidates are appended after 4.2's six, in this order: `process-steps`, `cause-effect`, `comparison`, `timeline`. Each follows 4.2's rules:
+      - its id equals its kind;
+      - its `source` is the scene file;
+      - it reads its timing from `scene-timing.mjs`;
+      - it has the samples `max`, `image` (`"sample.png"`) and `min`, built as in 4.2. `max` puts every list at its maximum count and every field at its limit; `min` has required fields only, each of two Han characters, with lists at their minimum count.
+
+        4.2's candidates and samples do not change.
+
+    - **`src/kit/gallery/components.tsx` and `src/kit/render/registry.ts`.** One line each per new candidate, in catalog order, with 4.2's form.
+
+  - **The approval gate.** 4.2's order, steps 1–9, applies, and the PR stays a draft until step 6.
+    - **After the export, only these may change:**
+      - the export, at `gallery/exports/<YYYY-MM-DD>-batch-4-3.json`;
+      - `gallery/approvals.json`: the 4.2 entries stay, and one new entry per export decision is appended, in catalog order;
+      - for each `redo` or `drop` candidate, from either batch, what 4.2's step 7 lists. Code appended to `layout.tsx` that only a removed candidate uses is removed with it.
+    - **A 4.2 candidate turned to `redo` or `drop`.** Its removal follows 4.2's rules. If it is `hook`, `summary` or `end-card`, the PR body says so, as in 4.2.
+    - **The export's `theme`.** As in 4.2, no theme entry is committed.
+  - **Required evidence, red first:**
+    - **Pure tests**, run by CI:
+      - **`tests/scenes.test.mjs`** checks the catalog, samples and source scan for all ten candidates.
+        - The kind list holds the ten candidates in catalog order, and after step 7 exactly the approved ones.
+        - **Nested fields.** The kinds of this batch nest: `steps[]` and `events[]` are objects, and `left` and `right` are objects holding `points[]`. The sample checks walk every content value depth-first:
+          - every list is at its maximum count in `max` and its minimum in `min`, with the limits taken from `LIMITS.content[kind]`;
+          - every string is checked against its own limit in `max`: `label`, `detail`, `year`, `title`, `point`, `cause`, `effect` and `link`.
+        - **What may change in the test file.** Besides the kind list and the minimum table: the list of scene files (`FILES`), the required-field table (`REQUIRED`), the list-field set (`LISTS`) and the directory-listing test. Each is extended to the ten candidates. 4.2's assertions on the six stay as they are.
+        - **Source scan.** It covers the four new files. It requires their `AbsoluteFill` root and their Source lines on line 3 for `ProcessSteps`, `Timeline` and `Comparison`, and that `CauseEffect` has no Source line.
+      - **Preservation** (new, in `tests/scenes.test.mjs`).
+        - The text of 4.2's six scene files and `boxes.ts` hashes to the sha256 recorded in the test at `origin/main` `911e89a`. A file step 7 removes is skipped. The catalog's `source` check already catches a file deleted too early.
+        - The first `<length at 911e89a>` bytes of `layout.tsx` hash to the sha256 of `layout.tsx` at `911e89a`. The test records both numbers.
+      - **`tests/registry-approvals.test.mjs`** keeps its two tests. It is red from step 1 until step 6, because the four new candidates have no `approve` entry yet. It gains one test:
+        - **Newest export binds.** Let the newest export be the file in `gallery/exports/` with the greatest name in code-unit order; the names start with the date. For every decision `{id, decision}` in it, `loadApprovals(<template root>).decisions.get(id)` equals `decision`.
+        - Before step 6 the newest export is 4.2's all-approve file, so this test is green. After step 6 it is this batch's export.
+      - **`tests/scenes.test.mjs` and `tests/render/scenes.test.mjs`** change only as this block says.
+      - Every other pure test passes unchanged.
+    - **Browser tests**, in `tests/render/scenes.test.mjs`, on 4.2's probe, marked-field, settled and image checks, extended to all ten candidates.
+      - **Nested field values.** In `tests/render/scenes.test.mjs`, `fieldValues` walks the content depth-first and yields every string. This is the multiset that the marked-field check compares.
+      - The image check requires each new candidate's panel centre to match `sample.png` in its `image` sample, and not to match in its `max` sample.
+      - The gallery run gives 62 clips, 186 key frames and `violations: []` on every item.
+      - Every other render test passes unchanged.
+    - **Mutations**, each red, then reverted:
+
+      | Mutation                                                                                                              | Test that goes red         |
+      | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+      | an arrow drawn as `<svg>` in `ProcessSteps`                                                                           | source scan                |
+      | `whiteSpace: 'nowrap'` in `Timeline`                                                                                  | source scan                |
+      | in the `image` sample, one `ProcessSteps` label's `Lines` starts at `IMAGE_BOX.panel.left`                            | marked text inside its box |
+      | `CauseEffect` drops `link`                                                                                            | marked fields              |
+      | `Timeline` draws only its first five events                                                                           | marked fields              |
+      | `Comparison` ignores `image`                                                                                          | image through the gallery  |
+      | a looping opacity after the entrance on `Comparison`'s right side                                                     | settled                    |
+      | one 4.2 scene file changed by one character                                                                           | preservation               |
+      | a line inserted inside `layout.tsx`'s `Lines`                                                                         | preservation               |
+      | `registry.ts` wraps the timeline component                                                                            | registry text              |
+      | in a temporary tree, a newer export whose decision for `hook` is `redo`, linked by one entry for `process-steps` only | newest export binds        |
+      | the new `process-steps` approve entry removed (after step 6)                                                          | approval gate              |
+
+    - **In the image (implementer, Mac).** As in 4.2: `node --test --test-concurrency=1 "tests/render/*.test.mjs"` on `3d0ceae2…` with 3.7's flags. Every render test passes. Record per-file times.
+    - **On 210.77.77.27 (orchestrator, after review).** 4.2's host step, on the tracked catalog.
+      - **Output.** 62 clips, 186 key frames and `violations: []`. Record the time and the `gallery.json` sha256.
+      - **Carry-over check.** The orchestrator compares each 4.2 candidate's 18 key frames with 4.2's run (gallery head `1211549`), decoding both to `rgb24`. Every difference is reported to the user with the handover, named by item and frame, with its largest channel delta. It does not block the handover, because the user decides those candidates again.
+        - **Baseline.** The page directory copied to the Mac for 4.2's handover: `<session scratchpad>/gallery-1211549/gallery-out/`. Its `gallery.json` must hash to `d14e6c99385a193c2828d2b7857d742d73ef7821107e691ebbeaf1520c2d96a5`.
+        - **If the baseline is gone or does not match,** the orchestrator re-runs 4.2's host steps at `1211549` to recreate it, then compares.
+      - **Handover.** As in 4.2: give the user the absolute path of `index.html`, after a headless `file://` check that all 62 clips load metadata with no console error.
+    - **After step 6 and Green.** As in 4.2, plus these checks:
+      - The diff check compares `<gallery head>..<final head>` against the allow-list above.
+      - The appended approvals entries are exactly the export's ten decisions, in catalog order.
+      - "Newest export binds" is green.
+
+  - **Must preserve.** Every existing file, except:
+    - **Changed as above:**
+      - `bin/scene-timing.mjs`, the comment only;
+      - `src/kit/scenes/layout.tsx`, appended code only;
+      - `tests/registry-approvals.test.mjs`, the added test only;
+      - `src/kit/gallery/catalog.ts` and `components.tsx`;
+      - `src/kit/render/registry.ts`;
+      - `gallery/approvals.json`;
+      - `tests/scenes.test.mjs` and `tests/render/scenes.test.mjs`.
+    - **New files:**
+      - `src/kit/scenes/{ProcessSteps,CauseEffect,Comparison,Timeline}.tsx`;
+      - `gallery/exports/<date>-batch-4-3.json`.
+    - **Byte-identical:**
+      - 4.2's byte-identical list;
+      - 4.2's six scene files and `boxes.ts`;
+      - `bin/gallery.mjs` and `bin/gallery-page.mjs`;
+      - `gallery/public/**`.
+
+    No dependency changes.
+
+  - **Non-goals:**
+    - batch 4.4;
+    - the theme pick, kind removal and the equality test (4.6);
+    - the skill text (7.2);
+    - probe changes and SVG;
+    - entrances longer than 15 frames;
+    - reveals that follow the narration;
+    - a gallery filter that hides approved candidates;
+    - the `wrapLines` and ConceptCard overflow follow-ups (5.1).
+
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
 
