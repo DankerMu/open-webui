@@ -2154,6 +2154,291 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **Signals.** SIGINT or SIGTERM during `gallery.mjs` leaves the temporary sibling and the work directory behind. Owned by 5.1, with the probe's SIGTERM follow-up.
 
 - [ ] 4.2 Port the hook, question, concept card, definition, summary and end-card scenes, each with its NOTICE entry and a declared minimum length. The first remotion-bits primitive ported carries the remotion-bits notice. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify that every gallery sample at maximum text length has a clean probe, and that every merged component has an `approve` entry.
+
+  **Task 4.2 required evidence** (issue #832):
+  - **Triage.** Feature, fixture level expanded. The task:
+    - adds the first six real scene components: hook, question, concept card, definition/quote, summary and end card;
+    - registers them;
+    - runs the first user approval gate (design Decision 12).
+
+    The kinds are `hook`, `question`, `concept-card`, `definition-quote`, `summary` and `end-card`.
+
+  - **Governing invariants:**
+    - **What the user approves is what ships.**
+      - `registry.ts` takes each of these kinds from `components.tsx` by import, so it gets the same function object the gallery rendered.
+      - After the export, no approved component changes. A change to one means a new gallery run and a new export.
+      - The committed export is tied to that gallery run by its `page` digest.
+    - **Only the user decides.** The decisions come from the user's own `gallery-decisions.json`, committed unmodified. The orchestrator copies each decision into `gallery/approvals.json`, and `loadApprovals` checks every entry against the export.
+    - **One home per number.** Each kind's entrance and minimum length live only in `bin/scene-timing.mjs` (`ENTRANCE_FRAMES`, `MIN_SCENE_FRAMES`). `catalog.ts` and the components read them from there.
+      - For the six kinds the values stay where they are: entrance 15, minimum 60, and 90 for the end card. 60 is the entrance plus 30 frames of rest plus the 15-frame exit.
+      - Every component settles within 15 frames, so no existing timeline moves.
+      - A slower entrance would lengthen 3.8's 0.5 s-block fixture (question, concept card and summary sit on the 60-frame floor) and the tests built on it. It is left to a `redo` if the user asks for one.
+    - **No silent field.** Every content field and the optional `image` is drawn. A scene that names an image shows it.
+    - **The theme decides the look.** Colours, sizes, spacing and motion come from the theme, as the spec requirement "Scenes render Chinese text within bounds" demands.
+  - **Deviations, settled here:**
+    - **Sources.** All six are written on the vendored Onda `lib/`, and none is copied from a registry component.
+      - Onda's `TitleCard` and `QuoteCard` (`registry/components/`, commit `3c81405`) lay text out through `WordStagger`. It splits at spaces (`text.split(/\s+/)`) and sets each word `inline-block`, which breaks Chinese.
+      - Three scenes follow an Onda component's choreography:
+        - `Hook` follows `title-card/TitleCard.tsx`;
+        - `DefinitionQuote` follows `quote-card/QuoteCard.tsx`;
+        - `EndCard` follows `end-card/EndCard.tsx`.
+      - Their headers:
+        - line 1 is the FSL SPDX line and line 2 the Open Computer Use copyright;
+        - line 3 is `// Source: degueba/onda 3c814051269597b31fee1603bef7ccfb93d091b6 registry/components/<dir>/<File>.tsx MIT`;
+        - then the sentence "Only the choreography comes from the source above, no code", as `bin/scene-timing.mjs` does.
+
+        Line 3 matters because `tests/notice-coverage.test.mjs` reads only the first three lines.
+
+      - `Question`, `ConceptCard` and `Summary` have no counterpart and no `Source:` line.
+      - The Onda triple already has its `NOTICE` paragraph and `THIRD-PARTY-LICENSES.md` row (3.2), so neither file changes.
+
+    - **remotion-bits.** This batch ports no remotion-bits primitive, so the remotion-bits notice moves to the first task that ports one. That task also deals with remotion-bits having no `LICENSE` file.
+    - **Gallery `publicDir`.** The fallback when the project has no `public/` changes from a fresh empty directory to the tracked `gallery/public/`, so samples can name an image. `gallery/` is already in `NOT_COPIED` and ships in the image. A project's own `public/` still wins.
+
+  - **Inherited items, disposed of:**
+    - **Roots (4.5).** The root of each of the six scene components is `AbsoluteFill`, so the flex direction of `Sequence`, `KitFrame` and `SceneExit` cannot change its layout. The source scan checks this in the six scene files.
+    - **Caption band (3.8).** Every text glyph box and the image panel lie inside the safe area and end at or above `captionBand(theme).top` (930). The browser test asserts this on the probe's glyph boxes, because the probe has no band rule.
+    - **Probe follow-ups (3.7), all eight.** This batch uses none of the constructs. The source scan forbids them, and `bin/probe.mjs` and `src/kit/probe/**` stay byte-identical. The constructs:
+      - inline-block labels;
+      - rotation and vertical writing;
+      - `verticalAlign`;
+      - `display: contents`;
+      - single-axis overflow;
+      - `svg` and `foreignObject`;
+      - inline elements, so no transform can sit on one;
+      - `clipPath`.
+
+      The follow-ups stay open for 4.3 (arrows) and 4.4 (charts). Their fixtures take them up when they need SVG.
+
+    - **万/亿.** None of these six kinds has a numeric field, so `formatCount` has nothing to format here. Digits typed into a text field are text.
+    - **Kinds.** `BODY_KINDS` and the schema do not change. Removing kinds belongs to 4.6.
+    - **Reveals.** `REVEALS` stays `{}`.
+      - Every element settles within the 15-frame entrance and then holds still, so the default single key reveal `[0, 15)` is accurate.
+      - No reveal follows the narration. A reveal there would leave only 5 frames of rest between the last block and the exit.
+    - **Later batches.** The 4.3 gallery page will list this batch's approved candidates again. That page's fixture decides whether it shows them.
+
+  - **Risk packs:**
+    - **Legacy compatibility**, selected.
+      - `ENTRANCE_FRAMES` and `MIN_SCENE_FRAMES` keep their values, so `layout()` and every timeline are unchanged. Any test whose expected frames change is a stop-and-report, not an edit.
+      - Two tests expect "no component for kind "hook"" on the tracked kit. Both change as described below:
+        - `tests/render/check.test.mjs` test 4;
+        - `tests/render/explainer.test.mjs`'s `kitExplainer` case (line 297).
+    - **Config / project setup**, selected. `kit new` copies `src/`, so every new project receives `src/kit/scenes/**`. The existing `kit new` tests run unchanged.
+    - **Release / packaging**, selected. `src/kit/scenes/**` and `gallery/public/images/sample.png` ship in `/opt/remotion-template`. The PR image is checked for both, and `/opt/remotion-template/tests` stays absent.
+    - **File IO**, selected: the `publicDir` fallback above.
+    - **Subprocess / browser**, selected: a new in-image test file, run like 3.7's.
+    - **Resource limits**, selected. The host run uses `--cpus=2 --memory=4g` and records its time.
+    - **Shared host**, selected. 4.1's host rules apply unchanged:
+      - the `ocu-eval` label;
+      - the 15 GiB floor;
+      - removal by exact name only;
+      - no prune and no `cleanup.sh`.
+    - **Error handling**, selected. A missing image file fails the render through Remotion's `<Img>`. 5.1's asset rule already refuses one before any render.
+    - **Not selected:**
+      - schema, since no format changes;
+      - CLI, since no command changes;
+      - documentation, since the skill text is 7.2;
+      - auth and network, since the run uses `--network none`;
+      - concurrency.
+  - **Shape** (OCU `remotion-template/`). New files carry the FSL header, use erasable TypeScript only, and import no `node:` built-in.
+    - **`src/kit/scenes/boxes.ts`** exports the layout constants:
+      - `TEXT_BOX`, the text region without an image;
+      - `IMAGE_BOX`, `{text, panel}`: the text column and the image panel when a scene has an image.
+
+      Each box is `{left, top, width, height}` in pixels. Plain TypeScript, so Node imports it.
+
+    - **`src/kit/scenes/layout.tsx`**, shared by the six, exports:
+      - **`Lines({text, maxWidth, size, weight, color, align})`.**
+        - A block element marked `data-kit-text={text}`, of width `(maxWidth + HANG)` em at `theme.type.sizes[size]`, with `textStyle(theme)`.
+        - It renders each `wrapLines(text, maxWidth)` line as its own `div`.
+        - Every text field of every scene goes through it.
+        - Text a scene adds around a field, such as a bullet, a number badge or a dash, sits outside the marked element, so the marked `textContent` equals the field.
+      - **`ImagePanel({image, theme})`.** A Remotion `<Img src={staticFile(\`images/${image}\`)}>`with`objectFit: contain`, filling `IMAGE_BOX.panel`on`theme.brand.surface2`.
+      - **An entrance helper** over `theme.motion.springs` and Onda's `STAGGER`. It reaches its final value at or before `ENTRANCE_FRAMES[kind]` (15) and is clamped, so every frame from the entrance on is identical.
+    - **The six scenes**, `src/kit/scenes/{Hook,Question,ConceptCard,DefinitionQuote,Summary,EndCard}.tsx`. Each is a component of `{content, image, timing, theme}` with an `AbsoluteFill` root. What each draws:
+      - **`Hook`:** title (title size, bold) and subtitle (heading size, `dim`).
+      - **`Question`:** the question (title size, bold), with an accent mark that is not text.
+      - **`ConceptCard`:**
+        - kicker (caption size, accent);
+        - title (heading size, bold);
+        - 1–4 points (body size), each with a bullet;
+        - conclusion (body size) on an `accentSoft` band.
+      - **`DefinitionQuote`:**
+        - term (heading size, bold, accent);
+        - text (body size);
+        - source (caption size, `faint`), after an unmarked dash.
+      - **`Summary`:** 1–4 points (body size), each after an unmarked number badge.
+      - **`EndCard`:** title (title size, bold) and subtitle (heading size, `dim`).
+
+      **Rules for every scene:**
+      - colours come from `theme.brand`;
+      - sizes come from `theme.type.sizes`, weights from `theme.type.weights`, spacing from `theme.spacing`, and springs from `theme.motion.springs`, never imported directly from Onda;
+      - an absent optional field leaves no empty box;
+      - when `image` is non-null, the text sits in `IMAGE_BOX.text` and `ImagePanel` fills `IMAGE_BOX.panel`, otherwise the text sits in `TEXT_BOX`;
+      - `timing` is accepted and unused, since nothing follows the narration;
+      - everything visual beyond these rules is the implementer's choice, and the gallery is where it is judged.
+
+    - **`bin/scene-timing.mjs`.** Only the comment above the two tables changes: the values for the six kinds are now their components' own. The values do not change.
+    - **`src/kit/gallery/catalog.ts`.** One candidate per kind.
+      - Each candidate's `id` equals its kind, and its `source` is the scene file's path.
+      - `minFrames` and `entranceFrames` are read from `MIN_SCENE_FRAMES[kind]` and `ENTRANCE_FRAMES[kind]`.
+
+      Each candidate has three samples:
+      - **`max`:**
+        - every content field present, at its `LIMITS.content` length in code points;
+        - Han text, each field ending in a full-width closing mark;
+        - every list at its maximum count;
+        - `image: null`;
+        - a 150-frame timing with narration ending at 130: one sentence of two blocks, at [0, 60) and [62, 130).
+      - **`image`:** `max`'s content with `image: "sample.png"`, on the same timing.
+      - **`min`:**
+        - required fields only, each of two Han characters;
+        - every list at its minimum count;
+        - `image: null`;
+        - `durationInFrames` equal to `minFrames`, with narration ending at `minFrames − 20` in one block from frame 0. The end card's `min` has no sentence and `narrationEndFrame` 0.
+
+    - **`src/kit/gallery/components.tsx`.** It maps each candidate id to its scene component.
+    - **`src/kit/render/registry.ts`.** It imports `components` from `../gallery/components.tsx`. Its object literal is exactly `custom: CustomScene` plus `'<kind>': components['<id>']` for each catalog candidate, in catalog order. It holds no copy and no wrapper.
+    - **`gallery/public/images/sample.png`.**
+      - A 1280×960 PNG of at most 300 KB.
+      - Generated with the image's ffmpeg from `lavfi` sources, with no external input. The command is recorded in a comment beside the samples in `catalog.ts`.
+      - Its centre is a flat patch of at least 64×64 px. In some channel, its colour differs by more than 6 from every `brand` slot of both themes.
+      - Its 4:3 shape shows how `contain` sits in the panel.
+    - **`bin/gallery.mjs`.** `publicDir` is the project's `public/` when that exists, otherwise `ROOT/gallery/public`. The `mkdir` of the temporary `public` goes away. Nothing else changes.
+
+  - **The approval gate.** The phases run in this order:
+    1. Implement.
+    2. Orchestrator verification.
+    3. Review seats.
+    4. Gallery run on the host.
+    5. User export.
+    6. Commit the export and its approvals entries.
+    7. Remove every candidate that is not approved.
+    8. One narrow verification round on the final head.
+    9. Merge.
+
+    The PR stays a draft until step 6, and `make pr-merge` runs only after step 8.
+    - **After the export, only these may change:**
+      - the export file, at `gallery/exports/<YYYY-MM-DD>-batch-4-2.json`, byte-identical to the user's download;
+      - `gallery/approvals.json`, with one entry per decision in the export, in catalog order;
+      - for each `redo` or `drop` candidate:
+        - its catalog entry, scene file, and `components.tsx` and `registry.ts` lines are removed;
+        - its test expectations go with it;
+        - the `scene-timing.mjs` comment no longer names it.
+
+      Anything else means a new gallery run and a new export.
+
+    - **The export's `theme`.** No entry is committed for it here, because the theme pick is 4.6. The committed export file keeps the field, and 4.6 may link it.
+    - **Every required kind dropped.** The user may drop `hook`, `summary` or `end-card`. The PR still merges what was approved, but no real script can pass until 4.6 redoes the dropped kind. The PR body says so.
+
+  - **Required evidence, red first:**
+    - **Pure tests**, run by CI:
+      - **`tests/scenes.test.mjs`** (new).
+        - **Catalog.**
+          - The catalog validates.
+          - Its kinds are exactly the six at implementation time, and exactly the approved ones after step 7.
+          - Each candidate's `id` equals its kind.
+          - Its values equal `MIN_SCENE_FRAMES[kind]` and `ENTRANCE_FRAMES[kind]`, which are 15 and 60, and 90 for the end card.
+        - **Samples.** They are `max`, `image` and `min`, with the properties above. Field lengths are computed against `LIMITS.content`.
+        - **Boxes.** `TEXT_BOX`, `IMAGE_BOX.text` and `IMAGE_BOX.panel` lie inside the safe area and end at or above `captionBand(themes.light).top`. The text column and the panel do not overlap.
+        - **Source scan.** It reads each file in `src/kit/scenes/`:
+          - in each of the six scene files, the root element is `AbsoluteFill`;
+          - in every file, none of these appears: `nowrap`, `toUpperCase`, `textTransform`, `writingMode`, `rotate`, `contents`, `inline-block`, `inline-flex`, `verticalAlign`, `overflowX`, `overflowY`, `clipPath`, `<svg`, `foreignObject`, `<span`, `fetch(`, `http:`, `https:`, `lineHeight`, `letterSpacing`;
+          - there is no string-literal `fontFamily`, no numeric literal `fontSize`, no hex colour, no `rgb(` or `hsl(`, and no `SPRING_SMOOTH`, `SPRING_SNAPPY` or other `SPRING_` identifier. `STAGGER` may be imported from `../onda/motion.ts`;
+          - every `data-kit-text` sits in `layout.tsx`'s `Lines`.
+      - **`tests/registry-approvals.test.mjs`** (new). It is red until step 6.
+        - It reads the text of `registry.ts`, because Node cannot import `.tsx`. The file imports `components` from `../gallery/components.tsx`, and its object literal is exactly `custom: CustomScene` plus `'<kind>': components['<id>']` for each catalog candidate, in catalog order.
+        - `loadApprovals(<template root>)` gives `approve` for every catalog candidate.
+      - `tests/scene-timing.test.mjs` and every other pure test pass unchanged.
+    - **Browser tests**, `tests/render/scenes.test.mjs`, image only, run with `--test-concurrency=1` beside the others.
+      - **Probe.** One `probe()` call over every catalog sample in both themes, through the gallery entry's `KitProbe`, with `publicDir` set to `gallery/public`. The results must show:
+        - no violations;
+        - every text record's glyph boxes end at or above `captionBand().top`;
+        - every marked text's glyph boxes lie inside its sample's `TEXT_BOX`, or inside `IMAGE_BOX.text` when `image` is set;
+        - at `entranceFrames`, the multiset of `marked[].input` per sample equals that sample's text field values, with absent optional fields absent.
+      - **Settled.** For every sample, in light, the stills at `entranceFrames` and at `durationInFrames − 1`, decoded with ffmpeg to `rgb24`, are byte-identical.
+      - **Image through the gallery.**
+        - The test runs `gallery({out})` on the tracked catalog, in a scratch copy of the template with no `public/`.
+        - In each candidate's `frames/<id>--image--light--entrance-end.png`, the pixel at `IMAGE_BOX.panel`'s centre equals the centre colour of `sample.png`, within ±6 per channel.
+        - In `frames/<id>--max--light--entrance-end.png`, the same position does not.
+        - The run also checks the gallery output: 38 clips, 114 key frames, and `violations: []` on every item.
+      - **The tracked kit renders a real script.** Two tests change from "no component for the hook" to a reading of the tracked registry:
+        - **`tests/render/check.test.mjs` test 4** runs the passing script on the tracked registry. When every non-custom kind of that script is registered, the check passes all nine stages. Otherwise it fails with `no component for kind "<first missing kind in playback order>"`.
+        - **`tests/render/explainer.test.mjs`'s `kitExplainer` case** follows the same rule. With every non-custom kind registered, the real kit entry's `Explainer` selects 481 frames. Otherwise it rejects with the first missing kind.
+
+          3.8's `Orbit` provides the custom scene, as in the other tests.
+
+      - Every other render test passes unchanged.
+
+    - **Mutations**, each red, then reverted:
+
+      | Mutation                                                                                  | Test that goes red         |
+      | ----------------------------------------------------------------------------------------- | -------------------------- |
+      | `whiteSpace: 'nowrap'` in one scene                                                       | source scan                |
+      | in the `image` sample, one `ConceptCard` point's `Lines` starts at `IMAGE_BOX.panel.left` | marked text inside its box |
+      | `Hook` drops `subtitle`                                                                   | marked fields              |
+      | `ConceptCard` ignores `image`                                                             | image through the gallery  |
+      | a looping opacity after the entrance in `Summary`                                         | settled                    |
+      | `Hook`'s entrance runs 10 frames past `ENTRANCE_FRAMES.hook`                              | settled                    |
+      | `registry.ts` wraps the hook component                                                    | registry text              |
+      | the `publicDir` fallback reverted                                                         | image through the gallery  |
+      | one `approve` entry removed (after step 6)                                                | approval gate              |
+
+    - **In the image (implementer, Mac).** Run the production workspace image `3d0ceae2…`, with 3.7's flags and setup, on `node --test --test-concurrency=1 "tests/render/*.test.mjs"`. Every render test passes. Record the times.
+    - **On 210.77.77.27 (orchestrator, after review).** Follow 4.1's host steps 1–3 and 7 at the PR head. Step 4 runs on the tracked catalog, with no fixture copied in, as `node bin/gallery.mjs --out /tmp/proj/gallery-out`.
+      - **The output:**
+        - 38 clips: the theme sample plus 6 candidates × 3 samples, each in 2 themes;
+        - 114 key frames;
+        - `violations: []` on every `gallery.json` item.
+
+        Record the time and the sha256 of `gallery.json`.
+
+      - **Handover.** Copy the page directory to the Mac and give the user the absolute path of its `index.html`. The orchestrator never makes a decision or clicks export. It only checks that `index.html` loads its 38 clips from a `file://` URL in a headless browser with no console error.
+
+    - **After step 6:**
+      - the committed export's `page` equals the recorded sha256 of the host run's `gallery.json`, and the PR states both;
+      - `loadApprovals` accepts the tree;
+      - `tests/registry-approvals.test.mjs` and every other pure test pass;
+      - `git diff <gallery head>..<final head>` touches only the paths allowed above;
+      - if a candidate was removed, `tests/render/scenes.test.mjs`, `tests/render/check.test.mjs` and `tests/render/explainer.test.mjs` run again in the image.
+    - **Green:**
+      - Under Node 22.23.2, after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root. Before step 6 the approval gate is the one exception.
+      - The PR's `template-tests` is green at the final head.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+      - The full OCU unit command is not required, because no file outside `remotion-template/` changes.
+
+  - **Must preserve.** Every existing file, with these exceptions:
+    - **Changed as above:**
+      - `bin/scene-timing.mjs`, the comment only;
+      - `bin/gallery.mjs`;
+      - `src/kit/gallery/catalog.ts` and `src/kit/gallery/components.tsx`;
+      - `src/kit/render/registry.ts`;
+      - `gallery/approvals.json`;
+      - `tests/render/check.test.mjs` test 4, and `tests/render/explainer.test.mjs`'s `kitExplainer` case.
+    - **New files:**
+      - `src/kit/scenes/**`;
+      - `gallery/public/images/sample.png`;
+      - `gallery/exports/<export>.json`;
+      - `tests/scenes.test.mjs`, `tests/registry-approvals.test.mjs` and `tests/render/scenes.test.mjs`.
+    - **Byte-identical**, explicitly:
+      - `bin/probe.mjs` and `src/kit/probe/**`;
+      - `src/kit/text.ts` and `src/kit/theme.ts`;
+      - `src/kit/render/{Explainer,KitFrame,SceneExit,Captions,CustomScene}.tsx`;
+      - `bin/script-schema.mjs` and `script.schema.json`;
+      - `NOTICE` and `THIRD-PARTY-LICENSES.md`;
+      - `package.json` and the lockfile.
+
+    No dependency changes.
+
+  - **Non-goals:**
+    - the other batches (4.3, 4.4);
+    - the theme pick, kind removal and the equality test (4.6);
+    - the skill text (7.2);
+    - probe changes;
+    - entrances longer than 15 frames;
+    - per-scene transitions;
+    - reveals that follow the narration.
+
 - [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
