@@ -3520,7 +3520,7 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
     - enlarging the library or revisiting the exclusions;
     - re-enabling `build.yml`.
 
-- [ ] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
+- [x] 6.5 Add ducking, looping, the track-length rule and the unknown-id rule to the renderer and `kit check`, reading the manifest from `/opt/video-music/` and, in tests, from a fixture library of short normalized tracks. Verify with fixture renders and `node --test`:
   - narrated windows sit 15 ± 3 dB below the narration, with ramps of 0.5 ± 0.1 s;
   - music `none` gives narration only;
   - a short non-loop track fails the check, naming both lengths;
@@ -3722,6 +3722,86 @@ Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeli
     - per-mood selection or automatic track choice;
     - music in the probe or the contact sheet;
     - changes to the library, its manifest format or its image step.
+
+  - Amended after OCU #257 (2026-11-20, merged `3cf704a`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - `musicGainDb` returns `20·log10` of the gain, fades included, and `-Infinity` where a fade factor is 0.
+      - The fade-out is `(N−1−t)/(2R−1)`.
+      - The manifest-shape reasons read `version is <v>, expected 1`, `tracks[<i>].<field> is <value>, not …`, `tracks is not a list` and `the manifest is not a JSON object`. A missing value shows as `absent`.
+      - The 300-code-point cut comes after escaping, with no ellipsis.
+      - The track length shown is `floor(duration_seconds × 10 + 1e-9)` tenths.
+      - `calculateMetadata` checks `music` before `validateScript`.
+      - A track read error that carries an error code gives the pair `null`.
+    - **Process.** The implementer worked in a linked worktree. The orchestrator rebased the branch onto `23ef5b6`, which includes #872, and removed the worktree.
+    - **Deferred from review** to (#883): the stem-partial sweep, a decode timeout and orphan kill, two test gaps, the duplicated WAV header and tenths helpers, and the stale `contact-sheet.mjs` stage comment.
+  - **Follow-up #883** (2026-11-20; the review notes deferred above).
+    - Triage: hardening and debt, one slice. Fixture level compact.
+    - **Risk packs:**
+      - **File IO**, selected. The music step deletes stale partials in `public/`.
+      - **Subprocess**, selected. The decode gets a timeout and an exit-time kill.
+      - **Resource limits**, selected. A hung decode no longer runs forever.
+      - **Legacy compatibility**, selected.
+        - `narration.wav` and every stem stay byte-identical.
+        - `contact-sheet.mjs` changes only in a comment.
+        - `timeline.mjs` changes only by importing the shared helpers; `music.mjs` changes only by importing them and by Item 2.
+      - Not selected: Schema, CLI, Concurrency, Documentation.
+    - **Shape.**
+      - **Item 1, sweep.** Before `buildStem`, `musicStep` removes every entry of `public/` whose name matches `^\.music\.wav\.[0-9a-f]{12}\.partial$` and that `lstat` shows to be a regular file.
+        - A symlink, a directory or any other name is left alone.
+        - A removal error fails the step with `music: <message>`.
+      - **Item 2, timeout and kill.** `buildStem` takes `timeoutMs = 120000`, which tests inject.
+        - **On timeout,** `decode` kills its ffmpeg child with SIGKILL and rejects with `ffmpeg did not finish within <timeoutMs / 1000> s`. The worker reports this as `music: ffmpeg did not finish within 120 s`.
+        - **While a child is alive,** `decode` holds a `process.on("exit")` listener that kills it with SIGKILL. The stop handler's `process.exit(143)` therefore takes the ffmpeg child with it. When the child closes, the timer is cleared and the listener is removed. A timed-out decode still rejects with the timeout reason, never `ffmpeg exited with SIGKILL`.
+        - **Accepted window.** A SIGKILL of the worker still leaves a running ffmpeg until its next write hits the closed pipe. A loop WAV with no data bytes never writes, so it would spin on; 6.3's build re-measure keeps such a track out of the library.
+      - **Item 3, tests.**
+        - `tests/project-hash.test.mjs` gains a track file with mode `000`. It gives a `null` music pair. The test is skipped when `process.getuid() === 0`.
+        - The 5400-frame stem test in `tests/music.test.mjs` also asserts that some sample in `[N − 3R, N − 2R)` is nonzero.
+      - **Item 4, shared helpers.** New `bin/audio.mjs` exports:
+        - `wavHeader(bytes, channels)`: a 44-byte header for 48 kHz 16-bit PCM;
+        - `tenthsText(tenths)`: `<s>.<d>`.
+
+        `timeline.mjs` (`wav` and `seconds`) and `music.mjs` (`wavHeader` and `tenths`) import them and drop their copies.
+
+      - **Item 5, comment.** `bin/contact-sheet.mjs:4` says "stage 8".
+
+    - **Required evidence, red first:**
+      - **Pure** (CI):
+        - **Sweep.** `tests/render-job.test.mjs` plants two stale partials, one `.music.wav.notes.partial` file and one symlink matching the pattern that points to a regular file, then runs a music project with the stub render. The stub records a listing of `public/` when it is called: the two partials are already gone, and the other two entries remain. A sweep through `stat` instead of `lstat` would remove the symlink and fail this test.
+        - **Timeout.** `tests/music.test.mjs` runs `buildStem` on a track whose file is a FIFO with no writer, so ffmpeg blocks on open, with `timeoutMs` 2000. It must reject with `ffmpeg did not finish within 2 s` within 10 s. Then, polled for up to 5 s, the scan finds no ffmpeg line. **The scan** is `ps -eo args` without `COLUMNS`, as `job.mjs`'s `psField` runs it. It counts only lines whose first word is `ffmpeg` and that contain the FIFO path. **Cleanup.** The test's `finally` runs before the directory is removed. It opens the FIFO with `O_WRONLY | O_NONBLOCK`, ignoring `ENXIO`, and closes it, so an ffmpeg still blocked on it reads EOF and exits.
+        - **Stop.** `tests/music.test.mjs` spawns a node child that installs `handleStopSignals()` and runs `buildStem` on the same kind of FIFO track. It runs with the default `timeoutMs`, and sends SIGTERM to that node pid once the scan sees ffmpeg. The test first asserts that the scan saw ffmpeg, as a positive control. The node child exits 143, and within 5 s of that exit the scan finds no ffmpeg line. Cleanup is as in the timeout test.
+        - **Helpers.** `tests/audio.test.mjs` (new) pins `wavHeader(8, 1)` and `wavHeader(8, 2)` to hand-written byte arrays, and `tenthsText` at 0, 9, 10 and 1801.
+        - **Unchanged output.** The existing `timeline.test.mjs` and `music.test.mjs` cases stay green. No import pin changes: `job.test.mjs` pins neither `timeline.mjs`'s nor `music.mjs`'s imports, and `render.mjs`'s imports stay the same, so `job.test.mjs` stays byte-identical. The whole template suite, `node --test "tests/*.test.mjs"`, passes (CI).
+        - **Item 3 tests.** Both new tests go red under their mutations.
+      - **Mutations**, each red, then reverted:
+
+        | Mutation                                             | Test that goes red     |
+        | ---------------------------------------------------- | ---------------------- |
+        | no sweep                                             | sweep                  |
+        | a sweep that also removes `.music.wav.notes.partial` | sweep                  |
+        | no timeout                                           | timeout                |
+        | the timeout rejects without killing ffmpeg           | timeout                |
+        | no exit listener                                     | stop                   |
+        | `trackHash` without the error-code branch            | mode-000 test          |
+        | the stem decoded without `-stream_loop`              | nonzero-tail assertion |
+
+      - **In the image:** pure `tests/music.test.mjs` and `tests/render-job.test.mjs` pass on ffmpeg 6.1.1, and `tests/render/music.test.mjs` still passes 5/5 with its measured levels.
+      - **Byte identity:**
+        - the same project's `narration.wav` from `kit timeline` has the same SHA-256 at `origin/main` and at the head;
+        - the stem from the three-loop pure stem test is unchanged.
+      - **Guards:** `tests/test_remotion_image.py` and `tests/test-project-structure.sh`. The full OCU unit command is not required.
+
+    - **Must preserve.** Every file stays as it is, except:
+      - `bin/music.mjs`, `bin/render.mjs`, `bin/timeline.mjs`, `bin/contact-sheet.mjs` (comment only) and the new `bin/audio.mjs`;
+      - `tests/music.test.mjs`, `tests/project-hash.test.mjs`, `tests/render-job.test.mjs` and the new `tests/audio.test.mjs`.
+
+      This widens the issue's in-scope list by `tests/render-job.test.mjs`, `bin/audio.mjs` and `tests/audio.test.mjs`.
+
+      There are no dependency or lockfile changes.
+
+    - **Non-goals:**
+      - a timeout for `timeline.mjs`'s own ffmpeg calls;
+      - process-group kills;
+      - sweeping `timeline.mjs`'s narration partial.
 
 Suggested fixture level: expanded - it changes the workspace `Dockerfile`, adds a build-time download, and adds `manifest.json`, a file format read by `kit check` and the renderer.
 Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. It ships nothing into the image.
