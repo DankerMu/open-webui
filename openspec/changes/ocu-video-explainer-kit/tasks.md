@@ -4103,7 +4103,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
         - evidence that Remotion's temporary files land under `.kit/render/tmp` while a render runs.
       - **Out of scope, reported only:** after a failed spawn, `job.json` keeps `pid: null`, so `status` shows `died without an exit (pid null)`.
 
-- [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
+- [x] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
   **Task 5.4 required evidence** (issue #840):
   - **Triage.** Measurement, fixture level expanded.
@@ -4237,6 +4237,38 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
     - making the check or render faster ("beyond what the measurement shows is needed": a finding is reported, and a fix belongs in (#897) or later);
     - real speech timing (2.x baseline and 7.1);
     - a time or latency gate in CI. The `tests/render/` files do not run in CI.
+
+  - Amended after OCU #265 (2026-11-22, merged `c6712b7`, reviewed head `4f7f70a`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Tone samples** are `Math.round(TONE_SECONDS * 48000)`. A generates one tone and copies it to all 368 blocks.
+      - **B's gate** is "A's check passed", not "A passed". This is the only way the status-blocking mutation turns both A and B red on latency. Any other failure in A makes B fail naming A.
+      - **Status latency** is booked under the last stage the log showed before the call. The log has no bundle line, so probe bundling counts toward "stage 7 probe".
+      - **Helper signatures.** `render.test.mjs`'s `settled()` takes a directory parameter. `check.test.mjs`'s `startCheck` takes a job parameter, `passedOutput` a tiles parameter, and its `settled()` `onPoll` receives the current stage. Every default is unchanged.
+      - **Title and chapter lengths** (24 and 6) are not asserted.
+    - **Peaks on kernels without `memory.peak`.** The measurement host's kernel, 5.15, has no `memory.peak` (added in 5.19) and no `memory.swap.peak` (added in 6.5).
+      - When a peak file is absent, and only on ENOENT, the tests use the maximum of `memory.current` or `memory.swap.current`, sampled before the job, at every poll and after.
+      - The diagnostic names its source, and `os.release()` is recorded.
+      - Every other cgroup file stays fail-loud. An ungated stub test proves the fallback: it was red with the fallback removed.
+      - A sampled peak is a lower bound.
+    - **`.kit/render/tmp`** is the union of entry names over every poll, each with its first-seen stage. The union must be non-empty.
+    - **Gate record.**
+      - **Red first.**
+        - At `597e04e`, the pure test fails at load (no `TONE_SECONDS` export).
+        - At `895bd6a`, both stub read-order tests fail in the image.
+        - `b783f90` turns them green.
+      - **Pure tests at `4f7f70a`:** 514 of 514, from both roots under Node 22.23.2.
+      - **Mac image, emulated, not a measurement:**
+        - full glob at `b8c3dc5`: 87 tests, 85 pass and 2 skip, in 4838 s;
+        - `KIT_TIMING=1` at `4f7f70a`: 4 of 4.
+      - **Mutations.** All 12 rows went red as listed.
+      - **Review.** Round 1, with three seats, found no P0/P1 in the diff. The orchestrator confirmed the missing `memory.peak` on the host, which fix pass 1 addressed. Round 2 was clean.
+    - **Host measurement.**
+      - **Setup.** The image was built from a clean clone at `b8c3dc5`; `bin/**` and `src/**` are identical to `4f7f70a`. The host runs kernel 5.15.0-198 x86_64 on cgroup v2 (`cgroup2fs`). Each run used a fresh container with `--cpus=2 --memory=4g --memory-swap=4g --network none` and `KIT_TIMING=1`.
+      - **Check:** 40.6 s and 40.3 s, the slower being 40.6 s. Status answered within 512 ms at most, and the sampled peak was 1.58 GB.
+      - **Render:** 527.6 s. Status answered within 781 ms at most, and the sampled peak was 2.57 GB.
+      - **Swap, OOM and logs:** no swap and no OOM. Neither log has a retry or handle line.
+      - **Output:** `nb_frames` 5341, H.264 yuv420p plus AAC. `.kit/render/tmp` held the Chrome profile plus Remotion's `react-motion-render*` and `remotion-v4.0.537-assets*` directories.
+      - **Idle stop.** Against the 600 s default, the check uses 7% and the render 88%, about 72 s of margin. The times are posted on (#814) and (#897).
 
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.
 Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeline and probe output, and is testable without a final render.
