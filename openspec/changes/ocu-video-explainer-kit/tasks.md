@@ -2652,7 +2652,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **`fieldValues` in `tests/render/scenes.test.mjs` skips non-string fields.** 4.4's numbers and chart data are not strings, so 4.4's fixture says how the test reaches them.
       - **The header comment of `layout.tsx` still says "the six scene components of task 4.2".** The prefix rule forbids editing it; 4.6 or a later task that may rewrite the file corrects it.
 
-- [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
+- [x] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 
   **Task 4.4 required evidence** (issue #834):
   - **Triage.** Feature, fixture level expanded. The task adds the third batch of scene components and registers them: key number, chart (bar and line) and image with callouts. The kinds are `key-number`, `chart` and `image-callouts`. It runs the approval gate a third time. 4.2's block and its amendment (OCU #261), and 4.3's block and its amendment (OCU #262), bind wherever this block does not differ.
@@ -2877,6 +2877,36 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - entrances longer than 15 frames, and reveals that follow the narration;
     - the `wrapLines` and ConceptCard overflow follow-ups (5.1);
     - the stale header comment of `layout.tsx` (4.3 amendment).
+
+  - Amended after OCU #263 (2026-11-22, merged `5f702f2`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Zoom constants.** `S_MAX` is 1.5 and the inset `m` is 40 px, both exported by `src/kit/scenes/callout-zoom.ts`; the marker radius is 32 px. The `image` sample's callouts are (0.2, 0.25), (0.8, 0.3) and (0.3, 0.9): S = 1.5, and every point lies 176.6 px or more from F.
+      - **Image size.** `ImageCallouts` measures the image with `useDelayRender` and `new Image()`, releases the handle in a layout effect once the size is set and again on unmount, and calls `cancelRender` on a load error. It throws when `image` is `null`.
+      - **Count-up.** The number shares the beat-0 spring with its fade. An intermediate value is truncated toward zero at the final value's decimals and then passed to `formatCount`.
+      - **Layouts.**
+        - `KeyNumber`: number, unit, rule and label on one surface card, the unit under the number; the card is 1152 px wide, 1024 px beside an image.
+        - `Chart`: title and unit on one row with content-width boxes. Bars use the accent for the largest positive value and `dim` for the rest, over a `surface2` track, with the zero line at `neg/(pos+neg)`. The line has dots of radius 12; the plot is 384 px high, 224 px beside an image.
+        - `ImageCallouts`: the panel only fades in; markers are accent discs with a background-colour ring; the legend repeats the disc with a `body` label.
+      - **Chart samples.** `max` is [87654321, -99999999, 45000000, 0, -23000000, 61234567, 123456, 30000000]; `min` is 36 and 64. "Another negative" is read as one besides -99999999.
+      - **Key-number samples.** `max` -99999999, `min` 9999, `wan` 12345, `yi` 123456789.
+    - **Deviations from the bullets.**
+      - **The line chart's `<svg>` also draws a soft area fill** under the line (`Chart.tsx:192`, a `<path>` with no text). The bullets say "the line, its dots, and nothing else". The fill was in the gallery the user approved, so it stays.
+      - **The line chart without an image puts its values on one row above the plot**, each joined to its dot by a thin guide. Each value box (maxWidth 8) is centred on its column and may be wider than the column at 5 or more points; the glyphs fit because formatted numbers are narrower than `text.ts`'s 1-em model.
+      - **The new SVG-element bans apply to every scene file**, not only `Chart.tsx`.
+    - **Changes to existing tests beyond the exhaustive list.**
+      - `tests/scenes.test.mjs`: "image is max with sample.png" exempts `image-callouts` (line 237), as the image rule requires; a new test checks that `Chart.tsx`'s header names Onda's `line-chart/LineChart.tsx` (line 587); some titles changed with their tests ("thirteen", the choreography test, "image-callouts aside", "batch 4.4's listed extras").
+      - `tests/scenes.test.mjs:111` defines `MAX_TIMED` and never uses it; it stays until (#893).
+    - **Gate record.**
+      - **Gallery head.** `21eb85c`. The host run took 1398 s and produced 90 clips and 270 key frames, all with empty violations. The `gallery.json` sha256 is `3f1ecddfa8220b19a821778aed1871c837b6d3557b36304e8e8d3bc7878d827e`. All 180 key frames of the ten earlier candidates match 4.3's run at `5940096` exactly.
+      - **The user's export.** Reviewer `Danker`, 2026-11-22: all thirteen `approve`, theme `light`.
+        - It is committed byte-identical as `gallery/exports/2026-11-22-batch-4-4.json` (sha256 `13bf4aba…`).
+        - `approvals.json` keeps its sixteen earlier entries and gains thirteen `approve` entries in catalog order. No theme entry; 4.6 links the export's `light`.
+        - Nothing was removed in step 7, so the render tests were not re-run.
+      - **Tests.** Pure, at `537c7b8` (the merged tree), from both roots under Node 22.23.2: 508 of 508. In the image at `0c61686` (one test title from `21eb85c`): 83 of 83 in 5163 s. All 16 mutations in the table went red, the last one after the export.
+    - **Deferred, with their owners:**
+      - **Numbers longer than 8 code points can leave their box with no `kit check` failure**, and the count-up can wrap during the entrance (`-10000.123` shows `-9990.122`). Owned by (#893), with 7.2's rounding guidance.
+      - **Line-chart labels at 8 points** can wrap to three lines (`甲ABCD乙`, 4.8 px to spare), and `，（（（（甲` throws at maxWidth 4, the existing opening-marks throw class. Recorded in (#893).
+      - **The header comment of `KeyNumber.tsx:13-14`** says the count "never reflows the scene"; that holds for width only. (#893) corrects it with item 2.
 
 - [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
 
