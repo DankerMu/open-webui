@@ -4853,6 +4853,81 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
 ## 7. Image end-to-end test and skill routing (OCU)
 
 - [ ] 7.1 Extend `tests/test-docker-image.sh` with an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `status` → `render` inside the built image, on a fixture script at the timeline's 60-second minimum. Verify that it passes in CI's sandbox-image smoke step on the PR's image.
+
+  **Task 7.1 required evidence** (issue #846):
+  - **Fixture level:** compact. Risk packs:
+    - **Tests / CI** — selected. One section is added to `tests/test-docker-image.sh`.
+    - Every other pack is not selected: no product file changes.
+  - **The CI step cannot be the acceptance run.**
+    - `tests/test-docker-image.sh` runs in `.github/workflows/build.yml` (`Smoke test — image packages and CLI tools`). That workflow is disabled on the fork and stays disabled.
+    - The replacement is the same command on the same kind of image: `./tests/test-docker-image.sh <image>`, where `<image>` is built with `docker build --platform linux/amd64` from a clean `--no-local` clone at the reviewed head. Every section must pass, the new one included.
+    - The run is on the orchestrator's Mac under amd64 emulation, not on the shared evaluation host, because other sections of the script start containers with network access.
+  - **Shape.** A new section, `[17/17] Offline kit path`, is placed after section 16 (music library) and before `test_browser_cli_config`. The existing `[N/16]` labels become `[N/17]`; nothing else in sections 1–16 changes.
+    - **Container.** One container through `run_in_container_verbose` (`--network=none`, `--user=assistant`, `--entrypoint=timeout`).
+      - The helper gains an optional second argument, the timeout, defaulting to today's `240s`.
+      - The new section passes `1500s`. No other caller changes.
+    - **Protocol.** The container prints one `kitN=OK: <detail>` or `kitN=FAIL: <reason>` line per step. The host parses them as section 16 parses its `musicN=` lines: a missing line fails with `no checker output`.
+      - After the first failed step, the container prints nothing more, so later steps fail with `no checker output`.
+      - The container's exit status is one more pass or fail.
+    - **Steps.** Every command after `new` runs as `node bin/kit.mjs <cmd>` in the project, as `bin/kit.mjs` documents:
+      1. **`new`**: `node /opt/remotion-template/bin/kit.mjs new kit-smoke`, the form `COMMANDS.new.usage` and the spec give, exits 0 and prints `/home/assistant/videos/kit-smoke`. Every later command runs in that directory.
+      2. **Refuse:** the same `new` again exits 1, and the project's `script.json` is unchanged (same sha256).
+      3. **Music:** the project's `script.json` gets `music` set to the `id` of the first `loop: true` entry of `/opt/video-music/manifest.json`, read in the container. The detail names the id. Fails if no loop entry exists.
+      4. **`status` before any job** exits 4 with `kit status: no check has run`.
+      5. **Fixture audio.** For every JSON line `kit voice` prints, write `/mnt/user-data/files/<filename>` as a sine tone:
+         - `ffmpeg -f lavfi -i sine=frequency=440:sample_rate=48000:duration=<TONE_SECONDS> -ac 1 -c:a pcm_s16le`;
+         - the detail is the block count.
+      6. **`voice-import`** exits 0 with `imported N of N`, where N is step 5's count.
+      7. **`timeline`** exits 0 with its summary line. `timeline.json`'s `totalFrames` is in [1800, 1830], and the detail prints it.
+      8. **`check`** exits 0 with `started`.
+         - `status` is polled every 2 s while it exits 3, then must exit 0 with `kit status: check passed`.
+         - The contact sheet it names exists and is non-empty, and there are four `tile` lines.
+      9. **`render`** exits 0 with `started`.
+         - `status` is polled the same way and must exit 0 with `kit status: render succeeded: /mnt/user-data/files/kit-smoke.mp4`.
+         - `.kit/render/log` contains a `render: music` line.
+      10. **Published file:**
+          - `ffprobe` shows one h264 yuv420p video stream with `nb_frames` equal to `totalFrames`, and one aac audio stream;
+          - `find /mnt/user-data/files -name '*.partial'` prints nothing. The publish temp file is the dotfile `.kit-smoke.mp4.<token>.partial`, which a bare `*.partial` glob would never match;
+          - **music is in the mix.** The audio's `max_volume` (`ffmpeg -af volumedetect`) over the lead-in, before the hook's first block, is above a threshold.
+            - The implementer chooses the window inside the 40-frame lead-in and the threshold from a measured pair: this run, and the same project rendered with `music: "none"`.
+            - The implementer records both values. The music-off value must be below the threshold.
+    - Each step's detail ends with its wall time in seconds, so the run records where the time goes.
+  - **`TONE_SECONDS`** is a constant in the new section: the shortest whole millisecond for which `kit timeline` accepts the tracked `script.json` (`totalFrames` ≥ 1800).
+    - The implementer finds it by running `kit timeline` in the image, and records the value and the frames at that value and at 1 ms less (refused with `outside 60–180 s`).
+    - Two-block sentences cross a frame boundary on the same millisecond, so the total moves in steps of about 22 frames. If the result exceeds 1830 frames, widen the upper bound to the observed value plus 10 and record why.
+    - The script is the tracked `remotion-template/script.json` that `kit new` copies; no other fixture script is added.
+    - This is the first run of `kit check` and `kit render` on that script with the real components. If either fails because of the script or a component, stop and report. Do not edit the script or the components.
+  - **Required evidence, red first:**
+    1. **Red.** A new test file has no earlier commit to be red at, so the red cases are mutations. Each is run once on a copy of the script, against the same image, then reverted:
+
+       | Mutation                                                                             | Expected red                                         |
+       | ------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+       | step 6 skipped                                                                       | `kit7` FAIL naming a missing block                   |
+       | `TONE_SECONDS` 20% shorter                                                           | `kit7` FAIL with `outside 60–180 s`                  |
+       | music id `no-such-track`                                                             | `kit8` FAIL with the check's unknown-track reason    |
+       | step 8 skipped                                                                       | `kit9` FAIL (render refuses without a passing check) |
+       | step 2 expects exit 0                                                                | `kit2` FAIL                                          |
+       | the expected frame count off by one in step 10                                       | `kit10` FAIL                                         |
+       | a `.kit-smoke.mp4.<32 hex>.partial` planted in `/mnt/user-data/files` before step 10 | `kit10` FAIL naming it                               |
+       | step 3 skipped (`music` stays `none`)                                                | `kit9` FAIL (no `render: music` line)                |
+
+    2. **Green.** The full `./tests/test-docker-image.sh <image>` on the clean-clone image at the head: every section passes, with the new section's ten detail lines and its total time recorded.
+    3. **Static.**
+       - `bash -n tests/test-docker-image.sh`;
+       - `shellcheck` on it, if installed, with no new warnings against `origin/main`;
+       - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+
+  - **Must preserve.**
+    - Only `tests/test-docker-image.sh` changes.
+    - Sections 1–16 keep their commands and pass/fail lines, apart from the `[N/17]` labels and the helper's optional argument.
+    - `run_in_container_verbose`'s existing callers keep `240s`.
+  - **Non-goals:**
+    - skill text (7.2);
+    - re-enabling `build.yml`;
+    - resource limits in the image test (5.4 measured them);
+    - real speech (7.1 uses tones; real voices are 8.1).
+  - **PR record.** The issue's acceptance box ("CI's sandbox-image smoke step passes") is met by the replacement run above. The PR body says so, and names the image, its build, and the full script's result.
+
 - [ ] 7.2 On an integration branch, not merged before acceptance, rewrite `skills/public/remotion/SKILL.md` as a router of at most 80 lines:
   - explainers follow the kit steps in order, including image import and "fix and re-check on any no";
   - other types keep the existing workflow;
