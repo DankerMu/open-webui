@@ -2653,6 +2653,231 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **The header comment of `layout.tsx` still says "the six scene components of task 4.2".** The prefix rule forbids editing it; 4.6 or a later task that may rewrite the file corrects it.
 
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
+
+  **Task 4.4 required evidence** (issue #834):
+  - **Triage.** Feature, fixture level expanded. The task adds the third batch of scene components and registers them: key number, chart (bar and line) and image with callouts. The kinds are `key-number`, `chart` and `image-callouts`. It runs the approval gate a third time. 4.2's block and its amendment (OCU #261), and 4.3's block and its amendment (OCU #262), bind wherever this block does not differ.
+  - **Governing invariants.** 4.3's invariants apply, re-based to OCU `main` at `49d562f`:
+    - **Approved code stays approved.**
+      - These stay byte-identical: the ten scene files of 4.2 and 4.3, `boxes.ts`, `bin/gallery.mjs`, `bin/gallery-page.mjs`, `src/kit/text.ts` and `gallery/public/**`.
+      - `layout.tsx` may only gain code at its end. Its text at `49d562f` (9968 bytes) is a byte-exact prefix of the new file.
+    - **The user sees everything that ships.** The gallery renders all thirteen candidates, so the export holds thirteen decisions. The newest decision binds (4.1).
+    - **One candidate per kind.** Bar and line are two `type` values of one kind, `chart`. There is one candidate, `chart`, so ids still equal kinds, and the spec's "approvals file marks the chart component `drop`" scenario holds as written. Its samples show both types, and the handover tells the user that one decision covers both.
+    - **No silent field, numbers included.** Every content field the user can write is drawn, except `chart.type`, which picks the drawing, and `image-callouts`' `x` and `y`, which place the markers. A number is drawn as `formatCount(value)` from `src/kit/text.ts`, the one home of 万/亿 formatting.
+  - **Deviations, settled here:**
+    - **Sources.** All three are written on the vendored Onda `lib/` and `layout.tsx`, and none is copied from a registry component. Each follows one Onda registry component at `3c81405` for choreography, with 4.2's three-line header (line 3 `// Source: degueba/onda 3c814051269597b31fee1603bef7ccfb93d091b6 registry/components/<dir>/<File>.tsx MIT`):
+      - `KeyNumber` follows `count-up/CountUp.tsx`;
+      - `Chart` follows `bar-chart/BarChart.tsx`. Its line drawing also follows `line-chart/LineChart.tsx`, which the header names in prose after line 3. The notice test reads only line 3, and both files are under the same Onda notice;
+      - `ImageCallouts` follows `ken-burns/KenBurns.tsx`. The callouts are written for this kit.
+
+      `NOTICE` and `THIRD-PARTY-LICENSES.md` do not change. Remocn, remotion-bits and RenderComp are not used, and the remotion-bits notice passes on to the first task that ports from it.
+
+    - **SVG in `Chart.tsx` only, for geometry.** A sloped line needs `<svg>`, `rotate` or `clipPath`, and the source scan bans all three. This block lifts the `<svg` ban in `Chart.tsx` alone:
+      - the line, its dots, and nothing else, are drawn in one `<svg>` with `<path>` and `<circle>` children;
+      - every text, values and labels included, stays in HTML `Lines`, outside the `<svg>`;
+      - `<text`, `<tspan`, `<textPath`, `foreignObject`, `<clipPath`, `<mask`, `<image` and `<use` stay banned in `Chart.tsx`, and `<svg` stays banned in every other scene file.
+
+      So 3.7's follow-ups on nested `svg`/`foreignObject` and on SVG text do not arise: the probe gets no text record inside an `<svg>`. The browser test proves this (below), and does not assume it. Bars are plain blocks.
+
+    - **The zoom runs across the whole scene.** Design Decision 7 names "Ken Burns with callouts that track the zoom". `ImageCallouts` zooms its image linearly from scale 1 at frame 0 to its end scale on the scene's last frame, and every marker moves with the image. So this one scene does not settle within its entrance:
+      - Everything outside the image panel settles within the 15-frame entrance, as in every other scene: the legend, its numbers and its labels.
+      - The zoom is not a reveal. `REVEALS` stays `{}`, and `ENTRANCE_FRAMES` and `MIN_SCENE_FRAMES` keep 15 and 60, so no timeline moves.
+      - The settled test changes for this kind only (below), and a tracking test replaces what it proved.
+    - **The callout geometry is one pure module**, `src/kit/scenes/callout-zoom.ts` (erasable TypeScript, no `node:` import, no React). `ImageCallouts.tsx` and the browser test both import it. It defines, for the panel `IMAGE_BOX.panel`, an inset `m` that is at least the marker's radius, and the image's natural size `(w, h)`:
+      - **Picture box `R`.** The contain fit of `(w, h)` into the panel inset by `m`, centred.
+      - **Point.** Callout `i` sits at `P_i = (R.left + x_i · R.width, R.top + y_i · R.height)`.
+      - **Focus `F`.** The centre of the bounding box of all `P_i`.
+      - **End scale `S`.** The largest `s ≤ S_MAX` such that every `F + s · (P_i − F)` stays inside the panel inset by `m`, and at least 1. `S_MAX` is a module constant between 1.3 and 2. A single callout gives `F = P_1`, so its `S` is `S_MAX`. `max`'s three corner points give `S = 1`.
+      - **Scale at a frame.** `s(f) = 1 + (S − 1) · f / (timing.durationInFrames − 1)`, with `timing` from the scene's props. `S` depends on the callouts alone, not on the scene's length, so the pre-exit probe frame is the worst case at every length.
+      - **Drawing.** The image is drawn in `R`, scaled by `s(f)` about `F`, and clipped by the panel. Marker `i` is centred on `F + s(f) · (P_i − F)` at every frame. Markers are not inside the scaled or clipped element, so their text is never scaled and no mask applies to it.
+
+      The image's natural size does not reach scene props. The component measures it before its first frame, under `delayRender`, and draws nothing that depends on it until then. The gallery's empty `violations` show the probe got settled frames, as for 3.7's `late-image` case.
+
+  - **Inherited items, disposed of:**
+    - **Roots, caption band and probe follow-ups** as in 4.3. The image panel and every marker lie inside the safe area and above the caption band. That holds by the geometry above, because the panel does.
+    - **万/亿 and the number guarantee.**
+      - `key-number.value` and every `chart.points[].value` are drawn as `formatCount(value)`. `formatCount` is unchanged.
+      - **What fits.** Each scene fits a formatted value of up to 8 code points in its layout, for example `-9999.9万`. `text.ts` gives an ASCII character one unit, and a number atom wider than its line is split by character, so a longer value wraps instead of throwing.
+      - **Residual risk beyond 8 code points.** A longer value, such as `0.1234567891`, wraps to more lines and can leave its box, even into the caption band, while staying inside the safe area. `kit check` does not catch that: the probe has no box or band rule (4.2). A schema limit on numbers is not added here. The skill text (7.2) tells the model to round to at most 8 formatted code points, and the amendment files the missing check as a follow-up issue.
+      - **During a count-up,** the drawn value at frame `f < 15` is `formatCount` of the interpolated value, cut to as many decimals as `value` has. From frame 15 on it is exactly `formatCount(value)`.
+    - **Chart values.**
+      - **Bar.** Bars start at a zero line. Let `pos` be the largest positive value, or 0, and `neg` the largest magnitude of a negative value, or 0. The zero line sits `neg / (pos + neg)` of the bar area from its start, and each bar is `|v| / (pos + neg)` of the area long, positive bars after the zero line and negative bars before it. When every value is 0, there are no bars, the zero line sits at the start, and the labels and values are still drawn.
+      - **Line.** The vertical scale runs from the smallest to the largest value. When all values are equal, the line is horizontal at mid-height.
+    - **Callout edge cases.** Coincident or nearby points give overlapping markers. The probe does not judge overlap, so this is a known limit, and the skill text (7.2) tells the model to space them.
+    - **Kinds, reveals and timing.**
+      - `BODY_KINDS` and the schema do not change.
+      - `REVEALS` stays `{}`.
+      - For the three kinds, `ENTRANCE_FRAMES` stays 15 and `MIN_SCENE_FRAMES` stays 60. Only the comments in `bin/scene-timing.mjs` change: every value is now its component's own.
+    - **`tests/gallery-approvals.test.mjs`.** Ids still equal kinds, so it holds unchanged.
+    - **Fixture scripts.** The check and explainer fixture scripts hold none of the three kinds, so their expected frames do not change. `tests/render/check.test.mjs` test 4 and the `kitExplainer` case still take the all-registered branch.
+  - **Risk packs.** As 4.3's, with these differences:
+    - **Legacy compatibility.** The 4.2 and 4.3 tests whose expectations name the batch grow to thirteen candidates, as listed under Required evidence.
+    - **Resource limits.** The host run renders 90 clips, about 1.45 times 4.3's 1000 s. It still uses `--cpus=2 --memory=4g`, and its time is recorded.
+  - **Shape** (OCU `remotion-template/`). New files carry the FSL header, use erasable TypeScript only, and import no `node:` built-in.
+    - **The three scenes**, `src/kit/scenes/{KeyNumber,Chart,ImageCallouts}.tsx`. Each is a component of `{content, image, timing, theme}` with an `AbsoluteFill` root, and follows 4.2's rules for every scene, except as this block says. What each draws:
+      - **`KeyNumber`:** the formatted value (bold, accent), its optional unit, and its label. The value may count up during the entrance.
+      - **`Chart`:** the title (bold), the optional unit, and per point its label and its formatted value. `bar` draws one bar per point, and `line` draws one line through the points, with a dot on each.
+      - **`ImageCallouts`:** the image in `IMAGE_BOX.panel` with one numbered marker per callout, and a legend in `IMAGE_BOX.text`. The legend has one row per callout: the same number, then the label. Marker and legend numbers are unmarked text, and the labels are marked.
+
+      **Sizes and layout.** Each field takes one of the sizes `title` 96, `heading` 64, `body` 48 or `caption` 36. Every marked text lies inside its box: `IMAGE_BOX.text` with an image, `TEXT_BOX` without. A `Lines` box is `(maxWidth + 2)` em wide and 1.4 em per line, and `maxWidth` is at least 2. Feasible layouts at the worst samples, as proof (the implementer may choose any other that passes):
+      - **`KeyNumber` without an image.** The value at `title`, maxWidth 8 (960 px). The unit at `heading` on the same row (maxWidth 4, 384 px), and the label at `body` below (maxWidth 12, 672 px).
+      - **`KeyNumber` beside an image.** The value at `heading` (640 px), the unit at `heading` below it, and the label at `body`.
+      - **Bar, without an image, as horizontal rows.** The title at `heading` (maxWidth 12, 896 px, 89.6 px tall), then 8 rows. Each row holds the label at `body` (maxWidth 6, 384 px), the bar, and the value at `body` (maxWidth 8, 480 px), which leaves the bar 816 px after two 24 px gaps. That makes 89.6 + 32 + 8 × 67.2 + 7 × 12 = 743.2 px, within 784.
+      - **Bar beside an image.** The same rows at `caption`: label 288 px, value 360 px, bar 328 px, and 8 × 50.4 px.
+      - **Line without an image.** Eight columns of 216 px. The labels at `caption`, maxWidth 4, two lines (100.8 px) under the plot, and the values at `caption`, maxWidth 4, at most two lines above their dots. The title at `heading` (89.6 px). That leaves the plot more than 400 px.
+      - **Line beside an image.** Eight columns of 128 px are too narrow for maxWidth 2, and staggered labels of 252 px need a span of at least 1134 px. So the plot carries no text. Under it, a table of 8 rows at `caption` holds each point's label (288 px) and value (360 px) in point order: 8 × 50.4 = 403.2 px. With the title row (89.6 px) and two 24 px gaps, the plot keeps 243 px.
+      - **The unit, in every chart layout,** sits on the title row as its own `Lines`. Without an image: title at `heading` (896 px) and unit at `heading` (maxWidth 4, 384 px), 1280 px plus a gap. Beside an image: both at `body`, 672 + 288 = 960 px plus a gap, within 1024. The title row is then 67.2 px tall, so the heights above hold.
+      - **Throwing widths.** The line labels at maxWidth 4 (without an image) newly reach `wrapLines`' "opening marks fill maxWidth" throw, for example `（（（（甲乙` at 4. These are schema-valid inputs, deferred to 5.1 with the inputs 4.2 recorded.
+      - **`ImageCallouts`.** Three legend rows at `body` (maxWidth 10, 576 px plus the number) in `IMAGE_BOX.text`.
+
+      Everything visual beyond these rules is the implementer's choice, and the gallery is where it is judged.
+
+    - **`src/kit/scenes/callout-zoom.ts`** as above, with its pure test `tests/callout-zoom.test.mjs`.
+    - **`src/kit/scenes/layout.tsx`.** Code is only appended at the end. The file at `49d562f` stays a byte-exact prefix.
+    - **`bin/scene-timing.mjs`.** Only the comments change.
+    - **`src/kit/gallery/catalog.ts`.** Three candidates are appended after 4.3's four, in this order: `key-number`, `chart`, `image-callouts`. Each has id equal to kind, its scene file as `source`, and its timing from `scene-timing.mjs`. The candidates of 4.2 and 4.3 and their samples do not change. Samples, in order, with 4.2's timings (`max` timing for `max`, `image`, `line-max` and `line-image`; `min` timing for the rest):
+      - **`key-number`:** `max`, `image`, `min`, `wan` and `yi`.
+        - `max` puts `unit` and `label` at their limits, and `value` at `-99999999`, which formats to `-9999.9万`.
+        - `image` is `max` with `sample.png`.
+        - `min` has `value` 9999 and a two-Han label.
+        - `wan` and `yi` are `min` with `value` 12345 and 123456789. These are the spec's number-formatting scenario.
+      - **`chart`:** `max`, `image`, `min`, `line-max`, `line-image` and `line-min`.
+        - `max` is `type: "bar"`, with title and unit at their limits and 8 points whose labels are at their limit. The values include `-99999999` (formatting to `-9999.9万`), another value of at least 1e4 in magnitude, one negative and one 0.
+        - `image` is `max` with `sample.png`.
+        - `min` is `bar` with 2 points, two-Han title and labels, and no unit.
+        - `line-max`, `line-image` and `line-min` are the same three with `type: "line"`.
+      - **`image-callouts`:** `max`, `image` and `min`, all with `sample.png`, because the kind requires an image.
+        - `max` holds 3 callouts with labels at their limit, at the corners and edges `(0, 0)`, `(1, 0)` and `(1, 1)`. This is the worst geometry, and its `S` is 1.
+        - `image` holds the same labels at interior points, with `S` equal to `S_MAX`, so its markers visibly track.
+        - `min` holds 1 callout with a two-Han label at the corner `(0, 0)`. Its `F` is that corner and its `S` is `S_MAX`, so the image's centre moves by `(S − 1) · (C − F)`, at least 0.15 of `R` across and down at the pre-exit frame. That is more than the half-width (0.075) and half-height (0.1) of `sample.png`'s centre patch.
+        - No callout of any sample has both `|x − 0.5| < 0.15` and `|y − 0.5| < 0.15`, so no marker covers the image's centre.
+        - In `image`, every `P_i` lies at least 160 px from `F`, so at the pre-exit frame each marker centre lies at least 48 px from `P_i`.
+    - **`src/kit/gallery/components.tsx` and `src/kit/render/registry.ts`.** One line each per new candidate, in catalog order, with 4.2's form.
+
+  - **The approval gate.** 4.2's order, steps 1–9, applies, and the PR stays a draft until step 6.
+    - **After the export, only these may change:**
+      - the export, at `gallery/exports/<YYYY-MM-DD>-batch-4-4.json`;
+      - `gallery/approvals.json`, where the existing entries stay and one new entry per export decision is appended, in catalog order;
+      - for each `redo` or `drop` candidate, from any batch, what 4.2's step 7 lists. Code appended to `layout.tsx` that only a removed candidate uses is removed with it. Removing `image-callouts` also removes `callout-zoom.ts` and its test.
+    - **A 4.2 or 4.3 candidate turned to `redo` or `drop`** follows 4.3's rule.
+    - **The export's `theme`.** As in 4.2, no theme entry is committed.
+  - **Required evidence, red first:**
+    - **Pure tests**, run by CI:
+      - **`tests/scenes.test.mjs`.**
+        - The kind list holds the thirteen candidates in catalog order, and after step 7 exactly the approved ones.
+        - **Sample ids.** Every candidate has `max`, `image` and `min`, in that order, except as the catalog above lists them.
+        - **Scalars that are not text.** The depth-first walk sends strings to 4.2's Han checks as before. `value` must be a finite number, `type` one of the enum values, and `x` and `y` within 0–1. None of them goes to a Han check.
+        - **The sample rules above.** `key-number`'s `max` value formats to 8 code points. Its `wan`, `yi` and `min` values are 12345, 123456789 and 9999. `chart`'s `max` values include `-99999999`, another value of magnitude at least 1e4, a negative value and 0. The `line-*` samples equal their bar counterparts except for `type`. Every `image-callouts` sample has an image and the 0.15 centre rule holds. The `max` points are the three corners, and `min`'s callout is `(0, 0)`. Through `callout-zoom.ts`, with `sample.png`'s 1280 × 960: `max` gives `S = 1`, `image` and `min` give `S = S_MAX`, and in `image` every `P_i` lies at least 160 px from `F`.
+        - **The image rules**, 4.2's "max and min have no image" and "image is max with sample.png", hold for every kind except `image-callouts`.
+        - **Source scan.** It covers the three new files and requires their `AbsoluteFill` roots and Source lines. It carries this block's SVG rule: in `Chart.tsx`, `<svg` appears exactly once, and the listed SVG constructs are banned. Everywhere else, `<svg` stays banned.
+        - **What may change in the test file.** This list is exhaustive:
+          - the tables `FILES`, `REQUIRED`, `LISTS`, `CHOREOGRAPHY` and `PRESERVED`, and the minimum and sample-id tables;
+          - the `FORBIDDEN` scan, for the per-file `<svg` rule and the new bans;
+          - the `image === null` assertions of the `max` and `min` tests, for the `image-callouts` exemption;
+          - the directory-listing test and the walk's scalar branch;
+          - the new sample-rule and prefix tests.
+
+          Each is extended. The assertions on the ten earlier kinds stay as they are.
+
+      - **Preservation**, in `tests/scenes.test.mjs`.
+        - 4.3's pins stay unchanged.
+        - New pins: the sha256 of 4.3's four scene files at `49d562f`.
+        - A second prefix check: the first 9968 bytes of `layout.tsx` hash to its sha256 at `49d562f`.
+        - A file step 7 removes is skipped.
+      - **`tests/callout-zoom.test.mjs`** (new):
+        - `R` is the centred contain fit inside the inset;
+        - `F` is the bounding-box centre;
+        - `s(0) = 1` and `s(last) = S`;
+        - `1.3 ≤ S_MAX ≤ 2`;
+        - the three corners `(0, 0)`, `(1, 0)` and `(1, 1)` give `S = 1`;
+        - a single callout gives `F = P_1` and `S = S_MAX`;
+        - interior points give `1 < S ≤ S_MAX`;
+        - at every frame, every marker centre stays inside the panel inset by `m`.
+      - **`tests/registry-approvals.test.mjs`** keeps its three tests unchanged. It is red from step 1 until step 6.
+      - Every other pure test passes unchanged.
+
+    - **Browser tests**, in `tests/render/scenes.test.mjs`, extended to all thirteen candidates:
+      - **Marked values per kind.** `fieldValues` keeps its depth-first walk for the ten earlier kinds. For the new kinds it yields:
+        - `key-number`: `formatCount(value)`, `unit` when present, and `label`;
+        - `chart`: `title`, `unit` when present, and each point's `label` and `formatCount(value)`;
+        - `image-callouts`: each label.
+
+        Nothing is yielded for `type`, `x` or `y`. The check at the entrance end compares these multisets, as before.
+
+      - **The spec's number scenario, literally.** At the entrance end, the marked inputs of `key-number--wan` include `1.2万`, those of `--yi` include `1.2亿`, and those of `--min` include `9999`, in both themes.
+      - **No text in SVG.** In every `chart` probe frame, no text record's path passes through an `svg` element.
+      - **Callout tracking.** In every `image-callouts` probe frame (all three roles, both themes), for each callout `i`:
+        - an unmarked text record with the text `i + 1` exists inside `IMAGE_BOX.panel` whose glyph box centre lies within 2 px of `F + s(f) · (P_i − F)`;
+        - that record's rendered `scale` is 1 and its `clippedBy` is empty, so the marker is outside the scaled and clipped element.
+
+        The expected point comes from `callout-zoom.ts`, with `sample.png`'s 1280 × 960.
+
+      - **Settled.** As before, except for `image-callouts`, where the entrance-end and last stills are compared byte for byte outside `IMAGE_BOX.panel`. Its bounds are known, so the test crops the four strips around it and compares those.
+      - **The image through the gallery.**
+        - For `key-number` and `chart`: 4.2's check, on `image` against `max`. For `chart` also on `line-image` against `line-max`.
+        - For `image-callouts`: in each of its key frames (light), the pixel at the projected image centre `F + s(f) · (C − F)` matches `sample.png`'s centre, where `C` is `R`'s centre. Its frame `f` is the key frame's own.
+      - The gallery run gives 90 clips, 270 key frames and `violations: []` on every item.
+      - Every other render test passes unchanged.
+
+    - **Mutations**, each red, then reverted:
+
+      | Mutation                                                                        | Test that goes red            |
+      | ------------------------------------------------------------------------------- | ----------------------------- |
+      | a `<text>` inside `Chart.tsx`'s `<svg>`                                         | source scan                   |
+      | an `<svg>` in `KeyNumber.tsx`                                                   | source scan                   |
+      | `KeyNumber` draws `String(value)`                                               | spec number scenario (`wan`)  |
+      | `Chart` drops its last point                                                    | marked values                 |
+      | `Chart` drops `unit`                                                            | marked values                 |
+      | `Chart` draws `String(value)`                                                   | marked values                 |
+      | `Chart`'s line value labels moved inside the `<svg>` as HTML in `foreignObject` | source scan                   |
+      | `ImageCallouts` places markers at `P_i`, ignoring the zoom                      | callout tracking              |
+      | `ImageCallouts` zooms its markers but not its image                             | the image through the gallery |
+      | `S_MAX` raised to 3 with the inset check removed                                | `callout-zoom` pure test      |
+      | a looping opacity after the entrance on `ImageCallouts`' legend                 | settled                       |
+      | a looping opacity after the entrance on `Chart`'s bars                          | settled                       |
+      | one 4.3 scene file changed by one character                                     | preservation                  |
+      | a line inserted inside `layout.tsx`'s `Arrow`                                   | preservation                  |
+      | `registry.ts` wraps the chart component                                         | registry text                 |
+      | the new `chart` approve entry removed (after step 6)                            | approval gate                 |
+
+    - **In the image (implementer, Mac).** As in 4.3: `node --test --test-concurrency=1 "tests/render/*.test.mjs"` on `3d0ceae2…` with 3.7's flags. Every render test passes. Record per-file times.
+    - **On 210.77.77.27 (orchestrator, after review).** 4.3's host step, on the tracked catalog.
+      - **Output.** 90 clips, 270 key frames and `violations: []`. Record the time and the `gallery.json` sha256.
+      - **Carry-over check.** The 180 key frames of the ten earlier candidates are compared with 4.3's run at gallery head `5940096`, decoded to `rgb24`.
+        - The baseline is `<session scratchpad>/gallery-5940096/gallery-out/`, whose `gallery.json` hashes to `760597fd066d4a96a18b7d7980244e306a49ce09a14a7f7fcf191447896dfd0d`. If it is gone or does not match, re-run 4.3's host step at `5940096`.
+        - Every difference is reported with the handover, as in 4.3, and it does not block the handover.
+      - **Handover.** As in 4.3, after a headless `file://` check that all 90 clips load metadata with no console error. It tells the user that the `chart` decision covers both bar and line.
+    - **After step 6 and Green.** As in 4.3: the diff check against the allow-list above, the appended entries equal to the export's thirteen decisions in catalog order, and "newest export binds" green.
+
+  - **Must preserve.** Every existing file, except:
+    - **Changed as above:**
+      - `bin/scene-timing.mjs`, the comments only;
+      - `src/kit/scenes/layout.tsx`, appended code only;
+      - `src/kit/gallery/catalog.ts` and `components.tsx`;
+      - `src/kit/render/registry.ts`;
+      - `gallery/approvals.json`;
+      - `tests/scenes.test.mjs` and `tests/render/scenes.test.mjs`.
+    - **New files:**
+      - `src/kit/scenes/{KeyNumber,Chart,ImageCallouts}.tsx`;
+      - `src/kit/scenes/callout-zoom.ts`;
+      - `tests/callout-zoom.test.mjs`;
+      - `gallery/exports/<date>-batch-4-4.json`.
+    - **Byte-identical:**
+      - 4.3's byte-identical list;
+      - 4.3's four scene files;
+      - `tests/registry-approvals.test.mjs` and `tests/gallery-approvals.test.mjs`;
+      - `src/kit/text.ts`, `bin/probe.mjs` and `src/kit/probe/**`.
+
+    No dependency changes.
+
+  - **Non-goals:**
+    - the theme pick, kind removal and the equality test (4.6);
+    - the skill text (7.2), including number rounding and callout spacing guidance;
+    - a schema limit on numbers;
+    - probe changes, and SVG anywhere but `Chart.tsx`'s geometry;
+    - entrances longer than 15 frames, and reveals that follow the narration;
+    - the `wrapLines` and ConceptCard overflow follow-ups (5.1);
+    - the stale header comment of `layout.tsx` (4.3 amendment).
+
 - [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
 
   **Task 4.5 required evidence** (issue #835):
