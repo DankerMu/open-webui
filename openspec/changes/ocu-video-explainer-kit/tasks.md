@@ -4105,6 +4105,139 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
 
 - [ ] 5.4 Time `kit check` on the maximum-size fixture script in the workspace image with `--cpus=2 --memory=4g`, and record the time in the PR. Verify that it completes, and that `status` stays responsive throughout.
 
+  **Task 5.4 required evidence** (issue #840):
+  - **Triage.** Measurement, fixture level expanded.
+    - The task adds a maximum-size fixture script and two in-image timing tests. One runs `kit check` on that script under `--cpus=2 --memory=4g`, the other `kit render`; both poll `kit status` throughout, and the times are recorded.
+    - It fixes the two `settled()` helpers that earlier tasks passed on, and changes no product code.
+    - It runs on OCU `main` after 4.6 (`b177300`).
+  - **Items passed to 5.4 by earlier blocks, disposed of:**
+    - **Taken here, as measurement or test harness:**
+      - the 5400-frame `kit render` timing (3.8 block, 5.3 Resource limits and non-goals);
+      - `settled()` in `tests/render/check.test.mjs` calls `status` before it reads the log (5.2 amendment);
+      - the same fix in `tests/render/render.test.mjs` (5.3 amendment);
+      - evidence that Remotion's temporary files land under `.kit/render/tmp` while a render runs (5.3 amendment);
+      - the worker deadline (5.1): this task records the maximum check time that the decision needs, and adds no deadline;
+      - the duplicate record after a probe retry, and the 20 s against 28 s handle wait (3.7 follow-ups, passed on by 5.1): this task records whether the maximum-size probe retried, and its handle-wait lines if any.
+    - **Moved to (#897)**, because they change product code and (#840) is a measurement:
+      - `takeLock`'s retry without `rm`, with the three-starter test;
+      - the start path sweeping stale `.partial` files;
+      - `projectHash`'s `AF_UNIX` and vanished-directory messages;
+      - the worker-deadline decision;
+      - the probe retry and handle-wait fixes.
+  - **What is measured, and why this script.**
+    - **Cost model.** A check's cost scales with three things: the scenes it probes (three frames each, `bin/probe.mjs:47-62`), the DOM size of each probed frame, and the block WAVs it hashes. It has two fixed costs: the probe bundle and the contact-sheet bundle. A render's cost scales with `totalFrames`. The longest check and render that a valid script can cause therefore need the most scenes, at maximum content, with the most blocks, at the longest length.
+    - **The maximum-size script.** `maxScript()` is appended to `tests/fixtures/check/fixture.mjs` and returns the script object.
+      - **Shape.** 5 chapters × 4 scenes. The title is 24 Han characters, each chapter title 6, and `music` is `none`.
+      - **Body scenes.** The 20 body scenes are the ten approved body kinds in `BODY_KINDS` order, twice.
+        - In the first pass each scene takes the content and image of its kind's catalog `image` sample in `src/kit/gallery/catalog.ts`.
+        - In the second pass it takes the content of the kind's `max` sample, with no `image`, except `image-callouts`, whose `max` sample carries `sample.png`.
+        - The second pass is the lighter, text-only layout; it is there so both layouts are probed.
+      - **Hook, summary and end card** take their kind's `image` sample.
+      - **Content source.** The content is read from `candidates` by import, so it is the content the user approved and the gallery probed clean, with no second copy. A sample's `image: null` becomes an absent `image`, since the schema refuses `null`, and `explainer-scenes.mjs` maps an absent image back to `null`.
+      - **Narration.** Every scene, the end card included, has 4 sentences × 4 blocks of 16 Han characters.
+      - **Images.** Every `image` is `sample.png`; the test copies `gallery/public/images/sample.png` into the root's `public/images/`.
+      - **Why no custom scene.** `custom` is not an approved kind. A custom scene would replace an approved scene rather than add one, and its cost is whatever the model's component costs.
+      - **Why no music.** The music stage only reads the manifest, and the render's music mix is 6.5's.
+      - **Why not `maximal()`.** `maximal()` in `tests/script-schema.test.mjs:86` is a schema-only script, with synthetic text, a custom scene, and a music id and image names that have no files. It cannot pass the assets or probe stages, and that file writes its limits as literals on purpose. `maxScript()` does not replace it.
+    - **Voice.** Every block is one tone WAV, as in `tests/render/check.test.mjs`: `sine=440`, 48 kHz mono `pcm_s16le`, all of one length.
+      - The length is `TONE_SECONDS`, exported beside `maxScript()`. It is the longest whole-millisecond length for which `layout()` gives `totalFrames` at most `LENGTH_WINDOW.maxFrames`.
+      - By the fixture reviewer's computation it is 0.313 s, giving 5341 frames; 0.314 s gives 5433. The value and its `totalFrames` are written in a comment.
+      - Real speech cannot fill 368 blocks in 3 minutes. The tones let the probed scenes, the blocks and the length all reach their maximum at once.
+      - If `kit timeline` refuses the tones (silence or loudness), the implementer stops and reports. `normalize()` runs loudnorm before the gate, so input volume is not a lever.
+    - **Gating.** Both timing tests run only when `KIT_TIMING=1` is set. Any other set value fails the file at load with `KIT_TIMING must be unset or 1`. When it is unset they are skipped, with the reason `5.4 timing: set KIT_TIMING=1 and run under --cpus=2 --memory=4g --memory-swap=4g`.
+      - The skip keeps later full runs of `tests/render/*.test.mjs`, which use 3.7's flags, as long and as green as before.
+      - With `KIT_TIMING=1`, the tests first assert the limits from cgroup v2, which is a precondition: `memory.max` is `4294967296`, `memory.swap.max` is `0`, and `cpu.max` is `200000 100000`. `--memory-swap=4g` leaves no swap, so paging cannot distort a time.
+  - **Required evidence, red first.**
+    - **Pure test.** One new test in `tests/check-rules.test.mjs`, "5.4: maxScript is the largest valid script". Let `s = validateScript(JSON.stringify(maxScript()))`. The test asserts:
+      - `s` is valid;
+      - 5 chapters of 4 scenes;
+      - the body kinds in order are `BODY_KINDS` twice, and hook, summary and end card are present;
+      - every scene, the end card included, has 4 × 4 blocks of exactly 16 code points;
+      - each scene's content deep-equals its catalog sample's, and its image equals the sample's with `null` as absent;
+      - `checkTimeline(s, () => TONE_SECONDS × 48000)` gives `totalFrames` in (5300, 5400];
+      - one millisecond more gives more than 5400.
+
+      Red before `maxScript` exists.
+
+    - **The shared poller.** `settled()` in `tests/render/check.test.mjs` is fixed and extended:
+      - it calls `status` before it reads the log, so a line written as the job ends is seen;
+      - it takes a poll interval;
+      - when asked, it records each `status` call's latency against the stage last seen in the log.
+
+      Its existing callers keep their behaviour apart from the read order. `settled()` in `tests/render/render.test.mjs` gets the same read-order fix.
+
+    - **In-image test A**, in `tests/render/check.test.mjs`: "5.4: on the tracked registry the maximum-size script passes, and status answers throughout".
+      - **Root.** Built with `variant("max", …)`: the tracked `src/kit/render/registry.ts`, `maxScript()`, one `TONE_SECONDS` tone per block from `blockStems(s)`, `public/images/sample.png`, and the root's own `kit timeline`. `kit timeline` exits 0, and its `totalFrames` equals the pure test's.
+      - **Before.** The cgroup limits are asserted, and `cpu.stat` (`nr_throttled`, `throttled_usec`), `memory.events` and `memory.peak` are read.
+      - **Start.** `kit check` exits 0 within 5000 ms, test 1's bound.
+      - **Polling.** `settled()` runs with a 1000 ms interval and latency recording.
+        - Every call while the check runs exits 3 with `kit status: check running` within 5000 ms.
+        - The maximum latency is reported per stage, so the bound is shown to hold during the bundle, the probe and the sheet, not only between them.
+      - **End.** The check passes: `kit status` exits 0 with `check passed`, a sheet and four tiles. The expected tiles are derived from `sheetTiles` for this script, not from `TILE_SCENES`.
+        - A failure is not edited away. The implementer stops and reports the reasons; a valid script that fails is a defect for the orchestrator to triage.
+      - **Recorded, as `t.diagnostic` lines:**
+        - the total, `result.json`'s `finishedAt` minus `job.json`'s `startedAt`, in milliseconds (`bin/job.mjs` `writeResult`); the time from the `kit check` call to the first non-running status is recorded beside it;
+        - each stage's first-seen time;
+        - the status call count, the median latency, and the maximum latency per stage;
+        - the before/after deltas of `nr_throttled`, `throttled_usec` and `memory.events`, plus `memory.peak` and `memory.swap.peak`;
+        - every log line matching `/retry|retried|handle/i`. No match shows only that nothing was logged at the default level.
+      - **Timeout.** The test's own limit is 1800 s.
+    - **In-image test B**, after A in the same file: "5.4: kit render of the maximum-size script completes, and status answers throughout".
+      - **Start.** On A's root, after A's pass, `kit render` exits 0 within 5000 ms.
+      - **Polling.** `settled()` with the same interval and recording. Every call while the render runs exits 3 within 5000 ms. At least one poll sees a non-empty `.kit/render/tmp`.
+      - **End.** `kit status` exits 0 with `kit status: render succeeded: /mnt/user-data/files/max.mp4`. The file probes as H.264 yuv420p with AAC audio, at `totalFrames / 30` s, with `nb_frames` equal to `totalFrames`, as 5.3's evidence 4 checks.
+      - **Recorded:** the same diagnostics as A. The render's stages for the per-stage latency are its log lines `render: start`, `render: frames` (any count), `render: verify` and `render: publish`.
+      - **Timeout.** The test's own limit is 3600 s.
+      - **Order.** B depends on A's pass. If A fails, B fails naming A, not a render reason.
+    - **Clean-up.** As for every test in the file, every worker a test starts has ended and no headless shell is left when it ends.
+    - **Mutations**, each on a copy, red on its named test, then reverted:
+      - one body scene removed from `maxScript()` → the pure test red (shape);
+      - the `image-callouts` scenes replaced by `question` → the pure test red (kinds);
+      - one block 15 characters → the pure test red;
+      - one scene's content taken from its `min` sample → the pure test red;
+      - `TONE_SECONDS` 10% longer → the pure test red (over 5400);
+      - `TONE_SECONDS` 20% shorter → the pure test red (at most 5300);
+      - `bin/status.mjs` blocking 6 s before it prints (for example with `Atomics.wait`) → A and B red on the latency bound;
+      - `/mnt/user-data/files` read-only for B → B red, the status failing with a `publish:` reason;
+      - `public/images/sample.png` removed from the max root → A red, the status failing with a reason that names the image;
+      - the container started without `--cpus=2` → A red on the limits assertion;
+      - `KIT_TIMING` unset → A and B skipped with the reason;
+      - `settled()` in `check.test.mjs` with the old read order → red on a stub root whose `bin/kit.mjs` `status` appends a last log line and then exits 0: the old order misses the line and the new one sees it. A stub test of this shape is added in the file for each of the two `settled()` helpers, so `render.test.mjs`'s fix also has a red case.
+    - **In the image (implementer, Mac).** The production workspace image `3d0ceae2…` with 3.7's flags, `--cpus=2 --memory=4g --memory-swap=4g` and `--tmpfs /mnt/user-data/files:uid=1001,gid=1001,mode=0755,size=2g`, as 5.3 used:
+      - A and B with `KIT_TIMING=1` (`--test-name-pattern "5.4"`), with their diagnostics recorded;
+      - then `node --test --test-concurrency=1 "tests/render/*.test.mjs"` without `KIT_TIMING`, once at the final head, every test passing and A and B skipped.
+
+      The Mac runs the amd64 image under emulation, so its times are recorded as such and are not the measurement.
+
+    - **On 210.77.77.27 (orchestrator, after review). This is the measurement.**
+      - **Image.** Built with `docker build --platform linux/amd64` from a clean clone at the reviewed head. The host's cgroup version is recorded.
+      - **Run.** A container with `--network none --user assistant --cpus=2 --memory=4g --memory-swap=4g`, the same tmpfs and `KIT_TIMING=1`. It holds a copy of `remotion-template/` with its tests, with `node_modules` linked to `/opt/remotion-template/node_modules`. It runs A and B, then A again. Every run's diagnostics are recorded, and the PR body states the slower check.
+      - **Epic.** The orchestrator copies the check and render times, the per-stage times and the status latency to the epic (#814) and to (#897) for its deadline decision.
+      - **Idle timeout.** The PR compares the times with OCU's idle stop. `CONTAINER_IDLE_TIMEOUT` defaults to 600 s (`computer-use-server/README.md:597`), each tool call, `kit status` included, extends it, and new deployments set 259200 (`CHANGELOG.md:202`). A time over 600 s is reported to the epic, not fixed here.
+    - **Green.**
+      - Under Node 22.23.2 after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root, with no expected failure.
+      - The PR's `template-tests` passes.
+      - `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+
+  - **Risk packs.**
+    - **Resource limits** — selected. This is the task's subject: the tests assert the cgroup limits and record throttling, memory and swap.
+    - **Concurrency** — selected. `kit status` is called again and again while the worker runs, and each call must answer within the bound in every stage.
+    - **Data / tracked files** — selected. One fixture function and one constant are appended.
+    - **Legacy compatibility** — selected. `settled()` changes for every caller in `check.test.mjs`, but only in its read order.
+    - **Public API / CLI, schema, auth / secrets, network, migration** — not selected: no command, field or surface changes.
+  - **Must preserve.** Every file except these four:
+    - `tests/fixtures/check/fixture.mjs`, where `maxScript()` and `TONE_SECONDS` are appended and nothing existing changes;
+    - `tests/check-rules.test.mjs`, which gains one test and its imports;
+    - `tests/render/check.test.mjs`, which gains tests A and B, the `settled()` change, the helpers they need, their imports, and one header sentence naming 5.4 and `KIT_TIMING`;
+    - `tests/render/render.test.mjs`, where `settled()`'s read order changes and its stub read-order test is added.
+
+    Byte-identical: `bin/**`, `src/**`, `script.json`, `script.schema.json`, `gallery/**`, `package.json`, the lockfile, every other test, and everything outside `remotion-template/`.
+
+  - **Non-goals:**
+    - making the check or render faster ("beyond what the measurement shows is needed": a finding is reported, and a fix belongs in (#897) or later);
+    - real speech timing (2.x baseline and 7.1);
+    - a time or latency gate in CI. The `tests/render/` files do not run in CI.
+
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.
 Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeline and probe output, and is testable without a final render.
 
