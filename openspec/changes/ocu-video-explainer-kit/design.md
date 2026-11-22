@@ -121,10 +121,10 @@ See proposal.md (Why) and the source plan `docs/plans/2026-11-16-ocu-video-expla
 11. **Render publishes atomically.** The video renders into the project, at `.kit/render/<token>.mp4` (amended by task 5.3 from `out/`: each run gets its own name, and the next start sweeps it). It is verified with ffprobe (codec, pixel format, AAC, duration). Only then is it copied to `.<name>.mp4.<token>.partial` in `/mnt/user-data/files/` and renamed to `<name>.mp4`; the files directory is a separate filesystem in production, so a direct rename would fail with `EXDEV`. A failed or killed render leaves the target as it was.
 
 12. **Gallery approval.**
-    - The gallery renders every candidate in both theme candidates inside the workspace image built from the PR branch. That image is built with the release builder on the Mac, loaded on 210.77.77.27 under the `ocu-eval` label, and removed by the evaluation cleanup. The output is one static page.
+    - The gallery renders every candidate in both theme candidates inside the workspace image built from the PR branch (amended by task 4.6: once the user's pick is recorded, the unpicked theme is removed from the kit, and the gallery renders the picked theme only). That image is built with the release builder on the Mac, loaded on 210.77.77.27 under the `ocu-eval` label, and removed by the evaluation cleanup. The output is one static page.
     - The page exports the user's decisions as a JSON file. Components are reviewed in three batches, and the theme is picked last.
     - Each batch's export is committed into `remotion-template/gallery/approvals.json`, linking the export, in the PR that merges that batch. The orchestrator never writes decisions itself.
-    - A static test asserts that the schema kinds, the registry, the JSON Schema, the example script and the skill's kind list all equal the approved set, and that the required kinds are approved.
+    - A static test asserts that the schema kinds, the registry, the JSON Schema, the example script and the skill's kind list all equal the approved set, and that the required kinds are approved. The example script uses every approved kind that needs no image (amended by task 4.6, since the example carries no image).
 
 13. **The music library is image content.**
     - Audio binaries are not committed: OCU's pre-commit refuses files over 500 KB. This follows the font bundle (`deploy/fonts/fonts.json`, "pinned fonts without committing font binaries").

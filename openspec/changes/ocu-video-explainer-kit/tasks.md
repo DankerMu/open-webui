@@ -3071,6 +3071,102 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
 
 - [ ] 4.6 The user picks the theme in the gallery and exports the pick; commit it into `gallery/approvals.json`, linking it. A `redo` component from 4.2–4.4 is redone and re-reviewed, or stays unshipped. Remove the unpicked theme and every candidate kind without an `approve` entry. Verify with a static test that the schema kinds, registry, JSON Schema and example script equal the approved set, and that hook, summary and end card are approved. Task 7.2 extends the test to the skill's kind list.
 
+  **Task 4.6 required evidence** (issue #836):
+  - **Triage.** Feature, fixture level expanded. The task records the theme pick, removes the unpicked theme, and adds the static test that ties the schema's kinds, the registry, the JSON Schema and the example script to the approved set. It runs on OCU `main` at `5f702f2`, after 4.2–4.4 merged with all thirteen candidates `approve`.
+  - **The state this task starts from.**
+    - `gallery/approvals.json` holds 29 entries: thirteen `approve`, one per candidate, in their latest form, and no theme entry. No candidate is `redo` or `drop`, so no component is redone and no kind is removed.
+    - Every candidate id equals its kind, and the thirteen ids equal `Object.keys(LIMITS.content)` in `bin/script-schema.mjs`.
+    - The user picked `light`: in chat when deciding 4.2, and in all three exports (`gallery/exports/2026-11-21-batch-4-2.json`, `2026-11-22-batch-4-3.json`, `2026-11-22-batch-4-4.json`), each `"theme": "light"`, exported from the gallery page by the user.
+  - **The gate's human input is already committed.** The theme pick is the user's own export `gallery/exports/2026-11-22-batch-4-4.json` (reviewer `Danker`, date `2026-11-22`, sha256 `13bf4abae9f3d6e8fdc474711585a9ab0ffaa62268dd65937463a62dd375b3cc`), the newest export. This task links it; it renders no gallery for review and asks the user for no new export, so 4.1's theme-only export (`decisions: []`) is never made, and the "newest export binds" guard that it would break does not arise. The PR is not held as a draft.
+  - **Governing invariants.**
+    - **One theme, the user's pick.** After this task `themes` in `src/kit/theme.ts` has exactly one key, the theme entry's decision (`light`), and `KIT_THEME` is that theme. Every list of theme names is derived from `themes`, so no second list can disagree.
+    - **The approved set binds.** Let `A` be the ids whose latest decision in `loadApprovals(TEMPLATE).decisions` is `approve`. These each equal `A` as sets:
+      - the schema's kinds, `Object.keys(LIMITS.content)`, which equals `[...BODY_KINDS, "hook", "summary", "end-card"]`;
+      - the registry's kinds, the keys of the `registry` literal in `src/kit/render/registry.ts` without `custom`;
+      - the JSON Schema's kinds, every `kind` `const` in the committed `script.schema.json` without `custom`;
+      - the gallery catalog's ids.
+
+      `custom` is the custom-scene loader of 3.8, not a candidate, and stays outside `A` in all four.
+
+    - **The example script uses the approved kinds that need no picture.** 3.4 keeps `script.json` free of `image`, and `image-callouts` requires one. So the example script's kinds equal `A` minus every kind whose JSON Schema scene object lists `image` in `required` (today only `image-callouts`). The spec delta says so (below).
+    - **Required kinds ship approved.** `hook`, `summary` and `end-card` are each in `A`.
+    - **Approved code stays approved.** The scene components and their helpers change only where this block says. No rendered frame of the light theme changes.
+
+  - **Deviations, settled here:**
+    - **The spec's "example script equals the approved set".** It conflicts with 3.4's no-image example. The spec delta changes the bullet to "the example script, which uses every approved kind that needs no image, and no other kind". The spec scenario "chart `drop` → absent from the example script" holds unchanged.
+    - **The spec's "both theme candidates have a rendered sample".** After the pick only one remains. The spec delta changes the sentence to "Every candidate scene component and, until the theme pick, both theme candidates (light and dark) SHALL have a rendered sample…", and adds "The unpicked theme SHALL be removed from the kit" with a scenario.
+    - **The gallery keeps its theme section.** `bin/gallery.mjs` and the page already iterate `THEME_NAMES`, so after the removal they render one theme and show one theme radio plus "no pick". No code path is added or deleted for the single-theme case. The page prose "in both themes" is reworded. Design Decision 12 is amended in line to match.
+  - **Inherited items, disposed of:**
+    - **The duplicate 15-frame constant (4.5 amendment).** `motion.transitionFrames` is deleted from `theme.ts`; `TRANSITION_FRAMES` in `bin/scene-timing.mjs` is the one constant. Only `tests/theme.test.mjs:123` read it.
+    - **The stale header comment of `layout.tsx` (4.3 and 4.4 amendments).** Corrected here: it names the scene components of 4.2–4.4. Only the leading `//` comment lines change. The 4.2 and 4.3 prefix tests (7006 and 9968 bytes) are replaced by two pins, because no later batch appends to it:
+      - **the approved code:** the bytes after the file's leading run of `//` lines (each with its newline) keep sha256 `dc77d191f9f2ef21103937f733c31e76c255aa18c7d188dd9d4c7b859f9e4cf5`, 8986 bytes, the same bytes as at `5f702f2`, so the comment edit provably touches no code;
+      - **the whole file:** a sha256 pin of the new `layout.tsx`.
+    - **Pins for 4.4's files.** `KeyNumber.tsx`, `Chart.tsx`, `ImageCallouts.tsx` and `callout-zoom.ts` get sha256 pins at `5f702f2`, as 4.3 and 4.4 pinned the batches before them.
+    - **"Newest export binds" (4.3 amendment).** Kept unchanged, with its `decisions.length > 0` guard: this task commits no export, so the newest stays `2026-11-22-batch-4-4.json` with thirteen decisions.
+    - **`MAX_TIMED` (4.4 amendment, (#893) item 4).** Deleted from `tests/scenes.test.mjs`, which this task edits anyway. (#893) keeps items 1–3.
+    - **Containment in `loadApprovals` (4.1 amendment).** Not taken, and closed: only `tests/{registry-approvals,gallery-approvals,gallery-page}.test.mjs` call it, on tracked files that review sees; no `kit` command and nothing in the sandbox reads `approvals.json`.
+    - **Signals in `gallery.mjs` (passed on by 5.3).** Not taken, and closed for this change: this task's one gallery run is the orchestrator's host run in a throwaway container, and leftovers stay inside it. No later task in this change runs the gallery.
+  - **Risk packs.**
+    - **Legacy compatibility** — selected. Tests that loop over both themes or count clips and frames per theme shrink to one theme, as listed below. No test of a scene's own behaviour weakens.
+    - **Schema / field names** — selected. The theme values that `approvals.json` entries and exports accept narrow to `light`; one entry is appended to `approvals.json`, and the export it links stays byte-identical. No committed export says `dark`.
+    - **Public API / CLI** — selected. `gallery.json`'s `themes` lists one theme, and the page shows one theme radio plus "no pick". No `kit` command changes.
+    - **Resource limits** — selected. The host run renders 45 clips, about half of 4.4's 1398 s, with `--cpus=2 --memory=4g`; its time is recorded.
+    - **Auth / secrets, network, concurrency, migration** — not selected: no such surface changes.
+  - **Shape** (OCU `remotion-template/`).
+    - **`gallery/approvals.json`.** One entry appended at the end: `{"id": "theme", "decision": "light", "reviewer": "Danker", "date": "2026-11-22", "export": "gallery/exports/2026-11-22-batch-4-4.json", "export_sha256": "13bf4abae9f3d6e8fdc474711585a9ab0ffaa62268dd65937463a62dd375b3cc"}`, in the file's existing two-space format. The 29 entries before it do not change. `loadApprovals` accepts it as written (`bin/gallery-approvals.mjs` `checkAgainstExport`), so it carries only the user's recorded pick.
+    - **`src/kit/theme.ts`.** The `dark` object and `motion.transitionFrames` are deleted; `themes` is `{light: {…}}` with `light` unchanged; the header and `KIT_THEME` comments say the theme is the user's pick recorded in `approvals.json`. `KIT_THEME` stays `themes.light`.
+    - **`src/kit/gallery/catalog-rules.ts`.** `THEME_NAMES` becomes `Object.keys(themes)` from `theme.ts`.
+    - **`bin/gallery-approvals.mjs`.** `THEMES` is `THEME_NAMES` from `catalog-rules.ts` (already imported for `isCandidateId`). A committed export with `"theme": "dark"` would now be rejected; none exists.
+    - **Wording only:** `src/kit/gallery/entry.tsx` (the unknown-theme message names the kit's themes from `THEME_NAMES`), `src/kit/gallery/ThemeSample.tsx` (header comment), `bin/gallery-page.mjs` (the "in both themes" sentence), and the header comment of `src/kit/scenes/layout.tsx`.
+    - **`script.json`.** The example is rewritten to use exactly the nine approved body kinds that need no image: `question`, `concept-card`, `process-steps`, `cause-effect`, `comparison`, `timeline`, `key-number`, `chart`, `definition-quote`, plus the fixed `hook`, `summary` and `end-card`. 3.4's rules still hold: it passes `validateScript` unchanged, has three chapters, `music` `none`, no `image`, no `custom` scene, Chinese narration and no `voice`. Chart and key-number values follow 7.2's rounding direction: each formats to at most 8 code points.
+    - **Comments that name two themes or say "4.6 changes it"** are corrected, comment lines only: `bin/gallery.mjs:5-6,66`, `src/kit/Root.tsx:7-8` and `src/kit/gallery/catalog.ts:52`.
+    - **Nothing else** under `src/kit/scenes/`, `bin/` or `gallery/` changes; `script.schema.json` does not change, since no kind changes.
+  - **Required evidence, red first:**
+    - **Pure tests**, run by CI. New tests go in `tests/registry-approvals.test.mjs` (task 7.2 extends them to the skill's kind list):
+      - "the approved set": `A` as defined above equals, as sorted lists, each of the schema's kinds, the registry's kinds, the JSON Schema's kinds and the catalog's ids. A failure names the surface and each kind in it but not in `A`, and each kind in `A` but missing from it. The registry's keys are read from the `registry` literal the way the existing registry test reads it; the JSON Schema's kinds are every `kind.const` found by walking the committed `script.schema.json`.
+      - "the example script": the kinds of `script.json` (`hook`, `summary`, `end-card` and every chapter scene's `kind`) equal `A` minus the kinds whose JSON Schema scene object requires `image`. The failure names the extra and missing kinds.
+      - "required kinds": `hook`, `summary` and `end-card` each have `approve` as their latest decision; the failure names each that does not.
+      - "the theme pick": `loadApprovals(TEMPLATE).theme` is `"light"`, `Object.keys(themes)` equals `[theme]`, `KIT_THEME === themes[theme]`, and `THEME_NAMES` equals `Object.keys(themes)`. The approvals module's accepted themes are tested by behaviour, not by importing `THEMES`: in a temporary root, an export with `"theme": "dark"` is rejected and one with `"light"` loads.
+      - **Changes to existing tests. This list is exhaustive:**
+        - `tests/registry-approvals.test.mjs`: the four tests above, their imports, and the header comment.
+        - `tests/theme.test.mjs`: "exactly two candidates" becomes "exactly one theme, `light`"; the `light`-equals-`dark` key check is deleted; the `transitionFrames` assertion (`:123`) is deleted. Loops over `Object.entries(themes)` stay as they are.
+        - `tests/captions.test.mjs:98`: the `themes.dark` line is deleted.
+        - `tests/scenes.test.mjs`: the box loop over `["light", "dark"]` (`:379`) runs over `Object.keys(themes)`; the two `layout.tsx` prefix tests become the two pins above; a pin test for 4.4's four files is added; `MAX_TIMED` is deleted; titles change with their tests.
+        - `tests/gallery-approvals.test.mjs` and `tests/gallery-page.test.mjs`: only fixtures that use `"dark"` as a valid theme or pick, rewritten around `light` and `null`. With one theme, two cases cannot keep their form, and are settled so:
+          - in "entries load as decisions and the theme; a later entry replaces an earlier one; redo is not approve" (`tests/gallery-approvals.test.mjs:103-121`), the second theme entry (light then dark) is dropped, since a later entry can only repeat `light`; the test keeps its theme load, its later-entry-wins check for component ids and its `redo` check;
+          - the case expecting `decision differs from A's theme` (`:221`) instead expects an entry with the unknown theme `dark` to fail as an invalid decision.
+
+          The `entry.decision !== exported.theme` branch in `bin/gallery-approvals.mjs` stays, unreachable while one theme exists, as the guard for a second theme; it is not removed.
+
+        - `tests/render/gallery.test.mjs` and `tests/render/scenes.test.mjs`: theme loops and per-theme counts collapse to one theme (gallery fixture 3 clips and 9 frames; scenes 45 clips and 135 key frames; the callouts frame formula loses its theme factor); `themes.dark` fixture props become `themes.light`, and the `probe: clean` count halves (4 to 2). With one theme, the KitProbe check at `tests/render/gallery.test.mjs:372` can no longer tell "the target's own theme" from the default `KIT_THEME`; that loss is accepted, since only one theme can exist.
+
+    - **Browser tests.** No new browser test. `node --test --test-concurrency=1 "tests/render/*.test.mjs"` in the image passes with the collapsed counts, every gallery item's `violations` empty.
+    - **Mutations**, each on a copy, red on its named test, then reverted:
+      - a later `drop` entry for `chart`, linking a temporary newer export that records it → "the approved set" red, naming `chart` in all four surfaces, and "the example script" red, naming `chart`;
+      - a later `redo` entry for `end-card`, linked the same way → "required kinds" red, naming `end-card`;
+      - `'quiz': components['hook']` added to the registry literal → "the approved set" red, naming `quiz` in the registry;
+      - one `kind.const` in `script.schema.json` changed from `comparison` to `quiz` → "the approved set" red for the JSON Schema;
+      - the `definition-quote` scene removed from `script.json` → "the example script" red, naming it as missing; a scene changed to `image-callouts` with an image → red, naming it as extra;
+      - the theme entry removed from `approvals.json` → "the theme pick" red;
+      - `themes.dark = themes.light` added after the `themes` declaration → "the theme pick" red (an initializer `dark: themes.light` would throw at load and fail every importing file instead);
+      - one character changed inside `Arrow` in `layout.tsx` → both `layout.tsx` pins red; one character changed in its header comment → only the whole-file pin red;
+      - one character changed in `KeyNumber.tsx` → the 4.4 pin red.
+    - **In the image (implementer, Mac).** As in 4.4: every render test passes on `3d0ceae2…` with 3.7's flags, `--cpus=2 --memory=4g`, a tmpfs at `/mnt/user-data/files`. Record per-file times.
+    - **On 210.77.77.27 (orchestrator, after review).** 4.4's host step on the tracked catalog: 45 clips and 135 key frames, all `violations` empty, with the time recorded.
+      - **Carry-over.** Every one of the 135 key frames (`<candidate>--<sample>--light--<role>.png`, the theme sample's three included) equals the same-named frame of 4.4's run at `21eb85c` exactly in `rgb24`. The baseline is the orchestrator's copy of that run's `gallery-out/`, whose `gallery.json` sha256 must be `3f1ecddfa8220b19a821778aed1871c837b6d3557b36304e8e8d3bc7878d827e`; if it is missing or differs, the run at `21eb85c` is repeated first.
+      - **Blocking.** Unlike 4.3 and 4.4, where the user re-reviewed every candidate, no user review follows this run, so one differing frame blocks the merge.
+    - **Green.** Under Node 22.23.2 after `npm ci`, `node --test "tests/*.test.mjs"` passes from the template and from the repository root, with no expected failure; the PR's `template-tests` passes; `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass.
+
+  - **Must preserve.** Every existing file, except:
+    - **Changed as above:** `gallery/approvals.json` (one appended entry), `src/kit/theme.ts`, `src/kit/gallery/{catalog-rules.ts,entry.tsx,ThemeSample.tsx}`, `bin/gallery-approvals.mjs`, `bin/gallery-page.mjs` (one sentence), `src/kit/scenes/layout.tsx` (header comment only), comment lines of `bin/gallery.mjs`, `src/kit/Root.tsx` and `src/kit/gallery/catalog.ts`, `script.json`, and the tests listed above.
+    - **Byte-identical:** every file under `src/kit/scenes/` except `layout.tsx`, `src/kit/render/registry.ts`, `src/kit/gallery/components.tsx`, every non-comment line of `src/kit/gallery/catalog.ts`, `src/kit/Root.tsx` and `bin/gallery.mjs`, `bin/script-schema.mjs`, `script.schema.json`, `bin/scene-timing.mjs`, `src/kit/text.ts`, `bin/probe.mjs`, `src/kit/probe/**`, `gallery/exports/**`, `gallery/public/**`, `NOTICE`, `THIRD-PARTY-LICENSES.md`, `package.json` and the lockfile. Nothing outside `remotion-template/` changes.
+  - **Non-goals:**
+    - the skill text and its kind list (7.2);
+    - (#893)'s items 1–3: the number length check, the count-up reflow and the chart label edge cases;
+    - redoing or re-reviewing any component (none is `redo`);
+    - removing the gallery's theme section or its "no pick" radio;
+    - the `wrapLines` throw class (5.1 follow-ups).
+
 Suggested fixture level: expanded - it adds the components that the schema's kinds bind to, and a user approval gate.
 Minimal mergeable slice: task 4.1 with a placeholder component only. No real component merges before its own approval entry, recorded in the same PR.
 
