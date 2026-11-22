@@ -230,16 +230,18 @@ On failure, `/mnt/user-data/files/<name>.mp4` SHALL be left as it was. A render 
 
 ### Requirement: Components enter the kit only after recorded user approval
 
-Every candidate scene component and both theme candidates (light and dark) SHALL have a rendered sample in a gallery the user reviews. A sample is a short clip and key frames, rendered in the workspace image.
+Every candidate scene component and, until the theme pick, both theme candidates (light and dark) SHALL have a rendered sample in a gallery the user reviews. A sample is a short clip and key frames, rendered in the workspace image.
 
 The user's decision per component and the theme pick SHALL be recorded in a tracked approvals file. Each entry names the component, the decision (`approve`, `redo` or `drop`), the reviewer and the date, and links the user's own export or message.
+
+The unpicked theme SHALL be removed from the kit, and the kit SHALL render with the picked theme only.
 
 These SHALL each equal the approved set in the approvals file:
 
 - the schema's kinds;
 - the component registry;
 - the JSON Schema;
-- the example script;
+- the example script, which uses every approved kind that needs no image, and no other kind;
 - the skill's kind list.
 
 `redo` counts as not approved until a later approval entry replaces it. A required kind (`hook`, `summary`, `end-card`) SHALL NOT ship unapproved.
@@ -248,6 +250,11 @@ These SHALL each equal the approved set in the approvals file:
 
 - **WHEN** the approvals file marks the chart component `drop`
 - **THEN** `chart` is absent from the schema, the registry, the JSON Schema, the example script and the skill text
+
+#### Scenario: Theme pick recorded
+
+- **WHEN** the approvals file's theme entry is `light`
+- **THEN** the kit's themes hold only `light`, and the explainer renders with it
 
 #### Scenario: Required kind not approved
 
