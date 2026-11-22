@@ -3069,7 +3069,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **`entry.exit`.** 5.1 reads the probe's `exitFrame` from `entry.exit`.
       - **The 15-frame constant.** `theme.motion.transitionFrames` (15) duplicates `TRANSITION_FRAMES`, and only `tests/theme.test.mjs` reads it. 4.6 removes the duplicate.
 
-- [ ] 4.6 The user picks the theme in the gallery and exports the pick; commit it into `gallery/approvals.json`, linking it. A `redo` component from 4.2–4.4 is redone and re-reviewed, or stays unshipped. Remove the unpicked theme and every candidate kind without an `approve` entry. Verify with a static test that the schema kinds, registry, JSON Schema and example script equal the approved set, and that hook, summary and end card are approved. Task 7.2 extends the test to the skill's kind list.
+- [x] 4.6 The user picks the theme in the gallery and exports the pick; commit it into `gallery/approvals.json`, linking it. A `redo` component from 4.2–4.4 is redone and re-reviewed, or stays unshipped. Remove the unpicked theme and every candidate kind without an `approve` entry. Verify with a static test that the schema kinds, registry, JSON Schema and example script equal the approved set, and that hook, summary and end card are approved. Task 7.2 extends the test to the skill's kind list.
 
   **Task 4.6 required evidence** (issue #836):
   - **Triage.** Feature, fixture level expanded. The task records the theme pick, removes the unpicked theme, and adds the static test that ties the schema's kinds, the registry, the JSON Schema and the example script to the approved set. It runs on OCU `main` at `5f702f2`, after 4.2–4.4 merged with all thirteen candidates `approve`.
@@ -3166,6 +3166,33 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - redoing or re-reviewing any component (none is `redo`);
     - removing the gallery's theme section or its "no pick" radio;
     - the `wrapLines` throw class (5.1 follow-ups).
+
+  - Amended after OCU #264 (2026-11-22, merged `b177300`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Example script.** The topic is the water cycle, in three chapters:
+        - evaporation: question, concept-card, key-number;
+        - condensation: cause-effect, comparison;
+        - precipitation and the cycle: process-steps, chart, definition-quote, timeline.
+
+        hook, summary and end-card frame them. It has 45 blocks of at most 13 characters. Its numbers are 97, 68.7, 30.1 and 1.2. The timeline years use ASCII digits (`1580年`); the catalog samples use Chinese numerals.
+
+      - **gallery-approvals.** The B export's `theme` becomes `null`.
+      - **gallery-page.** The `gallery()` fixture has one theme; its violation sits on `alpha--s1--light`.
+      - **Render tests** keep their theme loops over a literal `THEMES = ["light"]`.
+      - **gitleaks.** The 4.4 pin's `KeyNumber.tsx` line carries `// gitleaks:allow`, because gitleaks' `generic-api-key` rule flags the sha256 literal.
+      - **"the approved set"** also fails when a surface lists a kind twice.
+
+    - **Changes to existing tests beyond the exhaustive list.**
+      - In `tests/registry-approvals.test.mjs`, the body of "registry.ts imports components…" moved into a `registryEntries()` helper, which "the approved set" reuses. Every assertion stays.
+      - The header comments of the theme, scenes and both render test files changed with their tests.
+    - **Gate record.**
+      - **Theme entry.** `{id: "theme", decision: "light"}`, reviewer `Danker`, 2026-11-22, linking `gallery/exports/2026-11-22-batch-4-4.json` (sha256 `13bf4aba…`). No new export.
+      - **Tests.**
+        - Red at `445f1d2`: 5 of 513 pure tests fail, and `tests/render/gallery.test.mjs` fails 3 of 12 in the image.
+        - Green at `e665047`: 513 of 513 pure tests, from both roots under Node 22.23.2. In the image at `446f904` (two pure test files from `e665047`): 83 of 83 in 3916 s.
+        - All 12 mutations went red on their named tests: the table's nine rows, which run 11 mutations, plus the duplicate-kind check.
+      - **Host run.** At the reviewed head `e665047`: 718 s, 45 clips and 135 key frames, all with empty violations. The `gallery.json` sha256 is `160fbe3d…9138`. All 135 key frames match 4.4's run at `21eb85c` exactly in `rgb24`, so the merge was not blocked.
+    - **Stale comments, left for a later task.** `src/kit/text.ts:24` is byte-identical here, `layout.tsx:228-229` is inside the pinned code, and `catalog.ts:6` is not the named `:52`.
 
 Suggested fixture level: expanded - it adds the components that the schema's kinds bind to, and a user approval gate.
 Minimal mergeable slice: task 4.1 with a placeholder component only. No real component merges before its own approval entry, recorded in the same PR.
