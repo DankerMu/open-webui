@@ -2463,7 +2463,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **ConceptCard conclusion overflow.** Beside an image, a conclusion with an 18-letter ASCII token between two Han characters wraps into 3 lines and overruns `IMAGE_BOX.text`, though it stays inside the safe area and above the band. Owned by 5.1.
       - **The probe's SIGTERM test flaked once.** In one in-image glob run it ended above 20 s. This was seen again here, and it is already owned by 5.1.
 
-- [ ] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
+- [x] 4.3 Port or write the process steps (with arrows), cause and effect, comparison and timeline scenes, with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 
   **Task 4.3 required evidence** (issue #833):
   - **Triage.** Feature, fixture level expanded. The task adds the second batch of scene components and registers them: process steps (with arrows), cause and effect, comparison, and timeline. The kinds are `process-steps`, `cause-effect`, `comparison` and `timeline`. It runs the approval gate a second time. 4.2's block and its amendment (OCU #261) bind wherever this block does not differ.
@@ -2625,6 +2625,32 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
     - reveals that follow the narration;
     - a gallery filter that hides approved candidates;
     - the `wrapLines` and ConceptCard overflow follow-ups (5.1).
+
+  - Amended after OCU #262 (2026-11-22, merged `49d562f`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Helpers appended to `layout.tsx`.** `Slide` fades a block in while it moves `spacing[1]` from one side. `Pop` fades a block in while it scales from 0.5 to 1. `arrowBreadth` is `1.5 × spacing[1]`. `Arrow` points right or down: a bar `spacing[0] / 2` thick and a border-drawn head `spacing[2]` long, drawn in from its tail by `scaleX`/`scaleY`. All four run on `useEntrance`, so they settle by frame 15.
+      - **Layouts.**
+        - `ProcessSteps`: without an image, the steps sit side by side as numbered nodes with arrows between them; beside an image, they stack in the left column with the arrows pointing down.
+        - `CauseEffect`: two cards with a right-pointing arrow between them and the link above it; beside an image, they stack with a down arrow and the link beside it.
+        - `Comparison`: two sides on one surface panel, split by a divider; beside an image, one above the other.
+        - `Timeline`: a vertical axis with year, label and detail per row. The year and label columns are 8 and 12 em of their size, so the schema's longest year and label each keep one line. Beside an image, every field is set at `caption` size.
+      - **`CauseEffect` has no `Source:` line.** It is written from scratch. The other three carry Onda's `progress-steps`, `split-screen` and `timeline` as choreography sources.
+      - **Sample years are in Han**, for example 「公元一六二一年，」, because `assertMaxHan` rejects Arabic digits.
+    - **Changes to existing tests.**
+      - **`tests/scenes.test.mjs`.** `REQUIRED` names nested fields by path, such as `steps[].label`, and the max and min tests walk them depth-first through a `walk()` helper. The six 4.2 kinds keep their assertions.
+      - **`tests/registry-approvals.test.mjs`.** Besides "newest export binds", the header comment changes and a `readdirSync` import and an `EXPORTS` constant are added for it.
+      - **"Newest export binds" is stricter than the bullets.** It also asserts that the newest export has at least one decision (`tests/registry-approvals.test.mjs:53`). 4.1 gives 4.6's theme-only export `decisions: []`, so 4.6's fixture must drop this guard or keep that export from becoming the newest.
+    - **Gate record.**
+      - **Gallery head.** `5940096`. The host run took 1000 s and produced 62 clips and 186 key frames, all with empty violations. The `gallery.json` sha256 is `760597fd066d4a96a18b7d7980244e306a49ce09a14a7f7fcf191447896dfd0d`. All 108 key frames of 4.2's six candidates match 4.2's run at `1211549` exactly.
+      - **The user's export.** Reviewer `Danker`, 2026-11-22: all ten `approve`, theme `light`.
+        - It is committed byte-identical as `gallery/exports/2026-11-22-batch-4-3.json` (sha256 `06cbd4f9…`).
+        - `approvals.json` keeps 4.2's six entries and gains ten `approve` entries in catalog order. No theme entry; 4.6 links the export's `light`.
+        - Nothing was removed in step 7, so the render tests were not re-run.
+      - **Tests.** Pure, at `fd7952c` (the merged tree), from both roots under Node 22.23.2: 491 of 491. In the image at `5940096`: 79 of 79. Every mutation in the table went red, the last one after the export.
+    - **Deferred, with their owners:**
+      - **`wrapLines` throws at narrower widths now.** The new fields reach the existing throw class at a `ProcessSteps` label at maxWidth 5 and a `CauseEffect` card or `Timeline` year at maxWidth 8. Owned by 5.1, with the inputs 4.2 recorded.
+      - **`fieldValues` in `tests/render/scenes.test.mjs` skips non-string fields.** 4.4's numbers and chart data are not strings, so 4.4's fixture says how the test reaches them.
+      - **The header comment of `layout.tsx` still says "the six scene components of task 4.2".** The prefix rule forbids editing it; 4.6 or a later task that may rewrite the file corrects it.
 
 - [ ] 4.4 Port or write the key number, chart (bar/line) and image-with-callouts scenes (callouts tracking the zoom), with notices and minimum lengths. The user reviews this batch in the gallery and exports decisions; the export is committed into `gallery/approvals.json`, linking it, in the same PR, and only approved components of the batch are merged. Verify with the same probe and the same approval check.
 - [x] 4.5 Add the 15-frame theme transitions into the timeline's transition slots. Verify with a fixture render that every transition's frames fall inside the gap after the outgoing scene's last block, and that the rendered length equals the timeline's total length.
