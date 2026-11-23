@@ -4852,7 +4852,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
 
 ## 7. Image end-to-end test and skill routing (OCU)
 
-- [ ] 7.1 Extend `tests/test-docker-image.sh` with an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `status` → `render` inside the built image, on a fixture script at the timeline's 60-second minimum. Verify that it passes in CI's sandbox-image smoke step on the PR's image.
+- [x] 7.1 Extend `tests/test-docker-image.sh` with an offline `new` → `voice-import` (fixture audio) → `timeline` → `check` → `status` → `render` inside the built image, on a fixture script at the timeline's 60-second minimum. Verify that it passes in CI's sandbox-image smoke step on the PR's image.
 
   **Task 7.1 required evidence** (issue #846):
   - **Fixture level:** compact. Risk packs:
@@ -4927,6 +4927,27 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
     - resource limits in the image test (5.4 measured them);
     - real speech (7.1 uses tones; real voices are 8.1).
   - **PR record.** The issue's acceptance box ("CI's sandbox-image smoke step passes") is met by the replacement run above. The PR body says so, and names the image, its build, and the full script's result.
+
+  - Amended after OCU #266 (2026-11-22, merged `ead9c33`, reviewed head `d149803`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **`TONE_SECONDS` = 0.887.** It gives 1804 frames; 0.886 s gives 1782 frames and is refused. The upper bound stays 1830.
+      - **Music check.** The window is `atrim=start=0.5:end=1.2`, inside the 1.333 s lead-in. The threshold is −40 dB, set from a measured pair: −12.3 dB with `snowfall-loop` and −91.0 dB with `music: "none"`.
+      - **Step 1** requires stdout and stderr together to equal the project path. **Step 2** also requires the refusal to name the directory.
+      - A FAIL keeps at most 6 lines of output. The host's container-exit FAIL line adds the last 5 non-`kitN` lines.
+    - **Gate record.**
+      - **Mutations.** All 8 went red at the stated `kitN` and at no earlier step.
+      - **Static checks.**
+        - `bash -n` passes under bash 3.2 and 5.3.
+        - `shellcheck` shows the same warnings as `origin/main`. It cannot read inside the quoted probe heredoc.
+        - `tests/test_remotion_image.py`: 18 passed.
+        - The project-structure check is OK.
+      - **Acceptance run** (replacing the disabled CI step).
+        - Image: `ocu-846:d149803`, built for `linux/amd64` from a fresh clone at the head.
+        - `./tests/test-docker-image.sh` gave PASSED 102, FAILED 0, exit 0, in 369 s under emulation on the orchestrator's Mac.
+        - Section 17 took 206 s: check 68.5 s, render 117.6 s.
+      - **Review.** Round 1 had two seats, correctness and shell, and tests and spec. Neither found a P0, P1 or P2.
+    - **Not covered here:** a killed render leaving no partial file, and `render` returning before it ends. Both are 5.3's.
+    - **Out of scope, reported:** the `test-docker-image.sh` section list in `tests/README.md:377` is stale.
 
 - [ ] 7.2 On an integration branch, not merged before acceptance, rewrite `skills/public/remotion/SKILL.md` as a router of at most 80 lines:
   - explainers follow the kit steps in order, including image import and "fix and re-check on any no";
