@@ -5134,6 +5134,110 @@ Minimal mergeable slice: task 7.1 merges on its own. Task 7.2 merges only after 
 ## 8. After run and acceptance
 
 - [ ] 8.1 Build the release candidate from `main` plus the integration branch, with the WebUI image unchanged. Run the request set on the evaluation stack, including 7.1's checks on the candidate image. Verify that 13 final-outcome manifests, one per request and repetition, are recorded with the same WebUI digest as the baseline.
+
+  **Task 8.1 required evidence** (issue #848):
+  - **Fixture level:** compact. Two parts.
+    - **Part A** is one OCU code PR: the driver's `kit` row and the manifest's `check`. Three places in 5.3's block assign it to 8.1, before the after run: its consumers, its hand-offs and its non-goals ("The driver row that maps them is owned by 8.1"). 5.1 only defines the check's failure output. It runs through the normal issue workflow. The PR references (#848) but carries `<!-- intended-closing-issues: [] -->`: #848 closes only with Part B's evidence comment.
+    - **Part B** is the operations run. It has no code PR, and its evidence goes in an issue comment.
+    - **Risk packs for A:**
+      - **Tests** — selected.
+      - **Data / tracked files** — selected: `manifest.json` gains a defined `check` value.
+      - **Legacy compatibility** — selected: the baseline's manifests and transcripts must classify as before.
+      - Every other pack is not selected.
+  - **Part A, the driver** (`deploy/eval/driver.py`, `deploy/eval/README.md`, `tests/deploy/test_eval_driver.py`).
+    - **Kit status lines.** These are the lines in the tool results of the run's final message, taken from `tool_calls(message)` texts in call order.
+      - A **kit failure line** is one starting with `kit status: check failed`, `kit status: check died`, `kit status: render failed` or `kit status: render died`, as `remotion-template/bin/status.mjs` prints them.
+      - A **check pass line** is exactly `kit status: check passed`.
+    - **The `kit` row.**
+      - Placement: after the infrastructure-fault row (row 8) and before the final `model` / `no valid MP4` row. Earlier rows keep precedence: time limit, asked the user, tool-call limit, model API, task lost, call failure, disk (`no space`) and `driver: collect failed`, and adapter or orchestrator faults.
+      - It applies only when the run did not succeed and has no valid MP4.
+      - When the transcript's last kit status line (any `kit status: ` line) is a kit failure line, the outcome is `failed`, `kit`, with that line as the reason. The reason is redacted and cut to `REASON_LIMIT` as every reason is.
+      - A run whose last kit status line is a pass or a success, or that has none, falls through to `model` / `no valid MP4` as today.
+    - **`check`.** Every manifest whose final message was read (`message` not `None`) gets `check`:
+      - `"passed"` if any check pass line appears;
+      - else `"failed"` if any `kit status: check failed` or `kit status: check died` line appears;
+      - else `"none"`.
+
+      Interrupted attempts, attempts without a chat, and attempts whose transcript could not be read keep `null`, as today. The README's `check` sentence and its "No run gets `kit` until …" sentence are rewritten to state the row and the values, and its outcome table gains the `kit` row in its place.
+
+    - **Tests** in `tests/deploy/test_eval_driver.py`:
+      - the row for each of the four failure lines;
+      - precedence: time limit over a kit failure line, and an adapter fault over one;
+      - fall-through: a last line of `check passed` or `render succeeded` with no MP4 gives `model`;
+      - the last-line rule: `check failed` then `check passed`, with no MP4, gives `model`, not `kit`;
+      - a succeeded run with an earlier `check failed` line gives `succeeded` and `check` `"passed"` when a later pass appears;
+      - the any-pass rule: `check passed` then a later `check failed` gives `check` `"passed"`;
+      - the existing assertion that a succeeded run's `check` is `None` (`test_eval_driver.py:~1060`) flips to `"passed"` or `"none"` by its transcript. That is the one existing assertion that changes. The interrupted attempt's `None` stays;
+      - each `check` value, and `null` for an interrupted attempt;
+      - the reason cut.
+    - **Legacy evidence.**
+      - The orchestrator copies the 13 baseline `transcript.json` and `manifest.json` files from `runs/baseline/` off the host, read-only.
+      - Re-classifying each final message with the new `classify` gives the recorded `outcome`, `failure_class` and `failure_reason`, and `check` `"none"`.
+      - The result is recorded in the PR. The files are not committed.
+    - **Red first.** Commit the new tests first; they fail at that commit. Mutations, each red on its test:
+      - the row placed before row 8;
+      - the row ignoring the "last line" rule (any failure line);
+      - `check` taking the last line instead of "any pass".
+    - **Must preserve.** Every other file is byte-identical. Within the driver, the classifier rows and the rerun, budget, recovery and collection logic stay as they are. `requests.json` stays at `1a2650e`'s bytes.
+
+  - **Part B, the operations run,** after A merges.
+    1. **Candidate commit.** Merge OCU `main` into `claude/video-skill-router-7-2` (PR 267), push it, and keep the PR a draft labelled `do-not-merge`. Merging `main` into the branch does not merge the branch, so Decision 16 and the 7.2 gate hold.
+       - The candidate is that branch head, `C`.
+       - Its diff from `main` is only 7.2's files.
+       - `git diff 07d7a21 C` over those files is empty.
+       - `C` is recorded on PR 267 and for (#850).
+    2. **Package.** Build on the Mac, the release host whose cache built #815's package:
+       - command: #815's recipe, `python3 src/ocu/deploy/release.py build --ocu-source src/ocu --webui-source src/webui --destination <new dir>`, run in `docker:29.1.3-cli` with the Mac's Docker socket, where `src/ocu` is a clean clone at `C` and `src/webui` a clean clone at WebUI `6b95a4995e91`. Then `release.py verify` on the result;
+       - checks:
+         - the `open-webui`, `computer-use-server` and `postgres` roles' `reference` and `configuration_digest` equal the baseline package's (`ocu-0fc3c37-webui-6b95a49`, `release.json` `a2d592aeb7ab…`);
+         - the workspace role differs. Its `RootFS.Layers` equal the baseline workspace's up to the first layer of a changed `COPY` (task 4.1's Space check). The layers before that prefix ends were not rebuilt. Those after it are rebuilt from their pinned inputs, except the external skills cloned by mutable tag, which serve only Claude Code;
+         - `ocu_source_sha` is `C`;
+       - if any of the three roles differs, stop and report.
+    3. **7.1 on the candidate image.** `./tests/test-docker-image.sh <candidate workspace reference>` on the Mac, from the clean clone at `C`, against the image the package exported. Every section passes.
+    4. **Stack.**
+       - **Disk.** `/home` (`EVAL_ROOT`, packages) and `/` (Docker's root) are separate filesystems on the host.
+         - Copy only `release.json` and the four `EVAL_ROLES` archives into `/home/nwm/ocu-eval/packages/<candidate>/`, keeping both earlier packages.
+         - Record `df -B1 / /home` and `du -sb` of the package before and after the copy.
+         - Before `load.sh`, compute its precheck: free space on `/` ≥ 15 GiB plus 3× the workspace archive. Compare in bytes. If it would fail, or if `load.sh`'s own check refuses, stop and report to the user with the numbers. Do not load anything.
+         - Never prune, and never remove an image or another project's object to make room.
+       - Move `src` to `C` under `umask 022`.
+       - Run `load.sh <package>`, then `EVAL_WEBUI_PORT=38080 start.sh`. `docker wait ocu-eval-open-webui-init` must print 0. The driver's own stack and image-settings checks must pass.
+       - Record in `snap/s848/pre.txt`, posted before the batch starts:
+         - `runs/after` absent;
+         - other projects' containers, images, networks and volumes, listed before `load.sh` and after `start.sh`, and compared, as the eval README's host rules require. They must be unchanged;
+         - the `src` HEAD;
+         - the package `release.json` SHA-256;
+         - the four containers' `{{.Image}} {{.State.StartedAt}}`;
+         - the free space;
+         - the batch start time.
+    5. **Source identity.** "Only the OCU images differ" is checked as follows.
+       - `git diff 5e6089a C` over `openwebui/`, `docker-compose.yml`, `docker-compose.webui.yml` and `deploy/production-like-test/init` shows only `openwebui/init.sh`'s `#855` change. That change passes the admin password, MCP key and token on stdin or through a private file instead of curl argv, with the same API calls.
+       - `deploy/eval/secrets.sh`'s change is listed, and `requests.json` is unchanged.
+       - The image settings read back equal to 2.4's.
+       - The `open-webui-init` log shows `Already initialized, skipping` (`init.sh`'s marker check precedes the #855 lines), so the changed code does not run on this stack.
+       - This deviation is recorded and does not block.
+    6. **Batch.** `run.sh --package <candidate> --phase after`, detached, polled with short calls until `eval: done`. A stop is resumed per slot, as in 2.6.
+    7. **Evidence**, as 2.6 posted it:
+       - preconditions;
+       - slots and attempts (at most 3 each, only `infra` reruns);
+       - identity on every non-interrupted manifest:
+         - `release.release_json_sha256` and `ocu_source_sha` are the candidate's;
+         - one `webui_image_id`, equal to the baseline's `sha256:8beb9283abda…`;
+         - the models equal the baseline's;
+       - timing after the 2.7 confirmation;
+       - the attempts table, adding the `check` value and the MP4 duration;
+       - the two thresholds computed: render success among the 13 final outcomes, and the kit check pass rate among the 10 explainer final outcomes (`check` `"passed"` and `succeeded`);
+       - a key search, counts only, before cleanup;
+       - resources;
+       - `cleanup.sh --runs-only`, keeping `runs/baseline/`, `runs/after/` and all three packages for 8.2;
+       - other projects' objects listed again after cleanup and compared with the first list.
+    8. **Watch items from 7.2** (`Amended after OCU #267`): in transcripts, count re-sent `kit check` or `kit render` calls after an "already running" refusal, silent-block rewords, and step skips. Report the counts. They do not block.
+  - **Non-goals:**
+    - judging (8.2);
+    - merging PR 267 (#850);
+    - the follow-ups (#893, #897);
+    - any change to the request set, thresholds, images other than the workspace's, or WebUI.
+
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
   - otherwise: record the failure, and leave task 7.2 unmerged.
