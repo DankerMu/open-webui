@@ -5149,17 +5149,17 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
       - For the hostname `localhost` (ASCII case-insensitive), it answers `127.0.0.1` with family 4, asynchronously, in the callback form `dns.lookup` uses. It honours the options forms: none, a number, and an object. With `all: true` it returns `[{ address: "127.0.0.1", family: 4 }]`.
       - Every other hostname goes to the original `lookup` with the same arguments, unchanged.
       - Installing a second time does nothing.
-      - The header comment names the two Remotion lines above and the sandbox's empty `/etc/hosts`.
-    - **`remotion-template/bin/render-video.mjs`** calls `installLoopbackLookup()` once, before `bundle(`. Nothing else in the file changes, apart from one comment line.
+      - The file starts with the SPDX header that `tests/notice-coverage.test.mjs` requires of every `bin/` file. The header comment names the two Remotion lines above and the sandbox's empty `/etc/hosts`.
+    - **`remotion-template/bin/render-video.mjs`** imports `installLoopbackLookup` and calls it once, before `bundle(`. Nothing else in the file changes, apart from that import line and one comment line.
     - **Why this mechanism** (recorded):
       - Passing our own `http://127.0.0.1:<port>` serve URL through Remotion's remote branch would need a second static server for the bundle. That duplicates `serve-static`.
       - Patching the dependency changes the lockfile and its tree.
       - The wrapper lives only in the render worker process (`render.mjs --worker` imports `render-video.mjs` dynamically), and it matches the address Remotion binds.
     - **`tests/test-docker-image.sh` section 17.**
-      - The container gets two empty files mounted read-only at `/etc/hosts` and `/etc/resolv.conf`. The host part creates them under the script's own temp dir and removes them afterwards.
-      - `run_in_container_verbose` gains an optional third argument: extra `docker run` arguments, a bash array or a word list. The implementer chooses which and records the choice. Existing callers do not change.
+      - The container gets two empty files mounted read-only at `/etc/hosts` and `/etc/resolv.conf`. Section 17 creates them in its own `mktemp -d` directory and removes it afterwards.
+      - `run_in_container_verbose` passes any arguments after its second, as `"${@:3}"`, to `docker run`. This form is safe under bash 3.2 with `set -u`. Existing callers do not change.
       - A new first step, **`kit0`**, checks that both files are 0 bytes and that `getent hosts localhost` exits non-zero. Its detail names those results.
-      - Steps `kit1`–`kit10` keep their checks.
+      - The host's `KIT_CHECKS` gains a `kit0` label, and its loop covers 0–10. Steps `kit1`–`kit10` keep their checks.
   - **Tests.**
     - **New `remotion-template/tests/loopback.test.mjs`**, pure, with a stub `dns` object:
       - `localhost` and `LOCALHOST` answer `127.0.0.1`, family 4, for all three options forms;
@@ -5193,7 +5193,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
   - **Must preserve.**
     - The only files that change are:
       - `bin/loopback.mjs` (new);
-      - `bin/render-video.mjs` (the call and one comment line);
+      - `bin/render-video.mjs` (the import, the call and one comment line);
       - `tests/loopback.test.mjs` (new);
       - `tests/test-docker-image.sh` (section 17 and the helper's optional argument).
     - `src/**` is byte-identical, so rendered frames and the gallery approvals stand.
@@ -5330,9 +5330,13 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
       - The rebuilt `open-webui` image has the baseline's layers and config, except one history string: `EXPOSE [8080/tcp]` became `EXPOSE 8080/tcp`, after a Docker upgrade on the Mac. Its digest therefore changed (`8beb9283` → `2ea06f41`).
       - The evaluation package is therefore the baseline package with only these entries taken from the candidate build: `images.workspace`, `ocu_source_sha` and `source_bundle`. The other three archives are hard-linked from the baseline package.
       - The assembly script and the resulting `release.json` sha256 are recorded. The running WebUI container is not recreated.
-      - The three-role check of step 2 applies to the assembled `release.json`.
+      - Step 2's three-role check runs on the candidate build, before assembly:
+        - `computer-use-server` and `postgres` have the baseline's `reference` and `configuration_digest`;
+        - `open-webui` has the baseline's `RootFS.Layers`, and its config blob differs from the baseline's only in that history string.
+        - Otherwise, stop and report.
+      - The assembled `release.json` is then accepted by `release.load_inventory`, and `load.sh` passes its per-archive checksum and digest checks. `release.py verify --mode delivery` does not apply, because the evaluation package holds no fonts or source bundle.
     - **Host source** (step 4). The host's `src` fetches from a bundle file. `C` is delivered as `ocu-<short C>.bundle` and checked out detached under `umask 022`.
-    - **Disk** (step 4, user decision 2026-11-22). The load precheck was 181 MiB short. With the user's approval, the baseline workspace image `open-computer-use:3d0ceae2…` was removed by exact name (no container used it). The baseline package keeps its archive. For the re-run, the image of the stopped run's candidate, `open-computer-use:cd04783d…`, is removed the same way if the precheck needs the room.
+    - **Disk** (step 4; a recorded exception to "never remove an image … to make room", approved by the user on 2026-11-22). The load precheck was 181 MiB short. The baseline workspace image `open-computer-use:3d0ceae2…` was removed by exact name; no container used it. The baseline package keeps its archive. The exception covers that one image only. For the re-run, step 4's rule holds unchanged: if the precheck fails, stop and report to the user with the numbers.
 
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
