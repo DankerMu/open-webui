@@ -5128,7 +5128,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
       - `CHANGELOG.md`'s #707 entry describes what is now `free-form.md`;
       - `tests/README.md:377`.
 
-- [ ] 7.3 Make `kit render` work in a sandbox created with networking disabled, where `/etc/hosts` and `/etc/resolv.conf` are empty, and run 7.1's offline section in that shape. Verify that section 17 fails on the 8.1 candidate's image and passes on the rebuilt image.
+- [x] 7.3 Make `kit render` work in a sandbox created with networking disabled, where `/etc/hosts` and `/etc/resolv.conf` are empty, and run 7.1's offline section in that shape. Verify that section 17 fails on the 8.1 candidate's image and passes on the rebuilt image.
 
   **Task 7.3 required evidence** (issue #905):
   - **Fixture level:** compact. Risk packs:
@@ -5207,6 +5207,31 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
   - **PR record.**
     - The PR references (#905) and (#848), and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #905 after merge.
     - It names the red image and the green image.
+
+  - Amended after OCU #269 (2026-11-23, merged `d8a0a32`, reviewed head `6d9729b`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - The call sits at the start of `renderVideo`, before `bundle(`.
+      - The source scan drops `//` comment lines and also asserts the import line.
+      - One extra test case routes `localhost.example.test` to the original lookup.
+      - `kit0`'s label is "empty /etc/hosts and /etc/resolv.conf, getent hosts localhost fails".
+    - **Gate record.**
+      - **Red.**
+        - At the tests-only commit `3d3d32a`, all 12 tests failed: 11 with `ERR_MODULE_NOT_FOUND` and 1 on the source scan's own assertion.
+        - Section 17 on `cd04783d`: `kit0` passed, then `kit9` failed with `Error while downloading http://localhost:3000/public/music.wav: … EAI_AGAIN localhost … onlookupall`. Which asset fails first varies, so a run may name `narration.wav` instead.
+      - **Mutations.** All 5 went red on their named tests. The "every hostname" mutation also reddens the second-install case. Without the mounts, `kit0` fails on both images.
+      - **Green.**
+        - Pure tests: 526/526 from the template and from the root, under Node 22.23.2, re-run by the orchestrator.
+        - `./tests/test-docker-image.sh ocu-905:6d9729b` (`sha256:82e6126e…`): PASSED 103, FAILED 0, in 354 s. Section 17 took 178 s: check 61.0 s, render 95.4 s.
+        - In-image `render.test.mjs`: 4/4.
+      - **Guards.**
+        - `bash -n` passes under bash 3.2.57 and 5.3.15.
+        - shellcheck shows the same 58 warnings as base.
+        - `tests/test_remotion_image.py`: 18 passed.
+        - The project-structure check is OK.
+      - **Review.** Round 1, one seat (correctness plus test evidence and spec compliance), found no P0/P1.
+    - **Residuals.**
+      - **P3:** `dns.promises.lookup` is not wrapped. Remotion calls it (`browser/NodeWebSocketTransport.js:32-33`) only for a `localhost` DevTools host, which Chrome does not print today. Re-check on a Remotion upgrade.
+      - **Not yet proved:** a real `network_disabled=True` sandbox. The 8.1 re-run (#848) proves it.
 
 Suggested fixture level: compact - task 7.1 adds a test, task 7.2 changes skill text that a static test pins, and task 7.3 fixes the render worker's name lookup with a test; the runtime behavior is covered by groups 3–6.
 Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 merges only after task 8.2 passes.
