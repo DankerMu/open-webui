@@ -5128,8 +5128,88 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
       - `CHANGELOG.md`'s #707 entry describes what is now `free-form.md`;
       - `tests/README.md:377`.
 
-Suggested fixture level: compact - task 7.1 adds a test, and task 7.2 changes skill text that a static test pins; the runtime behavior is covered by groups 3–6.
-Minimal mergeable slice: task 7.1 merges on its own. Task 7.2 merges only after task 8.2 passes.
+- [ ] 7.3 Make `kit render` work in a sandbox created with networking disabled, where `/etc/hosts` and `/etc/resolv.conf` are empty, and run 7.1's offline section in that shape. Verify that section 17 fails on the 8.1 candidate's image and passes on the rebuilt image.
+
+  **Task 7.3 required evidence** (issue #905):
+  - **Fixture level:** compact. Risk packs:
+    - **Runtime / render path** — selected. The render worker's name resolution changes.
+    - **Tests / CI** — selected. Section 17 of `tests/test-docker-image.sh` changes its container.
+    - Every other pack is not selected: no scene, schema, approval or dependency changes.
+  - **Cause (recorded, binding facts).**
+    - With `ENABLE_NETWORK` false, `computer-use-server/docker_manager.py:1334-1335` creates the sandbox with `network_disabled=True`. Docker then writes no hosts or resolver file:
+      - `/etc/hosts`, `/etc/resolv.conf` and `/etc/hostname` are 0-byte;
+      - `HostsPath` is empty;
+      - `getent hosts localhost` fails.
+        This was seen in a live 8.1 sandbox on 2026-11-23.
+    - Remotion 4.0.537 (the lockfile's version) serves a local bundle on `127.0.0.1` (`@remotion/renderer/dist/serve-static.js:57`), but returns the serve URL `http://localhost:${serverPort}` (`prepare-server.js:94`). Its Node side downloads audio assets with `node:http` (`assets/read-file.js`), which resolves `localhost` through `dns.lookup`. In that sandbox the lookup fails with `EAI_AGAIN`, so `kit render` fails with `Error while downloading http://localhost:3000/public/narration.wav`.
+    - `kit check` does not download assets through Node, and it passed in every 8.1 attempt.
+    - 7.1 runs with `--network=none`, which still gets a Docker-written `/etc/hosts`, so it did not reproduce the sandbox.
+  - **Shape.**
+    - **`remotion-template/bin/loopback.mjs`** (new). It exports `installLoopbackLookup(dns)`, where `dns` defaults to `node:dns`. This replaces `dns.lookup` with a wrapper:
+      - For the hostname `localhost` (ASCII case-insensitive), it answers `127.0.0.1` with family 4, asynchronously, in the callback form `dns.lookup` uses. It honours the options forms: none, a number, and an object. With `all: true` it returns `[{ address: "127.0.0.1", family: 4 }]`.
+      - Every other hostname goes to the original `lookup` with the same arguments, unchanged.
+      - Installing a second time does nothing.
+      - The file starts with the SPDX header that `tests/notice-coverage.test.mjs` requires of every `bin/` file. The header comment names the two Remotion lines above and the sandbox's empty `/etc/hosts`.
+    - **`remotion-template/bin/render-video.mjs`** imports `installLoopbackLookup` and calls it once, before `bundle(`. Nothing else in the file changes, apart from that import line and one comment line.
+    - **Why this mechanism** (recorded):
+      - Passing our own `http://127.0.0.1:<port>` serve URL through Remotion's remote branch would need a second static server for the bundle. That duplicates `serve-static`.
+      - Patching the dependency changes the lockfile and its tree.
+      - The wrapper lives only in the render worker process (`render.mjs --worker` imports `render-video.mjs` dynamically), and it matches the address Remotion binds.
+    - **`tests/test-docker-image.sh` section 17.**
+      - The container gets two empty files mounted read-only at `/etc/hosts` and `/etc/resolv.conf`. Section 17 creates them in its own `mktemp -d` directory and removes it afterwards.
+      - `run_in_container_verbose` passes any arguments after its second, as `"${@:3}"`, to `docker run`. This form is safe under bash 3.2 with `set -u`. Existing callers do not change.
+      - A new first step, **`kit0`**, checks that both files are 0 bytes and that `getent hosts localhost` exits non-zero. Its detail names those results.
+      - The host's `KIT_CHECKS` gains a `kit0` label, and its loop covers 0–10. Steps `kit1`–`kit10` keep their checks.
+  - **Tests.**
+    - **New `remotion-template/tests/loopback.test.mjs`**, pure, with a stub `dns` object:
+      - `localhost` and `LOCALHOST` answer `127.0.0.1`, family 4, for all three options forms;
+      - `all: true` gives the one-element array;
+      - another hostname reaches the original with the same arguments, and its result passes through;
+      - the callback is not called synchronously;
+      - a second install does not wrap twice;
+      - a source scan of `bin/render-video.mjs` shows `installLoopbackLookup()` called before `bundle(`.
+    - No existing test changes. If one fails, stop and report.
+  - **Required evidence, red first.**
+    1. **Red.**
+       - The tests-only commit fails the pure run (`ERR_MODULE_NOT_FOUND …loopback.mjs`).
+       - Section 17 at the final head, run against the 8.1 candidate image `open-computer-use:cd04783d023f48f06f4d2d4e5b000959190f6ab277ea367ad75917be36f3fa48` (on the Mac), passes `kit0`. It then fails at `kit9`, with a reason naming `EAI_AGAIN`.
+    2. **Mutations**, each on a copy and then reverted:
+
+       | Mutation                               | Expected red                                 |
+       | -------------------------------------- | -------------------------------------------- |
+       | the wrapper ignores `all: true`        | `loopback.test.mjs`, the `all: true` case    |
+       | the wrapper answers every hostname     | `loopback.test.mjs`, the other-hostname case |
+       | the wrapper calls back synchronously   | `loopback.test.mjs`, the asynchronous case   |
+       | the call in `render-video.mjs` removed | `loopback.test.mjs`, the source scan         |
+       | section 17 without the two mounts      | `kit0` FAIL                                  |
+
+    3. **Green.**
+       - Pure tests in a frozen `npm ci` tree under Node 22.23.2, from the template and from the repository root, all pass.
+       - In the image built from a clean `--no-local` clone at the head (`docker build --platform linux/amd64`):
+         - `./tests/test-docker-image.sh <image>` passes every section. Record section 17's step details and times.
+         - `node --test --test-concurrency=1 tests/render/render.test.mjs` passes, run with 3.7's flags.
+    4. **Guards.** `tests/test_remotion_image.py` and `tests/test-project-structure.sh` pass. Run `bash -n` on the script. If `shellcheck` is installed, it must show no new warnings against `origin/main`.
+
+  - **Must preserve.**
+    - The only files that change are:
+      - `bin/loopback.mjs` (new);
+      - `bin/render-video.mjs` (the import, the call and one comment line);
+      - `tests/loopback.test.mjs` (new);
+      - `tests/test-docker-image.sh` (section 17 and the helper's optional argument).
+    - `src/**` is byte-identical, so rendered frames and the gallery approvals stand.
+    - Byte-identical: every other `bin/` file, `package.json`, the lockfile, `NOTICE` and `THIRD-PARTY-LICENSES.md`.
+    - Sections 1–16 are unchanged.
+  - **Non-goals:**
+    - `docker_manager.py`, `ENABLE_NETWORK`, the eval stack and the deployment;
+    - the skill text (7.2);
+    - `kit check` and the probe, which do not fetch through Node;
+    - other `wrapLines` or timing follow-ups.
+  - **PR record.**
+    - The PR references (#905) and (#848), and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #905 after merge.
+    - It names the red image and the green image.
+
+Suggested fixture level: compact - task 7.1 adds a test, task 7.2 changes skill text that a static test pins, and task 7.3 fixes the render worker's name lookup with a test; the runtime behavior is covered by groups 3–6.
+Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 merges only after task 8.2 passes.
 
 ## 8. After run and acceptance
 
@@ -5237,6 +5317,26 @@ Minimal mergeable slice: task 7.1 merges on its own. Task 7.2 merges only after 
     - merging PR 267 (#850);
     - the follow-ups (#893, #897);
     - any change to the request set, thresholds, images other than the workspace's, or WebUI.
+
+  - Amended after the stopped after run (2026-11-23). Where these differ from Part B above, these bind:
+    - **The first after run is not an 8.1 outcome.**
+      - The candidate was `C` = `d3849fbc5c78b4dc35753e613d6fc693b2be7dbe`. The batch started at 2026-11-23T05:21:03Z.
+      - The user stopped it at 08:57:15Z after a candidate defect was found: in a network-disabled sandbox, `kit render` cannot resolve `localhost` (#905, task 7.3).
+      - Results: 8 attempts finished and 1 was interrupted. 4 are `infra`; the baseline had 0. All 4 successes rendered only through a `dns.lookup` hook the model wrote itself.
+      - The run is kept on the host as `runs/after-d3849fb-localhost-defect`, and its sandboxes were removed with `cleanup.sh --runs-only`. Other projects' objects were unchanged before `load.sh`, after `start.sh` and after cleanup.
+    - **Re-run.** After 7.3 merges, Part B restarts at step 1 with a new `C`: OCU `main` merged into `claude/video-skill-router-7-2` again.
+    - **WebUI source** (step 2). WebUI `6b95a4995e91` is not on GitHub. It is fetched from the upgrade package's `source/webui-6b95a49.bundle` (sha256 `c5c2c341…`, matching its `SHA256SUMS`) into a clean clone of the fork, as branch `zhanhuan-branding`.
+    - **Package assembly** (steps 2 and 4, user decision 2026-11-22).
+      - The rebuilt `open-webui` image has the baseline's layers and config, except one history string: `EXPOSE [8080/tcp]` became `EXPOSE 8080/tcp`, after a Docker upgrade on the Mac. Its digest therefore changed (`8beb9283` → `2ea06f41`).
+      - The evaluation package is therefore the baseline package with only these entries taken from the candidate build: `images.workspace`, `ocu_source_sha` and `source_bundle`. The other three archives are hard-linked from the baseline package.
+      - The assembly script and the resulting `release.json` sha256 are recorded. The running WebUI container is not recreated.
+      - Step 2's three-role check runs on the candidate build, before assembly:
+        - `computer-use-server` and `postgres` have the baseline's `reference` and `configuration_digest`;
+        - `open-webui` has the baseline's `RootFS.Layers`, and its config blob differs from the baseline's only in that history string.
+        - Otherwise, stop and report.
+      - The assembled `release.json` is then accepted by `release.load_inventory`, and `load.sh` passes its per-archive checksum and digest checks. `release.py verify --mode delivery` does not apply, because the evaluation package holds no fonts or source bundle.
+    - **Host source** (step 4). The host's `src` fetches from a bundle file. `C` is delivered as `ocu-<short C>.bundle` and checked out detached under `umask 022`.
+    - **Disk** (step 4; a recorded exception to "never remove an image … to make room", approved by the user on 2026-11-22). The load precheck was 181 MiB short. The baseline workspace image `open-computer-use:3d0ceae2…` was removed by exact name; no container used it. The baseline package keeps its archive. The exception covers that one image only. For the re-run, step 4's rule holds unchanged: if the precheck fails, stop and report to the user with the numbers.
 
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
