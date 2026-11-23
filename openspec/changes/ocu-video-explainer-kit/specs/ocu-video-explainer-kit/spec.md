@@ -216,6 +216,12 @@ The status command SHALL distinguish running, succeeded, failed with an exit cod
 
 On failure, `/mnt/user-data/files/<name>.mp4` SHALL be left as it was. A render relaunched after a death SHALL reuse the last passing check.
 
+#### Scenario: Render in a sandbox with networking disabled
+
+- **WHEN** a checked project is rendered in a sandbox created with networking disabled, whose `/etc/hosts` and `/etc/resolv.conf` are empty
+- **THEN** the render succeeds and `/mnt/user-data/files/<name>.mp4` holds the narration and music
+- **AND** no name lookup of `localhost` through the system resolver is needed
+
 #### Scenario: Background render completes
 
 - **WHEN** a checked project is rendered
