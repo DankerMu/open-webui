@@ -4956,6 +4956,131 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
 
   Move the render mechanics into a reference file. Update `tests/test_remotion_image.py` to pin the steps and the 80-line limit, and extend 4.6's static test so the skill's kind list equals the approved set. Verify with the updated test on the integration branch.
 
+  **Task 7.2 required evidence** (issue #847):
+  - **Fixture level:** compact. Risk packs:
+    - **Tests / CI** — selected: the skill pins move and grow.
+    - **Documentation** — selected: the skill is model-facing documentation, and three licence lines name the new files.
+    - Every other pack is not selected: no kit code, server code or image content changes.
+  - **Human gate.**
+    - The PR is a draft from the integration branch `claude/video-skill-router-7-2` (from OCU `main`), labelled `do-not-merge`, with `<!-- intended-closing-issues: [] -->`.
+    - It gets one review round on its head and stays open and green.
+    - (#847) closes with the PR open and unmerged. Merging or closing it is (#850), after 8.2.
+    - 8.1 builds the release candidate from `main` plus this branch.
+  - **Shape.** Three files under `skills/public/remotion/`, all project-original, each with an MIT SPDX line:
+    - **`SKILL.md`, the router**: at most 80 lines, frontmatter included, keeping `name: remotion`.
+      - It says the sandbox is offline and the user sees only `/mnt/user-data/files/`.
+      - **Science explainers (科普讲解)** follow the kit, in this order and numbered as the spec's eight steps. Each step names its exact command:
+        1. `node /opt/remotion-template/bin/kit.mjs new <name>`, then `cd /home/assistant/videos/<name>` at the start of every later call;
+        2. write `script.json`, by the format in `explainer-kit.md`;
+        3. generate each illustration with the image tool, then `node bin/kit.mjs image "<path>"`, and write the printed name in the scene;
+        4. `node bin/kit.mjs voice`, one `generate_speech` call per printed line with that line's fields, then `node bin/kit.mjs voice-import`;
+        5. `node bin/kit.mjs timeline`;
+        6. `node bin/kit.mjs check`, then `node bin/kit.mjs status` until it no longer reports `running`;
+        7. `view` the contact sheet and answer every checklist question yes or no. On any "no", fix the script (or the image or voice it names), redo the steps it affects, and check again;
+        8. `node bin/kit.mjs render`, then `node bin/kit.mjs status` until it succeeds, then tell the user the published path.
+      - **Other videos** (course, promo, report and anything else) keep the existing workflow in `free-form.md`.
+      - **The vendored Remotion guidance** (`remotion-best-practices/SKILL.md`) is read, for an explainer, only to write a `custom` scene.
+      - Render mechanics and failure handling are in `explainer-kit.md`, not in the entry.
+    - **`explainer-kit.md`, the kit reference.**
+      - **The script.** `script.json`'s structure, with the project's `script.schema.json` and example `script.json` as the authority.
+      - **The kinds.** One table row per approved kind, ``| `<kind>` | <one-line use> |``, listing exactly the approved set: the 13 kinds with an `approve` entry in `gallery/approvals.json`, including `hook`, `summary` and `end-card`. `custom` is described outside the table.
+      - **Images.** `kit image`, which scenes take one, and that `image-callouts` needs one.
+        - A generated image reaches `/mnt/user-data/files/` before the next tool call.
+        - That call's result names it as `Synced image: /mnt/user-data/files/<file>`, often with a numbered suffix such as `generated-image (2).png`.
+        - So, after generating, run any command, then pass `kit image` the reported path, quoted.
+      - **Music.**
+        - `music` is `none` or the `id` of a track in `/opt/video-music/manifest.json`. Choose it by the manifest's mood and `loop` fields.
+        - A non-loop track shorter than the video fails `check`.
+        - An unknown id fails `check`, which lists the valid ids.
+        - Prefer a track to `none` unless the user asks for no music.
+      - **Numbers and callouts.** Round every number so its formatted form (`formatCount`, for example `1.2万`) is at most 8 code points. Space callout points apart, because overlap is not checked.
+      - **`custom` scenes.**
+        - At most one per script.
+        - Its component goes in `src/custom/<component>.tsx` as a default export (`bin/custom-index.mjs` re-exports `default`). It receives `timing`, `theme` and `image` (`string | null`), as `src/kit/render/CustomScene.tsx` defines them.
+        - It must settle within the 15-frame entrance (`ENTRANCE_FRAMES`).
+        - It is the only place the vendored guidance applies.
+      - **Voice.**
+        - `kit voice` lines map to `generate_speech` fields (`text`, `filename`, `voice`, `instructions`). Check the field names against `computer-use-server/mcp_tools.py`.
+        - A returned name with a numbered suffix is still imported.
+        - Without the tool, or when it returns `speech synthesis is not configured`, explainers cannot be made: say so and stop.
+      - **Check and status.**
+        - `check` and `render` run as background jobs.
+        - The status lines and exit codes are 0 for passed or succeeded, 1 for failed or died, 3 for running, and 4 for no job.
+        - Poll without long pauses: a call of at most 100 s, because of `COMMAND_TIMEOUT` and the idle stop of about 10 minutes.
+        - The contact sheet and its checklist.
+      - **Render.** It needs a passing check whose hash still matches. It publishes `/mnt/user-data/files/<name>.mp4` only when the file is complete.
+      - **Failures.** Read the reasons `status` prints, fix, then re-run from the step they name. For `died without an exit`, start the job again.
+      - The concrete facts come from the code at the branch's base. The implementer checks each one against `remotion-template/bin/`.
+    - **`free-form.md`, the existing workflow.** The current `SKILL.md` body after its SPDX lines, moved as it is under a new title. It loses no rule, command or table row. It changes only the lines that referred to "this file" and the heading that names the workflow it covers.
+  - **Licence lines.** Every line that names `skills/public/remotion/SKILL.md` as project-original MIT also names the two new files:
+    - `CLAUDE.md:26`;
+    - `NOTICE` §2;
+    - the `skills/README.md` remotion row.
+
+    Their pins in `tests/test_remotion_image.py` extend to match. `tests/test-project-structure.sh` lists the two new files.
+
+  - **Tests.**
+    - **`tests/test_remotion_image.py`.**
+      - The existing `SKILL.md` content pins (`test_skill_md_states_the_sandbox_rules`, `…_overrides_vendored_conflicts`, `…_check_frames_go_to_project_out` and `…_background_render_reports_its_exit`) read `free-form.md` instead, with every needle kept.
+      - `test_skill_md_is_ours_and_mit` checks the MIT SPDX line in all three files, and the `---\nname: remotion\n` start in `SKILL.md` only.
+      - New tests:
+        - **the router**:
+          - `SKILL.md` has at most 80 lines.
+          - Its eight numbered steps appear in order, each step's line holding its command, matched with word boundaries so `node bin/kit.mjs voice` does not match inside `voice-import`. Step 6 and step 8 each hold `status`.
+          - Step 7's line holds `view`, "no" and "check again".
+          - It names `free-form.md` and `explainer-kit.md`, and the words course, promo and report.
+          - Its only mention of the vendored path is tied to `custom`;
+        - **the commands**: every `usage` string of `COMMANDS` in `remotion-template/bin/kit.mjs`, parsed from its text, appears verbatim in `SKILL.md` or `explainer-kit.md`, matched with a word boundary so that no `[a-z-]` follows it. No `node bin/kit.mjs <word>`, with `<word>` matched as `[a-z-]+`, in either file names a command outside `COMMANDS`;
+        - **the reference**: `explainer-kit.md` contains:
+          - the exit codes 0, 1, 3 and 4 with their states, and `COMMAND_TIMEOUT`;
+          - the 8-code-point rounding rule;
+          - `ENTRANCE_FRAMES` or the 15-frame entrance, `src/custom/` and the default export;
+          - `/opt/video-music/manifest.json` and `Synced image:`.
+    - **`remotion-template/tests/registry-approvals.test.mjs`.** "The approved set" gains the skill as a surface: the kinds in `explainer-kit.md`'s kind table, found under its section heading so no other table is read, equal the approved set, with none listed twice and `custom` absent. 4.6's other surfaces stay as they are.
+    - `tests/orchestrator/test_prompt_features.py` is unchanged and must pass. The native description in `computer-use-server/skill_manager.py` does not change.
+  - **Required evidence, red first:**
+    1. **Red.** Commit the tests first. At that commit:
+       - the router test fails, because the 174-line `SKILL.md` is over 80 lines;
+       - the commands and reference tests and the approved-set surface fail, because `explainer-kit.md` is missing;
+       - the moved pins fail, because `free-form.md` is missing.
+
+       Keep the logs.
+
+    2. **Green at the head:**
+       - `tests/test_remotion_image.py`, `tests/orchestrator/test_prompt_features.py` and `tests/test-project-structure.sh` pass;
+       - the template's pure tests pass from both roots under Node 22.23.2.
+    3. **Mutations,** each on a copy, red on the named test, then reverted:
+
+       | Mutation                                                        | Red                          |
+       | --------------------------------------------------------------- | ---------------------------- |
+       | steps 5 and 6 swapped in `SKILL.md`                             | router (order)               |
+       | `SKILL.md` padded to 81 lines                                   | router (length)              |
+       | one kind dropped from the table                                 | approved set (skill surface) |
+       | `custom` added to the table                                     | approved set (skill surface) |
+       | `voice-import` usage misspelled                                 | commands                     |
+       | `node bin/kit.mjs preview` added to the reference               | commands                     |
+       | the rounding sentence removed                                   | reference                    |
+       | `--gl=swangle` removed from `free-form.md`                      | moved sandbox-rules pin      |
+       | the vendored path mentioned outside the `custom` sentence       | router                       |
+       | step 7's "fix and check again" removed                          | router (step 7)              |
+       | step 4's `node bin/kit.mjs voice` removed (`voice-import` kept) | router (order) and commands  |
+       | the Music section removed                                       | reference                    |
+
+    4. **Reading check.** The orchestrator reads all three files whole, against the spec requirement "The video skill routes explainers to the kit" and this block.
+
+  - **Must preserve.**
+    - Only these files change:
+      - `skills/public/remotion/SKILL.md`, plus the two new files;
+      - `tests/test_remotion_image.py`, `tests/test-project-structure.sh` and `remotion-template/tests/registry-approvals.test.mjs`;
+      - the comment at `tests/test-docker-image.sh:866`, which names `SKILL.md` as the source of section 15's start and now names `free-form.md`;
+      - the three licence lines.
+    - `skills/public/remotion/remotion-best-practices/**` stays byte-identical. So do `remotion-template/bin/**`, `src/**`, `computer-use-server/**`, the Dockerfile and every other test.
+  - **Non-goals:**
+    - merging the PR (#850);
+    - kit behaviour changes, including a schema limit on numbers (#893);
+    - a live model run (8.1);
+    - translating the skill into Chinese: the existing skill is English, and only the explainer narration rules concern Chinese.
+
 Suggested fixture level: compact - task 7.1 adds a test, and task 7.2 changes skill text that a static test pins; the runtime behavior is covered by groups 3–6.
 Minimal mergeable slice: task 7.1 merges on its own. Task 7.2 merges only after task 8.2 passes.
 
