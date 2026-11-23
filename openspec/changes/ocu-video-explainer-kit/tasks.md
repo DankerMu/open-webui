@@ -4949,7 +4949,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
     - **Not covered here:** a killed render leaving no partial file, and `render` returning before it ends. Both are 5.3's.
     - **Out of scope, reported:** the `test-docker-image.sh` section list in `tests/README.md:377` is stale.
 
-- [ ] 7.2 On an integration branch, not merged before acceptance, rewrite `skills/public/remotion/SKILL.md` as a router of at most 80 lines:
+- [x] 7.2 On an integration branch, not merged before acceptance, rewrite `skills/public/remotion/SKILL.md` as a router of at most 80 lines:
   - explainers follow the kit steps in order, including image import and "fix and re-check on any no";
   - other types keep the existing workflow;
   - the vendored guidance is read only for `custom`.
@@ -5080,6 +5080,53 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
     - kit behaviour changes, including a schema limit on numbers (#893);
     - a live model run (8.1);
     - translating the skill into Chinese: the existing skill is English, and only the explainer narration rules concern Chinese.
+
+  - Amended after OCU #267 (2026-11-22). The PR is held open and unmerged as a draft labelled `do-not-merge`, from `claude/video-skill-router-7-2` at `07d7a21`; (#850) acts on it after 8.2. Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **`SKILL.md`** is 40 lines.
+        - Step 8 polls only after `kit render` prints `started`.
+        - A rule line says a `kit check` or `kit render` with no `started` line refused and is not polled.
+        - The frontmatter `description` became a routing summary. The server's native description in `skill_manager.py` is unchanged.
+      - **`explainer-kit.md`** is 137 lines. Its kind table's Use column also gives each kind's content fields and lengths.
+        - It defines the shorthand `kit <command>` for `cd … && node bin/kit.mjs <command>`.
+        - Polling is `sleep 60 && node bin/kit.mjs status`.
+        - `script.json` is written with `create_file`.
+        - The manifest is listed with one `python3 -c` command.
+        - If `view` returns `this model cannot view images`, the model tells the user and goes on to step 8, as `free-form.md` already does.
+      - **Failure handling,** added in fix pass 1:
+        - a silent or undecodable voice block is reworded (a new stem), then steps 4–5 are redone; deleting the wav would re-import the same bad file;
+        - any other `generate_speech` `Error:` is retried once, and a second failure on the same block stops;
+        - a job that dies is investigated with `tail -n 30 .kit/<job>/log`, and a second death stops;
+        - usage errors exit 2;
+        - the redo rule is restated in Failures.
+      - **`free-form.md`** is the old body with only its H1 changed.
+      - **Non-ASCII.** `科普讲解` and `万`/`亿` stay, as routing keyword and `formatCount` output, despite OCU `CLAUDE.md`'s English-only rule.
+    - **Tests beyond the bullets.**
+      - The usage parser must find exactly 8 `COMMANDS` entries.
+      - Every `kit <word>` inside a code span must be a `COMMANDS` key.
+      - The kind-table parser requires a separator row and counts every body row.
+    - **Gate record.**
+      - **Red at `5b369ad`:**
+        - `test_remotion_image.py`: 12 failed, including `SKILL.md has 174 lines, at most 80`;
+        - the structure check fails on the two missing files;
+        - the skill surface fails with ENOENT.
+      - **Green at `07d7a21`:**
+        - `test_remotion_image.py`: 22 passed;
+        - `test_prompt_features.py`: 8 passed;
+        - the structure check is OK;
+        - pure tests: 515 of 515 from both roots.
+      - **Mutations:** the 12 rows plus 3 from the fix pass (`kit preview` in a span, a bare `custom` row, a duplicated row), all red where stated.
+      - **Review.**
+        - Round 1 had two seats. Neither found a P0/P1. The incomplete failure handling was counted as a gap against the spec's reference-file requirement.
+        - Round 2, a narrow review of the fix pass, found no P0/P1.
+    - **Residuals for 8.1 to watch.**
+      - **P2:** after the refusal `a check is already running …; run node bin/kit.mjs status`, the model may re-send the job instead of polling.
+      - **P3:** rewording a silent block has no retry cap.
+      - **P3:** "otherwise redo step 6" can skip steps 4–5 after a non-narration fix, though the check's `timeline` hint recovers.
+    - **Out of scope, reported:**
+      - `remotion-template/bin/checklist.mjs:23` still names "the existing skill's contact-sheet step";
+      - `CHANGELOG.md`'s #707 entry describes what is now `free-form.md`;
+      - `tests/README.md:377`.
 
 Suggested fixture level: compact - task 7.1 adds a test, and task 7.2 changes skill text that a static test pins; the runtime behavior is covered by groups 3–6.
 Minimal mergeable slice: task 7.1 merges on its own. Task 7.2 merges only after task 8.2 passes.
