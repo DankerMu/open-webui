@@ -5366,40 +5366,65 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
   - Amended after the re-run (2026-11-24). Where these differ from Part B and the amendment above, these bind:
     - **The re-run is the 8.1 outcome.**
       - The candidate is `C` = `ab3e0fe188d44b88ebde159369c7fa1518249f55`, package `ocu-ab3e0fe-webui-6b95a49` (`release.json` `c1d82f90…`). The batch ran from 2026-11-23T10:46:27Z to 2026-11-24T01:27:20Z (`eval: done 0`).
-      - **Disk.** The re-run's load precheck failed. Per step 4, the run stopped and the numbers went to the user. The user approved removing the earlier candidate's workspace image `cd04783d…` by exact name, the only other image the exception covers.
+      - **Disk.** The re-run's load precheck failed. Per step 4, the run stopped and the numbers went to the user. On 2026-11-23 the user approved removing the earlier candidate's workspace image `cd04783d…` by exact name. That is the second and last image the disk exception covers.
       - **Result.** 4 of 13 final outcomes succeeded. 2 of 10 explainer final outcomes have `check` `"passed"` and succeeded. Neither threshold is met.
-      - **Failure shape.** 7 explainer final outcomes (bread-browning r1 and r2, four-seasons r1 and r2, phone-fast-charging r1 and r2, and fever-immunity r1's last attempt) have the same shape, called **early stop** below:
-        - no valid MP4;
-        - at most 3 function calls in the final message;
-        - the final message's last output item is `reasoning`, cut mid-sentence;
-        - no WebUI error.
-      - In six of them, the model read only `SKILL.md` and `explainer-kit.md`. After the last tool call, WebUI logged nothing for 625–1045 s until the turn ended. The seventh made no call at all.
-      - The baseline's 13 final outcomes have no early stop, and neither does the stopped first after run. All seven fall between 12:42Z and 15:33Z. The four successes ran before and after that window.
-      - `runs/after` stays as recorded. Its key search, resources, `cleanup.sh --runs-only` and the other-objects comparison follow step 7.
-    - **Diagnostic run** (user decision 2026-11-24). Its purpose is to tell a provider fault in that window from a candidate defect. It does not change `runs/after` or the 8.1 outcome.
-      - **Stack.** The same stack, package, `src` HEAD and image settings, with no `load.sh`, no restart and no settings change.
-      - **Directories.** With no batch running:
-        1. rename `runs/after` to `runs/after-ab3e0fe`;
-        2. run the seven slots below, one at a time and detached, with `run.sh --package <candidate> --phase after --request <id> --repetition <n>`;
-        3. rename the new `runs/after` to `runs/after-diag`;
-        4. rename `runs/after-ab3e0fe` back to `runs/after`.
-      - **Slots:** `explainer-bread-browning` 1 and 2, `explainer-four-seasons` 1 and 2, `explainer-phone-fast-charging` 1 and 2, `explainer-fever-immunity` 1. Retries follow the driver's rules: at most 3 attempts, and only `infra` outcomes rerun.
-      - **Before the first slot**, record:
-        - free space on `/` and `/home`;
-        - other projects' objects, compared before and after, as in step 4;
-        - the four containers' `{{.Image}} {{.State.StartedAt}}`.
-      - **Rule, fixed before the run.** Count the diagnostic final outcomes with an early stop:
-        - **3 or more of 7:** the shape reproduces outside the window. It is reported as a candidate defect, and the 8.1 outcome stands.
-        - **0 or 1 of 7:** the window explains it. It is reported as a provider fault.
-        - **2 of 7:** inconclusive.
-        - In each case the user decides whether the 8.1 conclusion is restated. The orchestrator does not restate it.
+      - **Early stop.** A final outcome is an early stop when all of these hold:
+        - its manifest has `outcome` `failed`, `failure_class` `model`, `failure_reason` `no valid MP4`, `check` `"none"`, and `counts.tool_calls` at most 10;
+        - its final message's last output item has `type` `reasoning`, or the message has no output items.
+      - **The silent gap** of an attempt runs to its end (`started_at` + `elapsed_seconds`). It starts at the last `computer-use-server:8081/mcp` line before that end in `docker logs ocu-eval-open-webui`, or at `started_at` when the attempt made no call.
+      - **The 7 recorded early stops** are bread-browning r1 and r2, four-seasons r1 and r2, phone-fast-charging r1 and r2, and fever-immunity r1's last attempt (`r1-a2`).
+        - four-seasons and phone-fast-charging read `SKILL.md` and `explainer-kit.md` and made no other call.
+        - bread-browning also ran `kit new` and read the template `script.json` (6 and 7 calls).
+        - fever-immunity `r1-a2` made no call.
+        - Their final reasoning items end mid-sentence. This is an observation, not part of the definition.
+        - The six attempts with calls have silent gaps of 625–1045 s. In those gaps WebUI logged only the driver's polling, and the message has no error.
+      - **Timing.** The baseline's 13 final outcomes have no early stop, and neither does the stopped first after run. All seven started between 12:42Z and 15:33Z on 2026-11-23. The four successes ran before and after that window.
+      - **`runs/after` stays as recorded.** Its key search, resources, `cleanup.sh --runs-only` and the other-objects comparison follow step 7, and were all done by 2026-11-24T11:30Z.
+    - **Diagnostic run** (user decision 2026-11-24).
+      - **Purpose.** It tells apart a provider fault tied to the 2026-11-23 window and a defect that reproduces outside it. It does not change `runs/after` or the 8.1 outcome, whatever it finds.
+      - **Prerequisite.** The 8.1 key search, resources, cleanup and other-objects comparison above are complete.
+      - **Stack.** The same stack, package, `src` HEAD (`ab3e0fe…`) and image settings. There is no `load.sh`, no restart and no settings change.
+      - **No image removal.** If a disk floor is hit, stop and report to the user.
+      - **Directories.**
+        1. **Pre-checks.** `flock -n eval.lock true` succeeds, so no driver is running. Neither `runs/after-ab3e0fe` nor `runs/after-diag` exists. Every `runs/*/*/r*-a*` directory has a `manifest.json`.
+        2. **Fingerprint.** Record `find runs/after -type f | sort | xargs sha256sum | sha256sum`, then rename `runs/after` to `runs/after-ab3e0fe`.
+        3. **Slots.** Run the seven slots below one at a time, detached, with `run.sh --package <candidate> --phase after --request <id> --repetition <n>`.
+           - Each slot's command runs once.
+           - If a command exits non-zero or stops early, apply 2.6's resume steps 1–4 to the current `runs/after`, and rerun only slots that have no final manifest.
+        4. **Restore.** After all seven slots have a final manifest, rename the new `runs/after` to `runs/after-diag`, rename `runs/after-ab3e0fe` back to `runs/after`, and recompute its fingerprint. The two values must match.
+        - **Phase field.** Diagnostic manifests keep `phase` `"after"` and the same attempt directory names as 8.1. Only their directory, `runs/after-diag`, tells them apart, and 8.2 reads only `runs/after`.
+      - **Slots:** `explainer-bread-browning` 1 and 2, `explainer-four-seasons` 1 and 2, `explainer-phone-fast-charging` 1 and 2, `explainer-fever-immunity` 1.
+        - Retries follow the driver's rules: at most 3 attempts, and only `infra` outcomes rerun.
+      - **Timing.** The first slot starts no earlier than 2026-11-24T16:00Z, so no attempt starts within 12:00–16:00Z, the hours of the 2026-11-23 window.
+      - **Rule, fixed before the run.**
+        - **Valid slots.** A slot counts only if its final outcome is not `infra` and not `time limit`. Those that are `infra` or `time limit` are listed separately.
+        - **6 or more valid slots:**
+          - **3 or more early stops:** the shape reproduces outside the window's hours. That fits a candidate defect, or a provider fault not tied to those hours.
+          - **0 or 1 early stop:** the shape is tied to the window. It is reported as a provider fault.
+          - **2 early stops:** inconclusive.
+        - **Fewer than 6 valid slots:** inconclusive.
+        - **Restating.** In every case the user decides whether the 8.1 conclusion is restated. The orchestrator does not restate it.
       - **Evidence**, posted with 8.1's:
-        - for each slot: outcome, `check`, MP4 duration, function-call count, the last output item's type, and the silent gap after the last tool call;
-        - the rule's count;
-        - identity on every manifest, as in step 7;
-        - the key search;
-        - `cleanup.sh --runs-only`;
-        - the other-objects comparison.
+        - **Before the first slot:**
+          - the free space on `/` and `/home`;
+          - other projects' objects, listed as in step 4;
+          - the four containers' `{{.Image}} {{.State.StartedAt}}`;
+          - the `src` HEAD;
+          - the package `release.json` SHA-256;
+          - the `runs/after` fingerprint.
+        - **After the last slot:** the same values again, compared with the values before. The `StartedAt` values must be unchanged, and the restored fingerprint must match.
+        - **For each attempt:**
+          - `started_at` and elapsed;
+          - outcome, `failure_class` and `failure_reason`;
+          - `check`;
+          - MP4 duration;
+          - `counts.tool_calls`;
+          - the last output item's type;
+          - the silent gap.
+        - **The rule's counts:** valid slots, and early stops among them.
+        - **Identity** on every non-interrupted manifest, as in step 7. Interrupted attempts are listed separately.
+        - **Resources:** free space on Docker's root at start and end, and `docker stats --no-stream` during a slot.
+        - **The key search**, counts only, then `cleanup.sh --runs-only`, then the other-objects comparison.
 
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
