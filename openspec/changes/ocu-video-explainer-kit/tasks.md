@@ -5384,18 +5384,18 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
       - **Purpose.** It tells apart a provider fault tied to the 2026-11-23 window and a defect that reproduces outside it. It does not change `runs/after` or the 8.1 outcome, whatever it finds.
       - **Prerequisite.** The 8.1 key search, resources, cleanup and other-objects comparison above are complete.
       - **Stack.** The same stack, package, `src` HEAD (`ab3e0fe…`) and image settings. There is no `load.sh`, no restart and no settings change.
-      - **No image removal.** If a disk floor is hit, stop and report to the user.
+      - **No image removal.** If a disk floor is hit, stop and report to the user. 2.6's resume step 2 (cleanup to make room) does not apply here.
       - **Directories.**
         1. **Pre-checks.** `flock -n eval.lock true` succeeds, so no driver is running. Neither `runs/after-ab3e0fe` nor `runs/after-diag` exists. Every `runs/*/*/r*-a*` directory has a `manifest.json`.
-        2. **Fingerprint.** Record `find runs/after -type f | sort | xargs sha256sum | sha256sum`, then rename `runs/after` to `runs/after-ab3e0fe`.
+        2. **Fingerprint.** Under `set -o pipefail`, record `find runs/after -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum` and the file count `find runs/after -type f | wc -l`, then rename `runs/after` to `runs/after-ab3e0fe`.
         3. **Slots.** Run the seven slots below one at a time, detached, with `run.sh --package <candidate> --phase after --request <id> --repetition <n>`.
            - Each slot's command runs once.
            - If a command exits non-zero or stops early, apply 2.6's resume steps 1–4 to the current `runs/after`, and rerun only slots that have no final manifest.
-        4. **Restore.** After all seven slots have a final manifest, rename the new `runs/after` to `runs/after-diag`, rename `runs/after-ab3e0fe` back to `runs/after`, and recompute its fingerprint. The two values must match.
+        4. **Restore.** After all seven slots have a final manifest, rename the new `runs/after` to `runs/after-diag`, rename `runs/after-ab3e0fe` back to `runs/after`, and recompute its fingerprint and file count. Both must match.
         - **Phase field.** Diagnostic manifests keep `phase` `"after"` and the same attempt directory names as 8.1. Only their directory, `runs/after-diag`, tells them apart, and 8.2 reads only `runs/after`.
       - **Slots:** `explainer-bread-browning` 1 and 2, `explainer-four-seasons` 1 and 2, `explainer-phone-fast-charging` 1 and 2, `explainer-fever-immunity` 1.
         - Retries follow the driver's rules: at most 3 attempts, and only `infra` outcomes rerun.
-      - **Timing.** The first slot starts no earlier than 2026-11-24T16:00Z, so no attempt starts within 12:00–16:00Z, the hours of the 2026-11-23 window.
+      - **Timing.** The first slot starts no earlier than 2026-11-24T16:00Z, so no attempt starts within 12:00–16:00Z, the hours of the 2026-11-23 window. A slot with any attempt that starts within 12:00–16:00Z on any day is invalid and listed separately.
       - **Rule, fixed before the run.**
         - **Valid slots.** A slot counts only if its final outcome is not `infra` and not `time limit`. Those that are `infra` or `time limit` are listed separately.
         - **6 or more valid slots:**
