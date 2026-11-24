@@ -5363,6 +5363,44 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
     - **Host source** (step 4). The host's `src` fetches from a bundle file. `C` is delivered as `ocu-<short C>.bundle` and checked out detached under `umask 022`.
     - **Disk** (step 4; a recorded exception to "never remove an image … to make room", approved by the user on 2026-11-22). The load precheck was 181 MiB short. The baseline workspace image `open-computer-use:3d0ceae2…` was removed by exact name; no container used it. The baseline package keeps its archive. The exception covers that one image only. For the re-run, step 4's rule holds unchanged: if the precheck fails, stop and report to the user with the numbers.
 
+  - Amended after the re-run (2026-11-24). Where these differ from Part B and the amendment above, these bind:
+    - **The re-run is the 8.1 outcome.**
+      - The candidate is `C` = `ab3e0fe188d44b88ebde159369c7fa1518249f55`, package `ocu-ab3e0fe-webui-6b95a49` (`release.json` `c1d82f90…`). The batch ran from 2026-11-23T10:46:27Z to 2026-11-24T01:27:20Z (`eval: done 0`).
+      - **Disk.** The re-run's load precheck failed. Per step 4, the run stopped and the numbers went to the user. The user approved removing the earlier candidate's workspace image `cd04783d…` by exact name, the only other image the exception covers.
+      - **Result.** 4 of 13 final outcomes succeeded. 2 of 10 explainer final outcomes have `check` `"passed"` and succeeded. Neither threshold is met.
+      - **Failure shape.** 7 explainer final outcomes (bread-browning r1 and r2, four-seasons r1 and r2, phone-fast-charging r1 and r2, and fever-immunity r1's last attempt) have the same shape, called **early stop** below:
+        - no valid MP4;
+        - at most 3 function calls in the final message;
+        - the final message's last output item is `reasoning`, cut mid-sentence;
+        - no WebUI error.
+      - In six of them, the model read only `SKILL.md` and `explainer-kit.md`. After the last tool call, WebUI logged nothing for 625–1045 s until the turn ended. The seventh made no call at all.
+      - The baseline's 13 final outcomes have no early stop, and neither does the stopped first after run. All seven fall between 12:42Z and 15:33Z. The four successes ran before and after that window.
+      - `runs/after` stays as recorded. Its key search, resources, `cleanup.sh --runs-only` and the other-objects comparison follow step 7.
+    - **Diagnostic run** (user decision 2026-11-24). Its purpose is to tell a provider fault in that window from a candidate defect. It does not change `runs/after` or the 8.1 outcome.
+      - **Stack.** The same stack, package, `src` HEAD and image settings, with no `load.sh`, no restart and no settings change.
+      - **Directories.** With no batch running:
+        1. rename `runs/after` to `runs/after-ab3e0fe`;
+        2. run the seven slots below, one at a time and detached, with `run.sh --package <candidate> --phase after --request <id> --repetition <n>`;
+        3. rename the new `runs/after` to `runs/after-diag`;
+        4. rename `runs/after-ab3e0fe` back to `runs/after`.
+      - **Slots:** `explainer-bread-browning` 1 and 2, `explainer-four-seasons` 1 and 2, `explainer-phone-fast-charging` 1 and 2, `explainer-fever-immunity` 1. Retries follow the driver's rules: at most 3 attempts, and only `infra` outcomes rerun.
+      - **Before the first slot**, record:
+        - free space on `/` and `/home`;
+        - other projects' objects, compared before and after, as in step 4;
+        - the four containers' `{{.Image}} {{.State.StartedAt}}`.
+      - **Rule, fixed before the run.** Count the diagnostic final outcomes with an early stop:
+        - **3 or more of 7:** the shape reproduces outside the window. It is reported as a candidate defect, and the 8.1 outcome stands.
+        - **0 or 1 of 7:** the window explains it. It is reported as a provider fault.
+        - **2 of 7:** inconclusive.
+        - In each case the user decides whether the 8.1 conclusion is restated. The orchestrator does not restate it.
+      - **Evidence**, posted with 8.1's:
+        - for each slot: outcome, `check`, MP4 duration, function-call count, the last output item's type, and the silent gap after the last tool call;
+        - the rule's count;
+        - identity on every manifest, as in step 7;
+        - the key search;
+        - `cleanup.sh --runs-only`;
+        - the other-objects comparison.
+
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
   - otherwise: record the failure, and leave task 7.2 unmerged.
