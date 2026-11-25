@@ -5238,7 +5238,7 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
 
 ## 8. After run and acceptance
 
-- [ ] 8.1 Build the release candidate from `main` plus the integration branch, with the WebUI image unchanged. Run the request set on the evaluation stack, including 7.1's checks on the candidate image. Verify that 13 final-outcome manifests, one per request and repetition, are recorded with the same WebUI digest as the baseline.
+- [x] 8.1 Build the release candidate from `main` plus the integration branch, with the WebUI image unchanged. Run the request set on the evaluation stack, including 7.1's checks on the candidate image. Verify that 13 final-outcome manifests, one per request and repetition, are recorded with the same WebUI digest as the baseline.
 
   **Task 8.1 required evidence** (issue #848):
   - **Fixture level:** compact. Two parts.
@@ -5445,6 +5445,21 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
         - An attempt that starts within those hours anyway is listed. Its slot is reported, and the user decides on it.
       - **No image removal.** If a disk floor is hit, stop and report to the user.
       - **Evidence.** As in step 7 and step 8, for the new `runs/after`. The attempts table also gives `counts.tool_calls`, the last output item's type and the silent gap for each attempt, and the early-stop count is reported.
+  - Amended after the second re-run (2026-11-25). Where these differ from Part B and the amendments above, these bind:
+    - **The second re-run is the 8.1 outcome and 8.2's input.**
+      - The batch ran from 2026-11-25T01:54:28Z to 07:39:41Z (`eval: done 0`). The last attempt started at 06:57:05Z. No attempt started within 12:00–16:00Z, and the driver was not stopped.
+      - 13 slots gave 13 attempts. None was `infra`, and none was rerun. Every manifest carries the same identity as the re-run's: `c1d82f90…`, `ab3e0fe…`, `webui_image_id` `sha256:8beb9283abda…` and the baseline's models.
+      - The step 4 records other than free space match before and after the batch. Other projects' objects were unchanged after cleanup. The key search found 0 matches outside `stack.env`, which holds its one by design. Both kept directories have the same fingerprints after cleanup: `runs/after-ab3e0fe-window` is `c29eae0d…` with 47 files, and `runs/after-diag` is `8233c736…` with 28 files.
+    - **Result.**
+      - **Render success:** 11 of 13 final outcomes succeeded. This is below the 12 of 13 threshold, so the threshold is not met.
+      - **Kit check pass rate:** 8 of 10 explainer final outcomes have `check` `"passed"` and succeeded. The threshold is met.
+    - **Early stops.** There were 2, both outside 12:00–16:00Z. The 2026-11-23 window therefore does not explain every early stop.
+      - `explainer-fever-immunity` `r2-a1` started at 03:09:43Z. It made no call and has no output items. Its last request reports `completion_tokens` 0 after 315 s.
+      - `explainer-bread-browning` `r1-a1` started at 03:14:59Z. It read `SKILL.md` and `explainer-kit.md`. Its final reasoning item stops partway through a `script.json` draft, after `completion_tokens` 4 713. The silent gap is 699 s.
+      - Early stops per run: the baseline had 0 of 13, the re-run 7 of 13, the diagnostic run 0 of 7, and the second re-run 2 of 13.
+    - **7.2 watch items:** 0 refusals, 0 re-sent `kit check` or `kit render` calls, 0 silent-block rewords and 0 timeline hints.
+    - **Evidence:** the #848 comment. The new `runs/after` holds 50 files after cleanup, fingerprint `58c0219d…`.
+    - **Decision** (user, 2026-11-25). 8.1 is recorded as done, with the render success threshold not met. 8.2's judging still runs on the new `runs/after`, and its votes are recorded. Because a threshold is not met, 8.2's outcome is the "otherwise" branch whatever the votes: record the failure and leave task 7.2 unmerged. Per the missing-side rule, the two pairs with no new video (`explainer-fever-immunity` r2 and `explainer-bread-browning` r1) count as losses for the new version and are not voted on. The votes inform #850.
 
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
