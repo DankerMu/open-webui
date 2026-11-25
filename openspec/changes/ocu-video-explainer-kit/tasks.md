@@ -5600,7 +5600,7 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
           - the user's remark and the `image_calls` counts recorded above.
       - #897 and #893 stay paused until the user decides the kit's direction.
 
-- [ ] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
+- [x] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
 
   **Task 8.3 required evidence** (issue #851):
   - **Fixture level:** compact. One WebUI PR does three things: the pin bump, the new decision record, and a one-line back-link in `2026-11-02-ocu-video-production`. The implementer writes them. The orchestrator ticks 8.3 in this file with its own commit on the same branch. The PR body carries `<!-- intended-closing-issues: [] -->`, and #851 is closed by hand after the merge.
