@@ -1,6 +1,6 @@
 ## 1. Pin the runner image (#917)
 
-- [ ] 1.1 Change every `runs-on: ubuntu-latest` in `.github/workflows/ci.yml` (11 jobs) and `.github/workflows/agents-md-liveness.yml` (2 jobs) to `runs-on: ubuntu-24.04`, and change `constraints.yaml` `ci.matrix` to `"ubuntu-24.04, python 3.12, node 22"`. Verify that `grep -n 'runs-on' .github/workflows/ci.yml .github/workflows/agents-md-liveness.yml` shows only `ubuntu-24.04`.
+- [x] 1.1 Change every `runs-on: ubuntu-latest` in `.github/workflows/ci.yml` (11 jobs) and `.github/workflows/agents-md-liveness.yml` (2 jobs) to `runs-on: ubuntu-24.04`, and change `constraints.yaml` `ci.matrix` to `"ubuntu-24.04, python 3.12, node 22"`. Verify that `grep -n 'runs-on' .github/workflows/ci.yml .github/workflows/agents-md-liveness.yml` shows only `ubuntu-24.04`.
 
   **Task 1.1 required evidence** (issue #917):
   - **Fixture level:** compact. This is a CI configuration change with no code.
