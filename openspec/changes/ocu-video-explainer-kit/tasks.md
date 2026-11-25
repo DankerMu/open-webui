@@ -5464,6 +5464,80 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
   - otherwise: record the failure, and leave task 7.2 unmerged.
+
+  **Task 8.2 required evidence** (issue #849):
+  - **Fixture level:** compact. This is an operations task with one WebUI docs PR. It has no code PR. The orchestrator runs it, because the inputs are on the shared host. The judging page is a scratch file and is not committed.
+  - **Risk packs:** none selected. The page reads copies of the MP4s and changes nothing on the host.
+  - **Must preserve:** `runs/baseline/` and `runs/after/` on the host are only read.
+    - Each fingerprint is computed from inside its directory with `(cd <dir> && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)` under `set -o pipefail`, the command of the diagnostic-run amendment. Each file count is `find <dir> -type f | wc -l`.
+    - Both directories' values are recorded before the copy and after the key is opened, and they must match. `runs/after` must give `58c0219d…` with 50 files.
+  - **Pairs.**
+    - A pair is one explainer request and repetition: `explainer-{sky-blue,fever-immunity,bread-browning,four-seasons,phone-fast-charging}` × `r1`, `r2`, which makes 10 pairs.
+    - Each side is the slot's final outcome. That is the attempt directory with the highest attempt number.
+    - Its video is the manifest's one `mp4` entry with `valid` `true`. If a side that has a video has more or fewer than one such entry, stop and report.
+    - **Missing-side rules** (`specs/ocu-video-evaluation/spec.md`):
+      - A pair missing the new video is a loss for the new version and is not shown. 8.1 recorded two such pairs: `explainer-fever-immunity` r2 and `explainer-bread-browning` r1.
+      - A pair missing only the baseline video is a win and is not shown. There are none, because the baseline has 10 of 10.
+      - A pair missing both is rerun once. There are none.
+      - The page therefore shows 8 pairs.
+  - **Directories** under the session scratchpad:
+    - `849-judge/staging/` holds the copies under their source names;
+    - `849-judge/sealed/` holds `key.json`;
+    - `849-judge/page/` is the page. It never holds anything but `index.html` and the shown videos.
+  - **Copies.**
+    - Each shown MP4 is copied from the host into `staging/<phase>/<request>-<rN>.mp4`.
+    - Each copy's SHA-256 must equal the manifest's `mp4[].sha256`.
+    - `ffprobe -show_entries format_tags` must give the same tags for every copy. Otherwise stop and report.
+    - The copies keep their bytes. This check's output is labelled only by request, repetition and phase. It gives whether the SHA-256 matched and the tags, and no file size.
+  - **Randomization and the sealed key.** One script does the following:
+    1. It draws the pair order and, for each pair, which side is A, with Python's `secrets` module.
+    2. It writes the mapping to `sealed/key.json`: a `salt` from `secrets.token_hex(32)`, then for each pair its number, request, repetition and which side is A.
+    3. It copies each staged video, in page-name order, to `page/p<NN>-A.mp4` or `page/p<NN>-B.mp4`, then removes `staging/`.
+    4. It writes `page/index.html`.
+    5. It sets every file in `page/` to one modification time, earlier than the first copy. On APFS this also moves the creation time back to that time.
+    6. It prints only `key.json`'s SHA-256.
+  - **Nothing before the votes links a page name to a request or a side.** This covers chat, logs and #849. Before the votes, #849 gets only:
+    - the fingerprints;
+    - the copy checks, labelled by request, repetition and phase;
+    - the key's SHA-256;
+    - `ls -1 page/`, which shows exactly `index.html` and 16 videos;
+    - the number of distinct modification times and of distinct creation times in `page/` (`stat -f '%m'` and `stat -f '%B'`), each 1. No file size is posted before the votes.
+  - **The page.**
+    - It is `page/index.html`, opened from the scratchpad.
+    - Each pair shows "第 NN 组" with videos A and B. There is no file name, request id or other label.
+    - The `<video>` elements have no `controls` attribute. Each has page buttons for play/pause and restart only, so neither the duration nor the position is shown.
+    - The page does not record votes.
+    - **Residual risks, accepted and recorded in #849:** the voter can still time playback, or open the browser's own controls from its context menu. Visual style can also reveal the version, which the design already accepts.
+    - A screenshot of the page shows no duration.
+  - **Votes.**
+    - The user picks A or B for each of the 8 pairs through the orchestrator's structured question tool.
+    - Every pair needs a choice, so there are no ties. An answer that is not A or B is asked again.
+    - The votes go into a #849 comment, with time stamps, before the key is opened.
+  - **Opening the key.**
+    1. Recompute `key.json`'s SHA-256. It must equal the posted value; otherwise stop and report.
+    2. For every pair, check that `sha256(p<NN>-A.mp4)` equals the manifest `mp4[].sha256` of the side the key names as A, and the same for B. Any mismatch: stop and report.
+    3. Map each vote to a side.
+    4. Count wins for the new version: voted pairs where it was chosen, plus pairs missing only the baseline. Count losses: the rest, including the two pairs missing the new video. There are no void pairs.
+  - **Outcome.** 8.1 recorded the render success threshold as not met (11/13 against ≥ 12/13). Per the user's 2026-11-25 decision, 8.2's outcome is the "otherwise" branch whatever the votes: record the failure, and leave task 7.2 unmerged. The vote count is recorded for #850.
+  - **Evidence**, posted to #849:
+    - the fingerprints before and after;
+    - the copy checks and the format tags;
+    - the key's SHA-256 and when it was posted;
+    - the `page/` listing, the time counts and the screenshot;
+    - the votes, with their time;
+    - the opened mapping, with the 16 page-name, side and SHA-256 checks;
+    - wins and losses per pair, the total against ≥ 8/10, both thresholds and the outcome.
+  - **Docs PR.** It records under 8.2:
+    - the votes and the opened mapping;
+    - wins and losses per pair, and the total against ≥ 8/10;
+    - both thresholds;
+    - the outcome.
+      It ticks 8.2. `make doc-gate` passes.
+  - **Non-goals:**
+    - merging or closing OCU PR #267 (#850);
+    - the pin and decision record (8.3, #851);
+    - any rerun or any change to the thresholds or the request set.
+
 - [ ] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
 
 Suggested fixture level: compact - evaluation execution, a pin bump and a decision record.
