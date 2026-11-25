@@ -50,3 +50,4 @@ The owner wants the chat model to write, render and voice Remotion videos in a c
 - The switch is per message and resets on chat change; a message sent without it lacks the skill entry, and the chat's video files are untouched.
 - Speech is verified against a stub HTTP server; the real Breeze-TTS-2 service, or an adapter exposing `/audio/speech`, is verified when the owner deploys it.
 - The WebUI evidence runs the pinned filter sources against the OCU stub, not a real OCU or a real model; the real-engine render evidence lives in the OCU change.
+- Refined by [2026-11-25-ocu-video-explainer-kit](2026-11-25-ocu-video-explainer-kit.md): the `remotion` skill now routes science explainers to the sandbox explainer kit and its own reference, and other videos to the official skill as before.
