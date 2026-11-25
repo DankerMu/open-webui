@@ -5432,7 +5432,10 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
       - **Directories.**
         - Before the batch, check that no driver is running, with `flock -n eval.lock true`.
         - Rename `runs/after` to `runs/after-ab3e0fe-window`. `runs/after-diag` stays.
-        - Record the fingerprint and file count of both, as in the diagnostic run, before the batch and after cleanup. Both must match.
+        - **Fingerprints.** After the rename, record the fingerprint and file count of both directories, and again after cleanup.
+          - Each fingerprint is computed from inside its directory: `(cd <dir> && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)` under `set -o pipefail`. The diagnostic run's `c29eae0d…` was computed this way.
+          - `runs/after-ab3e0fe-window` must therefore give `c29eae0d…` and 47 files.
+          - The before and after values of each directory must match.
         - The batch writes a fresh `runs/after`.
       - **Candidate and stack.** The same `C` (`ab3e0fe…`), package, `src` HEAD, stack and image settings as the re-run. There is no `load.sh`, no restart and no settings change. The step 4 records (other projects' objects, the four containers' `{{.Image}} {{.State.StartedAt}}`, free space, `src` HEAD, `release.json` SHA-256) are taken before the batch and again after it, and compared.
       - **Batch.** `run.sh --package <candidate> --phase after`, detached. A stop is resumed per slot, as in 2.6.
