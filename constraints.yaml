@@ -192,7 +192,7 @@ commits:
 ci:
   risk_layers: 5
   fast_checks_timeout_minutes: 10
-  matrix: "ubuntu-latest, python 3.12, node 20"
+  matrix: "ubuntu-24.04, python 3.12, node 22"
   status: "live on DankerMu/open-webui since 2026-09-20; required check = 'All checks passed'; local enforcement = pre-commit + make check"
 
 # ── Runtime Verification ───────────────────────────────────────

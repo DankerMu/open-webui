@@ -15,7 +15,7 @@ permissions:
 jobs:
   liveness:
     name: AGENTS.md command table vs Makefile
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned to match ci.yml: the shared uv cache key includes the runner image (#917).
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,7 @@ jobs:
 
   guardrail-self-test:
     name: Guardrail self-test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned to match ci.yml: the shared uv cache key includes the runner image (#917).
     # 5 minutes fit npm ci plus the script (~1.5 min); the backend venv adds ~70 s with a warm uv
     # cache (ci.yml layer1) and minutes more on a cold one, which would kill case 11 mid-run.
     timeout-minutes: 10
