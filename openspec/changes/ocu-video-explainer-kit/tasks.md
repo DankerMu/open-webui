@@ -5567,6 +5567,39 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
       - `counts.image_calls` is 0 in all 10 baseline runs. It is 1–4 in 7 of the 8 successful after runs; four-seasons r1 has 0.
       - Whether those images reached the final videos was not checked.
 
+  - **User ruling (2026-11-25).** This block is the latest record of 8.2's outcome. It binds over the following:
+    - the 8.1 "Decision" entry from earlier on 2026-11-25, which said the outcome is the "otherwise" branch whatever the votes;
+    - the "Outcome" item of the 8.2 fixture above;
+    - the "Outcome" of the 8.2 result block above;
+    - task 7.2's rule that it "merges only after task 8.2 passes".
+
+    Those texts stay as history and are not rewritten.
+    - **The recorded result.** Under the a-priori rule the votes are 7/10, below ≥ 8/10. Render success is 11/13, below ≥ 12/13. So acceptance fails. #912 and the #849 closing comment say so.
+    - **Statement after the key was opened.** After the mapping was shown, the user said that pair 02 was also acceptable ("另外一个是第二组吧，也可以通过，8个都通过"). The statement is not blind. Pair 02's vote stays B, and the recorded count stays 7/10.
+    - **Ruling.** The user was told two things: counting pair 02 as a win would make 8/10, and render success would still be 11/13. With that count, the user waived the render success threshold and ruled the change accepted.
+      - **The user's grounds:**
+        - the render shortfall and both pairs with no new video come from the same two early stops;
+        - of the 8 pairs with both videos, the new version was preferred in 7, and the user accepts pair 02 too.
+      - **Recorded deviations, made by the user and not the orchestrator:**
+        - from `specs/ocu-video-evaluation/spec.md`'s acceptance rule ("The change SHALL be accepted only when …") and its scenario "Acceptance fails";
+        - from design decision 16;
+        - from the Migration Plan's step 3 ("pass blind acceptance") in `design.md`.
+      - The spec and design text are not amended. The ruling is a recorded exception to them.
+    - **Acceptance record.** This block, with its copy posted to #849, is the acceptance record that the gates of #850 and #851 read. Pointers to it are posted on both issues.
+    - **Consequences.** The acceptance branch of 8.2 applies, and task 7.2 merges.
+      - **#850.**
+        - OCU PR #267's head is `ab3e0fe188d44b88ebde159369c7fa1518249f55`, the evaluated `C`. It already contains OCU `main` (`d8a0a32…`), so it needs no rebase and no force-push. If `main` moves before the merge, stop and ask the user.
+        - A reviewer pass runs on that head.
+        - The PR body's "Do not merge" note is replaced with a link to this ruling. The PR is marked ready, and `do-not-merge` is removed.
+        - It merges through `make pr-merge` with `PR_HEAD` equal to the reviewed head.
+      - **#851 (8.3).**
+        - The pinned commit is the merge commit. Before the pin, the merged tree's `skills/public/remotion/` must equal `ab3e0fe`'s.
+        - The decision record states this ruling:
+          - both shortfalls, 7/10 and 11/13;
+          - that the pair 02 statement came after the key was opened;
+          - the user's remark and the `image_calls` counts recorded above.
+      - #897 and #893 stay paused until the user decides the kit's direction.
+
 - [ ] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
 
 Suggested fixture level: compact - evaluation execution, a pin bump and a decision record.
