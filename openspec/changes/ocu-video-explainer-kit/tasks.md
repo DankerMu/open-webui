@@ -5461,7 +5461,7 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
     - **Evidence:** the #848 comment. The new `runs/after` holds 50 files after cleanup, fingerprint `58c0219d…`.
     - **Decision** (user, 2026-11-25). 8.1 is recorded as done, with the render success threshold not met. 8.2's judging still runs on the new `runs/after`, and its votes are recorded. Because a threshold is not met, 8.2's outcome is the "otherwise" branch whatever the votes: record the failure and leave task 7.2 unmerged. Per the missing-side rule, the two pairs with no new video (`explainer-fever-immunity` r2 and `explainer-bread-browning` r1) count as losses for the new version and are not voted on. The votes inform #850.
 
-- [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
+- [x] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
   - otherwise: record the failure, and leave task 7.2 unmerged.
 
@@ -5537,6 +5537,35 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
     - merging or closing OCU PR #267 (#850);
     - the pin and decision record (8.3, #851);
     - any rerun or any change to the thresholds or the request set.
+
+  - **Result (2026-11-25).** Evidence: the #849 comments.
+    - **Sealing.**
+      - The key's SHA-256 `690444375b17…` was posted before the votes and matched when the key was opened.
+      - All 16 page files matched the manifests of the sides the key names.
+      - `runs/baseline` (`f4358ed9…`, 52 files) and `runs/after` (`58c0219d…`, 50 files) were unchanged.
+    - **Votes**, recorded at 2026-11-25T14:41:13Z before the key was opened: 01 B, 02 B, 03 A, 04 A, 05 A, 06 B, 07 B, 08 A.
+    - **Opened mapping and pairs.** A "win" means the new version won the pair.
+
+      | Pair | Request                         | Repetition | Side A   | Vote | Result             |
+      | ---- | ------------------------------- | ---------- | -------- | ---- | ------------------ |
+      | 01   | `explainer-phone-fast-charging` | r2         | baseline | B    | win                |
+      | 02   | `explainer-four-seasons`        | r1         | after    | B    | loss               |
+      | 03   | `explainer-sky-blue`            | r1         | after    | A    | win                |
+      | 04   | `explainer-four-seasons`        | r2         | after    | A    | win                |
+      | 05   | `explainer-bread-browning`      | r2         | after    | A    | win                |
+      | 06   | `explainer-fever-immunity`      | r1         | baseline | B    | win                |
+      | 07   | `explainer-sky-blue`            | r2         | baseline | B    | win                |
+      | 08   | `explainer-phone-fast-charging` | r1         | after    | A    | win                |
+      | —    | `explainer-fever-immunity`      | r2         | —        | —    | loss: no new video |
+      | —    | `explainer-bread-browning`      | r1         | —        | —    | loss: no new video |
+
+    - **Total.** The new version won 7 of 10 pairs and lost 3. No pair was void. This is below ≥ 8/10.
+    - **Thresholds.** Render success was 11/13, which does not meet ≥ 12/13. The kit check pass rate was 8/10, which meets ≥ 8/10.
+    - **Outcome: acceptance fails.** This is the "otherwise" branch: the failure is recorded, and task 7.2 (OCU #267) stays unmerged. The votes alone would also fail acceptance.
+    - **Recorded for #850; not part of the decision.**
+      - The user remarked that the videos look like one template with little variety, and that the image model seemed unused.
+      - `counts.image_calls` is 0 in all 10 baseline runs. It is 1–4 in 7 of the 8 successful after runs; four-seasons r1 has 0.
+      - Whether those images reached the final videos was not checked.
 
 - [ ] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
 
