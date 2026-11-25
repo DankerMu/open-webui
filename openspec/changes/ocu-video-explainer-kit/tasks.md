@@ -5602,5 +5602,74 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
 
 - [ ] 8.3 After acceptance, pin the merged OCU commit in WebUI `constraints.yaml` and add the decision record. Verify `make doc-gate` and `make decisions-verify`.
 
+  **Task 8.3 required evidence** (issue #851):
+  - **Fixture level:** compact. One WebUI PR does three things: the pin bump, the new decision record, and a one-line back-link in `2026-11-02-ocu-video-production`. The implementer writes them. The orchestrator ticks 8.3 in this file with its own commit on the same branch. The PR body carries `<!-- intended-closing-issues: [] -->`, and #851 is closed by hand after the merge.
+  - **Gate.** The acceptance record is 8.2's "User ruling (2026-11-25)", posted to #849, and it says pass. OCU PR #267 merged as `32b2704eb716dcf00620459a3532fff3901f8e07` on OCU `main`. Its tree equals the evaluated `ab3e0fe`'s.
+  - **Risk packs:**
+    - **Data / tracked files:** selected. `constraints.yaml` `ocu_checkout.sha` feeds:
+      - `scripts/smoke-proxy.py`;
+      - `scripts/verify-office.py`;
+      - `scripts/verify-ui-ocu.py`, which CI's `layer3-browser` runs;
+      - CI's `setup-toolchain` checkout;
+      - the reserved skill-name drift test, run by `make test-backend` and `make coverage-gate PART=backend` with `OCU_CHECKOUT`.
+    - **Docs:** selected, for the decision records.
+    - Every other pack is not selected.
+  - **Must preserve:**
+    - `ocu_checkout.repository` and `ocu_checkout.path` are unchanged, and no other line of `constraints.yaml` changes.
+    - The 28 local branding modifications in the checkout are neither staged nor stashed. They include `backend/open_webui/config.py` and `env.py`, so the runtime evidence runs with them present, and the PR says so.
+  - **Changes:**
+    - **Pin.** `constraints.yaml` `ocu_checkout.sha` changes from `01b7ef7a64a582f23513bb8c179b55a6d461b073` to `32b2704eb716dcf00620459a3532fff3901f8e07`.
+    - **Decision record:** `docs/decisions/implemented/architecture/2026-11-25-ocu-video-explainer-kit.md`.
+      - **Frontmatter** follows `docs/decisions/TEMPLATE.md`.
+      - **`references`** lists:
+        - `docs/plans/2026-11-16-ocu-video-explainer-kit.md` and `ocu-video-explainer-kit`;
+        - `2026-11-02-ocu-video-production`;
+        - #814, #849, #850, #851 and #914;
+        - OCU #267.
+      - **Problem.** Video quality from the production chat model `qwen3.8-27b`, which has `generate_image` and `generate_speech`.
+      - **Decision.**
+        - A summary of the change's design decisions:
+          - the sandbox explainer kit: a `script.json` schema rendered by fixed scene components;
+          - a mechanical `kit check` and a contact-sheet checklist;
+          - bundled music;
+          - a `remotion` skill router that sends science explainers to the kit and everything else to `free-form.md`.
+        - It cites `design.md` rather than restating details.
+        - It states how this refines `2026-11-02-ocu-video-production` and links it. That record rejected writing an own Remotion guide, and the router now adds the kit's own reference.
+        - It names the third-party material added since that record, as OCU `NOTICE` lists it: the vendored MIT component sources, and the PolyForm-Noncommercial projects whose formats were borrowed.
+      - **Acceptance.** This section is required, and it states the 8.2 ruling in full:
+        - the a-priori result, both below their thresholds: votes 7/10, with the recorded count staying 7/10 and pair 02 staying B; and render success 11/13;
+        - the kit check pass rate, 8/10, which meets its threshold;
+        - that the pair 02 statement came after the key was opened;
+        - that the user waived the render threshold and ruled the change accepted, and the user's two grounds;
+        - the deviations the ruling lists, and that the spec and design are not amended;
+        - the user's remark that the videos look like one template and the image model seemed unused, with the `image_calls` counts and the qualifier that whether those images reached the final videos was not checked.
+      - **Alternatives considered:** taken from `design.md`.
+      - **Consequences.**
+        - The pin also brings the non-kit OCU changes merged since `01b7ef7`. The record lists every OCU PR in `01b7ef7..32b2704`, with a one-line summary each, from `git log --merges`.
+        - Deploy is the Migration Plan's steps 5–7. It is manual, and agents do not do it.
+        - Rollback.
+        - **Known gap.** Until #914 is fixed, a free-form (non-explainer) video with audio fails to render in a network-disabled sandbox, or the model works around it.
+        - #893 and #897 are paused by the user.
+    - **Back-link.** `2026-11-02-ocu-video-production` gains one line naming `2026-11-25-ocu-video-explainer-kit` as a refinement. Nothing else in it changes.
+  - **Evidence**, in the PR's Test plan, following #801:
+    - `make dev-bg` and `make dev-status` (health OK), then `OCU_CHECKOUT=<sibling checkout at 32b2704> make smoke-proxy`, then `make dev-stop`. Exit 0, ending with `smoke-proxy: ok`.
+    - **Pin proof:**
+      - `grep -n 'sha:' constraints.yaml` shows the new SHA;
+      - `git -C <OCU> cat-file -t 32b2704…` prints `commit`;
+      - `git -C <OCU> status --porcelain --untracked-files=no` prints nothing;
+      - `git -C <OCU> diff --quiet ab3e0fe 32b2704` exits 0.
+    - **Consumer inputs unchanged:** `git -C <OCU> diff --quiet 01b7ef7 32b2704 -- computer-use-server deploy/proxy openwebui/functions openwebui/tools requirements.txt` exits 0, and the directory names under `skills/public/` are the same at both SHAs.
+    - The reserved skill-name drift test with `OCU_CHECKOUT` set passes.
+    - **`git grep 01b7ef7a64a582f23513bb8c179b55a6d461b073`** matches only:
+      - the archived `ocu-knowledge-file-copy` change;
+      - this fixture's own text;
+      - and nothing in `constraints.yaml`.
+    - `make decisions-verify` and `make doc-gate` pass, and `npx prettier --check` passes on the changed markdown.
+    - **Not run locally**, each with its reason, as #801 did: `make verify-ui-ocu`, `make smoke-stub` and `make verify-office`.
+  - **Non-goals:**
+    - building or delivering a release, or any LAN deploy;
+    - #893 and #897;
+    - #914's fix.
+
 Suggested fixture level: compact - evaluation execution, a pin bump and a decision record.
 Minimal mergeable slice: atomic - the pin bump is the only code change, and it lands only after acceptance passes.
