@@ -5426,6 +5426,26 @@ Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 mer
         - **Resources:** free space on Docker's root at start and end, and `docker stats --no-stream` during a slot.
         - **The key search**, counts only, then `cleanup.sh --runs-only`, then the other-objects comparison.
 
+  - Amended after the diagnostic run (2026-11-24). Where these differ from Part B and the amendments above, these bind:
+    - **Diagnostic result.** 7 valid slots ran from 16:00:03Z to 19:10:00Z on 2026-11-24, in `runs/after-diag`. There were 0 early stops: all 7 succeeded with `check` `"passed"`. By the rule, the shape is tied to the 2026-11-23 window and is reported as a provider fault. The `runs/after` fingerprint matched before and after (`c29eae0d…`, 47 files). The evidence is in the #848 comment.
+    - **Second re-run** (user decision 2026-11-24). The full request set runs again, and its result replaces the earlier re-run as the 8.1 outcome and as 8.2's input. Nothing from `runs/after-diag` or the earlier re-run is substituted into it.
+      - **Directories.**
+        - Before the batch, check that no driver is running, with `flock -n eval.lock true`.
+        - Rename `runs/after` to `runs/after-ab3e0fe-window`. `runs/after-diag` stays.
+        - **Fingerprints.** After the rename, record the fingerprint and file count of both directories, and again after cleanup.
+          - Each fingerprint is computed from inside its directory: `(cd <dir> && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)` under `set -o pipefail`. The diagnostic run's `c29eae0d…` was computed this way.
+          - `runs/after-ab3e0fe-window` must therefore give `c29eae0d…` and 47 files.
+          - The before and after values of each directory must match.
+        - The batch writes a fresh `runs/after`.
+      - **Candidate and stack.** The same `C` (`ab3e0fe…`), package, `src` HEAD, stack and image settings as the re-run. There is no `load.sh`, no restart and no settings change. The step 4 records (other projects' objects, the four containers' `{{.Image}} {{.State.StartedAt}}`, free space, `src` HEAD, `release.json` SHA-256) are taken before the batch and again after it, and compared.
+      - **Batch.** `run.sh --package <candidate> --phase after`, detached. A stop is resumed per slot, as in 2.6.
+      - **Hours.** No attempt starts within 12:00–16:00Z on any day.
+        - The batch starts outside those hours.
+        - If it is still running at 11:30Z, the orchestrator stops the driver. Then 2.6's resume steps run, with each remaining slot resumed after 16:00Z.
+        - An attempt that starts within those hours anyway is listed. Its slot is reported, and the user decides on it.
+      - **No image removal.** If a disk floor is hit, stop and report to the user.
+      - **Evidence.** As in step 7 and step 8, for the new `runs/after`. The attempts table also gives `counts.tool_calls`, the last output item's type and the silent gap for each attempt, and the early-stop count is reported.
+
 - [ ] 8.2 Generate the blind judging page for the ten explainer pairs, with a sealed key, and collect the user's votes. Apply the missing-side rules, open the key, and compare against both thresholds. Record the votes and the result in this change. Verify the outcome:
   - acceptance: ≥8/10 wins, with void pairs counted as losses, and both thresholds met. Merge task 7.2.
   - otherwise: record the failure, and leave task 7.2 unmerged.
