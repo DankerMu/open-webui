@@ -16,7 +16,7 @@ Production video quality is poor. The production chat model is fixed at `qwen3.8
 
 ## Decision
 
-The details are in `openspec/changes/ocu-video-explainer-kit/design.md`; this section names the choices and does not restate them.
+The details are in `openspec/changes/archive/2026-11-26-ocu-video-explainer-kit/design.md`; this section names the choices and does not restate them.
 
 - **The sandbox explainer kit** (design Decisions 1–8 and 11). The model writes one `script.json`, validated by a zod 4 schema: a hook, 3–5 chapters, a summary and an end card, at 1920×1080 and 30 fps. Fixed scene components render it. The kit lives in the existing template at `/opt/remotion-template` (`src/kit/`, `bin/`) and runs as `node bin/kit.mjs <subcommand>` in the sandbox. Narration drives the timeline, and at most one `custom` scene holds model-written TSX. Only components the user approved in the rendered gallery are in the kit (Decision 12). `kit render` publishes the MP4 into `/mnt/user-data/files/` atomically.
 - **A mechanical `kit check` and a contact-sheet checklist** (Decisions 9–10). Stage 1 fails the check on mechanical rules measured by a shared probe composition. Stage 2 writes a 2×2 contact sheet and prints a yes/no checklist that the model answers from the image; the checklist is advisory. `render` refuses unless the current project matches the hash of a passing check.

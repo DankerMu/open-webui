@@ -3194,7 +3194,7 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **Host run.** At the reviewed head `e665047`: 718 s, 45 clips and 135 key frames, all with empty violations. The `gallery.json` sha256 is `160fbe3d…9138`. All 135 key frames match 4.4's run at `21eb85c` exactly in `rgb24`, so the merge was not blocked.
     - **Stale comments, left for a later task.** `src/kit/text.ts:24` is byte-identical here, `layout.tsx:228-229` is inside the pinned code, and `catalog.ts:6` is not the named `:52`.
 
-- [ ] 4.7 Close the number and label gaps that 4.4's review left: a schema rule so that every number text a scene draws, and every count-up step towards it, fits the 8 code points its line holds; and a probed 8-point line-chart target with a three-line label. Verify that no file under `src/` changes, so no rendered frame of an approved sample can change.
+- [x] 4.7 Close the number and label gaps that 4.4's review left: a schema rule so that every number text a scene draws, and every count-up step towards it, fits the 8 code points its line holds; and a probed 8-point line-chart target with a three-line label. Verify that no file under `src/` changes, so no rendered frame of an approved sample can change.
 
   **Task 4.7 required evidence** (issue #893):
   - **Resumed.** The user paused #893 on 2026-11-25 (8.2's ruling). On 2026-11-26 the user asked to finish the epic (「直接开干，完成这个epic」); the orchestrator reads that as lifting the pause.
@@ -3277,6 +3277,38 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
   - **PR record.**
     - The OCU PR references (#893) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #893 after merge.
     - It shows the three messages, the sufficiency argument, item 2's decision, item 4's commit, the image digest, and the `tests/render/scenes.test.mjs` result.
+
+  - Amended after OCU #272 (2026-11-26, merged `bce4aef`, reviewed head `8386385`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Predicate.** The predicate is `drawableNumber(value)`, exported from `bin/script-schema.mjs`. Both fields use `z.number().refine(drawableNumber, NUMBER_LIMIT)`.
+      - **Limit text.** `drawn in at most 8 characters: below 10000 in size, at most 8 characters as written, sign and point included; from 10000, below 1e12 with at most 2 decimals; round the number`.
+      - **Test layout.**
+        - The rule tests run one subtest per value.
+        - The sufficiency test is in `tests/script-schema.test.mjs`; `tests/text.test.mjs` is unchanged.
+        - The new in-image step is called "eight-point probe". It uses `publicDir: gallery/public`, and the target has no image.
+      - **Every tracked script validates.** Existing tests already load each one (`gallery.test.mjs:83`, `custom-index.test.mjs:25`, the explainer fixture's `validated()`, `check-rules.test.mjs:795`), so no new loader test was added.
+    - **Gate record.**
+      - **Red first.**
+        - At `4a97942`, whose `script-schema.mjs` and `src/` equal `37b3475`'s, `validateScript` accepts `0.123456789` as a key-number value and `-1234.5678` as a chart point.
+        - The new test file fails there on the missing `drawableNumber` export.
+        - With the `.refine` removed from both fields, all 16 rejection subtests go red.
+      - **Mutations.** The four rows went red as listed. Sufficiency failed on `-1000010000000 → "-10000.1亿"`, `-10000.123 → "-1000.012"` and `9999.9999 → "1003.3333"`.
+      - **Pure tests.** 599/599 from both roots, under Node 22.23.2.
+      - **Image.** `sha256:7556ea6e90084c2e5baf39e3f9278d71aba3089ce545926a3c9f19c0228cdbdf` (amd64, emulated). It was built from a `--no-local` clone at `4a97942` with the head's diff applied (sha256 `015f3903…`, equal to `git diff 4a97942 be2d8d2`). `tests/render/scenes.test.mjs` passed 15/15 in 1651 s.
+      - **Eight-point probe**, on frames 15, 75 and 149:
+        - no violation;
+        - the lowest text ends at 877.39, above the band at 930;
+        - all 27 marked records lie inside `TEXT_BOX`;
+        - the label renders as `["甲","ABCD","乙"]`, with 2.61 px to spare below the label row (#893 had 4.8 px).
+      - **CI.** None. GitHub Actions has not run on OCU pull requests since 2026-11-23 (see 5.5's amendment).
+      - **Review.**
+        - **Round 1** had two seats: correctness with integration, and test evidence with spec compliance. No P0 or P1. One coverage gap (P2): no accepted value below 10000 had exactly 8 code points.
+        - **Fix pass 1** (`8386385`, test only) added `-1234.56`, `9999.999` and `0.123456` to the accepted values. Under `<=` → `<` they go red, with 13 failures.
+        - **Re-review** of the fix: clean.
+    - **Residuals.**
+      - **Follow-up (#926), P3.** The skill text (`explainer-kit.md:80`) and the JSON Schema description are looser than the rule. The model gets one extra `kit check` round trip, and the refusal message states both bounds.
+      - **Conservative by design.** `±1e12`, and positive values from 10000 up with 3 decimals, are refused although they would fit.
+    - **Pin.** WebUI's OCU pin stays at `32b2704`. Its consumers do not read `remotion-template/`: the CI checkout in `.github/actions/setup-toolchain/action.yml` (backend tests and the reserved skill-name check), `scripts/smoke-proxy.py` and `scripts/verify-office.py`. The same holds for 7.4's `37b3475` and 5.5's `4a97942`. A release that carries 7.4, 5.5 and 4.7 is cut from OCU `main` at or after `bce4aef`.
 
 Suggested fixture level: expanded - it adds the components that the schema's kinds bind to, and a user approval gate.
 Minimal mergeable slice: task 4.1 with a placeholder component only. No real component merges before its own approval entry, recorded in the same PR.
@@ -4354,7 +4386,7 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
       - **Output:** `nb_frames` 5341, H.264 yuv420p plus AAC. `.kit/render/tmp` held the Chrome profile plus Remotion's `react-motion-render*` and `remotion-v4.0.537-assets*` directories.
       - **Idle stop.** Against the 600 s default, the check uses 7% and the render 88%, about 72 s of margin. The times are posted on (#814) and (#897).
 
-- [ ] 5.5 Fix the kit job and probe follow-ups that 5.4 passed on: the start lock's three-starter race, stale partial copies left by a stopped render, `projectHash`'s messages for a socket and a vanished subdirectory, the check worker's deadline decision, and the probe's duplicated record after a retry. Verify each with a pure test that is red on OCU `main` at `37b3475` and green after.
+- [x] 5.5 Fix the kit job and probe follow-ups that 5.4 passed on: the start lock's three-starter race, stale partial copies left by a stopped render, `projectHash`'s messages for a socket and a vanished subdirectory, the check worker's deadline decision, and the probe's duplicated record after a retry. Verify each with a pure test that is red on OCU `main` at `37b3475` and green after.
 
   **Task 5.5 required evidence** (issue #897):
   - **Resumed.** The user paused #897 on 2026-11-25 (8.2's ruling). On 2026-11-26 the user asked to finish the epic (「直接开干，完成这个epic」); the orchestrator reads that as lifting the pause.
@@ -4447,6 +4479,41 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
   - **PR record.**
     - The OCU PR references (#897) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #897 after merge.
     - It records item 4's list and decision, item 5's justification, and the red messages.
+
+  - Amended after OCU #271 (2026-11-26, merged `4a97942`, reviewed head `b1f5685`). Where these differ from the bullets above, these bind:
+    - **Choices the bullets left open.**
+      - **Loop bound.** `LOCK_ATTEMPTS = 5`, with a comment explaining the number.
+      - **Sweep pattern.** `stalePartial(name)` is shared by `publish()` and the start path's `startPrecondition`.
+      - **`walk` signature.** `walk` takes the listed names plus `{read, list}`. `projectHash` lists `src` outside the not-found catch, so `src`'s own behavior is unchanged.
+      - **Not-found skips.** Both skips use the kit's `notFound` (ENOENT or ENOTDIR). A files root that is a regular file is also skipped, and the worker's publish then reports it.
+      - **Test helper.** `hashNow` forwards `list`.
+      - **Render start tests.** They use a project with no `bin/`, so the spawned worker exits at once and is killed in `t.after`.
+    - **Gate record.**
+      - **Red first,** at `37b3475`'s source:
+        - item 1, under the seam with the old `rm`: `Missing expected rejection.`;
+        - item 2: `the start left the partial`;
+        - item 3 socket: `Unknown system error -102` on macOS;
+        - item 3 subdirectory: `list was not called for src/sub`;
+        - item 5: `kit probe: duplicate record for frame 3`.
+
+        Only these 6 tests fail there. The guards pass on both commits.
+
+      - **Mutations.** All 7 rows went red as listed. The unbounded loop ends with `test timed out after 10000ms`.
+      - **Pure tests.** 537/537 from both roots under Node 22.23.2 on macOS. Before the change there were 527.
+      - **Linux.** A replica of `template-tests.yml`: `ubuntu:24.04@sha256:78d4744e…` (amd64, emulated), Node 22.23.2, ffmpeg 6.1.1. Result: 537 tests, 533 pass, 0 fail. The 4 skips are mode-000 tests that skip as root. There `open()` on a socket gives `ENXIO`, and the socket test passes.
+      - **CI.** GitHub Actions has run on no OCU pull request since 2026-11-23 (#270 merged without checks as well), and reopening #271 did not trigger it. The Linux replica stands in for CI.
+      - **`setpriv`.** The pinned base image has `/usr/bin/setpriv` from `util-linux`, and the `Dockerfile` removes no packages.
+      - **Review.** Round 1 had three seats: correctness; test-evidence plus spec-compliance; invariant-state. No P0 or P1, so the round was clean with no fix pass. One P2 is recorded below.
+
+    - **Item 1's known limit, widened.** The invariant seat showed that the stale branch's `rm`, unchanged from `37b3475`, needs no crashed starter to go wrong:
+      1. B reads A's live lock.
+      2. While B's `ps -o lstart=` runs, A releases the lock and exits.
+      3. C links its own lock.
+      4. B judges A's lock stale and removes C's.
+
+      Two starts can then pass the lock. `unlink` cannot compare and delete, so a fix would only narrow the window. The published video stays complete, because publish renames. This replaces the narrower "two stale starters" wording. It is recorded, not filed.
+
+    - **Residual (P3).** A dangling symlink at `.kit/start.lock` now makes every start refuse with `pid null` until it is removed by hand. On `37b3475` it was removed. The message already says to remove it, and the kit never creates one.
 
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.
 Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeline and probe output, and is testable without a final render.
