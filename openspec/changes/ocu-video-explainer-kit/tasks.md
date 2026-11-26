@@ -5233,7 +5233,7 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
       - **P3:** `dns.promises.lookup` is not wrapped. Remotion calls it (`browser/NodeWebSocketTransport.js:32-33`) only for a `localhost` DevTools host, which Chrome does not print today. Re-check on a Remotion upgrade.
       - **Not yet proved:** a real `network_disabled=True` sandbox. The 8.1 re-run (#848) proves it.
 
-- [ ] 7.4 Make free-form Remotion renders work in a sandbox created with networking disabled, for every Remotion render command `free-form.md` gives, and test it in the empty-hosts shape with `public/` audio. Verify that the new test fails on an image built from OCU `main` at `32b2704` and passes on the fixed image.
+- [x] 7.4 Make free-form Remotion renders work in a sandbox created with networking disabled, for every Remotion render command `free-form.md` gives, and test it in the empty-hosts shape with `public/` audio. Verify that the new test fails on an image built from OCU `main` at `32b2704` and passes on the fixed image.
 
   **Task 7.4 required evidence** (issue #914):
   - **Fixture level:** compact. Risk packs:
@@ -5324,6 +5324,32 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
     - The PR references (#914) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #914 after merge.
     - It names the red image and the green image.
     - It records the precondition's source lines.
+
+  - Amended after OCU #270 (2026-11-26, merged `37b3475`, reviewed head `01320b7`). Where these differ from the bullets above, these bind:
+    - **Corrections.**
+      - The download call in `render-frame-with-option-to-reject.js` is at line 215, not 214.
+      - `assets/convert-assets-to-file-urls.js:18` also calls `downloadAndMapAssetsToFileUrl`, on the `renderMedia` path.
+      - `remotion still` downloads no audio through Node. It can still download an `<OffthreadVideo>` source through Node (`render-still.js:264`, `offthread-video-server.js:81`). The config's lookup covers `still` too, because the CLI loads the config before dispatching (`@remotion/cli/dist/index.js:84`). That video path is not tested.
+    - **Gate record.**
+      - **Red.** Section 18 ran on `ocu-914:red-32b2704` (`sha256:be2c75ed…`) with the final test bytes: PASSED 107, FAILED 5. Sections 1–17 passed. The first render failed with `Error while downloading http://localhost:3000/public/line1.mp3: Error: getaddrinfo EAI_AGAIN localhost`.
+      - **Mutations.** All three went red on their named steps.
+      - **Green.** `ocu-914:01320b7` (`sha256:5721b5b4…`): PASSED 112, FAILED 0, in 400 s.
+        - Section 18 took 46 s: frames 21.0 s, MP4 24.0 s, AAC, 3.008 s.
+        - Section 17 took 185 s.
+      - **Pure tests.** 527/527 from the template and from the root, under Node 22.23.2.
+      - **Guards.**
+        - `test_remotion_image.py`: 22 passed.
+        - The structure check passed.
+        - `bash -n` passed under bash 3.2.57 and 5.3.15.
+        - shellcheck: 61 warnings at both base and head.
+      - **Review.** One round, one seat (correctness, test evidence and spec compliance), with no P0, P1 or P2.
+      - **Fix-time check.** The kit's other `bundle()` callers download no audio through Node: the probe and gallery compositions have no audio, and the contact sheet uses `renderStill`. No follow-up.
+    - **Residuals.**
+      - **P3:** `free6` and `free7` pass on the `@remotion/media` clip alone. A silently dropped core-`Audio` clip would not fail them; a failed download does fail the render. A `volumedetect` check is a possible later hardening.
+      - **Existing projects:** a project created before the release that carries this fix keeps its old `remotion.config.ts`, so its offline renders still fail. Workspaces are kept 30 days. The deploy notes should say so.
+      - **Header comment:** `bin/loopback.mjs`'s header still describes only the render worker, because `bin/**` had to stay byte-identical.
+      - **Type check:** `tsc --noEmit` reports one extra TS7016 for the untyped `.mjs` import. No gate type-checks the template.
+      - **Pin:** WebUI's OCU pin stays at `32b2704`. The pin consumers' inputs did not change in `32b2704..37b3475`. A release that carries this fix is cut from OCU `main` at or after `37b3475`.
 
 Suggested fixture level: compact - task 7.1 adds a test, task 7.2 changes skill text that a static test pins, and tasks 7.3 and 7.4 fix name lookups with a test; the runtime behavior is covered by groups 3–6.
 Minimal mergeable slice: tasks 7.1, 7.3 and 7.4 each merge on their own. Task 7.2 merges only after task 8.2 passes.
