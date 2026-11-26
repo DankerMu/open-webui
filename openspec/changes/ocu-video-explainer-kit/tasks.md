@@ -3194,6 +3194,90 @@ Minimal mergeable slice: tasks 3.1–3.4, the runner, vendored lib, text helper 
       - **Host run.** At the reviewed head `e665047`: 718 s, 45 clips and 135 key frames, all with empty violations. The `gallery.json` sha256 is `160fbe3d…9138`. All 135 key frames match 4.4's run at `21eb85c` exactly in `rgb24`, so the merge was not blocked.
     - **Stale comments, left for a later task.** `src/kit/text.ts:24` is byte-identical here, `layout.tsx:228-229` is inside the pinned code, and `catalog.ts:6` is not the named `:52`.
 
+- [ ] 4.7 Close the number and label gaps that 4.4's review left: a schema rule so that every number text a scene draws, and every count-up step towards it, fits the 8 code points its line holds; and a probed 8-point line-chart target with a three-line label. Verify that no file under `src/` changes, so no rendered frame of an approved sample can change.
+
+  **Task 4.7 required evidence** (issue #893):
+  - **Resumed.** The user paused #893 on 2026-11-25 (8.2's ruling). On 2026-11-26 the user asked to finish the epic (「直接开干，完成这个epic」); the orchestrator reads that as lifting the pause.
+  - **Fixture level:** expanded, because the change adds a rule to the `script.json` schema, a file format the model writes. Risk packs:
+    - **Schema / columns / units / field names:** selected. Two `number` fields gain a rule.
+    - **Legacy compatibility / examples:** selected. Every tracked script, test fixture and catalog sample must stay valid.
+    - **Error handling:** selected. The new error must tell the model how to round.
+    - **Approval gate:** selected. `KeyNumber` and `Chart` are user-approved (`gallery/exports/2026-11-22-batch-4-4.json`), and `tests/scenes.test.mjs` pins their bytes (`PRESERVED_4_4`). This task changes no file under `src/`, so the pins and every rendered frame stay as approved.
+    - **Not selected:** CLI and commands, concurrency, file IO, auth, network, dependencies, and the skill text (7.2's rounding guidance stays as it is).
+  - **Governing invariant.** For every schema-valid script, every number text a number scene draws, at every frame, has at most 8 code points: the width its line is sized for (`KeyNumber.tsx:24-26`, `Chart.tsx:47` `VALUE = 8`).
+  - **Sibling surfaces.**
+    - The two number fields: `key-number` `content.value`, which counts up, and `chart` `content.points[].value`, drawn as `formatCount` gives it with no count-up. Both get the same rule, so the kit has one rule for every number it draws.
+    - The drawing code the rule bounds, unchanged: `formatCount` (`src/kit/text.ts:233-239`), and `decimalsOf` and `counted` (`KeyNumber.tsx:32-44`).
+    - The committed `script.schema.json` (`scriptJsonSchema()`) and its equality test.
+    - The import pin `tests/explainer-scenes.test.mjs:289` (`script-schema.mjs` imports only `zod`), which stays true.
+    - The catalog samples (`src/kit/gallery/catalog.ts`), `script.json`, and the fixtures under `tests/fixtures/` and `tests/render/fixtures/`: all stay valid.
+  - **Item 1 (P2): the number rule.**
+    - **Where:** `bin/script-schema.mjs`, the two `z.number()` fields above, through one exported predicate (for example `drawableNumber(v)`) that both fields use with `.refine`.
+    - **Rule.** A value `v` is valid when either:
+      - `|v| < 10000` and `String(v)` has at most 8 code points; or
+      - `10000 ≤ |v| < 1e12` and `Number(v.toFixed(2)) === v` (at most 2 decimals).
+    - **Self-contained.** The predicate imports nothing. `script-schema.mjs` keeps importing only `zod`, and no file under `src/` changes.
+    - **Why it is enough** (the PR repeats this, and the sufficiency test below proves it):
+      - Below 10000, `formatCount(v)` is `String(v)`. A count-up step is `v` cut toward zero to `v`'s own decimals, so it has no more integer digits and no more decimals than `v`, and it draws no more code points.
+      - From 10000 up, the final text is `X.X万` or `X.X亿`. The steps pass through every range below. Below 10000 they draw at most sign + 4 digits + point + 2 decimals = 8. In the 万 range at most `-9999.9万` = 8. Below `1e12`, the 亿 range draws at most `-9999.9亿` = 8.
+      - The fixture reviewer fuzzed about 40,000 accepted values against copies of the three functions at `37b3475`, including exponent-form tiny values, `-0` and every range edge. None drew more than 8 code points.
+    - **Message.** A `.refine` issue has zod code `custom`, which `describe()` maps today to `is invalid (limit <message>)`. `describe()` does not change; the schema raises no other `custom` issue, so every existing message stays byte-identical. The refine's message carries the rule:
+      - it says the number is drawn in at most 8 characters;
+      - it states the two bounds above;
+      - it tells the model to round.
+
+      The PR shows the full error for each of the three inputs #893 names.
+
+    - **JSON Schema.** zod 4.5.4's `z.toJSONSchema` leaves a `.refine` out (checked: `z.number().refine(…)` exports as `{"type":"number"}`), so `script.schema.json` stays byte-identical and its equality test passes unchanged. The header comment of `script-schema.mjs` (lines 8-10, "the one-custom rule that JSON Schema cannot express") is updated to name the number rule too. The PR records that the JSON Schema does not express this rule; `validateScript`, which `kit check`, `kit timeline` and `kit render` run, enforces it.
+
+  - **Item 2 (P3): the count-up reflow.**
+    - **Decision.** With item 1, no schema-valid value can make a count-up step longer than 8 code points, so the reflow #893 describes (`-10000.123`, now rejected) cannot happen in a valid script. The comment at `KeyNumber.tsx:13-14` ("never reflows the scene") becomes true for every valid script and stays as it is; `KeyNumber.tsx` stays byte-identical under its pin. The PR records this as the fix for item 2.
+  - **Item 3 (P3): line-chart labels at 8 points.**
+    - **Probe.** `tests/render/scenes.test.mjs` gains its own `once` step, separate from the catalog probe. It runs `probe()` on the kit entry `src/kit/index.ts` with one `chart` target, the way `bin/check-rules.mjs`'s probe stage does. The target's props are `{content, image: null, timing, theme: themes.light}`. The content is a line chart with 8 points, the label `甲ABCD乙` on one point, and the other labels and values from the `line-max` sample.
+    - **Assertions on that target:**
+      - `violations` is empty;
+      - every marked text ends at or above the caption band's top (`BAND_TOP`) and lies inside `TEXT_BOX`, as the catalog probe's tests assert;
+      - the `甲ABCD乙` label's block has 3 lines (`wrapLines('甲ABCD乙', 4)` gives `["甲", "ABCD", "乙"]`).
+    - The catalog, `gallery/**` and the approvals do not change.
+    - **The throwing input.** `，（（（（甲` at maxWidth 4 is listed in the throw-class follow-up (#924), which collects every recorded input of that class. This task does not fix it.
+  - **Item 4 (P3): already done.** `MAX_TIMED` was removed from `tests/scenes.test.mjs` by `445f1d2` (task 4.6). At `37b3475` the file has only `MAX_TIMING`, which lines 228–230 use. Nothing changes; the PR records it.
+  - **Required evidence.**
+    1. **Red first.** On OCU `main` at `37b3475` the new tests fail because the exported predicate does not exist (an import failure, not an assertion). The assertion-level red is that `0.123456789` as a `key-number` value and `-1234.5678` as a chart point validate there: the PR shows `validateScript` accepting both at `37b3475`.
+    2. **Rule tests (pure, `tests/script-schema.test.mjs`).**
+       - Rejected, each naming its field: `0.123456789`, `-1234.5678`, `-10000.123`, `1e12`, `-1e12`, `123456789.123`, `9999.9999`, `-999.9999`.
+       - Accepted: `-99999000`, `-99999999`, `-9999.9`, `12345.67`, `-12345.67`, `999999999999`, `0`, `-0.5`.
+       - The same rule applies to a `key-number` value and to a chart point.
+    3. **Sufficiency test (pure, `tests/script-schema.test.mjs` or `tests/text.test.mjs`).**
+       - **The functions.** The test keeps the TypeScript text of `KeyNumber.tsx:28` (`MOST_DECIMALS`) and `:32-44` (`decimalsOf`, `counted`) as a string, asserts that it appears verbatim in `KeyNumber.tsx` (so the copy cannot drift), writes it with an `import {formatCount} from '<absolute path of src/kit/text.ts>'` line and an `export` of `counted` to a temporary `.ts` file, and imports that file (Node 22.23.2 strips the types with no warning). Since Node cannot import `.tsx`, this is how the test runs the scene's own code.
+       - **The pool.** Candidate values are run through the exported predicate. The pool includes the accepted values above and the rejected boundary values `-10000.123`, `-1.00001e12`, `9999.9999` and `-999.9999`, so a mutation that accepts one of them draws more than 8 code points and turns the test red.
+       - **Steps.** For each accepted value, `counted(v, p)` runs for `p` from 0 to 1 in steps of 1/3000, and at `p = 1 − 2^-k` for k up to 60. Every drawn text has at most 8 code points.
+       - **Conservative by design, not tested.** The rule also rejects some values that would fit: `±1e12` (`10000亿`, `-10000亿`) and positive values from 10000 up with 3 decimals (for example `10000.123`, `123456789.123`). The PR names this class; the error message states the bounds, so the model rounds.
+    4. **Mutations**, each on a copy and then reverted:
+
+       | Mutation                               | Expected red                                                       |
+       | -------------------------------------- | ------------------------------------------------------------------ |
+       | the `1e12` bound removed               | the `±1e12` rejection rows and sufficiency (`-1.00001e12`)         |
+       | the 2-decimal bound raised to 3        | the `-10000.123` row and sufficiency (`-10000.123`)                |
+       | the below-10000 limit raised to 9      | the `9999.9999` and `-999.9999` rows and sufficiency (`9999.9999`) |
+       | the rule removed from the chart points | the chart rejection row                                            |
+
+    5. **No frame changes.** `git diff --stat 37b3475..<head> -- remotion-template/src` is empty, and `tests/scenes.test.mjs`' `PRESERVED_*` pins pass unchanged. Every catalog sample, `script.json`, and every tracked fixture script still validate. An existing or new pure test loads each of them.
+    6. **In-image.** In the workspace image built from a clean `--no-local` clone at the head (`docker build --platform linux/amd64`), `tests/render/scenes.test.mjs` passes whole, with the new step. Record the image digest and the new step's result.
+    7. **Green.** Pure template tests in a frozen `npm ci` tree under Node 22.23.2, from the template and from the repository root, all pass. `tests/registry-approvals.test.mjs` and `tests/explainer-scenes.test.mjs` pass unchanged.
+
+  - **Must preserve.**
+    - The only files that change are `bin/script-schema.mjs`, `tests/script-schema.test.mjs`, optionally `tests/text.test.mjs`, and `tests/render/scenes.test.mjs`.
+    - Byte-identical: everything under `src/`, `script.schema.json`, `script.json`, `tests/scenes.test.mjs`, `tests/explainer-scenes.test.mjs`, `gallery/**`, `package.json`, the lockfile, every other `bin/` file, the skills, and everything outside `remotion-template/`.
+    - Every existing schema message stays byte-identical.
+  - **Non-goals:**
+    - a probe rule for the caption band or text boxes in `kit check` (the issue's other direction);
+    - `formatCount`'s exponent form for tiny values;
+    - the `wrapLines` throw class (#924);
+    - #897 and #918.
+  - **PR record.**
+    - The OCU PR references (#893) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #893 after merge.
+    - It shows the three messages, the sufficiency argument, item 2's decision, item 4's commit, the image digest, and the `tests/render/scenes.test.mjs` result.
+
 Suggested fixture level: expanded - it adds the components that the schema's kinds bind to, and a user approval gate.
 Minimal mergeable slice: task 4.1 with a placeholder component only. No real component merges before its own approval entry, recorded in the same PR.
 
