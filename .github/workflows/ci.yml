@@ -34,7 +34,7 @@ jobs:
   # Pushes to main always run everything.
   changes:
     name: Change classification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 3
     # The pull request files API; explicit so the job keeps working if the repo turns private.
     permissions:
@@ -67,7 +67,7 @@ jobs:
   layer1-fast-checks:
     name: Fast checks (fmt + lint + typecheck)
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 15
     steps:
       # Full history with blobs: lint-scoped lints every modified file's baseline revision.
@@ -93,7 +93,7 @@ jobs:
     name: Backend tests + coverage gate
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 20
     steps:
       # The change scope needs commits and trees back to the upstream base, not old blobs.
@@ -115,7 +115,7 @@ jobs:
     name: Frontend tests + coverage gate
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -134,7 +134,7 @@ jobs:
     name: Runtime smoke (migrations + API + proxy)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +163,7 @@ jobs:
     name: Browser verification (shard ${{ matrix.shard }})
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 30
     strategy:
       # Every shard reports, so one failure does not hide another.
@@ -213,7 +213,7 @@ jobs:
   layer4-anti-drift:
     name: Anti-drift (duplicate + dead code, scoped) + docs
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 15
     steps:
       # knip's ratchet diffs modified files against the baseline revision's blobs.
@@ -233,7 +233,7 @@ jobs:
 
   layer5-secret-scan:
     name: Secret scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -245,7 +245,7 @@ jobs:
 
   lockfile-consistency:
     name: Lockfile–manifest consistency
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     if: github.event_name == 'pull_request'
     timeout-minutes: 5
     steps:
@@ -272,7 +272,7 @@ jobs:
   layer6-diff-size-guard:
     name: PR diff size guard
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
@@ -308,7 +308,7 @@ jobs:
       - layer5-secret-scan
       - lockfile-consistency
       - layer6-diff-size-guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Pinned: ubuntu-26.04 apt cannot install the toolchain nginx/hurl (#917).
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
