@@ -54,6 +54,9 @@ runs:
         key: node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package.json', 'package-lock.json') }}
     - if: inputs.node == 'true' && steps.node-modules.outputs.cache-hit != 'true'
       shell: bash
+      env:
+        # Skip onnxruntime-node's CUDA provider download: its GitHub release asset returns 404 and fails npm ci (#918).
+        ONNXRUNTIME_NODE_INSTALL_CUDA: skip
       run: npm ci
 
     - if: inputs.python != 'none'

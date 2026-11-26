@@ -32,6 +32,9 @@ jobs:
     # 5 minutes fit npm ci plus the script (~1.5 min); the backend venv adds ~70 s with a warm uv
     # cache (ci.yml layer1) and minutes more on a cold one, which would kill case 11 mid-run.
     timeout-minutes: 10
+    env:
+      # Skip onnxruntime-node's CUDA provider download: its GitHub release asset returns 404 and fails npm ci (#918).
+      ONNXRUNTIME_NODE_INSTALL_CUDA: skip
     steps:
       - uses: actions/checkout@v4
         with:

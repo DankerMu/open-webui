@@ -31,6 +31,8 @@ stop:
 # ── Engineering harness ───────────────────────────────────────
 # Toolchain: Node 22 (nvm use 22), Python 3.12 (uv). See .tool-versions.
 
+# Skip onnxruntime-node's CUDA provider download: its GitHub release asset returns 404 and fails npm ci (#918).
+setup: export ONNXRUNTIME_NODE_INSTALL_CUDA := skip
 setup:
 	uv sync --frozen --group dev
 	npm ci

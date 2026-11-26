@@ -36,6 +36,8 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 COPY package.json package-lock.json ./
+# Skip onnxruntime-node's CUDA provider download: its GitHub release asset returns 404 and fails npm ci (#918).
+ENV ONNXRUNTIME_NODE_INSTALL_CUDA=skip
 RUN npm ci --force
 
 COPY . .
