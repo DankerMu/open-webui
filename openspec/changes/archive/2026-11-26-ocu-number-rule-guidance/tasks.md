@@ -1,6 +1,6 @@
 ## 1. Number rule in the guidance (#926)
 
-- [ ] 1.1 State the 4.7 number rule in `explainer-kit.md` and in the `scriptSchema` description, regenerate `script.schema.json`, and pin both. Verify that the new pins fail on OCU `main` at `bce4aef` and pass after.
+- [x] 1.1 State the 4.7 number rule in `explainer-kit.md` and in the `scriptSchema` description, regenerate `script.schema.json`, and pin both. Verify that the new pins fail on OCU `main` at `bce4aef` and pass after.
 
   **Task 1.1 required evidence** (issue #926):
   - **Fixture level:** compact. Only model-facing text and a schema description change. No rule, message or rendered frame changes.
@@ -40,6 +40,12 @@
     - changing the rule itself;
     - other skill sections;
     - #924.
+
+  - Amended after OCU #273 (2026-11-26, merged `73ad577`, reviewed head `dd56fa8`):
+    - **Red at `bce4aef`.** pytest failed with `AssertionError: below 1e12`; node failed `not ok 37` on `/below 1e12/`. The `git grep -c` absence proof exited 1.
+    - **Green.** Pure tests 611/611 from both roots. `tests/test_remotion_image.py` 22 passed, run locally with `remotion-template/node_modules` moved aside (`test_template_sources_present_and_cache_disabled` requires none).
+    - **Review.** One seat, no findings. The regenerated `script.schema.json` is byte-identical to `scriptJsonSchema()`.
+    - **Known limit.** "The decimals do not show" holds for the settled frame only: a key-number's count-up shows intermediate decimals below 10000, each still within 8 code points.
 
 Suggested fixture level: compact - one skill bullet, one description string, its regenerated file, two pins.
 Minimal mergeable slice: atomic.

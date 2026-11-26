@@ -1,6 +1,6 @@
 ## 1. Name unwrappable text in kit check (#924)
 
-- [ ] 1.1 Map `wrapLines`' two `RangeError`s in `probeRule`'s catch to a reason naming the scene, field and text. Verify with pure tests that inject the probe error, and with one in-image `kit check` on a script whose chart label throws.
+- [x] 1.1 Map `wrapLines`' two `RangeError`s in `probeRule`'s catch to a reason naming the scene, field and text. Verify with pure tests that inject the probe error, and with one in-image `kit check` on a script whose chart label throws.
 
   **Task 1.1 required evidence** (issue #924):
   - **Fixture level:** compact (override: the legacy pack is selected only to keep the existing probe reasons byte-identical; no format, entrypoint or state changes). One catch block in one function, after the existing `unknown scene` mapping.
@@ -70,6 +70,16 @@
     - **Narration captions** (`src/kit/render/Captions.tsx`, `LINE_WIDTH` 16). A caption block holds at most 16 characters (`LIMITS.block`), and every character is 1 em wide, so its core never exceeds 16. Neither throw can happen.
     - **A schema rule against such runs.**
     - #926.
+
+  - Amended after OCU #274 (2026-11-26, merged `2de3c72`, reviewed head `c04d3c4`):
+    - **Red.** Image `sha256:def09b04…`, built at `bce4aef`, gave the raw reason `probe: kit probe: target "chapter 3 应用, scene 2 (chart)" frame 15: opening marks of "（（（（甲乙" fill maxWidth 4`, which is reused verbatim as a pure case. On the old `check-rules.mjs`, pure tests 37-46 failed (10 of 65).
+    - **Mutations.** All four rows went red. The `JSON.parse` row used `capture.slice(1, -1)`, because a capture that keeps its quotes turns every case red.
+    - **Green.** Pure tests 622/622 from both roots. In image `sha256:4e4b2cdb986bf40452ceb8d5b73b0407f628ef7bdc96d383b9e341ea76f6325a`, `tests/render/check.test.mjs` gave 16 pass, 0 fail, 2 skipped by `KIT_TIMING`. The new case names `content.points[2].label`.
+    - **Deviations.**
+      - The helpers sit above `probeRule`.
+      - The in-image case writes tones for every stem, because the new scene renumbers later stems.
+      - Two extra fallback cases: an unparsable escape, and a target that names no scene.
+    - **Review.** One seat, no findings.
 
 Suggested fixture level: compact - one catch block with pure tests and one in-image case.
 Minimal mergeable slice: atomic.
