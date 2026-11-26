@@ -5233,8 +5233,100 @@ Minimal mergeable slice: task 6.1, the evidence tooling and the listening page. 
       - **P3:** `dns.promises.lookup` is not wrapped. Remotion calls it (`browser/NodeWebSocketTransport.js:32-33`) only for a `localhost` DevTools host, which Chrome does not print today. Re-check on a Remotion upgrade.
       - **Not yet proved:** a real `network_disabled=True` sandbox. The 8.1 re-run (#848) proves it.
 
-Suggested fixture level: compact - task 7.1 adds a test, task 7.2 changes skill text that a static test pins, and task 7.3 fixes the render worker's name lookup with a test; the runtime behavior is covered by groups 3–6.
-Minimal mergeable slice: tasks 7.1 and 7.3 each merge on their own. Task 7.2 merges only after task 8.2 passes.
+- [ ] 7.4 Make free-form Remotion renders work in a sandbox created with networking disabled, for every Remotion render command `free-form.md` gives, and test it in the empty-hosts shape with `public/` audio. Verify that the new test fails on an image built from OCU `main` at `32b2704` and passes on the fixed image.
+
+  **Task 7.4 required evidence** (issue #914):
+  - **Fixture level:** compact. Risk packs:
+    - **Runtime / render path:** selected. Name resolution changes for every plain Remotion CLI process run from a project.
+    - **Tests / CI:** selected. `tests/test-docker-image.sh` gains a section.
+    - Every other pack is not selected. There are no scene, schema, approval, dependency, skill-routing or server changes.
+  - **Cause (binding).** This is 7.3's cause on the path 7.3 left out.
+    - `free-form.md` runs Remotion only as `npx --no-install remotion …`.
+    - In Remotion 4.0.537, Node downloads only assets registered as `type: 'audio'` or `'video'` (`@remotion/renderer/dist/filter-asset-types.js:5-7`, `render-frame-with-option-to-reject.js:175,214`). Those are registered by `Audio`/`Html5Audio` from `remotion` (`remotion/dist/cjs/audio/AudioForRendering.js:65`), and by `@remotion/media`'s fallback to it.
+    - `@remotion/media`'s `<Audio>` normally decodes in the browser and registers `inline-audio`, which Node does not download (`@remotion/media/dist/esm/index.mjs:5968-5977`).
+    - **The failing 8.1 attempt** (`promo-lunch-fitness-class/r1-a1`, 2026-11-25) played narration with `Audio` imported from `remotion`, although `free-form.md:138` names `@remotion/media`. Its `remotion render` then failed with `Error while downloading http://localhost:3000/public/line1.mp3: … EAI_AGAIN localhost`.
+    - Those CLI processes never call `installLoopbackLookup()`.
+    - `remotion still` downloads no assets through Node: only `render-frame-with-option-to-reject.js` calls `downloadAndMapAssetsToFileUrl`. It needs no test case. The PR cites this.
+  - **Shape.**
+    - **`remotion-template/remotion.config.ts`.**
+      - It imports `installLoopbackLookup` from `./bin/loopback.mjs` and calls it once, at module top level.
+      - It keeps `Config.setCachingEnabled(false)` and its comment.
+      - One comment line names #914 and the empty `/etc/hosts`.
+      - **Why this works:** the Remotion CLI bundles the config with esbuild (`packages: 'external'`, so the relative import is inlined and `node:dns` stays external) and evaluates it in its own process (`@remotion/cli/dist/load-config.js:21-31,58`). That is the same process that renders (`render-flows/render.js:395,463`) and downloads.
+      - Every free-form project copies the whole template except `node_modules` (`free-form.md:30-32`), so the project has `bin/loopback.mjs`.
+      - The kit's in-process `bundle()` callers (`render-video.mjs`, `probe.mjs`, `contact-sheet.mjs`, `gallery.mjs`) do not read `remotion.config.ts`. The kit path is unaffected, and `render-video.mjs` still installs the wrapper itself.
+    - **Precondition, recorded in the PR:** the cited source lines above, re-read from the lockfile's packages. If they do not hold, stop and report. Do not switch to `NODE_OPTIONS` or skill-text workarounds without the user.
+    - **`skills/public/remotion/free-form.md`** gains one line in "Start a project", next to the existing `Config.setCachingEnabled(false)` line. It tells the model to keep `bin/` and the loopback import and call in `remotion.config.ts`, because renders in a sandbox without networking need them. The commands do not change, and no DNS workaround is added.
+    - **`tests/test-docker-image.sh`** gains a new section 18. The `[N/17]` header counters of sections 1–17 may change to `[N/18]`; nothing else in sections 1–17 changes.
+      - **Container shape.** It runs in 7.3's empty-hosts shape, reusing 7.3's helper argument form:
+        - empty read-only `/etc/hosts` and `/etc/resolv.conf`, from its own `mktemp -d`, removed afterwards;
+        - `--network=none`.
+      - **First step.** As in `kit0`, it asserts that both files are 0 bytes and that `getent hosts localhost` fails.
+      - **Project setup.**
+        - It follows `free-form.md`'s exact "Start a project" commands: the `tar` copy, the `node_modules` symlink, `public` and `out`.
+        - It generates `public/line1.mp3` and `public/line2.mp3` in the container with `ffmpeg` (lavfi tones, as section 17 does).
+        - It writes `src/Root.tsx`, still exporting `RemotionRoot` (which `src/index.ts` registers), with one composition `Main`: 1920×1080, 30 fps, 90 frames. It plays two clips:
+          - `line1.mp3` through `Audio` from `remotion`. This is what the failing attempt used, and the asset Node downloads.
+          - `line2.mp3` through `Audio` from `@remotion/media`. This is `free-form.md`'s form, which must stay green.
+      - **Renders.** It runs `free-form.md`'s commands with their exact flags, with frames picked for 90 frames:
+        - `npx --no-install remotion render src/index.ts Main out/frames --sequence --frames=0,30,60,89 --image-format=png --concurrency=2`
+        - `npx --no-install remotion render src/index.ts Main <dir>/<name>.mp4 --concurrency=2 --codec=h264 --pixel-format=yuv420p`
+
+        The MP4 render runs in the foreground; the background launch wrapper is not under test.
+
+      - **Assertions.**
+        - The four frames exist.
+        - The MP4 has an audio stream (`ffprobe`), and its duration is 3 s within one frame.
+        - No output line contains `EAI_AGAIN`.
+      - Its step details name the times.
+
+  - **Required evidence, red first.**
+    1. **Red.** Section 18 at the final head, run against an image built from OCU `main` at `32b2704`, passes the empty-hosts step and then fails at the first render. The reason names `Error while downloading` and `EAI_AGAIN`.
+       - If the red run does not fail this way, stop and report to the orchestrator, with the render output. Do not change the composition to force red.
+    2. **Mutations**, each on a copy and then reverted:
+
+       | Mutation                                            | Expected red                          |
+       | --------------------------------------------------- | ------------------------------------- |
+       | the loopback call removed from `remotion.config.ts` | section 18's render step, `EAI_AGAIN` |
+       | section 18 without the two mounts                   | its empty-hosts step FAIL             |
+       | the composition with no audio clip                  | the audio-stream assertion            |
+
+    3. **Green.** In the image built from a clean `--no-local` clone at the head (`docker build --platform linux/amd64`):
+       - `./tests/test-docker-image.sh <image>` passes every section. Record section 18's step details and times, and section 17's.
+       - Pure template tests in a frozen `npm ci` tree under Node 22.23.2, from the template and from the repository root, all pass. That includes `tests/loopback.test.mjs` unchanged.
+    4. **Guards.**
+       - `tests/test_remotion_image.py` passes. Any pinned skill-text line that changes is updated in the same commit, and the PR names it.
+       - `tests/test-project-structure.sh` passes.
+       - `bash -n` passes on the script.
+       - If shellcheck is installed, it shows no new warnings against `origin/main`.
+
+  - **Must preserve.**
+    - The only files that change are:
+      - `remotion-template/remotion.config.ts`;
+      - `skills/public/remotion/free-form.md`, by one line;
+      - `tests/test-docker-image.sh`: the new section 18, the header counters, and a shared helper used read-only;
+      - and, if a pin requires it, `tests/test_remotion_image.py`.
+    - Byte-identical:
+      - `bin/**`, including `loopback.mjs` and `render-video.mjs`;
+      - `src/**`;
+      - `package.json`, the lockfile, `NOTICE` and `THIRD-PARTY-LICENSES.md`;
+      - `SKILL.md` and `explainer-kit.md`.
+  - **Checked at fix time and recorded in the PR (#914's open item).** For each of the kit's other in-process `bundle()` callers:
+    - Does it download `type: 'audio'` assets through Node in an empty-hosts sandbox? For example, `probe.mjs:159` calls `renderFrames` without `muted`, and `gallery.mjs:98` calls `renderMedia`; the kit's Explainer plays core `Audio`.
+    - If one does, file a follow-up. Do not fix it here.
+  - **Known limit, recorded.** `tsconfig.json` includes `remotion.config.ts` under `strict`. A manual `tsc --noEmit` may report the untyped `.mjs` import. No gate type-checks the template. If a one-line `// @ts-expect-error` or a declaration is not needed for the CLI, leave it out and say so.
+  - **Non-goals:**
+    - `docker_manager.py`, `ENABLE_NETWORK`, the eval stack and the deployment;
+    - `dns.promises.lookup` (7.3's residual);
+    - changing which `Audio` component `free-form.md` names;
+    - #893, #897 and #918.
+  - **PR record.**
+    - The PR references (#914) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #914 after merge.
+    - It names the red image and the green image.
+    - It records the precondition's source lines.
+
+Suggested fixture level: compact - task 7.1 adds a test, task 7.2 changes skill text that a static test pins, and tasks 7.3 and 7.4 fix name lookups with a test; the runtime behavior is covered by groups 3–6.
+Minimal mergeable slice: tasks 7.1, 7.3 and 7.4 each merge on their own. Task 7.2 merges only after task 8.2 passes.
 
 ## 8. After run and acceptance
 
