@@ -4270,6 +4270,100 @@ Minimal mergeable slice: task 4.1 with a placeholder component only. No real com
       - **Output:** `nb_frames` 5341, H.264 yuv420p plus AAC. `.kit/render/tmp` held the Chrome profile plus Remotion's `react-motion-render*` and `remotion-v4.0.537-assets*` directories.
       - **Idle stop.** Against the 600 s default, the check uses 7% and the render 88%, about 72 s of margin. The times are posted on (#814) and (#897).
 
+- [ ] 5.5 Fix the kit job and probe follow-ups that 5.4 passed on: the start lock's three-starter race, stale partial copies left by a stopped render, `projectHash`'s messages for a socket and a vanished subdirectory, the check worker's deadline decision, and the probe's duplicated record after a retry. Verify each with a pure test that is red on OCU `main` at `37b3475` and green after.
+
+  **Task 5.5 required evidence** (issue #897):
+  - **Resumed.** The user paused #897 on 2026-11-25 (8.2's ruling). On 2026-11-26 the user asked to finish the epic (「直接开干，完成这个epic」); the orchestrator reads that as lifting the pause.
+  - **Governing invariant.** At most one kit job starts at a time, and every start leaves the user's files directory and the project's state as complete files only: a start never deletes another starter's lock, a stopped render's hidden partial does not outlive the next start that passes its check, and a project the hash cannot read gives a named reason, never a raw system error.
+  - **Sibling surfaces.**
+    - `removeStale`'s other caller, `musicStep`'s stem sweep (`STALE_STEM`): unchanged, already runs at every render.
+    - `readHashed`'s other callers, `trackHash` and the referenced `public/` files in `projectHash`: they get the same socket classification; a socket there is a null entry, as any non-regular file is today.
+    - `collectRecords`' only caller is `probe()`, used by `kit check` and the gallery; both get the duplicate rule.
+    - `startJob`'s other caller, `kit check`: shares the lock fix.
+  - **Fixture level:** expanded, because the change touches the start lock (concurrency, shared state) and deletes files in the user's files directory. Risk packs:
+    - **Concurrency / shared state / ordering:** selected. Item 1 changes how `.kit/start.lock` is taken.
+    - **File IO / path safety / overwrite:** selected. Item 2 deletes files under `/mnt/user-data/files`.
+    - **Error handling / partial outputs:** selected. Items 2, 3 and 5.
+    - **Legacy compatibility:** selected. Every existing test in `tests/job.test.mjs`, `tests/render-job.test.mjs`, `tests/project-hash.test.mjs` and `tests/probe.test.mjs` stays green unchanged, except `tests/probe.test.mjs:138`, which item 5 names.
+    - **Not selected:** public API / CLI (no command, flag or output line changes, apart from the messages item 3 names), schema, auth, network, dependencies, rendered frames, and the skill text.
+  - **Item 1 (P2): the start lock's three-starter race.**
+    - **Where:** `remotion-template/bin/job.mjs` `takeLock` (lines 158–177 at `37b3475`).
+    - **Cause.** After `link()` fails with `EEXIST`, `lockHolder` reads the lock. When the read finds no file (`readState` returns `undefined`), it reports `{held: false}`, and `takeLock` then runs `rm(lock)` before it retries. If another starter C links its lock between that read and the `rm`, the `rm` removes C's lock, the retry links B's, and B and C both start.
+    - **Fix.** When the read finds no lock, `takeLock` retries `link()` without removing anything. Only a lock that is present and stale (`held: false` with a pid) is removed, at most once, as now. The loop is bounded: after a small fixed number of attempts it refuses with the existing message, `another kit command is starting a job (pid <pid>); …`, where `<pid>` is the last holder read's pid (`null` when no lock was found, as on `37b3475`). The implementer picks the number and comments why.
+    - **Test seam.** `takeLock` is exported and takes a second, test-only argument `holder`, called as `holder(path, lockHolder)` (default: `(path) => lockHolder(path)`), so a test seam receives the real `lockHolder` without exporting it. `startJob` calls `takeLock` with one argument as now. No other seam is added.
+    - **Tests (pure, `tests/job.test.mjs`, importing `takeLock` dynamically inside each test, as the file does for its other imports, so the file still loads on `37b3475`).**
+      - **Three starters.**
+        1. Plant a held lock, standing for starter A.
+        2. Call `takeLock(kit, holder)` for B. The holder seam is one-shot: on its first call only, it removes A's lock (A released), calls the real `lockHolder` it was given (no lock found) and keeps its result, plants C's lock with this test process's pid and a `startedAt` of `Date.now()`, then returns the kept result. Every later call delegates to the real `lockHolder` unchanged.
+        3. B must be refused with the held-lock message. C's lock must still exist, byte-identical.
+      - **Bounded loop.** A held lock stays on disk, and the holder seam always returns `{held: false, pid: null}`. B must be refused, and the lock must be byte-identical afterwards. The test sets a `node:test` `timeout`, so an unbounded loop fails with a message instead of hanging.
+    - **Red.** On `37b3475` the file has no `takeLock` export, so these tests fail with a missing export. The meaningful red is the first mutation row below: the seam on top of the old `rm` logic, where B removes C's lock (or the held lock) and takes the lock itself.
+    - **Known limit, recorded and not fixed.** Two starters that both judge the same dead holder's lock stale can still both remove and link. Reaching that needs a crashed starter's leftover lock plus two concurrent starts, and the published target is still a complete, verified video. The PR records this. It is not filed as an issue.
+  - **Item 2 (P3): stale partial copies.**
+    - **Where:** `bin/render.mjs` `render()`, the start path.
+    - **Cause.** A real stop during the copy exits after `STOP_DELAY_MS`, before the worker removes `.<name>.mp4.<32 hex>.partial`. Only a later `publish()` sweeps it, so a project whose render never succeeds again keeps the hidden file.
+    - **Fix.** The start path's precondition, which runs under the start lock after the running-job check, runs the same sweep `publish()` runs: the same `removeStale` call and the same pattern for `basename(root)`, in `ctx.filesRoot` (set by `kit.mjs` to `/mnt/user-data/files`, and to a temporary directory by `render-job.test.mjs` and `kit.test.mjs`). The pattern is built in one function that both callers use. No new environment variable.
+    - **Order.** The sweep runs only after `checkedProject` passes, so a refused start deletes nothing.
+    - **Absent files directory.** A not-found `ctx.filesRoot` skips the sweep and the start proceeds as today (the worker's publish reports it). Any other error propagates as the start path's system errors do today.
+    - **Test (pure, `tests/render-job.test.mjs`).**
+      - A start plants `.<name>.mp4.<32 hex>.partial` (a regular file) in a temporary files directory. A passing start removes it.
+      - It leaves alone a symlink with that name, a directory with that name, a partial for another project's name, and the target `<name>.mp4`.
+      - A start refused for `no passing check` leaves the partial.
+      - A start whose `ctx.filesRoot` does not exist starts as before.
+    - **Red.** The removal assertion fails on `37b3475`. The leave-alone, refused-start and absent-directory cases are guards that pass on both commits.
+  - **Item 3 (P3): `projectHash` messages.**
+    - **Where:** `bin/project-hash.mjs`, `readHashed` and `walk`.
+    - **Socket.** `open()` with `O_NONBLOCK` on an `AF_UNIX` socket fails: `ENXIO` on Linux, errno -102 (`EOPNOTSUPP`, which Node 22 reports as `Unknown system error -102`) on macOS. Today that propagates and becomes `check: <message>`. The fix does not match error codes: when `open()` fails with any code other than the not-found and `ELOOP` cases already handled, `readHashed` runs `lstat` on the path, and returns `{kind: "other"}` when it is a socket (`isSocket()`). Otherwise the original error propagates. The walk then reports `src/<path>: is not a regular file or directory; the check hashes regular files only`.
+    - **Vanished subdirectory.** A subdirectory removed between its `lstat` and its `readdir` makes `readdir` throw `ENOENT`, which propagates today. In a recursive call, `walk` treats a not-found `readdir` as a vanished entry and skips it silently, as it already skips a vanished file ("the second hash read sees the change"). "Reported as vanished" in the issue means this skip; no new reason text. The `readdir` of `src` itself keeps its current behavior.
+    - **Seam.** `projectHash` gains a `list` option beside `read`, defaulting to `readdir`, which `walk` uses for every directory. The existing `read` seam cannot reach the window: `lstat` and the recursive `readdir` run back to back.
+    - **Tests (pure, `tests/project-hash.test.mjs`).**
+      - A socket bound under `src/` (`net.createServer().listen(path)`, with a temporary path short enough for the socket path limit) gives exactly that reason, and no thrown error. It runs on Linux CI and on macOS.
+      - **Vanished subdirectory.** `src/sub/` holds a file. A `list` seam removes `src/sub` right before delegating to `readdir` for it, and records that it was called for `src/sub`. The test asserts three things: the seam was called for `src/sub`; no error is thrown; and the result equals `expectedHash(...)` over the paths without `src/sub`, as the vanished-file test at `tests/project-hash.test.mjs:232-245` does.
+    - **Red.** On `37b3475` the socket test fails with the thrown error. The subdirectory test fails because `projectHash` ignores `list`: the seam is never called, and the subtree is hashed.
+  - **Item 4 (P3): the check worker's deadline, a decision.**
+    - **Input.** The maximum-size script's check took 40.6 s on the host (5.4). Stages 1–7 took under 3 s, the contact sheet about 24.7 s, and the hash about 41 s. Neither log has a retry or handle line.
+    - **Inventory (orchestrator, read-only, at `37b3475`).**
+      - Bounded by Remotion or the kit: the probe's frames (`src/kit/probe/Probe.tsx` `PENDING_WAIT_MS` 20 s and `ATTACH_FRAMES`, under Remotion's 30 s `delayRender` default) and the contact sheet's `renderStill` (the same default).
+      - Not bounded in code: the webpack `bundle()` and `openBrowser` in `bin/probe.mjs` and `bin/contact-sheet.mjs`; the contact sheet's ffmpeg (`bin/contact-sheet.mjs:43`, `execFile` with no timeout); and `projectFiles.text()` in `bin/check-rules.mjs`, which follows symlinks, so a FIFO at `script.json` would block.
+      - None of them has been seen to hang. Their inputs are local and finite, and the sandbox has no network.
+    - **Decision: no deadline.** A hung check is visible and recoverable without one: `kit status` prints `check running (pid <n>, <s> s)`. The worker is detached, so it leads its own process group, and `kill -KILL -<n>` ends it and its ffmpeg child whatever it waits on. Chrome runs in a group of its own (`@remotion/renderer/dist/browser/BrowserRunner.js:87`) and dies with the worker only through Remotion's `setpriv --pdeathsig SIGKILL` wrap (`BrowserRunner.js:76-81`), on Linux when `setpriv` is in the image; the PR records whether it is. SIGTERM on the pid alone (`handleStopSignals`) may not return from a thread blocked in `open()` and leaves a child ffmpeg running. Either way the job reads `died`, and the next start proceeds. A deadline would need its own kill of the worker's process group and a test seam, for a hang never observed. `bin/check.mjs` gets one comment line naming this decision and #897. The PR copies the inventory.
+  - **Item 5 (P3): probe robustness.**
+    - **Duplicated record.** Remotion 4.0.537 retries a frame at most once after a browser crash (`render-frames.js:38` `MAX_RETRIES_PER_FRAME = 1`; `render-frame-and-retry-target-close.js:148`). It does this on a new page made at that frame, after the crashed page may already have logged the frame's record. A `delayRender` timeout retries only when the handle sets `retries`, and no kit handle does. Every replacement page gets the same `onBrowserLog` (`render-frames.js:70-77`). The second record for the same index then makes `collectRecords` fail with `duplicate record for frame <n>`. This is inferred from the source: #840's run had no retry.
+      - **Fix.** A duplicate that is byte-identical to the first record for its index is ignored. A differing duplicate still fails with the existing message.
+      - **Tests (pure, `tests/probe.test.mjs`).** Two identical lines for one index give one record. Two differing lines for one index still throw `duplicate record for frame <n>`.
+      - **Existing test changed.** `tests/probe.test.mjs:138` expects `collectRecords([line(3), line(7), line(3)], [3, 7])` to throw `duplicate record for frame 3`; its two `line(3)` strings are identical. Its third line becomes a differing record for index 3 (for example `{"index":3,"x":1}`), so it keeps asserting the throw. This is the only existing test that changes.
+      - **Red.** The identical-lines test fails on `37b3475`. The differing-lines test is a guard that passes on both.
+    - **The 20 s handle wait.** `PENDING_WAIT_MS` stays at 20000. The comment at `src/kit/probe/Probe.tsx:37-41` already gives the reason: it stays below the 28 s Remotion gives the probe's own handle, so the error naming the scene's handles comes first. The PR records this as the justification the acceptance criterion allows. `src/**` stays byte-identical.
+  - **Required evidence.**
+    1. **Red first.** These tests fail on `37b3475` (or, for item 1, under the first mutation row) and pass at the head: item 1's three-starter and bounded-loop tests, item 2's removal assertion, item 3's socket and subdirectory tests, and item 5's identical-lines test. The other new cases are guards that pass on both. The PR names each red test with its red message.
+    2. **Mutations**, each on a copy and then reverted:
+
+       | Mutation                                    | Expected red                                 |
+       | ------------------------------------------- | -------------------------------------------- |
+       | `takeLock` removes the lock when none found | item 1's three-starter test                  |
+       | the loop without a bound                    | item 1's bounded-loop test (hang or timeout) |
+       | the start-path sweep removed                | item 2's removal assertion                   |
+       | `readHashed` without the socket check       | item 3's socket test                         |
+       | `walk` without the not-found skip           | item 3's subdirectory test                   |
+       | any duplicate throws again                  | item 5's identical-lines test                |
+       | any duplicate accepted                      | item 5's differing-lines test                |
+
+    3. **Green.** Pure template tests in a frozen `npm ci` tree under Node 22.23.2 all pass, run from the template and from the repository root as `template-tests.yml` runs them.
+    4. **In-image evidence: not required.** No rendered frame, probe composition or command line changes, and `tests/render/**` is unchanged. The PR says so.
+
+  - **Must preserve.**
+    - The only files that change are `bin/job.mjs`, `bin/render.mjs`, `bin/project-hash.mjs`, `bin/probe.mjs`, `bin/check.mjs` (one comment line), and the four test files above.
+    - Byte-identical: `src/**`, the schema, `script.json`, `gallery/**`, `package.json`, the lockfile, `tests/render/**`, the skills, and everything outside `remotion-template/`.
+    - Every existing message stays byte-identical, apart from the reason item 3 now reaches.
+    - The one-job rule, the `running`/`died` judgment, and `publish()`'s own sweep do not change.
+  - **Non-goals:**
+    - the two-stale-starters race (item 1's known limit);
+    - a deadline for the render worker;
+    - #893 and #918.
+  - **PR record.**
+    - The OCU PR references (#897) and carries `<!-- intended-closing-issues: [] -->`. The orchestrator closes #897 after merge.
+    - It records item 4's list and decision, item 5's justification, and the red messages.
+
 Suggested fixture level: expanded - it adds a CLI gate and publishes the user's output files.
 Minimal mergeable slice: task 5.1 with its fixtures. It reads the script, timeline and probe output, and is testable without a final render.
 
