@@ -303,3 +303,26 @@ Every ported component and borrowed format SHALL be listed in the repository's t
 
 - **WHEN** the notices are checked against the kit's source headers
 - **THEN** every source named in a kit file header appears in the notices with its licence
+
+### Requirement: The model's guidance states the number rule
+
+The explainer kit's skill reference (`skills/public/remotion/explainer-kit.md`) SHALL state the number rule that `validateScript` enforces for `key-number` values and chart points:
+
+- below 10000 in size, at most 8 characters as written;
+- from 10000 in size, below 1e12 with at most 2 decimals.
+
+The JSON Schema description in `script.schema.json` SHALL name the rule as one that JSON Schema cannot express and `validateScript` enforces.
+
+#### Scenario: The model follows the skill text
+
+- **WHEN** the model rounds a value as the skill reference says, for example `12345.678` to `12345.68`
+- **THEN** `kit check` accepts it without a number-rule reason
+
+### Requirement: Kit check names text that cannot be wrapped
+
+When a scene's text cannot be wrapped because a run of punctuation marks is wider than its line, `kit check` SHALL report a reason that names the scene, the field and the text, and says to shorten the run. It SHALL NOT report a bare `probe:` RangeError for such text.
+
+#### Scenario: A chart label of opening marks
+
+- **WHEN** a line chart with 8 points has the label `（（（（甲乙`, which `wrapLines` cannot fit at maxWidth 4
+- **THEN** `kit check` fails with a reason naming that scene, `content.points[<i>].label` and the label, and no reason starts with `probe:`
