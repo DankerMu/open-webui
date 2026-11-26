@@ -1,6 +1,6 @@
 ## 1. Skip the CUDA download (#918)
 
-- [ ] 1.1 Set `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` at the four active Linux Node install sites, each with an inline comment naming the onnxruntime GitHub release 404 (#918). Verify that a cold `npm ci` in `node:22-alpine3.20` on amd64 fails without it and passes with it, and that the liveness workflow passes on the PR branch.
+- [x] 1.1 Set `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` at the four active Linux Node install sites, each with an inline comment naming the onnxruntime GitHub release 404 (#918). Verify that a cold `npm ci` in `node:22-alpine3.20` on amd64 fails without it and passes with it, and that the liveness workflow passes on the PR branch.
 
   **Task 1.1 required evidence** (issue #918):
   - **Fixture level:** expanded. `setup-toolchain` and `make setup` are shared entrypoints. `design.md` names the sibling surfaces.
@@ -38,6 +38,15 @@
     - the disabled `frontend.yaml`, `docker.yaml` and `release-pypi.yml`;
     - macOS;
     - AGENTS.md.
+
+  - Amended after #929 (2026-11-26, merged `dfe4620`, reviewed head `fe8f511`):
+    - **Docker red/green.** The red run had `Downloading "…onnxruntime-linux-x64-gpu-1.21.0.tgz"`, `Error: Failed to download the binaries: 404 Not Found.` and `NPM_CI_EXIT=1`. The green run had no such line and `NPM_CI_EXIT=0`. The runs added `--foreground-scripts`, so a successful postinstall prints.
+    - **Makefile stubs.** With `export`, all three recipe lines printed `skip`. Without it, they printed nothing.
+    - **Cold `ci.yml`.** The only `node-modules-` cache entry (`refs/heads/main`, id 10167644771) was deleted before the first push. Run 45852472350, job 140022248391, logged `Cache not found`, ran `npm ci` with the variable, and `added 1243 packages`. Frontend and Runtime smoke also installed cold. `All checks passed`.
+    - **Liveness.** Run 45852472328: Guardrail self-test `67 passed, 0 failed`.
+    - **Attribution.** The asset still returned 404 at review time, so the green comes from the skip.
+    - **Review.** One seat, no findings.
+    - **Residual.** On a Linux developer machine, a `uv run` outside `make setup` that rebuilds the editable package can reach the build hook's `npm install`. That is low risk with an installed `node_modules`, and it is recorded here.
 
 Suggested fixture level: expanded - four configuration lines with comments, two of them on shared entrypoints.
 Minimal mergeable slice: atomic - one setting at four sites.
