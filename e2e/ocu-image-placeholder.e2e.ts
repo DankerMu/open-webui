@@ -102,11 +102,36 @@ async function expectRunningCard(page: Page) {
 	expect(await waveAnimation(page)).not.toBe('none');
 }
 
+/**
+ * The finished reply shows its one image inside the reply body, after the tool row, not in the files
+ * row above the body (#937). Read after the reply text: until the call's output lands the image sits
+ * in that row.
+ */
+async function expectImageAfterToolRow(page: Page) {
+	const body = page.locator('#response-content-container');
+	await expect(page.locator('#messages-container [data-cy="image"]')).toHaveCount(1);
+	await expect(body.locator('[data-cy="image"]')).toHaveCount(1);
+	const image = await body.locator('[data-cy="image"]').elementHandle();
+	// The first tool row: the call's own row, or the collapsed group that holds it.
+	const follows = await body
+		.locator('[role="button"]')
+		.first()
+		.evaluate(
+			(row, img) =>
+				!!img &&
+				!row.contains(img) &&
+				!!(row.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_FOLLOWING),
+			image
+		);
+	expect(follows).toBe(true);
+}
+
 async function expectImageReplacesCard(page: Page, shot: string) {
 	const messages = page.locator('#messages-container');
 	await expect(messages.locator('[data-cy="image"]').first()).toBeVisible({ timeout: 30_000 });
 	await expect(placeholderOf(page)).toHaveCount(0);
 	await expect(messages.getByText(REPLY)).toBeVisible();
+	await expectImageAfterToolRow(page);
 	await page.screenshot({ path: `${evidence}/${shot}`, fullPage: true });
 }
 
@@ -201,6 +226,7 @@ test('the image switch turned on after the first reply offers generate_image on 
 			await expect(placeholderOf(page)).toHaveCount(0);
 			// The first reply and the follow-up after the tool result both carry the stub text.
 			await expect(messages.getByText(REPLY)).toHaveCount(2);
+			await expectImageAfterToolRow(page);
 			await page.screenshot({ path: `${evidence}/ocu-image-switch-late.png`, fullPage: true });
 		},
 		false

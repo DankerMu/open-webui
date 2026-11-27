@@ -21,7 +21,10 @@
 
 	import Markdown from '$lib/components/chat/Messages/Markdown.svelte';
 	import StructuredOutputRenderer from '$lib/components/chat/Messages/StructuredOutputRenderer.svelte';
-	import { buildOutputDisplayItems } from '$lib/components/chat/Messages/structuredOutput';
+	import {
+		buildOutputDisplayItems,
+		notShownInOrder
+	} from '$lib/components/chat/Messages/structuredOutput';
 	import ProfileImage from '$lib/components/chat/Messages/ProfileImage.svelte';
 	import Name from '$lib/components/chat/Messages/Name.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
@@ -152,6 +155,8 @@
 
 	$: messageOutput = Array.isArray(message?.data?.output) ? message.data.output : [];
 	$: hasStructuredOutput = buildOutputDisplayItems(messageOutput).length > 0;
+	// Images shown after their call in the output stay out of the files row (#937).
+	$: topRowFiles = (message?.data?.files ?? []).filter(notShownInOrder(messageOutput));
 </script>
 
 <ConfirmDialog
@@ -455,12 +460,12 @@
 						<div class=" my-2">
 							<Skeleton />
 						</div>
-					{:else if (message?.data?.files ?? []).length > 0}
+					{:else if topRowFiles.length > 0}
 						<div
 							class="my-2.5 w-full flex overflow-x-auto gap-2 flex-wrap"
 							dir={$settings?.chatDirection ?? 'auto'}
 						>
-							{#each message?.data?.files as file}
+							{#each topRowFiles as file}
 								{@const fileUrl =
 									file.url.startsWith('data') || file.url.startsWith('http')
 										? file.url

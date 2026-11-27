@@ -41,7 +41,6 @@
 
 	import Name from './Name.svelte';
 	import ProfileImage from './ProfileImage.svelte';
-	import Image from '$lib/components/common/Image.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import RateComment from './RateComment.svelte';
 	import WebSearchResults from './ResponseMessage/WebSearchResults.svelte';
@@ -54,12 +53,12 @@
 	import CodeExecutions from './CodeExecutions.svelte';
 	import ContentRenderer from './ContentRenderer.svelte';
 	import { KokoroWorker } from '$lib/workers/KokoroWorker';
-	import FileItem from '$lib/components/common/FileItem.svelte';
 	import FollowUps from './ResponseMessage/FollowUps.svelte';
 	import { fade } from 'svelte/transition';
 	import { flyAndScale } from '$lib/utils/transitions';
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
+	import ReplyFilesRow from './ResponseMessage/ReplyFilesRow.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
 	import OutputEditView from './OutputEditView.svelte';
 	import { getOutputText, replaceOutputMessageText, type OutputItem } from './structuredOutput';
@@ -687,29 +686,7 @@
 							<StatusHistory statusHistory={message?.statusHistory} />
 						{/if}
 
-						{#if message?.files && message.files?.filter( (f) => ['image', 'file'].includes(f.type) ).length > 0}
-							<div
-								class="my-1 w-full flex overflow-x-auto gap-2 flex-wrap"
-								dir={$settings?.chatDirection ?? 'auto'}
-							>
-								{#each message.files.filter((f) => ['image', 'file'].includes(f.type)) as file}
-									<div>
-										{#if file.type === 'image' || (file?.content_type ?? '').startsWith('image/')}
-											<Image src={file.url} alt={file.name || $i18n.t('Generated Image')} />
-										{:else}
-											<FileItem
-												item={file}
-												url={file.url}
-												name={file.name}
-												type={file.type}
-												size={file?.size}
-												small={true}
-											/>
-										{/if}
-									</div>
-								{/each}
-							</div>
-						{/if}
+						<ReplyFilesRow files={message?.files} output={message?.output} />
 
 						{#if message?.embeds && message.embeds.length > 0}
 							<div

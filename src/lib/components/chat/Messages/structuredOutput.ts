@@ -62,7 +62,14 @@ export type OutputDisplayItem =
 			type: 'file';
 			id: string;
 			item: Record<string, unknown>;
+	  }
+	| {
+			type: 'image';
+			id: string;
+			images: GeneratedImage[];
 	  };
+
+type GeneratedImage = { id: string; url: string; name: string };
 
 type ResponseStreamEvent = {
 	type?: string;
@@ -90,6 +97,9 @@ const GROUPABLE_OUTPUT_TYPES = new Set([
 	'file_search_call',
 	'computer_call'
 ]);
+
+// Tools whose result JSON lists the images they saved to the message (tools/builtin.py).
+const IMAGE_TOOL_NAMES = new Set(['generate_image', 'edit_image']);
 
 const OPENAI_TOOL_NAMES: Record<string, string> = {
 	web_search_call: 'Web Search',
@@ -189,6 +199,29 @@ function getInlineFileFromToolOutput(callItem?: OutputItem, resultItem?: OutputI
 	return result.page === undefined && args.page !== undefined
 		? { ...result, page: args.page }
 		: result;
+}
+
+const stringOrEmpty = (value: unknown) => (typeof value === 'string' ? value : '');
+
+/** The images an image tool's result names; only entries with a nonempty string url. */
+function getGeneratedImages(
+	item: OutputItem,
+	toolOutputByCallId: Record<string, OutputItem>
+): GeneratedImage[] {
+	const resultItem = toolOutputByCallId[item.call_id ?? item.id ?? ''];
+	if (item.type !== 'function_call' || !IMAGE_TOOL_NAMES.has(item.name ?? '') || !resultItem) {
+		return [];
+	}
+
+	const result = parseJSONStringValue(getToolResultText(resultItem)) as Record<string, unknown>;
+	const images = result && typeof result === 'object' ? result.images : null;
+	return (Array.isArray(images) ? images : [])
+		.filter((image) => stringOrEmpty(image?.url))
+		.map((image) => ({
+			id: stringOrEmpty(image.id),
+			url: image.url,
+			name: stringOrEmpty(image.name)
+		}));
 }
 
 function buildToolCallToken(item: OutputItem, toolOutputByCallId: Record<string, OutputItem>) {
@@ -372,6 +405,15 @@ export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDispla
 		currentDetailTokens.length = 0;
 	};
 
+	// Anchored at the call, not its output: a turn appends all its outputs after all its calls.
+	const pushGeneratedImages = (item: OutputItem, index: number) => {
+		const images = getGeneratedImages(item, toolOutputByCallId);
+		if (images.length) {
+			flushDetails();
+			displayItems.push({ type: 'image', id: `image-${index}`, images });
+		}
+	};
+
 	output.forEach((item, index) => {
 		if (!item) {
 			return;
@@ -403,6 +445,7 @@ export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDispla
 			if (token) {
 				currentDetailTokens.push(token);
 			}
+			pushGeneratedImages(item, index);
 			return;
 		}
 
@@ -432,6 +475,23 @@ export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDispla
 
 	flushDetails();
 	return displayItems;
+}
+
+/** The ids and urls of the images `buildOutputDisplayItems` shows after their call. */
+export function getOrderedImageKeys(output?: OutputItem[] | null): Set<string> {
+	const keys = buildOutputDisplayItems(output ?? []).flatMap((item) =>
+		item.type === 'image' ? item.images.flatMap((image) => [image.id, image.url]) : []
+	);
+	return new Set(keys.filter(Boolean));
+}
+
+/** A files-row filter: false for an image shown after its call in `output`, by id or url. */
+export function notShownInOrder(output?: OutputItem[] | null): (file: unknown) => boolean {
+	const keys = getOrderedImageKeys(output);
+	return (file) => {
+		const { id, url } = (file ?? {}) as { id?: unknown; url?: unknown };
+		return !keys.has(stringOrEmpty(id)) && !keys.has(stringOrEmpty(url));
+	};
 }
 
 export function getOutputText(output?: OutputItem[] | null): string {
