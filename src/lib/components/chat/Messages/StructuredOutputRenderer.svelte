@@ -1,10 +1,14 @@
 <script lang="ts">
 	import Collapsible from '$lib/components/common/Collapsible.svelte';
 	import ToolCallDisplay from '$lib/components/common/ToolCallDisplay.svelte';
+	import Image from '$lib/components/common/Image.svelte';
 	import TerminalOutputFile from './TerminalOutputFile.svelte';
 	import { resolveChatMessageToolCall } from '$lib/apis/chats';
 	import { settings } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
+	import { getContext } from 'svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 
 	import Markdown from './Markdown.svelte';
 	import ConsecutiveDetailsGroup from './Markdown/ConsecutiveDetailsGroup.svelte';
@@ -35,6 +39,8 @@
 	export let onUpdate: any = () => {};
 	export let onPreview: any = () => {};
 	export let onToolCallResolved: any = () => {};
+
+	const i18n = getContext<Writable<i18nType>>('i18n');
 
 	const getDetailTitle = (detailToken: OutputDetailToken): any => detailToken.summary;
 	const getDetailAttributes = (detailToken: OutputDetailToken): any => detailToken.attributes;
@@ -166,6 +172,14 @@
 		{#if displayItem.item?.displayed || $settings?.terminalFileDisplay === 'inline'}
 			<TerminalOutputFile item={displayItem.item} {chatId} />
 		{/if}
+	{:else if displayItem.type === 'image'}
+		<div class="my-1 w-full flex overflow-x-auto gap-2 flex-wrap">
+			{#each displayItem.images as image}
+				<div>
+					<Image src={image.url} alt={image.name || $i18n.t('Generated Image')} />
+				</div>
+			{/each}
+		</div>
 	{:else}
 		{@const detailToken = displayItem.token}
 		{#if detailToken.attributes?.type === 'tool_calls'}
