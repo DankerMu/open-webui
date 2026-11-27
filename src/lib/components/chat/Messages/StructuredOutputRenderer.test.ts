@@ -66,3 +66,51 @@ describe('generated images in the rendered reply', () => {
 		}
 	});
 });
+
+// A bash_tool call whose stored result names the chart it wrote (computer_use_tools.py, #938).
+const chartTurn = (reply: string): OutputItem[] => [
+	{
+		type: 'function_call',
+		id: 'fc_chart',
+		call_id: 'chart',
+		name: 'bash_tool',
+		arguments: '{"command": "python plot.py"}',
+		status: 'completed'
+	},
+	{
+		type: 'function_call_output',
+		id: 'fco_chart',
+		call_id: 'chart',
+		output: [{ type: 'input_text', text: 'saved\n\nNew image: /mnt/user-data/files/plots/t.png' }],
+		status: 'completed'
+	},
+	{ type: 'message', id: 'msg_chart', content: [{ type: 'output_text', text: reply }] }
+];
+
+const mountChart = async (reply: string) => {
+	component = mount(StructuredOutputRenderer, {
+		target: document.body,
+		props: { id: 'reply', chatId: 'C', output: chartTurn(reply), done: true },
+		context: new Map<unknown, unknown>([['i18n', i18n]])
+	});
+	await tick();
+	return [...document.body.querySelectorAll<HTMLElement>('[role="button"], img')].map((node) =>
+		node.matches('img') ? `image:${node.getAttribute('src')}` : 'tool'
+	);
+};
+
+describe('images an OCU call wrote in the rendered reply', () => {
+	it('renders the chart right after its tool row, from the chat outputs', async () => {
+		expect(await mountChart('Here is the chart.')).toEqual([
+			'tool',
+			expect.stringMatching(/^image:.*\/ocu\/files\/C\/plots\/t\.png$/)
+		]);
+		expect(document.body.querySelector('img')?.getAttribute('alt')).toBe('t.png');
+	});
+
+	it('renders the chart once when the reply embeds it on this origin', async () => {
+		const embed = `${window.location.origin}/ocu/files/C/plots/t.png`;
+		// The one image is the reply's own embed (Markdown images allow absolute URLs).
+		expect(await mountChart(`![t](${embed})`)).toEqual(['tool', `image:${embed}`]);
+	});
+});

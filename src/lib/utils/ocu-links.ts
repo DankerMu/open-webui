@@ -38,3 +38,21 @@ export const recogniseOcuLink = (href: string, base: string, chatId: string): st
 	const rest = remainder.slice(filesPrefix.length);
 	return rest === '' ? null : rest;
 };
+
+/**
+ * The URL path of a file under a chat's OCU outputs: each segment encoded as OCU's
+ * `quote(path, safe='/')` does (encodeURIComponent leaves `!'()*`). Null for an empty, `.` or `..`
+ * segment or a backslash, which name no file of the outputs.
+ */
+export const encodeOcuFilePath = (path: string): string | null => {
+	const segments = path.split('/');
+	if (segments.some((s) => !s || s === '.' || s === '..' || s.includes('\\'))) return null;
+	return segments
+		.map((segment) =>
+			encodeURIComponent(segment).replace(
+				/[!'()*]/g,
+				(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+			)
+		)
+		.join('/');
+};

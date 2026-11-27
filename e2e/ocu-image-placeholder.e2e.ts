@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { admin, openAuthenticatedPage, post, test, type Admin } from './ocu-auth';
-import { context, evidence } from './ocu-fixtures';
+import { context, evidence, setScenario } from './ocu-fixtures';
 
 // The stub model calls generate_image with aspect_ratio 16:9 when WebUI offers the tool, after a
 // reasoning block when the message says "think"; the stub image endpoint waits 8 s before it
@@ -231,4 +231,69 @@ test('the image switch turned on after the first reply offers generate_image on 
 		},
 		false
 	);
+});
+
+// A stored reply whose bash_tool result names a chart the stub serves in the nested scenario
+// (reports/chart.png, 320x200, scripts/ocu_stub_nested.py): the image the call wrote shows after
+// its row (#938). Covers a reply loaded from the chat, not one streaming in.
+test('an image a bash_tool call wrote shows after its tool row', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(String(error)));
+	page.on('console', (message) => {
+		if (message.type() === 'error') errors.push(message.text());
+	});
+	await openAuthenticatedPage(page);
+	const api = await admin(page);
+	const reply = {
+		id: 'ocu-chart-reply',
+		parentId: null,
+		childrenIds: [],
+		role: 'assistant',
+		content: '图表已生成。',
+		timestamp: Math.floor(Date.now() / 1000),
+		done: true,
+		output: [
+			{
+				type: 'function_call',
+				id: 'fc-chart',
+				call_id: 'call-chart',
+				name: 'bash_tool',
+				arguments: JSON.stringify({ command: 'python plot.py' }),
+				status: 'completed'
+			},
+			{
+				type: 'function_call_output',
+				call_id: 'call-chart',
+				output: [
+					{ type: 'input_text', text: 'saved\n\nNew image: /mnt/user-data/files/reports/chart.png' }
+				],
+				status: 'completed'
+			},
+			{
+				type: 'message',
+				role: 'assistant',
+				content: [{ type: 'output_text', text: '图表已生成。' }]
+			}
+		]
+	};
+	const created = await post(api, '/api/v1/chats/new', {
+		chat: { title: 'OCU chart', history: { messages: { [reply.id]: reply }, currentId: reply.id } }
+	});
+	try {
+		setScenario(created.id, 'nested');
+		await page.goto(`/c/${created.id}`);
+		const image = page.locator('#response-content-container [data-cy="image"]');
+		await expect(image).toHaveAttribute(
+			'src',
+			new RegExp(`/ocu/files/${created.id}/reports/chart\\.png$`)
+		);
+		await expect
+			.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+			.toBe(320);
+		await expectImageAfterToolRow(page);
+		await page.screenshot({ path: `${evidence}/ocu-agent-image-inline.png`, fullPage: true });
+	} finally {
+		await api.request.delete(`/api/v1/chats/${created.id}`, { headers: api.headers });
+	}
+	expect(errors).toEqual([]);
 });
