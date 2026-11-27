@@ -9,7 +9,7 @@
 - [ ] 2.1 `buildOutputDisplayItems(output, {chatId, origin})`: `New image:` lines of the four OCU tools → #937 `image` item anchored at the call; dedup only against resolved, decoded markdown image embeds.
 - [ ] 2.2 Extract the segment encoder and path rule from `workspaceFileUrl` into one shared function; `StructuredOutputRenderer.svelte` passes `chatId` and `origin`.
 - [ ] 2.3 Tests for every WebUI "Required evidence" line, red before 2.1.
-- [ ] 2.4 Per-call image URL (`?call=<call_id>`) so the item after a rewriting call shows the new revision without a reload; tests red first.
+- [ ] 2.4 Per-call image URL (`?call=<call_id>`, else the item `id`) so the item after a rewriting call shows the new revision without a reload; tests red first.
 
 ## 3. Verification
 

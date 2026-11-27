@@ -12,7 +12,7 @@ Owner decision (#938): add a code fallback, not a prompt-only fix.
 ## What Changes
 
 - **OCU wrapper** (`openwebui/tools/computer_use_tools.py`): around the MCP call of `bash_tool`, `str_replace`, `create_file` and `sub_agent`, list the chat's outputs before and after (internal `GET /api/outputs/<chat>`), and append one line per image file (`mime` `image/*`) that the call created or whose `hash` changed: `New image: /mnt/user-data/files/<path>`. The line also tells the model the file's path.
-- **WebUI** (`structuredOutput.ts`, `StructuredOutputRenderer.svelte`): a tool result with `New image:` lines yields an `image` display item right after that call (the item from #937), rendered from `/ocu/files/<chat>/<path>`; skipped when a message in the same output already embeds that file.
+- **WebUI** (`structuredOutput.ts`, `StructuredOutputRenderer.svelte`): a tool result with `New image:` lines yields an `image` display item right after that call (the item from #937), rendered from `/ocu/files/<chat>/<path>?call=<call identity>`; skipped when a message in the same output already embeds that file.
 
 ## Capabilities
 
