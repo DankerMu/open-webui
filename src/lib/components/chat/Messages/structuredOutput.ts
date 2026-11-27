@@ -415,11 +415,13 @@ export function buildOutputDisplayItems(
 
 	// Anchored at the call, not its output: a turn appends all its outputs after all its calls.
 	const pushGeneratedImages = (item: OutputItem, index: number) => {
+		const callId = item.call_id ?? item.id ?? '';
 		const images = [
 			...getGeneratedImages(item, toolOutputByCallId),
 			...readOcuImages(
 				item.type === 'function_call' ? (item.name ?? '') : '',
-				getToolResultText(toolOutputByCallId[item.call_id ?? item.id ?? ''])
+				getToolResultText(toolOutputByCallId[callId]),
+				callId
 			)
 		];
 		if (images.length) {

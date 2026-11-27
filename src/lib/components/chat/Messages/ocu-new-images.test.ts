@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Marked } from 'marked';
+import { createOcuImageReader } from './ocu-new-images';
 import { buildOutputDisplayItems, type OutputItem } from './structuredOutput';
 
 // The OCU wrapper appends one `New image: /mnt/user-data/files/<path>` line per image a call wrote,
@@ -65,7 +66,7 @@ describe('images an OCU call wrote, shown after the call (#938)', () => {
 		expect(items(output)[1]).toEqual({
 			type: 'image',
 			id: 'image-0',
-			images: [{ id: 'plots/t.png', url: '/ocu/files/C/plots/t.png', name: 't.png' }]
+			images: [{ id: 'plots/t.png', url: '/ocu/files/C/plots/t.png?call=call_1', name: 't.png' }]
 		});
 	});
 
@@ -79,11 +80,16 @@ describe('images an OCU call wrote, shown after the call (#938)', () => {
 			'detail_single',
 			'image'
 		]);
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/a.png', '/ocu/files/C/b.png']);
+		expect(imageUrls(output)).toEqual([
+			'/ocu/files/C/a.png?call=call_1',
+			'/ocu/files/C/b.png?call=call_2'
+		]);
 	});
 
 	it.each(['str_replace', 'create_file', 'sub_agent'])('reads the lines of %s', (name) => {
-		expect(imageUrls(call(name, `ok\n\n${line('t.png')}`))).toEqual(['/ocu/files/C/t.png']);
+		expect(imageUrls(call(name, `ok\n\n${line('t.png')}`))).toEqual([
+			'/ocu/files/C/t.png?call=call_1'
+		]);
 	});
 
 	it('keeps the images off the tool row, which would draw them a second time', () => {
@@ -111,14 +117,17 @@ describe('images an OCU call wrote, shown after the call (#938)', () => {
 			...call('bash_tool', `${line('t.png')}\n${line('t.png')}`, '1'),
 			...call('bash_tool', line('t.png'), '2')
 		];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/t.png', '/ocu/files/C/t.png']);
+		expect(imageUrls(output)).toEqual([
+			'/ocu/files/C/t.png?call=call_1',
+			'/ocu/files/C/t.png?call=call_2'
+		]);
 	});
 
 	it('encodes the path like the sidebar does', () => {
 		expect(imageUrls(bash('温度 (1).png'))).toEqual([
-			'/ocu/files/C/%E6%B8%A9%E5%BA%A6%20%281%29.png'
+			'/ocu/files/C/%E6%B8%A9%E5%BA%A6%20%281%29.png?call=call_1'
 		]);
-		expect(imageUrls(bash('100%.png'))).toEqual(['/ocu/files/C/100%25.png']);
+		expect(imageUrls(bash('100%.png'))).toEqual(['/ocu/files/C/100%25.png?call=call_1']);
 	});
 
 	it.each([
@@ -128,7 +137,7 @@ describe('images an OCU call wrote, shown after the call (#938)', () => {
 		['an absolute path after the prefix', '/etc/x.png'],
 		['a lone surrogate', 'a\ud800.png']
 	])('drops a line with %s', (_label, path) => {
-		expect(imageUrls(bash(path, 'ok.png'))).toEqual(['/ocu/files/C/ok.png']);
+		expect(imageUrls(bash(path, 'ok.png'))).toEqual(['/ocu/files/C/ok.png?call=call_1']);
 	});
 
 	it('ignores the line in a view result and in a non-OCU tool result', () => {
@@ -170,7 +179,7 @@ describe('an image the reply already embeds is shown once (#938)', () => {
 
 	it('keeps the item for a plain link to the file', () => {
 		const output = [...bash('plots/t.png'), message('[t](https://h/ocu/files/C/plots/t.png)')];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/plots/t.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/plots/t.png?call=call_1']);
 	});
 
 	it('keeps the item for an embed on another origin, which the browser cannot load', () => {
@@ -178,29 +187,29 @@ describe('an image the reply already embeds is shown once (#938)', () => {
 			...bash('plots/t.png'),
 			message('![t](http://other:8082/ocu/files/C/plots/t.png)')
 		];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/plots/t.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/plots/t.png?call=call_1']);
 	});
 
 	it('keeps the item for an embed of another chat or another file', () => {
 		const otherChat = [...bash('plots/t.png'), message('![t](https://h/ocu/files/D/plots/t.png)')];
-		expect(imageUrls(otherChat)).toEqual(['/ocu/files/C/plots/t.png']);
+		expect(imageUrls(otherChat)).toEqual(['/ocu/files/C/plots/t.png?call=call_1']);
 		const otherFile = [...bash('plots/t.png'), message('![t](https://h/ocu/files/C/t.png)')];
-		expect(imageUrls(otherFile)).toEqual(['/ocu/files/C/plots/t.png']);
+		expect(imageUrls(otherFile)).toEqual(['/ocu/files/C/plots/t.png?call=call_1']);
 	});
 
 	it('keeps the item when an encoded slash would join two segments', () => {
 		const output = [...bash('a/b.png'), message('![x](https://h/ocu/files/C/a%2Fb.png)')];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/a/b.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/a/b.png?call=call_1']);
 	});
 
 	it('keeps the item for an embed inside a code block, which renders no image', () => {
 		const output = [...bash('t.png'), message('```\n![t](https://h/ocu/files/C/t.png)\n```')];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/t.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/t.png?call=call_1']);
 	});
 
 	it('drops only the embedded one of two images', () => {
 		const output = [...bash('a.png', 'b.png'), message('![a](/ocu/files/C/a.png)')];
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/b.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/b.png?call=call_1']);
 	});
 
 	it.each([
@@ -211,7 +220,7 @@ describe('an image the reply already embeds is shown once (#938)', () => {
 		[
 			'the raw URL with a bare space',
 			'![t](https://h/ocu/files/C/温度 (1).png)',
-			['/ocu/files/C/%E6%B8%A9%E5%BA%A6%20%281%29.png']
+			['/ocu/files/C/%E6%B8%A9%E5%BA%A6%20%281%29.png?call=call_1']
 		]
 	])('shows 温度 (1).png once beside %s', (_label, text, expected) => {
 		const output = [...bash('温度 (1).png'), message(text)];
@@ -222,11 +231,74 @@ describe('an image the reply already embeds is shown once (#938)', () => {
 	it('keeps the item without throwing when the embed does not decode', () => {
 		const output = [...bash('100%.png'), message('![x](https://h/ocu/files/C/100%.png)')];
 		expect(() => items(output)).not.toThrow();
-		expect(imageUrls(output)).toEqual(['/ocu/files/C/100%25.png']);
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/100%25.png?call=call_1']);
 	});
 
 	it('keeps the item without an origin to resolve embeds against', () => {
 		const output = [...bash('t.png'), message('![t](/ocu/files/C/t.png)')];
-		expect(imageUrls(output, { chatId: CHAT })).toEqual(['/ocu/files/C/t.png']);
+		expect(imageUrls(output, { chatId: CHAT })).toEqual(['/ocu/files/C/t.png?call=call_1']);
+	});
+});
+
+// Two calls of one reply rewrite the same chart: a browser reuses an image already loaded in the
+// document for an identical URL despite `Cache-Control: no-store`, so each call's item needs its
+// own URL to show the revision current after that call (#938, seen on the eval stack).
+describe('each call shows its own revision of a rewritten image (#938)', () => {
+	const rewrite = (callId: string, path = 'plots/t.png'): OutputItem[] => [
+		{ type: 'function_call', id: `fc_${callId}`, call_id: callId, name: 'bash_tool' },
+		{
+			type: 'function_call_output',
+			call_id: callId,
+			output: [{ type: 'input_text', text: line(path) }]
+		}
+	];
+	const twice = [...rewrite('k1'), ...rewrite('k2')];
+
+	it('gives the item of each call reporting the same path its own URL', () => {
+		const shownItems = items(twice).filter((item) => item.type === 'image');
+		expect(shownItems.map((item) => item.type === 'image' && item.images)).toEqual([
+			[{ id: 'plots/t.png', url: '/ocu/files/C/plots/t.png?call=k1', name: 't.png' }],
+			[{ id: 'plots/t.png', url: '/ocu/files/C/plots/t.png?call=k2', name: 't.png' }]
+		]);
+	});
+
+	it('rebuilds the same URLs, also while the reply streams on', () => {
+		const urls = ['/ocu/files/C/plots/t.png?call=k1', '/ocu/files/C/plots/t.png?call=k2'];
+		expect(imageUrls(twice)).toEqual(urls);
+		expect(imageUrls(structuredClone(twice))).toEqual(urls);
+		expect(imageUrls([...twice, message('The chart now shows')])).toEqual(urls);
+	});
+
+	it('drops both items for one embed of the file, with or without a query', () => {
+		expect(imageUrls([...twice, message('![t](https://h/ocu/files/C/plots/t.png)')])).toEqual([]);
+		expect(imageUrls([...twice, message('![t](/ocu/files/C/plots/t.png?call=k1)')])).toEqual([]);
+	});
+
+	it('encodes the call id into the query', () => {
+		expect(imageUrls(rewrite('a b/c&d'))).toEqual(['/ocu/files/C/plots/t.png?call=a%20b%2Fc%26d']);
+	});
+
+	it('names a call by its item id when it has no call_id', () => {
+		const output: OutputItem[] = [
+			{ type: 'function_call', id: 'fc_x', name: 'bash_tool' },
+			{
+				type: 'function_call_output',
+				call_id: 'fc_x',
+				output: [{ type: 'input_text', text: line('t.png') }]
+			}
+		];
+		expect(imageUrls(output)).toEqual(['/ocu/files/C/t.png?call=fc_x']);
+	});
+
+	it.each([undefined, ''])('adds no query for a call without an id (%j)', (callId) => {
+		const read = createOcuImageReader(() => [], OPTIONS);
+		expect(read('bash_tool', line('t.png'), callId).map((image) => image.url)).toEqual([
+			'/ocu/files/C/t.png'
+		]);
+	});
+
+	it('drops the image when the call id cannot be encoded', () => {
+		const read = createOcuImageReader(() => [], OPTIONS);
+		expect(read('bash_tool', line('t.png'), 'k\ud800')).toEqual([]);
 	});
 });
