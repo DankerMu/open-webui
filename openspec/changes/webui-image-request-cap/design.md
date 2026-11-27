@@ -1,6 +1,6 @@
 ## Design
 
-Change surface: `utils/image_budget.py` (new), `normalize_messages_for_model` in `utils/middleware.py`, `CHAT_MAX_IMAGES_PER_REQUEST` in `config.py`.
+Change surface: `utils/image_budget.py` (new; also defines `CHAT_MAX_IMAGES_PER_REQUEST`), `normalize_messages_for_model` in `utils/middleware.py`. `config.py` is not touched: `make lint-scoped` forbids an over-800-line upstream file from growing, and it has no line to spare; the module is imported by `middleware.py`, which `main.py` imports at startup, so an invalid value still fails startup.
 
 Must preserve:
 

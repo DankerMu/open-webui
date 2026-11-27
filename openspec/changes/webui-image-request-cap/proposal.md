@@ -14,7 +14,7 @@ Traced at `2097c2b`:
 
 - New module `backend/open_webui/utils/image_budget.py`: keep the newest N image parts across the outgoing `messages` and replace each older one with a short text part saying an earlier image was omitted to stay within the per-request limit.
 - `normalize_messages_for_model` (`middleware.py:190-193`) calls it. Its four callers (`:3115`, `:3431`, `:5992`, `:6212`) are every send in the chat flow, after the `request` filters run.
-- `CHAT_MAX_IMAGES_PER_REQUEST` in `config.py`, default 30 (the production upstream allows 32). A value that is not a positive integer fails startup.
+- `CHAT_MAX_IMAGES_PER_REQUEST`, defined in `image_budget.py` (`config.py` cannot grow under `make lint-scoped`), default 30 (the production upstream allows 32). A value that is not a positive integer fails startup.
 - Decision record for the spine touch.
 
 Owner decision (#936): cap in WebUI before every send, not in the OCU filter.
@@ -33,7 +33,7 @@ None.
 
 ## Impact
 
-- `backend/open_webui/utils/image_budget.py` (new), `utils/middleware.py` (one call), `config.py` (one entry), tests, one decision record.
+- `backend/open_webui/utils/image_budget.py` (new), `utils/middleware.py` (one call), tests, one decision record.
 - Stored chat history does not change; only the outgoing payload does.
 
 ## Triage

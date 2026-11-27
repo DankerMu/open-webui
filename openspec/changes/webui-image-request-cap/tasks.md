@@ -1,7 +1,7 @@
 ## 1. Implementation
 
 - [ ] 1.1 `backend/open_webui/utils/image_budget.py`: the cap over `messages`, copy-on-write (never mutates its input), per `design.md`.
-- [ ] 1.2 `config.py`: `CHAT_MAX_IMAGES_PER_REQUEST` (default 30, fail loud), with an inline comment naming the failure mode it prevents (the upstream's 32-image limit).
+- [ ] 1.2 `utils/image_budget.py` (not `config.py`, which `make lint-scoped` does not let grow): `CHAT_MAX_IMAGES_PER_REQUEST` (default 30, fail loud), with an inline comment naming the failure mode it prevents (the upstream's 32-image limit).
 - [ ] 1.3 `utils/middleware.py` `normalize_messages_for_model`: one call to the cap after the two existing steps.
 - [ ] 1.4 Tests (new `backend/open_webui/test/utils/test_image_budget.py`) for every "Required evidence" line; the `normalize_messages_for_model` 33-image case is red before 1.3.
 - [ ] 1.5 Decision record `docs/decisions/implemented/bug-fix/2026-11-27-image-request-cap.md` (spine touch, alternatives: OCU filter `request` hook, compaction; records the path-naming deviation from #936 and the passthrough/stateful non-goals, noting that production's connection `provider` was not checked).

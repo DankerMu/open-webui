@@ -98,6 +98,7 @@ from open_webui.utils.filter import (
     get_filter_functions,
     process_filter_functions,
 )
+from open_webui.utils.image_budget import cap_images
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.mcp.client import MCPClient
 from open_webui.utils.memory import add_memory_context, review_memory_after_turn
@@ -188,8 +189,7 @@ def _is_tool_result_error(value: Any) -> bool:
 
 
 def normalize_messages_for_model(form_data: dict) -> dict:
-    form_data['messages'] = strip_empty_content_blocks(form_data.get('messages', []))
-    form_data['messages'] = merge_system_messages(form_data.get('messages', []))
+    form_data['messages'] = cap_images(merge_system_messages(strip_empty_content_blocks(form_data.get('messages', []))))
     return form_data
 
 
