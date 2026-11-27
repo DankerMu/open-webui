@@ -1,4 +1,5 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { encodeOcuFilePath } from '$lib/utils/ocu-links';
 
 export type WorkspacePrefs = {
 	view?: 'files' | 'browser' | 'terminal' | null;
@@ -64,22 +65,8 @@ export const workspaceFileUrl = (baseUrl: string, chatId: string, file: Workspac
 	if (typeof file.path !== 'string' || !file.path)
 		throw new WorkspaceRequestError(0, 'invalid_response');
 	if (file.unsupported_name === true) return '';
-	if (
-		file.path
-			.split('/')
-			.some((segment) => !segment || segment === '.' || segment === '..' || segment.includes('\\'))
-	) {
-		throw new WorkspaceRequestError(0, 'invalid_response');
-	}
-	const path = file.path
-		.split('/')
-		.map((segment) =>
-			encodeURIComponent(segment).replace(
-				/[!'()*]/g,
-				(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
-			)
-		)
-		.join('/');
+	const path = encodeOcuFilePath(file.path);
+	if (path === null) throw new WorkspaceRequestError(0, 'invalid_response');
 	const expected = base + path;
 	if (file.url !== expected) throw new WorkspaceRequestError(0, 'invalid_response');
 	return expected;

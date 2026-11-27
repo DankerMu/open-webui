@@ -1,3 +1,5 @@
+import { createOcuImageReader, type OcuImageOptions } from './ocu-new-images';
+
 export type OutputContentPart = {
 	type?: string;
 	text?: unknown;
@@ -374,7 +376,10 @@ function buildDetailToken(
 	return null;
 }
 
-export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDisplayItem[] {
+export function buildOutputDisplayItems(
+	output: OutputItem[] = [],
+	options?: OcuImageOptions
+): OutputDisplayItem[] {
 	const displayItems: OutputDisplayItem[] = [];
 	const currentDetailTokens: OutputDetailToken[] = [];
 	const toolOutputByCallId: Record<string, OutputItem> = {};
@@ -405,9 +410,18 @@ export function buildOutputDisplayItems(output: OutputItem[] = []): OutputDispla
 		currentDetailTokens.length = 0;
 	};
 
+	const messages = () => output.filter((item) => item?.type === 'message').map(getMessageText);
+	const readOcuImages = createOcuImageReader(messages, options);
+
 	// Anchored at the call, not its output: a turn appends all its outputs after all its calls.
 	const pushGeneratedImages = (item: OutputItem, index: number) => {
-		const images = getGeneratedImages(item, toolOutputByCallId);
+		const images = [
+			...getGeneratedImages(item, toolOutputByCallId),
+			...readOcuImages(
+				item.type === 'function_call' ? (item.name ?? '') : '',
+				getToolResultText(toolOutputByCallId[item.call_id ?? item.id ?? ''])
+			)
+		];
 		if (images.length) {
 			flushDetails();
 			displayItems.push({ type: 'image', id: `image-${index}`, images });
