@@ -18,3 +18,8 @@ After an OCU `bash_tool`, `str_replace`, `create_file` or `sub_agent` call, the 
 
 - **WHEN** the outputs listing fails
 - **THEN** the tool result is the command output alone
+
+#### Scenario: A rewritten chart shows its new revision
+
+- **WHEN** a later call in the same reply rewrites `chart.png` and reports it again
+- **THEN** the image after the later call shows the new revision without a page reload

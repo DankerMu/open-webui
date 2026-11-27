@@ -285,7 +285,7 @@ test('an image a bash_tool call wrote shows after its tool row', async ({ page }
 		const image = page.locator('#response-content-container [data-cy="image"]');
 		await expect(image).toHaveAttribute(
 			'src',
-			new RegExp(`/ocu/files/${created.id}/reports/chart\\.png$`)
+			new RegExp(`/ocu/files/${created.id}/reports/chart\\.png\\?call=call-chart$`)
 		);
 		await expect
 			.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))

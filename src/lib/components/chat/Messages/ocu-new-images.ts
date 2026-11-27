@@ -38,32 +38,37 @@ function embeddedPaths(texts: string[], chatId: string, origin: string): Set<str
 	return paths;
 }
 
-const toImage = (chatId: string, path: string): OcuImage[] => {
+// The call's query gives each call's item its own URL: a browser reuses an image already loaded in
+// the document for an identical URL despite `no-store`, so a rewritten file would keep its old look.
+const toImage = (chatId: string, path: string, callId: string): OcuImage[] => {
 	let encoded: string | null;
+	let query: string;
 	try {
 		encoded = encodeOcuFilePath(path);
+		query = callId ? `?call=${encodeURIComponent(callId)}` : '';
 	} catch {
-		// encodeURIComponent throws on a lone surrogate, which no outputs file can be named.
+		// encodeURIComponent throws on a lone surrogate, which no outputs file or call id holds.
 		return [];
 	}
 	if (encoded === null) return [];
-	const url = `/ocu/files/${encodeURIComponent(chatId)}/${encoded}`;
+	const url = `/ocu/files/${encodeURIComponent(chatId)}/${encoded}${query}`;
 	return [{ id: path, url, name: path.slice(path.lastIndexOf('/') + 1) }];
 };
 
 /**
  * A reader of the images an OCU call's result names in `New image:` lines, minus those a message
- * already embeds as a markdown image on this origin. Messages are lexed once, on first need.
+ * already embeds as a markdown image on this origin, each URL tagged with the call's id. Messages
+ * are lexed once, on first need.
  */
 export function createOcuImageReader(
 	messageTexts: () => string[],
 	{ chatId = '', origin = '' }: OcuImageOptions = {}
 ) {
 	let embeds: Set<string> | null = null;
-	return (toolName: string, resultText: string): OcuImage[] => {
+	return (toolName: string, resultText: string, callId = ''): OcuImage[] => {
 		if (!chatId || !OCU_IMAGE_TOOLS.has(toolName)) return [];
 		const paths = new Set(Array.from(resultText.matchAll(NEW_IMAGE_LINE), (match) => match[1]));
-		const images = [...paths].flatMap((path) => toImage(chatId, path));
+		const images = [...paths].flatMap((path) => toImage(chatId, path, callId));
 		if (!images.length || !origin) return images;
 		const embedded = (embeds ??= embeddedPaths(messageTexts(), chatId, origin));
 		return images.filter((image) => !embedded.has(segmentKey(image.id.split('/'))));

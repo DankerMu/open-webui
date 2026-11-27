@@ -103,7 +103,7 @@ describe('images an OCU call wrote in the rendered reply', () => {
 	it('renders the chart right after its tool row, from the chat outputs', async () => {
 		expect(await mountChart('Here is the chart.')).toEqual([
 			'tool',
-			expect.stringMatching(/^image:.*\/ocu\/files\/C\/plots\/t\.png$/)
+			expect.stringMatching(/^image:.*\/ocu\/files\/C\/plots\/t\.png\?call=chart$/)
 		]);
 		expect(document.body.querySelector('img')?.getAttribute('alt')).toBe('t.png');
 	});
@@ -112,5 +112,26 @@ describe('images an OCU call wrote in the rendered reply', () => {
 		const embed = `${window.location.origin}/ocu/files/C/plots/t.png`;
 		// The one image is the reply's own embed (Markdown images allow absolute URLs).
 		expect(await mountChart(`![t](${embed})`)).toEqual(['tool', `image:${embed}`]);
+	});
+
+	it('renders a chart rewritten by a later call from its own URL', async () => {
+		const [call, result] = chartTurn('');
+		const again = (callId: string) => [
+			{ ...call, id: `fc_${callId}`, call_id: callId },
+			{ ...result, id: `fco_${callId}`, call_id: callId }
+		];
+		component = mount(StructuredOutputRenderer, {
+			target: document.body,
+			props: { id: 'reply', chatId: 'C', output: [...again('k1'), ...again('k2')], done: true },
+			context: new Map<unknown, unknown>([['i18n', i18n]])
+		});
+		await tick();
+		const sources = [...document.body.querySelectorAll('img')].map((img) =>
+			img.getAttribute('src')
+		);
+		expect(sources).toEqual([
+			expect.stringMatching(/\/ocu\/files\/C\/plots\/t\.png\?call=k1$/),
+			expect.stringMatching(/\/ocu\/files\/C\/plots\/t\.png\?call=k2$/)
+		]);
 	});
 });
