@@ -769,5 +769,7 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 	const zhPanel = await openWorkspace(page, id, '工作区');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
 	await expectHeaderRow(zhPanel, 350);
-	await zhPanel.locator('header').screenshot({ path: `${evidence}/workspace-header-350-zh-CN.png` });
+	await zhPanel
+		.locator('header')
+		.screenshot({ path: `${evidence}/workspace-header-350-zh-CN.png` });
 });
