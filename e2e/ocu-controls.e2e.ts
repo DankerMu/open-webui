@@ -106,12 +106,12 @@ test.afterEach(async ({ page }) => {
 	expect(unexpected).toEqual([]);
 });
 
-async function openWorkspace(page: Page, chatId: string) {
+async function openWorkspace(page: Page, chatId: string, label = 'Workspace Files') {
 	await page.goto(`/c/${chatId}`);
 	await expect(page.locator('#chat-pane')).toBeVisible();
-	const panel = page.getByRole('region', { name: 'Workspace Files' });
+	const panel = page.getByRole('region', { name: label });
 	if (!(await panel.isVisible())) {
-		await page.getByRole('button', { name: 'Workspace Files', exact: true }).click();
+		await page.getByRole('button', { name: label, exact: true }).click();
 	}
 	await expect(panel).toBeVisible();
 	return panel;
@@ -766,8 +766,8 @@ test('workspace chrome fits Files themes and remaining-height runtime views', as
 
 	await page.setViewportSize(desktop);
 	await page.evaluate(() => localStorage.setItem('locale', 'zh-CN'));
-	await openWorkspace(page, id);
+	const zhPanel = await openWorkspace(page, id, '工作区');
 	await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
-	await expectHeaderRow(panel, 350);
-	await panel.locator('header').screenshot({ path: `${evidence}/workspace-header-350-zh-CN.png` });
+	await expectHeaderRow(zhPanel, 350);
+	await zhPanel.locator('header').screenshot({ path: `${evidence}/workspace-header-350-zh-CN.png` });
 });
