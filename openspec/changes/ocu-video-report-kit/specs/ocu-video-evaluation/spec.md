@@ -141,7 +141,7 @@ A request MAY list `attachments`, as file names under `deploy/eval/fixtures/`. T
 
 ### Requirement: Report runs are kept apart from explainer runs
 
-The driver SHALL accept the phases `report-before` and `report-after`, writing under `runs/report-before/` and `runs/report-after/`. A report phase SHALL never write under another phase's directory.
+The driver SHALL accept the phases `report-before` and `report-after`, writing under `runs/report-before/` and `runs/report-after/`. A report phase SHALL never create an attempt under another phase's directory. Recovery is the one exception to writing only in the run's own phase: it completes an interrupted attempt of any phase by writing that attempt's manifest in place, as the driver does today. It creates no attempt.
 
 Request selection:
 
@@ -160,7 +160,7 @@ The driver SHALL record `asked_user` in every report manifest. It is true when n
 #### Scenario: Phase isolation
 
 - **WHEN** `run.sh --phase report-before` runs with no `--request`
-- **THEN** every `set: "report"` request and repetition has at least one attempt directory under `runs/report-before/`, and nothing under `runs/baseline/`, `runs/after/` or `runs/smoke/` changes
+- **THEN** every `set: "report"` request and repetition has at least one attempt directory under `runs/report-before/`, and no attempt directory is added under `runs/baseline/`, `runs/after/` or `runs/smoke/`
 
 #### Scenario: Explainer request in a report phase
 
