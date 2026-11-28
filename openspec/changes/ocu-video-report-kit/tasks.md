@@ -238,6 +238,125 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
 
   `template-tests.yml` adds `actions/setup-python` and `pip install openpyxl==3.1.5`, then checks `python3 -I -c 'import openpyxl'`. The PR flags this as a CI change. Verify with `node --test` cases on fixture xlsx files for each format, a formula cell, a merged range, an unknown sheet and the 50/51-row boundary.
 
+  **Task 2.2 required evidence** (issue #959; authoritative where it is more specific than the bullets above):
+  - Triage: feature (a second input format on an existing subcommand, plus a CI dependency). Fixture level expanded, as the group declares.
+  - Governing invariant: as in task 2.1. `bin/read_table.py` stays the only reader of a source table file, and the xlsx path writes the same table format (`version` 1) through the same `kit.mjs` writer. An xlsx that holds the same table as a CSV imports to the same `label_header`, `columns` and `rows`.
+  - Declared divergences from design Decision 6 and the spec:
+    - a text (string) data cell goes through the CSV number grammar of task 2.1, so `1,260` typed as text is the number 1260. A numeric cell follows its number format. Header and label strings are only stripped, as in a CSV;
+    - `General` shows the value rounded to 15 significant digits, written as a plain decimal with no exponent and no trailing zeros. A `General` value of 10^15 or more in magnitude is refused, since 15 digits could not show it;
+    - a formula cell with no saved value (as written by openpyxl or pandas), an error value, a boolean and a date or time value are refused, naming the cell. With `data_only` each of them would otherwise read as empty or as an unlisted kind of value. A formula whose saved value is the empty string reads as an empty cell;
+    - a number format is judged by the cell's format id first. Built-in ids other than the listed ones are refused even when openpyxl reports them as `General`, since the regional built-in formats (ids 27–36 and 50–58, which hold the Chinese date formats) have no format string in the file;
+    - `source.sheet` is the sheet's title;
+    - rows and columns of an xlsx are the sheet's own row numbers and its columns from A. Hidden rows, columns and sheets are read like visible ones.
+  - Risk packs:
+    - Input validation (untrusted file) — selected:
+      - the same path checks as task 2.1, with the extension `.csv` or `.xlsx` (case-insensitive);
+      - the reader stays `python3 -I`, and imports `openpyxl` only on the xlsx path, so the CSV path stays standard library only;
+      - the reader hashes the bytes it reads once, and loads the workbook from those bytes, never from the path a second time.
+    - Schema / file format — selected: the same table format and writer. `kit.mjs`'s shape check accepts `source.sheet` `null` for a `.csv` and a non-empty string for a `.xlsx`.
+    - Failure handling — selected: every refusal exits 1, names the sheet and the cell, row, column or range where one applies, and writes nothing under `data/`. The reader-failure protocol and the 60-second timeout of task 2.1 apply unchanged.
+    - Legacy compatibility — selected:
+      - the CSV path's behavior, texts and committed fixture are unchanged;
+      - the declared updates to existing tests are limited to the three refusal lines on another type (`kit-data.test.mjs:320`, `:321` and `:325`), and to moving the file's harness into a shared module with no change to what it does.
+    - CI change — selected, and flagged in the PR: `template-tests.yml` gains a Python setup step and an `openpyxl` install, and nothing else in the workflow changes.
+    - Not selected:
+      - the data module: task 2.3;
+      - a file size limit: the 60-second timeout bounds the reader, and the user uploads the file into their own sandbox (residual risk below);
+      - reading several sheets at once, pivoting, merged cells or charts: design Non-Goals.
+  - Shape (OCU repository):
+    - **Path and extension.** A `.xlsx` path passes the task 2.1 path checks. The format is decided by the real path's extension, case-insensitive, in both `kit.mjs` and the reader; the refusal texts still name the given path. Every other extension is refused: `<path>: is not a .csv or .xlsx file`. `--sheet` with a `.csv` is still refused with `--sheet applies only to .xlsx files`. The shape check expects `source.sheet` `null` for a real `.csv` and a non-empty string for a real `.xlsx`.
+    - **Reader invocation.** `python3 -I <dir of kit.mjs>/read_table.py <real path> [<sheet>]`. The second argument is passed only when `--sheet` is given, and is matched exactly. The reader's own usage line becomes `usage: python3 -I read_table.py <path> [<sheet>]`.
+    - **openpyxl.** The reader imports `openpyxl` inside the xlsx branch. If the import fails, it writes `openpyxl is not installed` as its last stderr line and exits 3. `kit.mjs` reports this through the existing protocol, as `kit data: the table reader failed: openpyxl is not installed`.
+    - **Workbook.** The reader reads the file's bytes once and takes their sha256. It loads the workbook from those bytes twice: once with `data_only=False`, to see which cells hold formulas, and once with `data_only=True`, for the values.
+      - Any `Exception` raised by `load_workbook` (not a zip file, an empty zip, an encrypted file, a broken package) is refused: `<file>: is not a readable .xlsx file`.
+      - The xlsx branch ignores Python warnings (`warnings.simplefilter("ignore")`), because openpyxl writes `UserWarning` lines to stderr (for example for a data-validation extension), and the refusal protocol needs `refusal: ` to start stderr.
+    - **Sheet.**
+      - Without `--sheet`, the first sheet in workbook order is used. With `--sheet`, the sheet with exactly that title is used.
+      - An unknown title is refused: `<file>: has no sheet <name>; its sheets are <title>, <title>`, listing every sheet in workbook order.
+      - A chart sheet is refused: `<file>: sheet <name> is not a worksheet`.
+      - In every refusal below, `<where>` is `<file>: sheet <title>`.
+    - **Merged ranges.** Any merged range on the sheet is refused, naming the range whose top-left cell comes first in row-major order: `<where>: range A1:B1 is merged`.
+    - **Cells.** Each cell is read as follows:
+      - an empty cell, or a string that is empty after stripping, is `null`;
+      - a data string is stripped and parsed with task 2.1's number grammar and 15-significant-digit limit, so it becomes a number or text exactly as a CSV cell does. Its digit refusal reads `<where>: cell C4: more than 15 significant digits`;
+      - a number (int or float) follows its number format, below;
+      - a `datetime`, `date`, `time` or `timedelta` value is refused whatever its format: `<where>: cell C4 holds a date or time`;
+      - an error value is refused: `<where>: cell C4 holds the error #DIV/0!`;
+      - a boolean is refused: `<where>: cell C4 holds a boolean`;
+      - a cell with a formula in the `data_only=False` load, and `None` with `data_type` `n` in the `data_only=True` load, is refused: `<where>: cell C4 is a formula with no saved value; open the file in Excel and save it`. A formula whose saved value is the empty string (`None` with `data_type` `str`) is `null`. A formula with any other saved value reads as that value.
+    - **Number formats.** A numeric cell's format is judged by its format id (`cell._style.numFmtId`, as openpyxl 3.1.5 stores it):
+      - the built-in ids 0, 1, 2, 3, 4, 9 and 10 are accepted as `General`, `0`, `0.00`, `#,##0`, `#,##0.00`, `0%` and `0.00%`;
+      - a custom id (164 or more) is accepted when its `number_format` fully matches `General`, `0`, `0.0…`, `#,##0`, `#,##0.0…`, `0%` or `0.0…%`, where `0.0…` means a point and one or more zeros;
+      - any other format is refused: `<where>: cell C4: number format "<format>" is not supported`. This covers a custom format outside the list (sections such as `0;-0`, colors, literal text, `@`, dates) and a built-in id that openpyxl names;
+      - a built-in id below 164 that openpyxl does not name (it reports `General` for it) is refused: `<where>: cell C4: built-in number format 31 is not supported`.
+      - Let `d` be the decimal `format(value, '.15g')`. For a percent format, `d` is multiplied by 100 as a decimal, never as a float.
+      - `General`: the text is `d` written as a plain decimal, with no exponent and no trailing zeros. A magnitude of 10^15 or more is refused: `<where>: cell C4: more than 15 significant digits`.
+      - A fixed format with `n` zeros after the point (n = 0 for `0`, `#,##0` and `0%`): the text is `d` rounded half away from zero to `n` decimals, keeping trailing zeros.
+      - A result of zero is written without a sign. More than 15 significant digits in the text is refused, with the same refusal as above.
+      - `unit` is `%` for the percent formats, else `""`. `value` is the JSON number of `text`, as in task 2.1. The text never holds a thousands separator.
+    - **Header and rows.**
+      - A header or label cell that is a number uses its `text` followed by its `unit` as its string. A header or label string is stripped and never parsed as a number. The other cell-kind refusals apply to header and label cells too.
+      - Fully empty rows are skipped, before and after the header. The header is the first row that is not empty.
+      - The header spans from column A to its last non-empty cell. Each data row is taken from column A to its last non-empty cell.
+      - Task 2.1's checks and texts then apply, with `<where>` in place of `<file>` and the sheet's row numbers: label column, the 12-column limit, empty or duplicate header, no data row, the 50-row limit with the full count, `row 4 has 5 cells; the header has 3`, empty or duplicate label. A shorter row pads with `null`.
+    - **Output.** Unchanged from task 2.1. The table is written through `writeAtomic` with `source.sheet` set to the sheet title, followed by the same stdout lines and the same `wrote`/`replaced` stderr line.
+    - **Test fixtures.** xlsx files are generated in the test by a helper script, `remotion-template/tests/fixtures/data/make_xlsx.py`, which uses openpyxl and runs under `python3 -I`. It is not committed as binary.
+      - openpyxl writes no saved value for a formula, so the helper adds one by rewriting the cell in the sheet XML of the saved zip: a `<v>` element, plus `t="str"` for a string value and `t="e"` for an error. The same rewrite sets exact stored values (`<v>0.30000000000000004</v>`), a raw format id on a cell's style, and a data-validation `extLst`.
+      - A test checks that the formula fixture reads as a formula with `data_only=False` and as its saved value with `data_only=True`.
+      - The harness of `kit-data.test.mjs` moves to a shared module and is not copied.
+    - **CI.** `template-tests.yml` adds `actions/setup-python`, pinned by commit SHA with its version tag in a comment like the other actions, with `python-version: '3.12'` (the workspace image's Python), before the template test step. It then adds a step `pip install openpyxl==3.1.5` and a step `python3 -I -c 'import openpyxl'`, each with a comment naming its purpose.
+  - Required tests (a new `remotion-template/tests/kit-data-xlsx.test.mjs`, directly under `tests/`; red first against `0d7df2b`, then green):
+    - **Excel import, CSV twin.** `q3 销售.xlsx` holds the cells of the committed `q3 销售.csv`:
+      - numbers as numeric cells with the format that gives the same text (for example 1260 with `#,##0`, 0.93 with `0%`, 0.875 and 0.78 with `0.0%`);
+      - text with its surrounding spaces;
+      - the empty cell, the short row, and an empty row at sheet row 5.
+
+      Its table's `label_header`, `columns` and `rows` deep-equal `q3-销售.json`'s, and `source` is `{file: "q3 销售.xlsx", sheet: <the title>, sha256: <sha256 of the file's bytes>}`. stdout lists `q3-销售` and the headers.
+
+    - **Formats.** For each format, one cell giving value, text and unit:
+      - `General` with 1260 gives `1260`, and with the stored value `0.30000000000000004` (written by the helper, since openpyxl itself writes `%.16g`) gives `0.3`. `General` with 1e15 is refused;
+      - `0` with 1260.6 gives `1261`, and with -0.04 gives `0` and value 0;
+      - `0.0` with a formula cell whose saved value is 1260.3000000000002 gives `1260.3` (the spec scenario);
+      - `0.00` with 0.5 gives `0.50`, and with 2.675 gives `2.68`;
+      - `#,##0` with 1260 gives `1260`, and `#,##0.00` with 1234.5 gives `1234.50`;
+      - `0%` with 0.93 gives 93, `93` and `%` (the spec scenario);
+      - `0.0%` with 0.935 gives `93.5`;
+      - `0.00%` with -0.055 gives -5.5, `-5.50` and `%`;
+      - `0` with 1234567890123456 is refused with `more than 15 significant digits`, naming the cell.
+    - **Refused formats.** `0.000E+00`, `0;-0`, `#,##0%`, `@` on a number, a number with the custom format `yyyy-mm-dd`, and a number whose style carries the raw built-in id 31 and, in another case, 58. Each gives its exact text naming the cell and the format.
+    - **Cell kinds.**
+      - the data string `1,260` gives 1260, and the string `华东` with a space on each side gives `华东`;
+      - the label string `1,260` stays `1,260`, as in a CSV;
+      - a formula with a saved string reads as that string, and a formula with a saved empty string is `null`;
+      - a formula with no saved value, an error cell, a formula with a saved error, a boolean and a date cell (`t="d"` with `General`, and a `datetime` with a date format) are each refused, naming the cell;
+      - a numeric header (2024 with `General`) gives the header `2024`.
+    - **Merged.** `A1:B1` is refused, naming `A1:B1`, and so is a merged range inside the data rows. Nothing is written.
+    - **Sheets.**
+      - The default is the first sheet;
+      - `--sheet 成本` reads the second, and `--sheet` placed before the path does the same;
+      - `--sheet 汇总` is refused, listing the sheets in order;
+      - a chart sheet that holds a chart is refused;
+      - a sheet with a data-validation `extLst` and a merged range gives the exact merged-range refusal, with no warning line on stderr.
+    - **Limits.** Each check with its exact text and the `<where>` prefix:
+      - 50 data rows import and 51 are refused with the count; 12 columns import and 13 are refused;
+      - an empty header, a duplicate header, no data row, an empty label, a duplicate label, and a data cell beyond the header's last column;
+      - leading empty rows before the header, with refusals naming the sheet's own row numbers.
+    - **Not an xlsx.** The bytes `PK` in `q3.xlsx`, a text file renamed `.xlsx` and an empty zip are refused as not readable. `.xlsm`, `.xls` and `.txt` are refused as not `.csv` or `.xlsx`.
+    - **Extension.** `Q3.XLSX` imports. A link `a.csv` inside the files root pointing at an xlsx there is read as an xlsx.
+    - **openpyxl absent.**
+      - A stub reader (the test-only `bin/` copy of task 2.1, whose `read_table.py` first sets `sys.modules["openpyxl"] = None`) gives `the table reader failed: openpyxl is not installed` on an xlsx and writes nothing;
+      - the same stub imports the committed CSV fixture successfully.
+    - **Isolation.** A planted `openpyxl.py` in the working directory and next to the input file is ignored.
+    - **Re-import.** It replaces the file, and stderr says `replaced`.
+    - **Updated in `kit-data.test.mjs`.** Lines 320 and 325 now expect `is not a readable .xlsx file` for the `PK` file, and line 321 expects `t.txt: is not a .csv or .xlsx file`. The harness moves to the shared module. No other existing assertion changes.
+
+  - Residual risk: openpyxl loads a whole workbook into memory. A very large sheet is bounded only by the 60-second timeout and the container's memory. The image installs `defusedxml`, which openpyxl then uses for XML parsing; the CI runner does not install it, nor pin `et_xmlfile` (the image pins 2.0.0).
+  - Verification:
+    - `node --test "remotion-template/tests/*.test.mjs"` from the repository root, on the host, with `python3 -I -c 'import openpyxl'` passing;
+    - the two `kit-data` test files in the workspace image built from the PR commit, with its Python 3.12 and its pinned `openpyxl`, from a full copy of the template tree;
+    - `./tests/test-project-structure.sh`.
+    - The PR states that the OCU workflows have not triggered since 2026-11-23, so the issue's "in CI" acceptance is met only by the host and in-image runs. The CI step is checked by review and by running its commands locally.
+
 - [ ] 2.3 The data module (design Decisions 2–4), a plain `.mjs` with no `node:` import, taking a script's `data` and a table map:
   - value strings and the quote rule: separators, unit adjacency, 一半;
   - `from` resolution and its failures;
@@ -261,7 +380,7 @@ Minimal mergeable slice: task 2.1. The CSV path, the parser and the table format
 
 ## 3. Preset plumbing (OCU `remotion-template`)
 
-- [ ] 3.1 Per-preset gate (design Decision 8), with no report kind and no report theme yet:
+- [x] 3.1 Per-preset gate (design Decision 8), with no report kind and no report theme yet:
   - approvals accept `report:<kind>` and `report:theme` ids;
   - the gallery renders each preset's candidates in that preset's theme candidates, and its export records one theme pick per preset;
   - `Root.tsx` and `check-rules.mjs` select the theme by `script.preset`;
