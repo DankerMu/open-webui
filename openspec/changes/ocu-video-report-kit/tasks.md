@@ -9,7 +9,37 @@
   - a named entry without `set` is refused in report phases;
   - `report-unclear` runs only when named, in a report phase.
 
-  Verify with `python -m pytest tests/deploy/test_eval_driver.py`, run locally because `build.yml` is disabled: plan contents for each phase, each refusal text, and no write outside the phase directory.
+  Verify with `python -m pytest tests/deploy/test_eval_driver.py`, run locally because `build.yml` is disabled: plan contents for each phase, each refusal text, and no attempt created outside the phase directory (recovery completes interrupted attempts of any phase in place).
+
+  **Task 1.1 required evidence** (issue #951; authoritative where it is more specific than the bullets above):
+  - Triage: feature. Fixture level expanded, as the group declares: the driver partitions a shared host's run store and decides which requests a run sends.
+  - Governing invariant: a run creates attempts only under `runs/<phase>/` and sends only the requests its phase owns; recovery alone completes an interrupted attempt of any phase in place. Explainer phases own the entries without `set`; report phases own the entries with `set`.
+  - Risk packs:
+    - Legacy compatibility — selected: `baseline`, `after` and `smoke` behave exactly as at `e3be359` when no entry carries `set`, which is true of today's `requests.json`. That includes recovery, which still scans every phase. Every existing test in `tests/deploy/test_eval_driver.py` passes unchanged. Downstream readers keep their formats: the manifest (`phase` is still derived from the attempt's path), the chat ledger `chats.txt` read by `cleanup.sh`, and the `runs/<phase>/<request>/r<n>-a<m>/` layout.
+    - Data / state partitioning — selected: a run creates attempts only under `runs/<its phase>/`. The rerun budget (`trailing_infra`) already reads only the run's own phase. Recovery stays as at `e3be359`: it completes an interrupted attempt of any phase in place, with that attempt's phase in its manifest, and creates no attempt. The evaluation spec states this exception.
+    - Failure handling — selected: every refusal happens before the lock, the sign-in or any POST, and prints `eval: refused: <text>`. The unknown-`set` refusal happens when `requests.json` is loaded (`Driver.__init__`); the selection refusals happen in `plan()`.
+    - Documentation — selected: `deploy/eval/README.md` names the five phases and the selection rules, and the `--request` help text no longer says "default: all".
+    - Not selected: auth (unchanged sign-in); concurrency (`eval.lock` and where it is taken are unchanged, and every refusal comes before `take_lock`, so the exclusion with `cleanup.sh` is untouched); attachments (task 1.2); manifest fields (task 1.3); request content (task 1.4).
+  - Shape (OCU repository):
+    - `--phase` choices become `baseline`, `after`, `smoke`, `report-before`, `report-after`. `run.sh`'s usage comment names all five.
+    - A request entry may carry `set`, whose value is `report` or `report-smoke`. Loading `requests.json` refuses any other value with `request <id> has unknown set <value>`.
+    - Selection in `plan()`:
+      - no `--request`, report phase: the entries with `set: "report"`, each repetition, in file order;
+      - no `--request`, other phase: the entries without `set`, each repetition, in file order;
+      - an empty selection is refused: `no request in requests.json belongs to phase <phase>`;
+      - named entry with `set`, in `baseline`, `after` or `smoke`: refused with `request <id> has set <set>; set entries run only in report phases`;
+      - named entry without `set`, in a report phase: refused with `request <id> has no set; report phases run only set entries`;
+      - a named `set: "report-smoke"` entry runs in a report phase; it is never selected without `--request`.
+    - `--repetition` keeps its rules for any named entry.
+    - Tests point the driver at a temporary `requests.json` through one module-level path constant. They do not edit the committed file.
+  - Required tests (red first against `e3be359`, then green):
+    - with a temporary request file holding two entries without `set`, one `set: "report"` entry with 2 repetitions and one `set: "report-smoke"` entry, the plan for each of the five phases with no `--request` lists exactly the expected (id, repetition) pairs;
+    - each refusal above, asserting its text on stderr, exit 1, no POST to the fake WebUI and no new directory under `runs/`;
+    - a `report-before` run of the `set: "report"` entry writes attempt directories only under `runs/report-before/`, each manifest has `phase` `report-before`, and the trees under the other four phase directories are byte-identical before and after (none holds an interrupted attempt);
+    - a named `report-smoke` entry runs in `report-after` and is refused in `smoke`;
+    - an interrupted attempt directory under `runs/baseline/` (a `pending.json`, no manifest) is completed in place by a `report-before` run: its manifest has `phase` `baseline` and `failure_reason` `driver interrupted`, and no attempt directory is added under `runs/baseline/`;
+    - an unknown `set` value in the file is refused at load with its text, exit 1, no POST and no new directory under `runs/`.
+  - Verification: `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/deploy/test_eval_driver.py -q --import-mode=importlib`, and `./tests/test-project-structure.sh`.
 
 - [ ] 1.2 Attachments:
   - every listed file under `deploy/eval/fixtures/` is checked when the plan is built, and a missing one refuses the run before any chat;
