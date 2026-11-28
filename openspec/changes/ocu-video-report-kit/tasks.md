@@ -2,7 +2,7 @@
 
 ## 1. Evaluation driver, request set and before run (OCU `deploy/eval`)
 
-- [ ] 1.1 Request selection by `set` (design Decision 11):
+- [x] 1.1 Request selection by `set` (design Decision 11):
   - `--phase` accepts `report-before` and `report-after`;
   - with no `--request`, report phases run `set: "report"` and the other phases run entries without `set`;
   - a named `set` entry is refused in `baseline`, `after` and `smoke`;
@@ -82,6 +82,151 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
   - a reader script in `bin/` writes the pinned table format (design Decision 6): naming, UTF-8 with or without a BOM, number parsing with commas and `%`, the refusals, and replace on re-import.
 
   Verify with `node --test` cases on fixture CSVs: `q3 销售.csv` becomes `q3-销售`; a BOM header; `1,260`; `93%`; and every refusal. The written file must equal a committed fixture table that 2.3 also uses.
+
+  **Task 2.1 required evidence** (issue #958; authoritative where it is more specific than the bullets above):
+  - Triage: feature (new CLI subcommand and file format). Fixture level expanded, as the group declares.
+  - Governing invariant: inside the kit, a table is read only from `data/<table>.json` (by the data module, the check and the renderer). Outside the kit, `bin/read_table.py` is the only reader of a source table file. The material check of task 7.1 calls it, and never parses tables itself.
+  - Declared divergences from design Decision 6 and the spec:
+    - cells carry a `unit` field (`%` or empty), which the spec's "a `%` cell has unit `%`" needs and Decision 6's JSON block lacks;
+    - a CSV's `source.sheet` is `null`;
+    - the table stores the first header cell as `label_header`, which Decision 5's verbatim header labels and the BOM scenario need;
+    - "CJK characters" means characters of the Unicode Han script (`\p{Script=Han}`);
+    - "40 characters" means 40 code points.
+  - Risk packs:
+    - Schema / file format — selected: the table format below is pinned, serialized by one writer, and written as one atomic file.
+    - Input validation (untrusted file) — selected:
+      - the file comes from the user;
+      - the reader runs as `python3 -I <dir of kit.mjs>/read_table.py <real path>`, the project's own copy, and imports only the standard library;
+      - the path must resolve inside the files root, as `image` checks.
+    - Legacy compatibility — selected:
+      - every existing subcommand keeps its argument handling, usage text, exit codes and stdout;
+      - commands that declare no option keep today's exact positional-count check, so a positional starting with `-` (for example an `image` name) behaves as at `e3be359`;
+      - every existing test passes unchanged, except the two declared updates: `notice-coverage.test.mjs` learns `.py` files, and `tests/test_remotion_image.py` counts 9 kit commands and exempts `data` from the skill-text check until task 6.2.
+    - Failure handling — selected: every refusal exits 1 (usage errors exit 2), names the row and column, the cell or the limit where one applies, and writes nothing under `data/`. This includes failures of the reader process itself.
+    - Documentation — not selected: the model learns `data` from `report-kit.md` in task 6.2 (#975), which also removes the skill-check exemption.
+    - Not selected:
+      - xlsx: task 2.2; a `.xlsx` path is refused as another type until then;
+      - the data module: task 2.3;
+      - the check hash: task 3.3; `project-hash.mjs` neither lists nor hashes `data/` yet;
+      - CI: the CSV path needs only the runner's system `python3`; `template-tests.yml` runs on `ubuntu-24.04`, which has Python 3.12, as the workspace image does.
+  - Consumers (verified, unchanged):
+    - `new` copies `bin/read_table.py` into projects through `copyTree`, and the tree-equality test of `new` passes unchanged;
+    - `tests/fixtures/data/` is neither copied into projects (`tests` is in `NOT_COPIED`) nor shipped in the image (`.dockerignore`);
+    - the no-subcommand usage list gains a `data` line.
+  - Shape (OCU repository):
+    - **Option parsing.** One small parser in `kit.mjs`, used only by commands that declare options (only `data` now; `new --preset` later).
+      - Tokens are read left to right:
+        - `--sheet` takes the next token as its value;
+        - `--` ends option parsing;
+        - any other token starting with `--` is an unknown option;
+        - every other token, including one starting with a single `-`, is a positional.
+      - A missing value, a repeated option, an unknown option or a wrong positional count is a usage error. It exits 2, and stderr is exactly `kit data: usage: node bin/kit.mjs data "<path>" [--sheet <name>]\n`, in the existing usage style.
+      - Commands without options keep `args.length !== command.args`.
+    - **`data` command.** Usage `node bin/kit.mjs data "<path>" [--sheet <name>]`. It takes one positional and the option `--sheet`, and runs only inside a project; at the template root it gives the existing project hint. `--sheet` with a `.csv` is refused (exit 1): `--sheet applies only to .xlsx files`.
+    - **Path.** A relative path resolves against the files root (`ctx.filesRoot`). The real path must lie inside it and be a regular file. The extension, case-insensitive, must be `.csv`. Refusals, as `image` words them:
+      - `<path>: not found`;
+      - `<path>: is outside <filesRoot>`;
+      - `<path>: is not a regular file`;
+      - `<path>: is not a .csv file`.
+    - **Table name.** Computed in `kit.mjs` from the file stem:
+      - lower case;
+      - each whitespace run becomes `-`;
+      - keep only `a-z`, `0-9`, `-` and `\p{Script=Han}`;
+      - cut to 40 code points.
+
+      An empty result is refused: `<path>: the file name gives an empty table name`.
+
+    - **Reader protocol.** `bin/read_table.py` is standard library only for CSV, needs Python 3.10+, and starts with `# SPDX-License-Identifier: FSL-1.1-Apache-2.0` and the repository's copyright line.
+      - On success it prints the table object as JSON on stdout and exits 0.
+      - On a refusal it prints one line `refusal: <text>` on stderr and exits 1; `kit.mjs` writes `kit data: <text>` to stderr and exits 1.
+      - Any other outcome — a traceback, an exit code other than 0 or 1, a refusal line missing, stdout that is not one JSON table object, or `python3` not found — gives `kit data: the table reader failed: <reason>` and exit 1. The reason is the last stderr line, the exit code, `bad output`, or `python3 not found`.
+      - Nothing is written in any failure case.
+    - **CSV parsing.**
+      - The bytes decode as UTF-8, with an optional BOM. Undecodable bytes are refused: `<file>: is not UTF-8; save it as CSV UTF-8`.
+      - It uses the Python `csv` default dialect.
+      - Each cell is stripped of surrounding whitespace, and an empty cell is `null`.
+      - A fully empty row is skipped.
+    - **Numbers.**
+      - A cell is a number when it fully matches `^-?(0|[1-9][0-9]{0,2}(,[0-9]{3})+|[1-9][0-9]*)(\.[0-9]+)?%?$`. The digits are ASCII only, so leading zeros such as `007` stay text, and so do `1,26` and `12.`.
+      - Its `text` is the cell without thousands commas and without the `%`, keeping trailing zeros: `93.0%` gives `93.0`.
+      - Its `unit` is `%` when the cell ends in `%`, else `""`.
+      - Its `value` is the JSON number of `text` (`-0` gives `0`).
+      - A number with more than 15 significant digits is refused, naming the cell: `row 3, column 销售额: more than 15 significant digits`.
+      - `text` is the exact decimal that task 2.3 computes from; `value` is for display and sorting only.
+    - **Text cells.** Any other non-empty cell is text: `value` `null`, `text` the cell, `unit` `""`.
+    - **Table format** (`version` 1).
+      - `kit.mjs` parses the reader's JSON, checks its shape and writes `<project>/data/<table>.json` through `writeAtomic`.
+      - The bytes are `JSON.stringify(table, null, 2)` plus a final newline, with keys in the order shown and non-ASCII characters written as UTF-8.
+      - The `data/` directory is created when absent. A symlink or non-directory there is refused, as `publicDir` words it: `kit data: <project>/data: is a symlink` or `kit data: <project>/data: is not a directory`.
+
+      ```json
+      {"version": 1,
+       "source": {"file": "<basename>", "sheet": null, "sha256": "<hex of the file bytes>"},
+       "label_header": "<header 1>",
+       "columns": ["<header 2>", …],
+       "rows": [{"label": "<first cell>", "cells": [{"value": 1260, "text": "1260", "unit": ""} | null, …]}]}
+      ```
+
+      `columns` holds the header cells after the first. Each row's `cells` has one entry per column.
+
+    - **Limits and refusals.** Every stderr line below is prefixed with `kit data: `. `<file>` is the source file's basename, as in `source.file`. Rows are 1-based file rows, so a skipped empty row still counts. Columns are named by their header, or by their 1-based number when the header is empty.
+      - `<file>: has no header row`;
+      - `<file>: the header needs a label column and at least one data column`;
+      - `<file>: has 13 columns; the limit is 12` (the label column counts);
+      - `<file>: column 3 has an empty header`;
+      - `<file>: duplicate header 销售额 in columns 2 and 3`;
+      - `<file>: has no data row`;
+      - `<file>: has 51 data rows; the limit is 50`;
+      - `<file>: row 4 has 4 cells; the header has 3`. A shorter row pads with `null`;
+      - `<file>: row 5 has an empty label`;
+      - `<file>: row 5: duplicate label 华东, first in row 2`.
+    - **Output on success.**
+      - stdout line 1 is the table name.
+      - Line 2 is all headers joined by tab, label header first.
+      - Then come up to five rows. Each is the label and each cell's `text` followed by its `unit` (empty for `null`), joined by tab.
+      - stderr says `kit data: wrote data/<table>.json` or `kit data: replaced data/<table>.json`.
+    - **Repository tests outside the template.**
+      - `notice-coverage.test.mjs` accepts `.py` files in `bin/` and checks their `# SPDX-License-Identifier:` line within the first 3 lines.
+      - `tests/test_remotion_image.py` expects 9 commands. Its skill-text check exempts exactly `data`, with a comment that names task 6.2 (#975) as the exit.
+    - **Committed fixtures.** `remotion-template/tests/fixtures/data/q3 销售.csv` is UTF-8 with a BOM. It has the header `地区,销售额,完成率,备注` and 6 data rows, including `1,260`, `93%`, a text cell, an empty cell, a cell with surrounding spaces, and one short row. A fully empty line sits between two data rows. The committed JSON therefore pins the `null` entries, the stripping and the skip. Its expected output is `remotion-template/tests/fixtures/data/q3-销售.json`. Task 2.3 uses this table.
+
+  - Required tests (`remotion-template/tests/kit-data.test.mjs`, directly under `tests/` so the CI glob runs it; red first against `0e432c5`, then green):
+    - **Committed fixture.** It imports to bytes equal to the committed JSON. `label_header` is `地区` with no U+FEFF. stdout line 2 starts with `地区`.
+    - **Naming.**
+      - `q3 销售.csv` gives `q3-销售`;
+      - `Sales  Q3!.csv` gives `sales-q3`;
+      - a 45-code-point stem is cut to 40;
+      - `!!!.csv` is refused with its full stderr line.
+    - **Numbers.**
+      - `1,260` gives 1260 and `1260`;
+      - `93%` gives 93, `93` and `%`;
+      - `-5.50%` gives -5.5, `-5.50` and `%`;
+      - `0.5` gives 0.5;
+      - `1,26`, `12.`, `007` and full-width `１２` are text;
+      - a 16-significant-digit number is refused.
+    - **Refusals.** Each refusal above gives its exact text and exit code and leaves nothing under `data/`. Also covered:
+      - a Latin-1 file;
+      - a path outside the files root;
+      - a symlink escaping it;
+      - an `.xlsx` path;
+      - `--sheet` on a CSV;
+      - `data/` as a symlink;
+      - `data/` as a file.
+    - **Isolation.** A planted `csv.py` in the working directory and next to the input file, and a `PYTHONPATH` pointing at a planted module, are all ignored, and the import still succeeds.
+    - **Reader failures.** A stub reader (a test-only copy of `bin/` whose `read_table.py` misbehaves) that raises, exits 3, or prints non-JSON gives `the table reader failed: …`. A `PATH` without `python3` gives `python3 not found`. In each case nothing is written.
+    - **Limits.** 50 data rows import and 51 are refused. 12 columns import and 13 are refused. A duplicate label in the row after a skipped empty line is refused with the file row number, which counts the empty line.
+    - **Re-import.** It replaces the file, and stderr says `replaced`.
+    - **Option parsing.**
+      - `data` with no path, with two paths, with `--bogus`, with `--sheet` and no value, or with `--sheet` twice is a usage error with the exact stderr;
+      - `data -- "-x.csv"` and `data "-x.csv"` both treat `-x.csv` as the path;
+      - `voice --sheet x` keeps its existing usage error;
+      - `image` with a name starting with `-` behaves as at `e3be359`;
+      - every existing usage line is unchanged.
+    - **Template root.** `data` there is refused with the project hint.
+  - Verification:
+    - `node --test "remotion-template/tests/*.test.mjs"` from the repository root;
+    - `uv run --no-project --with pytest --with-requirements computer-use-server/requirements.txt -- python -m pytest tests/test_remotion_image.py -q --import-mode=importlib`, run locally because no workflow runs it;
+    - `./tests/test-project-structure.sh`.
 
 - [ ] 2.2 `kit data` for xlsx with `openpyxl` (`data_only`):
   - the listed number formats, percent formats and float-leftover rounding;
