@@ -77,7 +77,7 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
 
 ## 2. Data foundations (OCU `remotion-template/bin`)
 
-- [ ] 2.1 `kit data` for CSV, plus the shared option parser:
+- [x] 2.1 `kit data` for CSV, plus the shared option parser:
   - `kit.mjs` gets one small option parser for `--sheet`, and later `--preset`;
   - a reader script in `bin/` writes the pinned table format (design Decision 6): naming, UTF-8 with or without a BOM, number parsing with commas and `%`, the refusals, and replace on re-import.
 
@@ -268,6 +268,127 @@ Minimal mergeable slice: task 2.1. The CSV path, the parser and the table format
   - `registry-approvals`, `theme`, `scenes` and `gallery` tests become per preset.
 
   Verify that the per-preset tests pass with today's approvals unchanged, plus `gallery-approvals.test.mjs` cases for a second preset's theme pick.
+
+  **Task 3.1 required evidence** (issue #962; authoritative where it is more specific than the bullets above):
+  - Triage: feature (the approval gate becomes per preset). Fixture level expanded, as the group declares: it changes the approval gate every kit component passes, a file format and a CLI.
+  - Governing invariant: one preset table is the single source of each preset's approval id form, theme id, required kinds and theme candidates. For each preset, its kinds and its theme pick come only from that preset's approval entries. An entry of one preset never changes another preset's view.
+  - Decision (not settled by the design): one gallery page reviews one preset. Its export gains an optional `preset` field.
+    - A missing field means `explainer`. An explicit `"explainer"` is refused, so each meaning has one encoding.
+    - `version` stays 1, so every committed export and its `export_sha256` stay valid unchanged.
+    - The export's `theme` is that preset's pick.
+  - Risk packs:
+    - Legacy compatibility — selected:
+      - `gallery/approvals.json` and every committed export are byte-unchanged;
+      - every explainer surface is unchanged: the schema kinds, the registry, the committed JSON Schema, `script.json`, the skill kind table, `themes`, `KIT_THEME` and the explainer gallery output;
+      - every existing test passes. A test changes only where it is re-expressed per preset (listed below), and its explainer row keeps each existing assertion.
+    - Schema / file format — selected: the approval id grammar and the export's optional `preset`.
+    - Public CLI — selected: `bin/gallery.mjs` gains `--preset`.
+    - Failure handling — selected: malformed and cross-preset entries are refused at load, in the module's existing message form.
+    - Not selected:
+      - report kinds, report themes and the report catalog content (task 4.2);
+      - `preset` in the script schema (task 3.2). Until then no script can carry `preset`, so every script resolves to `explainer`;
+      - `kit new --preset` (task 4.2);
+      - a per-preset gallery bundle (task 4.2): `entry.tsx` `checkComponents` and `resolveSample`, `components.tsx` and the `registry.ts` id map keep assuming the explainer catalog. A report page cannot render before task 4.2 anyway, because its catalog is empty and `gallery --preset report` is refused;
+      - `scenes.test.mjs` and `gallery.test.mjs` per-preset rows. They become per preset in task 4.2, when a report catalog exists; until then their only preset is the explainer, whose assertions are unchanged.
+  - Consumers (named; each keeps working):
+    - `KIT_THEME`: `check-rules.mjs`, `Root.tsx`, `Explainer.tsx` and `KitFrame.tsx`.
+    - `THEME_NAMES`: `gallery.mjs` `itemsOf` and `probeItems`, `entry.tsx` `resolveSample`, `gallery-page.mjs` (`gallery.themes`) and `registry-approvals.test.mjs`.
+    - `candidates`: `scenes.test.mjs`, `gallery.test.mjs`, `gallery-approvals.test.mjs`, `registry-approvals.test.mjs`, `tests/fixtures/check/fixture.mjs`, `tests/render/scenes.test.mjs` and `unframed-entry.tsx`.
+    - `tests/render/fixtures/explainer/entry.tsx`, which today passes `theme` to `ExplainerComposition` and `ExplainerBody`.
+    - `tests/render/fixtures/gallery/ok/catalog.ts`, which is copied over `catalog.ts`.
+    - The contact sheet and `render-video.mjs`, which select `Explainer` with `{script, timeline}` and so follow the script unchanged.
+  - Shape (OCU repository, `remotion-template/`):
+    - **Preset table.** `src/kit/presets.ts`, importable from `bin/` as `theme.ts` is, holds exactly:
+      - `explainer`: approval ids are bare kinds, theme id `theme`, required kinds `hook`, `summary`, `end-card`, theme candidates `["light"]`;
+      - `report`: approval ids `report:<kind>`, theme id `report:theme`, required kinds `cover`, `summary`, `end-card`, theme candidates `[]`.
+    - **Names kept.**
+      - `candidates` keeps its name and value (the explainer catalog). `catalog.ts` adds `catalogs = {explainer: candidates, report: []}`.
+      - `THEME_NAMES` stays the keys of `themes`.
+      - `isCandidateId` keeps the kind grammar `^[a-z0-9]+(-[a-z0-9]+)*$`.
+      - `gallery-approvals.mjs` validates theme picks against the table's per-preset candidates instead of `THEME_NAMES`.
+    - **Ids.** An approval id is one of:
+      - a theme id of the table;
+      - a bare kind, for the explainer;
+      - `<preset>:<kind>`, for a non-explainer preset of the table.
+
+      Any other id is refused in the module's existing form, `gallery/approvals.json: entries[<n>].id is invalid`, as today's `Quiz` case. A theme entry's decision must be one of its preset's theme candidates, so `report:theme` is refused while the report candidates are empty.
+
+    - **Exports.**
+      - An export's `preset`, when present, must be a non-explainer preset of the table. Two refusals:
+        - `<export path>: preset explainer is implied; omit it`;
+        - `<export path>: unknown preset <x>`.
+      - Each of its `decisions[].id` must be of its preset: bare for the explainer, `report:<kind>` for report. A mismatch is refused: `<export path>: decisions[<n>].id <id> is not of preset <preset>`.
+      - An approvals entry's preset (from its id) must equal its linked export's preset. A mismatch is refused: `gallery/approvals.json: entries[<n>]: preset <a> does not match its export's preset <b>`.
+      - A report page exports `report:<kind>` ids, while catalog ids stay bare kinds.
+    - **`loadApprovals(root, presets = PRESETS)`.**
+      - It returns `{presets: {<preset>: {decisions, theme}}, decisions, theme}`.
+      - `decisions` and `theme` stay the explainer view.
+      - A preset's `decisions` map is keyed by bare kind.
+      - A later entry replaces an earlier one per id, as today.
+    - **Theme selection.**
+      - `themeFor(preset)` lives in `theme.ts`. It returns the theme picked for that preset, which is `KIT_THEME` for the explainer. A preset with no pick throws `no approved theme for preset <preset>`.
+      - `ExplainerComposition` resolves the theme with `themeFor(script.preset ?? "explainer")` inside its component and its `calculateMetadata`, so `src/kit/Root.tsx` and the explainer render fixture's `entry.tsx` stop passing `theme` to it. `ExplainerBody` keeps its `theme` prop.
+      - In `runChecks`, an injected `theme` option still overrides. Otherwise the theme is resolved after stage 1 parses the script, as `theme ?? themeFor(script.preset ?? "explainer")`.
+      - `themes` and `KIT_THEME` keep their exports and values.
+    - **Gallery CLI.**
+      - The usage line becomes `node bin/gallery.mjs --out <dir> [--preset <name>]`, and the two options are accepted in either order.
+      - These are usage errors: exit 2, printing the new `kit gallery: usage: node bin/gallery.mjs --out <dir> [--preset <name>]`:
+        - a missing `--out`;
+        - a repeated option;
+        - `--preset=x` or `--out=x`;
+        - an extra argument.
+      - An unknown preset exits 2: `kit gallery: unknown preset <x>`.
+      - `--preset report` exits 1 with `kit gallery: preset report has no candidates`, and creates neither `--out` nor any sibling.
+      - The gallery writes `preset` into `gallery.json` and the page. The page's export carries `preset` only for a non-explainer preset.
+    - **Gate tests per preset.** `registry-approvals.test.mjs` and the first `theme.test.mjs` test loop over the preset table.
+      - The explainer row keeps every existing assertion.
+      - The report row asserts:
+        - no approved kind and no `report:` id in `approvals.json`;
+        - no report theme;
+        - no report kind in the schema, the registry or the JSON Schema;
+        - `themeFor("report")` throws.
+      - The global assertion `Object.keys(themes)` equals `["light"]` becomes: the kit's theme keys equal the union, over presets, of each preset's pick, or its candidates while it has no pick. Today that is `["light"]`, so task 4.2 can add report candidates without touching the explainer row.
+      - A test asserts that each preset's theme candidates are keys of `themes`.
+
+  - Required tests (red first against `935b721`, then green):
+    - **Loading** (`gallery-approvals.test.mjs`). The fixture is a temporary approvals file and exports, with an injected table whose `report` candidates are `["light"]`. It holds an explainer `summary` approve, an explainer `theme` `light`, a `report:cover` approve and a `report:theme` `light`.
+      - Expected: `presets.report = {decisions: {cover: approve}, theme: light}`, and `presets.report.decisions` has no `summary`.
+      - The explainer view (`presets.explainer`, `decisions`, `theme`) equals what it is without the report entries.
+      - A later `report:cover` `redo` replaces the approve.
+    - **Refusals at load,** each with its exact text and nothing loaded:
+      - unknown ids: `other:cover`, `report:`, `Report:cover`;
+      - `report:theme` under the production table;
+      - an export with `preset: "explainer"`;
+      - an export with an unknown preset;
+      - a report export holding a bare id;
+      - an explainer export holding `report:cover`;
+      - a bare `theme` entry linking a report export.
+    - **Today's file.** The committed `approvals.json` loads to the same explainer `decisions` and `theme` as at `935b721`.
+    - **Theme selection.**
+      - `themeFor("explainer") === KIT_THEME`;
+      - `themeFor("report")` throws its text;
+      - `runChecks` with no `theme` option on a script without `preset` uses the light theme;
+      - an injected `theme` still wins, which keeps `check-rules.test.mjs`'s existing case.
+    - **Gallery CLI** (`gallery.test.mjs`).
+      - The new usage line.
+      - Each usage error, and the unknown preset, with exit codes and texts.
+      - `--preset report` refused, with no directory created.
+      - A stub-catalog page test shows a report page exporting `report:<kind>` ids and `preset: "report"`, and an explainer page exporting neither.
+    - **Gallery output** (`tests/render/gallery.test.mjs`, in the image). `data.preset` is `"explainer"`, and every existing field assertion is unchanged.
+    - **Gate tests.** The per-preset rows pass with today's approvals, and their explainer assertions are the existing ones.
+  - Verification:
+    - `node --test "remotion-template/tests/*.test.mjs"` from the repository root;
+    - `./tests/test-project-structure.sh`;
+    - the render tests, in the workspace image built from the PR's commit, each run with the invocation its file header gives:
+      - most share `node --test --test-concurrency=1` from a project root;
+      - `render.test.mjs` and `music.test.mjs` need their own container flags, and `music.test.mjs` also needs its library bind.
+
+      The PR records the image digest, each file's pass count at `935b721` as the baseline, and each file's count after.
+
+    - What the render tests prove:
+      - With one theme they are regression evidence only. They cannot tell a picked theme from a default.
+      - Because the explainer fixture's `entry.tsx` stops passing `theme`, its accent check exercises `themeFor`.
+      - `check.test.mjs` and `render.test.mjs` prove that the real `Root.tsx` path still renders and probes in light.
 
 - [ ] 3.2 Schema union:
   - the explainer object unchanged;
