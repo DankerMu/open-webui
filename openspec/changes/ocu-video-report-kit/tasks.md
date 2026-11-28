@@ -151,8 +151,8 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
       - Its `text` is the cell without thousands commas and without the `%`, keeping trailing zeros: `93.0%` gives `93.0`.
       - Its `unit` is `%` when the cell ends in `%`, else `""`.
       - Its `value` is the JSON number of `text` (`-0` gives `0`).
-      - A number with more than 15 significant digits is refused, naming the cell: `row 3, column 销售额: more than 15 significant digits`.
-      - `text` is the exact decimal that task 2.3 computes from; `value` is for display and sorting only.
+      - A number with more than 15 significant digits is refused, naming the cell: `<file>: row 3, column 销售额: more than 15 significant digits`.
+      - `text` is the exact decimal that task 2.3 computes from; `value` is for magnitude and sorting only; figures always display from `text`.
     - **Text cells.** Any other non-empty cell is text: `value` `null`, `text` the cell, `unit` `""`.
     - **Table format** (`version` 1).
       - `kit.mjs` parses the reader's JSON, checks its shape and writes `<project>/data/<table>.json` through `writeAtomic`.
@@ -185,7 +185,7 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
       - Line 2 is all headers joined by tab, label header first.
       - Then come up to five rows. Each is the label and each cell's `text` followed by its `unit` (empty for `null`), joined by tab.
       - stderr says `kit data: wrote data/<table>.json` or `kit data: replaced data/<table>.json`.
-    - **Repository tests outside the template.**
+    - **Repository tests outside the template.** The `data` entry in `COMMANDS` stays on one line with `usage:` first, as the pin test's regex reads it.
       - `notice-coverage.test.mjs` accepts `.py` files in `bin/` and checks their `# SPDX-License-Identifier:` line within the first 3 lines.
       - `tests/test_remotion_image.py` expects 9 commands. Its skill-text check exempts exactly `data`, with a comment that names task 6.2 (#975) as the exit.
     - **Committed fixtures.** `remotion-template/tests/fixtures/data/q3 销售.csv` is UTF-8 with a BOM. It has the header `地区,销售额,完成率,备注` and 6 data rows, including `1,260`, `93%`, a text cell, an empty cell, a cell with surrounding spaces, and one short row. A fully empty line sits between two data rows. The committed JSON therefore pins the `null` entries, the stripping and the skip. Its expected output is `remotion-template/tests/fixtures/data/q3-销售.json`. Task 2.3 uses this table.
