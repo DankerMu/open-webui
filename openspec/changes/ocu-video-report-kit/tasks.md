@@ -141,9 +141,11 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
       - On a refusal it prints one line `refusal: <text>` on stderr and exits 1; `kit.mjs` writes `kit data: <text>` to stderr and exits 1.
       - Any other outcome — a traceback, an exit code other than 0 or 1, a refusal line missing, stdout that is not one JSON table object, or `python3` not found — gives `kit data: the table reader failed: <reason>` and exit 1. The reason is the last stderr line, the exit code, `bad output`, or `python3 not found`.
       - Nothing is written in any failure case.
+      - `kit.mjs` kills a reader still running after 60 seconds; this gives `the table reader failed: timed out after 60 seconds`. When the reason is an exit code, it reads `python3 exited with <code>`.
     - **CSV parsing.**
       - The bytes decode as UTF-8, with an optional BOM. Undecodable bytes are refused: `<file>: is not UTF-8; save it as CSV UTF-8`.
-      - It uses the Python `csv` default dialect.
+      - It uses the Python `csv` default dialect with `strict=True`, so an unbalanced quote never swallows the rows after it. Any `csv.Error` is refused, naming the record where parsing stopped: `<file>: row 4: a quoted cell is not closed` for a quote still open at the end of the file, else `<file>: row 4: <csv error text>`. (Amended after the #278 review; the default `strict=False` merged every later row into one cell and imported successfully.)
+      - The reader streams the file. It hashes the bytes as it reads, keeps the header and at most the first 51 data rows, and only counts the rows after them, so its memory does not grow with the file. The row-limit refusal still reports the full count, and a non-UTF-8 byte after row 51 is still refused.
       - Each cell is stripped of surrounding whitespace, and an empty cell is `null`.
       - A fully empty row is skipped.
     - **Numbers.**
@@ -214,6 +216,7 @@ Minimal mergeable slice: task 1.1, the selection rules with their tests. No entr
       - `data/` as a file.
     - **Isolation.** A planted `csv.py` in the working directory and next to the input file, and a `PYTHONPATH` pointing at a planted module, are all ignored, and the import still succeeds.
     - **Reader failures.** A stub reader (a test-only copy of `bin/` whose `read_table.py` misbehaves) that raises, exits 3, or prints non-JSON gives `the table reader failed: …`. A `PATH` without `python3` gives `python3 not found`. In each case nothing is written.
+    - **Malformed and large input.** `a,b\nx,"5 region\ny,2\nz,3\n` is refused with `row 2: a quoted cell is not closed`. Legal quoting still imports: a mid-field `5"`, a quoted cell holding a newline, doubled quotes `"a ""b"" c"` and `"1,260"`. A CRLF file imports to the same table as its LF twin. A file of 200,000 short rows is refused with its full row count, and a Latin-1 byte in row 60 is still refused as not UTF-8. A stub reader that sleeps past a test-shortened timeout gives `timed out` and writes nothing.
     - **Limits.** 50 data rows import and 51 are refused. 12 columns import and 13 are refused. A duplicate label in the row after a skipped empty line is refused with the file row number, which counts the empty line.
     - **Re-import.** It replaces the file, and stderr says `replaced`.
     - **Option parsing.**
